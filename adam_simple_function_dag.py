@@ -1,6 +1,9 @@
+from datetime import datetime
 from airflow import DAG
 from airflow.decorators import task
-from datetime import datetime
+
+DAG_ID = 'adam_simple_function_dag'
+log_file = f'~/.airflow_logs/{DAG_ID}_{datetime.now().strftime("%Y%m%d%H%M%S")}.log'
 
 # ────────────────────────────────────────────────────────────────
 # ① 共享业务函数 —— `function1`
@@ -28,7 +31,7 @@ def stage1(**kw):
     print(f"[stage1] 数据行数 = {count}")
     
     # 写入日志文件
-    with open('/tmp/stage.log', 'a') as f:
+    with open(log_file, 'a') as f:
         f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - [stage1] 数据行数 = {count}\n")
     
     return count
@@ -45,7 +48,7 @@ def stage2(**kw):
     print(f"[stage2] 总和 = {total}")
     
     # 写入日志文件
-    with open('/tmp/stage.log', 'a') as f:
+    with open(log_file, 'a') as f:
         f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - [stage2] 总和 = {total}\n")
     
     return total
@@ -54,7 +57,7 @@ def stage2(**kw):
 # ④ DAG 定义
 # ────────────────────────────────────────────────────────────────
 with DAG(
-    dag_id="adam_simple_function_dag",
+    dag_id=DAG_ID,
     tags=["adam"],
     start_date=datetime(2026, 4, 16, 5, 6),
     schedule_interval="@once",          # 仅运行一次
