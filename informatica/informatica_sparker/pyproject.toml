@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "informatica-sparker"
+version = "2.0.0"
+description = "Framework to convert Informatica PowerCenter XML exports to PySpark code for Databricks. Auto-detects sources (SQL, CSV, Parquet, XML, JSON, text, DAT, files without extensions) and generates complete deployment packages."
+requires-python = ">=3.10"
+license = {text = "MIT"}
+readme = "README.md"
+keywords = ["informatica", "pyspark", "databricks", "etl", "data-engineering", "migration", "powercenter"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Database",
+]
+dependencies = [
+    "lxml>=4.9.0",
+    "pydantic>=2.0.0",
+    "jinja2>=3.1.0",
+    "networkx>=3.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+]
+
+[project.urls]
+Homepage = "https://pypi.org/project/informatica-sparker/"
+
+[project.scripts]
+informatica-sparker = "informatica_sparker.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["informatica_sparker*"]
+
+[tool.setuptools.package-data]
+informatica_sparker = ["templates/**/*.j2"]

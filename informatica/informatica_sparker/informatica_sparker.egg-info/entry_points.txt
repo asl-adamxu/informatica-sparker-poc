@@ -1,0 +1,2 @@
+[console_scripts]
+informatica-sparker = informatica_sparker.cli:main

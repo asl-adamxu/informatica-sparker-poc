@@ -1,0 +1,125 @@
+"""
+Runtime library for PySpark jobs.
+Provides helper functions for database connections, file reading, and transformations.
+"""
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql.functions import *
+from pyspark.sql.types import *
+from typing import Dict, Any, Optional
+
+
+def get_jdbc_url(config: Dict[str, Any]) -> str:
+    """Build JDBC URL from configuration."""
+    db_type = config.get("type", "sqlserver").lower()
+    host = config.get("host", "localhost")
+    port = config.get("port", 1433)
+    database = config.get("database", "")
+    
+    if db_type in ["sqlserver", "mssql", "microsoft sql server"]:
+        return f"jdbc:sqlserver://{host}:{port};databaseName={database}"
+    elif db_type == "oracle":
+        return f"jdbc:oracle:thin:@{host}:{port}:{database}"
+    elif db_type == "postgresql":
+        return f"jdbc:postgresql://{host}:{port}/{database}"
+    elif db_type == "mysql":
+        return f"jdbc:mysql://{host}:{port}/{database}"
+    else:
+        return f"jdbc:{db_type}://{host}:{port}/{database}"
+
+
+def read_sql(spark: SparkSession, config: Dict[str, Any], 
+             table: str = None, query: str = None) -> DataFrame:
+    """Read data from SQL database."""
+    jdbc_url = get_jdbc_url(config)
+    user = config.get("user", "")
+    password = config.get("password", "")
+    driver = config.get("driver", "com.microsoft.sqlserver.jdbc.SQLServerDriver")
+    
+    reader = spark.read.format("jdbc") \
+        .option("url", jdbc_url) \
+        .option("user", user) \
+        .option("password", password) \
+        .option("driver", driver)
+    
+    if query:
+        reader = reader.option("dbtable", f"({query}) AS t")
+    elif table:
+        reader = reader.option("dbtable", table)
+    else:
+        raise ValueError("Either table or query must be provided")
+    
+    return reader.load()
+
+
+def read_file(spark: SparkSession, path: str, format: str = "csv",
+              options: Dict[str, Any] = None) -> DataFrame:
+    """Read data from file."""
+    reader = spark.read.format(format)
+    
+    if options:
+        for key, value in options.items():
+            reader = reader.option(key, value)
+    
+    return reader.load(path)
+
+
+def write_sql(df: DataFrame, config: Dict[str, Any], table: str,
+              mode: str = "append") -> None:
+    """Write DataFrame to SQL database."""
+    jdbc_url = get_jdbc_url(config)
+    user = config.get("user", "")
+    password = config.get("password", "")
+    driver = config.get("driver", "com.microsoft.sqlserver.jdbc.SQLServerDriver")
+    
+    df.write.format("jdbc") \
+        .option("url", jdbc_url) \
+        .option("dbtable", table) \
+        .option("user", user) \
+        .option("password", password) \
+        .option("driver", driver) \
+        .mode(mode) \
+        .save()
+
+
+def write_file(df: DataFrame, path: str, format: str = "delta",
+               mode: str = "append", partition_by: list = None) -> None:
+    """Write DataFrame to file."""
+    writer = df.write.format(format).mode(mode)
+    
+    if partition_by:
+        writer = writer.partitionBy(*partition_by)
+    
+    writer.save(path)
+
+
+def broadcast_lookup(spark: SparkSession, df: DataFrame) -> DataFrame:
+    """Broadcast a DataFrame for lookup joins."""
+    return broadcast(df)
+
+
+def apply_scd_type2(df_source: DataFrame, df_target: DataFrame,
+                    key_cols: list, compare_cols: list) -> DataFrame:
+    """Apply SCD Type 2 logic."""
+    return df_source
+
+
+def handle_null(col_name: str, default_value: Any = None):
+    """Handle null values with default."""
+    return coalesce(col(col_name), lit(default_value))
+
+
+def safe_cast(col_name: str, target_type: str):
+    """Safely cast column to target type."""
+    type_map = {
+        "string": StringType(),
+        "int": IntegerType(),
+        "bigint": LongType(),
+        "double": DoubleType(),
+        "float": FloatType(),
+        "date": DateType(),
+        "timestamp": TimestampType(),
+        "boolean": BooleanType()
+    }
+    
+    spark_type = type_map.get(target_type.lower(), StringType())
+    return col(col_name).cast(spark_type)

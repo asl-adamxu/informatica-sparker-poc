@@ -1,0 +1,226 @@
+======================================================================
+Informatica-Python Conversion Log
+Generated: 2026-06-03 09:19:28
+Folder: PCIS_GMS
+======================================================================
+
+Sources found: 10
+  - DDS_DMNS_GMS_MSD_CODE (Oracle, 14 fields)
+  - DDS_DMNS_GMS_SCORE_GRP (Oracle, 4 fields)
+  - DDS_FACT_GMS_DLY_MSD_SMRY (Oracle, 19 fields)
+  - DPA_FACT_GMS_DLY_MSD_SMRY (Oracle, 19 fields)
+  - DDS_HRCHY_GMS_EST (Oracle, 14 fields)
+  - DDS_FACT_GMS_DLY_DOG_RGSTR (Oracle, 9 fields)
+  - DPA_FACT_GMS_DLY_DOG_RGSTR (Oracle, 9 fields)
+  - DPA_FACT_GMS_DLY_MSD_INCDT (Oracle, 15 fields)
+  - UTL_SESSION_LIST (Flat File, 1 fields, flatfile(delim=,))
+  - UTL_SSA_TBL_LIST (Flat File, 1 fields, flatfile(delim=,))
+
+Targets found: 15
+  - DDS_FACT_GMS_DLY_MSD_SMRY (Oracle, 19 fields)
+  - DDS_FACT_GMS_DLY_DOG_RGSTR (Oracle, 9 fields)
+  - DDS_FACT_GMS_DLY_MSD_INCDT (Oracle, 15 fields)
+  - DDS_DMNS_TIME (Oracle, 16 fields)
+  - DDS_DMNS_EMS_AGE_GRP (Oracle, 4 fields)
+  - DDS_DMNS_GNDR (Oracle, 3 fields)
+  - DDS_DMNS_MSSEM_OFCR_TYPE (Oracle, 3 fields)
+  - DDS_DMNS_GMS_SCORE_GRP (Oracle, 4 fields)
+  - DDS_DMNS_GMS_MSD_CODE (Oracle, 14 fields)
+  - DDS_HRCHY_GMS_EST (Oracle, 14 fields)
+  - DPA_FACT_GMS_DLY_MSD_INCDT (Oracle, 15 fields)
+  - DPA_FACT_GMS_DLY_MSD_SMRY (Oracle, 19 fields)
+  - DPA_FACT_GMS_DLY_DOG_RGSTR (Oracle, 9 fields)
+  - UTL_JOB_PARAM (Flat File, 1 fields, flatfile)
+  - UTL_DEV_NULL (Flat File, 1 fields, flatfile)
+
+Mappings found: 8
+  - M_DDS_APL_FACT_GMS_DLY_MSD_SMRY (valid=YES)
+    Transformations: 4
+      Source Qualifier: 2
+      Update Strategy: 2
+    Connectors: 60
+    Instances: 8
+    Variables: 1
+    Target Load Orders: 2
+  - M_DDS_APL_FACT_GMS_DLY_DOG_RGSTR (valid=YES)
+    Transformations: 4
+      Source Qualifier: 2
+      Update Strategy: 2
+    Connectors: 30
+    Instances: 8
+    Variables: 1
+    Target Load Orders: 2
+  - M_DDS_APL_FACT_GMS_DLY_MSD_INCDT (valid=YES)
+    Transformations: 2
+      Source Qualifier: 1
+      Update Strategy: 1
+    Connectors: 45
+    Instances: 4
+    Variables: 1
+    Target Load Orders: 1
+  - M_DPA_SUM_FACT_GMS_DLY_MSD_INCDT (valid=YES)
+    Transformations: 2
+      Expression: 1
+      Source Qualifier: 1
+    Connectors: 42
+    Instances: 4
+    Variables: 1
+    Target Load Orders: 1
+  - M_DPA_SUM_FACT_GMS_DLY_MSD_SMRY (valid=YES)
+    Transformations: 2
+      Expression: 1
+      Source Qualifier: 1
+    Connectors: 57
+    Instances: 4
+    Variables: 1
+    Target Load Orders: 1
+  - M_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR (valid=YES)
+    Transformations: 2
+      Expression: 1
+      Source Qualifier: 1
+    Connectors: 27
+    Instances: 4
+    Variables: 1
+    Target Load Orders: 1
+  - M_UTL_PARAM_SETUP (valid=YES)
+    Transformations: 4
+      Expression: 2
+      Lookup Procedure: 1
+      Source Qualifier: 1
+    Connectors: 6
+    Instances: 6
+    Variables: 0
+    Target Load Orders: 1
+  - M_UTL_DPA_TRUNCATE (valid=YES)
+    Transformations: 3
+      Expression: 1
+      Source Qualifier: 1
+      Stored Procedure: 1
+    Connectors: 3
+    Instances: 5
+    Variables: 0
+    Target Load Orders: 1
+
+Sessions found: 8
+  - S_DDS_APL_FACT_GMS_DLY_MSD_SMRY (mapping: M_DDS_APL_FACT_GMS_DLY_MSD_SMRY, 2 partitions)
+  - S_DDS_APL_FACT_GMS_DLY_DOG_RGSTR (mapping: M_DDS_APL_FACT_GMS_DLY_DOG_RGSTR, 2 partitions)
+  - S_DDS_APL_FACT_GMS_DLY_MSD_INCDT (mapping: M_DDS_APL_FACT_GMS_DLY_MSD_INCDT, 1 partitions)
+  - S_DPA_SUM_FACT_GMS_DLY_MSD_INCDT (mapping: M_DPA_SUM_FACT_GMS_DLY_MSD_INCDT, 1 partitions)
+  - S_DPA_SUM_FACT_GMS_DLY_MSD_SMRY (mapping: M_DPA_SUM_FACT_GMS_DLY_MSD_SMRY, 1 partitions)
+  - S_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR (mapping: M_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR, 1 partitions)
+  - S_GMS_ETL_PARAM_SETUP (mapping: M_UTL_PARAM_SETUP, 3 partitions)
+  - S_GMS_ETL_DPA_TRUNCATE (mapping: M_UTL_DPA_TRUNCATE, 1 partitions)
+
+Workflows found: 3
+  - WF_GMS_DDS_APLY_DLY (valid=YES)
+    Task Instances: 6
+    Links: 6
+    Variables: 50
+    Scheduler: Scheduler
+  - WL_GMS_DDS_APLY (valid=YES) [WORKLET]
+    Task Instances: 4
+    Links: 3
+    Variables: 45
+  - WL_GMS_DDS_SUM (valid=YES) [WORKLET]
+    Task Instances: 4
+    Links: 3
+    Variables: 45
+
+Tasks found: 2
+  - T_MAIL_FAIL (type=Email)
+  - T_MAIL_SUCCESS (type=Email)
+
+Configs found: 1
+  - default_session_config (39 attributes)
+
+----------------------------------------------------------------------
+WARNINGS AND DETECTIONS
+----------------------------------------------------------------------
+
+[INFO] Mapping 'M_DDS_APL_FACT_GMS_DLY_MSD_SMRY': Source Qualifier 'SQ_DDS_FACT_GMS_DLY_MSD_SMRY' has SQL override
+[INFO] Mapping 'M_DDS_APL_FACT_GMS_DLY_DOG_RGSTR': Source Qualifier 'SQ_DDS_FACT_GMS_DLY_DOG_RGSTR' has SQL override
+[INFO] Mapping 'M_DPA_SUM_FACT_GMS_DLY_MSD_INCDT': Source Qualifier 'SQ_DPA_FACT_GMS_DLY_MSD_INCDT' has SQL override
+[INFO] Mapping 'M_DPA_SUM_FACT_GMS_DLY_MSD_SMRY': Source Qualifier 'SQ_DDS_FACT_GMS_DLY_MSD_SMRY' has SQL override
+[INFO] Mapping 'M_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR': Source Qualifier 'SQ_DPA_FACT_GMS_DLY_DOG_RGSTR' has SQL override
+[INFO] Mapping 'M_UTL_PARAM_SETUP': Lookup 'LKPTRANS' has SQL override
+[WARNING] Mapping 'M_UTL_DPA_TRUNCATE': Transformation 'SP_TRUNCATE' is type 'Stored Procedure' - manual review needed
+[INFO] Source 'UTL_SESSION_LIST': Flat file (delimiter=',', fixed_width=NO)
+[INFO] Source 'UTL_SSA_TBL_LIST': Flat file (delimiter=',', fixed_width=NO)
+[INFO] Target 'UTL_JOB_PARAM': Flat file target
+[INFO] Target 'UTL_DEV_NULL': Flat file target
+[INFO] Session 'S_DDS_APL_FACT_GMS_DLY_MSD_SMRY': Partition '分区编号1' (type=) on 'UPDTRANS'
+[INFO] Session 'S_DDS_APL_FACT_GMS_DLY_MSD_SMRY': Partition '分区编号1' (type=) on 'UPDTRANS1'
+[INFO] Session 'S_DDS_APL_FACT_GMS_DLY_DOG_RGSTR': Partition '分区编号1' (type=) on 'UPDTRANS'
+[INFO] Session 'S_DDS_APL_FACT_GMS_DLY_DOG_RGSTR': Partition '分区编号1' (type=) on 'UPDTRANS1'
+[INFO] Session 'S_DDS_APL_FACT_GMS_DLY_MSD_INCDT': Partition '分区编号1' (type=) on 'UPDTRANS'
+[INFO] Session 'S_DPA_SUM_FACT_GMS_DLY_MSD_INCDT': Partition '分区编号1' (type=) on 'EXPTRANS'
+[INFO] Session 'S_DPA_SUM_FACT_GMS_DLY_MSD_SMRY': Partition '分区编号1' (type=) on 'EXPTRANS'
+[INFO] Session 'S_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR': Partition '分区编号1' (type=) on 'EXPTRANS'
+[INFO] Session 'S_GMS_ETL_PARAM_SETUP': Partition '分区编号1' (type=) on 'EXPTRANS'
+[INFO] Session 'S_GMS_ETL_PARAM_SETUP': Partition '分区编号1' (type=) on 'EXPTRANS1'
+[INFO] Session 'S_GMS_ETL_PARAM_SETUP': Partition '分区编号1' (type=) on 'LKPTRANS'
+[INFO] Session 'S_GMS_ETL_DPA_TRUNCATE': Partition '分区编号1' (type=) on 'EXPTRANS2'
+
+----------------------------------------------------------------------
+UNSUPPORTED TRANSFORMS (Require Manual Review)
+----------------------------------------------------------------------
+
+  Mapping: M_UTL_DPA_TRUNCATE
+    Transform: SP_TRUNCATE (type=Stored Procedure, 1 fields)
+    Skipped attributes: Stored Procedure Name, Connection Information, Stored Procedure Type, Execution Order, Tracing Level, Subsecond Precision, Output is Repeatable, Output is Deterministic
+
+----------------------------------------------------------------------
+UNMAPPED PORTS (Fields with no connectors)
+----------------------------------------------------------------------
+
+  Mapping: M_UTL_PARAM_SETUP
+    LKPTRANS (Lookup Procedure): PRPTY [LOOKUP/OUTPUT]
+    LKPTRANS (Lookup Procedure): PRPTY_DESP [LOOKUP/OUTPUT]
+
+----------------------------------------------------------------------
+UNSUPPORTED EXPRESSION FUNCTIONS
+----------------------------------------------------------------------
+
+  SP_TRUNCATE() — found in 1 field(s):
+    - M_UTL_DPA_TRUNCATE > EXPTRANS2 > OUTPUT
+
+
+----------------------------------------------------------------------
+PARSED XML TAG COVERAGE
+----------------------------------------------------------------------
+
+  ASSOCIATED_SOURCE_INSTANCE: 10
+  CONFIG: 1
+  CONFIGREFERENCE: 8
+  CONNECTOR: 270
+  FLATFILE: 4
+  INSTANCE: 43
+  MAPPING: 8
+  MAPPINGVARIABLE: 6
+  METADATAEXTENSION: 88
+  PARTITION: 12
+  SESSION: 8
+  SESSIONCOMPONENT: 1
+  SESSTRANSFORMATIONINST: 43
+  SOURCE: 10
+  SOURCEFIELD: 105
+  TARGET: 15
+  TARGETFIELD: 146
+  TARGETLOADORDER: 10
+  TASK: 2
+  TASKINSTANCE: 14
+  TRANSFORMATION: 23
+  TRANSFORMFIELD: 189
+  WORKFLOW: 1
+  WORKFLOWLINK: 12
+  WORKFLOWVARIABLE: 140
+  WORKLET: 2
+
+----------------------------------------------------------------------
+CONVERSION SUMMARY
+----------------------------------------------------------------------
+
+Total transformations: 23
+Supported/converted: 22
+Needs manual review: 1
+Conversion coverage: 95.7%

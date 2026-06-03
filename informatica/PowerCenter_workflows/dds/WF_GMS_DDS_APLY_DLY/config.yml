@@ -1,0 +1,2054 @@
+workflow:
+  name: WF_GMS_DDS_APLY_DLY
+  folder: PCIS_GMS
+data_library: pandas
+connections:
+  DDS:
+    type: oracle
+    host: ${DB_HOST}
+    port: 1521
+    database: DDS
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    schema: PDDS
+  DPA:
+    type: oracle
+    host: ${DB_HOST}
+    port: 1521
+    database: DPA
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    schema: PDPA
+  target:
+    type: oracle
+    host: ${DB_HOST}
+    port: 1521
+    database: ${TARGET_DB_NAME}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    schema: dbo
+sources:
+  DDS_DMNS_GMS_MSD_CODE:
+    database_type: Oracle
+    db_name: DDS
+    owner: PDDS
+    fields:
+    - name: MSD_CODE_SCD_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+    - name: MSD_CODE
+      datatype: varchar2
+      precision: 30
+      scale: 0
+      nullable: 'NULL'
+    - name: BGN_DATE
+      datatype: date
+      precision: 19
+      scale: 0
+      nullable: 'NULL'
+    - name: END_DATE
+      datatype: date
+      precision: 19
+      scale: 0
+      nullable: 'NULL'
+    - name: TNT_TYPE_CODE
+      datatype: varchar2
+      precision: 30
+      scale: 0
+      nullable: NOTNULL
+    - name: MSD_SCHM_TYPE_CODE
+      datatype: varchar2
+      precision: 30
+      scale: 0
+      nullable: NOTNULL
+    - name: MSD_CATG_CODE
+      datatype: varchar2
+      precision: 30
+      scale: 0
+      nullable: 'NULL'
+    - name: MSD_CODE_ENG_DESP
+      datatype: varchar2
+      precision: 300
+      scale: 0
+      nullable: 'NULL'
+    - name: MSD_CODE_CHI_DESP
+      datatype: varchar2
+      precision: 200
+      scale: 0
+      nullable: 'NULL'
+    - name: REF_CODE_ENG_DESP
+      datatype: varchar2
+      precision: 200
+      scale: 0
+      nullable: 'NULL'
+    - name: REF_CODE_CHI_DESP
+      datatype: varchar2
+      precision: 200
+      scale: 0
+      nullable: 'NULL'
+    - name: REF_CODE_VAL_TEXT
+      datatype: varchar2
+      precision: 200
+      scale: 0
+      nullable: 'NULL'
+    - name: REF_CODE_GRP_CODE
+      datatype: varchar2
+      precision: 30
+      scale: 0
+      nullable: 'NULL'
+    - name: REF_CODE_SBGRP_CODE
+      datatype: varchar2
+      precision: 30
+      scale: 0
+      nullable: 'NULL'
+  DDS_DMNS_GMS_SCORE_GRP:
+    database_type: Oracle
+    db_name: DDS
+    owner: PDDS
+    fields:
+    - name: SCORE_GRP_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+    - name: SCORE_GRP_CODE
+      datatype: varchar2
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+    - name: SCORE_GRP_DESP
+      datatype: varchar2
+      precision: 100
+      scale: 0
+      nullable: 'NULL'
+    - name: SCORE_GRP_SCHM_CODE
+      datatype: varchar2
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+  DDS_FACT_GMS_DLY_MSD_SMRY:
+    database_type: Oracle
+    db_name: DDS
+    owner: PDDS
+    fields:
+    - name: TIME_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+    - name: EST_SCD_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+    - name: OFCR_TYPE_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+    - name: HSHLD_SIZE_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+    - name: MSD_CODE_SCD_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+    - name: OFNDR_GNDR_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+    - name: OFNDR_AGE_GRP_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+    - name: OFNC_SCORE_GRP_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+    - name: ACTV_OFNC_TNCY_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: CMLT_OFNC_TNCY_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: AFT_CMLT_WRT_WARN_TNCY_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: CMLT_WRT_WARN_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: AFT_CMLT_WRT_WARN_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: ACTV_PNT_ALLT_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: CMLT_PNT_ALLT_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: CMLT_MSD_TOT_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: REC_RLS_IND
+      datatype: varchar2
+      precision: 2
+      scale: 0
+      nullable: 'NULL'
+    - name: LAST_REC_TXN_DATE
+      datatype: date
+      precision: 19
+      scale: 0
+      nullable: 'NULL'
+    - name: LAST_REC_TXN_TYPE_CODE
+      datatype: varchar2
+      precision: 1
+      scale: 0
+      nullable: 'NULL'
+  DPA_FACT_GMS_DLY_MSD_SMRY:
+    database_type: Oracle
+    db_name: DPA
+    owner: PDPA
+    fields:
+    - name: TIME_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+    - name: EST_SCD_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+    - name: OFCR_TYPE_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+    - name: HSHLD_SIZE_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+    - name: MSD_CODE_SCD_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+    - name: OFNDR_GNDR_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+    - name: OFNDR_AGE_GRP_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+    - name: OFNC_SCORE_GRP_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+    - name: ACTV_OFNC_TNCY_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: CMLT_OFNC_TNCY_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: AFT_CMLT_WRT_WARN_TNCY_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: CMLT_WRT_WARN_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: AFT_CMLT_WRT_WARN_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: ACTV_PNT_ALLT_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: CMLT_PNT_ALLT_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: CMLT_MSD_TOT_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: REC_RLS_IND
+      datatype: varchar2
+      precision: 2
+      scale: 0
+      nullable: 'NULL'
+    - name: LAST_REC_TXN_DATE
+      datatype: date
+      precision: 19
+      scale: 0
+      nullable: 'NULL'
+    - name: LAST_REC_TXN_TYPE_CODE
+      datatype: varchar2
+      precision: 1
+      scale: 0
+      nullable: 'NULL'
+  DDS_HRCHY_GMS_EST:
+    database_type: Oracle
+    db_name: DDS
+    owner: PDDS
+    fields:
+    - name: EST_SCD_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+    - name: EST_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+    - name: BGN_DATE
+      datatype: date
+      precision: 19
+      scale: 0
+      nullable: 'NULL'
+    - name: END_DATE
+      datatype: date
+      precision: 19
+      scale: 0
+      nullable: 'NULL'
+    - name: RGN_KEY
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: RGN_CODE
+      datatype: varchar2
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+    - name: RGN_ENG_NAME
+      datatype: varchar2
+      precision: 100
+      scale: 0
+      nullable: 'NULL'
+    - name: MGT_DSTR_KEY
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: MGT_DSTR_CODE
+      datatype: varchar2
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+    - name: MGT_DSTR_ENG_NAME
+      datatype: varchar2
+      precision: 100
+      scale: 0
+      nullable: 'NULL'
+    - name: EST_CODE
+      datatype: varchar2
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: EST_TYPE_CODE
+      datatype: varchar2
+      precision: 3
+      scale: 0
+      nullable: 'NULL'
+    - name: EST_ENG_NAME
+      datatype: varchar2
+      precision: 30
+      scale: 0
+      nullable: 'NULL'
+    - name: EST_CHI_NAME
+      datatype: varchar2
+      precision: 180
+      scale: 0
+      nullable: 'NULL'
+  DDS_FACT_GMS_DLY_DOG_RGSTR:
+    database_type: Oracle
+    db_name: DDS
+    owner: PDDS
+    fields:
+    - name: TIME_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+    - name: EST_SCD_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+    - name: DOG_RGSTR_APRV_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: DOG_RGSTR_APRV_CNCL_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: AUTH_DOG_PNT_ALLT_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: UNAUTH_DOG_PNT_ALLT_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: REC_RLS_IND
+      datatype: varchar2
+      precision: 2
+      scale: 0
+      nullable: 'NULL'
+    - name: LAST_REC_TXN_DATE
+      datatype: date
+      precision: 19
+      scale: 0
+      nullable: 'NULL'
+    - name: LAST_REC_TXN_TYPE_CODE
+      datatype: varchar2
+      precision: 1
+      scale: 0
+      nullable: 'NULL'
+  DPA_FACT_GMS_DLY_DOG_RGSTR:
+    database_type: Oracle
+    db_name: DPA
+    owner: PDPA
+    fields:
+    - name: TIME_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+    - name: EST_SCD_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+    - name: DOG_RGSTR_APRV_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: DOG_RGSTR_APRV_CNCL_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: AUTH_DOG_PNT_ALLT_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: UNAUTH_DOG_PNT_ALLT_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: REC_RLS_IND
+      datatype: varchar2
+      precision: 2
+      scale: 0
+      nullable: 'NULL'
+    - name: LAST_REC_TXN_DATE
+      datatype: date
+      precision: 19
+      scale: 0
+      nullable: 'NULL'
+    - name: LAST_REC_TXN_TYPE_CODE
+      datatype: varchar2
+      precision: 1
+      scale: 0
+      nullable: 'NULL'
+  DPA_FACT_GMS_DLY_MSD_INCDT:
+    database_type: Oracle
+    db_name: DPA
+    owner: PDPA
+    fields:
+    - name: MSD_INCDT_DATE_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+    - name: MSD_CRE_DATE_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+    - name: EST_SCD_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+    - name: OFCR_TYPE_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+    - name: HSHLD_SIZE_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+    - name: MSD_CODE_SCD_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+    - name: OFNDR_GNDR_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+    - name: OFNDR_AGE_GRP_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+    - name: OFNC_SCORE_GRP_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+    - name: AFT_CMLT_WRT_WARN_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: CMLT_PNT_ALLT_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: CMLT_MSD_TOT_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+    - name: REC_RLS_IND
+      datatype: varchar2
+      precision: 2
+      scale: 0
+      nullable: 'NULL'
+    - name: LAST_REC_TXN_DATE
+      datatype: date
+      precision: 19
+      scale: 0
+      nullable: 'NULL'
+    - name: LAST_REC_TXN_TYPE_CODE
+      datatype: varchar2
+      precision: 1
+      scale: 0
+      nullable: 'NULL'
+  UTL_SESSION_LIST:
+    database_type: Flat File
+    db_name: UTL
+    owner: dbo
+    fields:
+    - name: SESSION
+      datatype: string
+      precision: 255
+      scale: 0
+      nullable: NOTNULL
+    file_path: ${INPUT_DIR}/UTL_SESSION_LIST
+    delimiter: ','
+    header: true
+    encoding: utf-8
+  UTL_SSA_TBL_LIST:
+    database_type: Flat File
+    db_name: UTL
+    owner: dbo
+    fields:
+    - name: TABLE
+      datatype: string
+      precision: 255
+      scale: 0
+      nullable: NOTNULL
+    file_path: ${INPUT_DIR}/UTL_SSA_TBL_LIST
+    delimiter: ','
+    header: true
+    encoding: utf-8
+targets:
+  DDS_FACT_GMS_DLY_MSD_SMRY:
+    database_type: Oracle
+    fields:
+    - name: TIME_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+      keytype: PRIMARY/FOREIGN KEY
+    - name: EST_SCD_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+      keytype: PRIMARY/FOREIGN KEY
+    - name: OFCR_TYPE_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+      keytype: PRIMARY/FOREIGN KEY
+    - name: HSHLD_SIZE_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+      keytype: PRIMARY KEY
+    - name: MSD_CODE_SCD_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+      keytype: PRIMARY/FOREIGN KEY
+    - name: OFNDR_GNDR_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+      keytype: PRIMARY/FOREIGN KEY
+    - name: OFNDR_AGE_GRP_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+      keytype: PRIMARY/FOREIGN KEY
+    - name: OFNC_SCORE_GRP_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+      keytype: PRIMARY/FOREIGN KEY
+    - name: ACTV_OFNC_TNCY_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: CMLT_OFNC_TNCY_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: AFT_CMLT_WRT_WARN_TNCY_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: CMLT_WRT_WARN_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: AFT_CMLT_WRT_WARN_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: ACTV_PNT_ALLT_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: CMLT_PNT_ALLT_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: CMLT_MSD_TOT_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: REC_RLS_IND
+      datatype: varchar2
+      precision: 2
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: LAST_REC_TXN_DATE
+      datatype: date
+      precision: 19
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: LAST_REC_TXN_TYPE_CODE
+      datatype: varchar2
+      precision: 1
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+  DDS_FACT_GMS_DLY_DOG_RGSTR:
+    database_type: Oracle
+    fields:
+    - name: TIME_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+      keytype: PRIMARY/FOREIGN KEY
+    - name: EST_SCD_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+      keytype: PRIMARY/FOREIGN KEY
+    - name: DOG_RGSTR_APRV_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: DOG_RGSTR_APRV_CNCL_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: AUTH_DOG_PNT_ALLT_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: UNAUTH_DOG_PNT_ALLT_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: REC_RLS_IND
+      datatype: varchar2
+      precision: 2
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: LAST_REC_TXN_DATE
+      datatype: date
+      precision: 19
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: LAST_REC_TXN_TYPE_CODE
+      datatype: varchar2
+      precision: 1
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+  DDS_FACT_GMS_DLY_MSD_INCDT:
+    database_type: Oracle
+    fields:
+    - name: MSD_INCDT_DATE_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+      keytype: PRIMARY/FOREIGN KEY
+    - name: MSD_CRE_DATE_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+      keytype: PRIMARY/FOREIGN KEY
+    - name: EST_SCD_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+      keytype: PRIMARY/FOREIGN KEY
+    - name: OFCR_TYPE_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+      keytype: PRIMARY/FOREIGN KEY
+    - name: HSHLD_SIZE_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+      keytype: PRIMARY KEY
+    - name: MSD_CODE_SCD_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+      keytype: PRIMARY/FOREIGN KEY
+    - name: OFNDR_GNDR_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+      keytype: PRIMARY/FOREIGN KEY
+    - name: OFNDR_AGE_GRP_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+      keytype: PRIMARY/FOREIGN KEY
+    - name: OFNC_SCORE_GRP_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+      keytype: PRIMARY/FOREIGN KEY
+    - name: AFT_CMLT_WRT_WARN_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: CMLT_PNT_ALLT_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: CMLT_MSD_TOT_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: REC_RLS_IND
+      datatype: varchar2
+      precision: 2
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: LAST_REC_TXN_DATE
+      datatype: date
+      precision: 19
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: LAST_REC_TXN_TYPE_CODE
+      datatype: varchar2
+      precision: 1
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+  DDS_DMNS_TIME:
+    database_type: Oracle
+    fields:
+    - name: TIME_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+      keytype: PRIMARY KEY
+    - name: TIME_VAL_DATE
+      datatype: date
+      precision: 19
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: CLDR_MTH_DAY
+      datatype: number(p,s)
+      precision: 4
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: CLDR_MTH
+      datatype: number(p,s)
+      precision: 4
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: CLDR_MTH_NAME
+      datatype: varchar2
+      precision: 100
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: CLDR_QTR
+      datatype: number(p,s)
+      precision: 4
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: CLDR_YEAR
+      datatype: number(p,s)
+      precision: 4
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: FSCL_MTH
+      datatype: varchar2
+      precision: 20
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: FSCL_MTH_SEQ_NUM
+      datatype: number(p,s)
+      precision: 4
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: FSCL_QTR
+      datatype: varchar2
+      precision: 20
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: FSCL_QTR_SEQ_NUM
+      datatype: number(p,s)
+      precision: 4
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: FSCL_YEAR
+      datatype: varchar2
+      precision: 20
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: FSCL_YEAR_SEQ_NUM
+      datatype: number(p,s)
+      precision: 4
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: CLDR_WKDY_NUM
+      datatype: number(p,s)
+      precision: 4
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: CLDR_HLDY_IND
+      datatype: varchar2
+      precision: 2
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: CLDR_HLDY_NAME
+      datatype: varchar2
+      precision: 100
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+  DDS_DMNS_EMS_AGE_GRP:
+    database_type: Oracle
+    fields:
+    - name: AGE_GRP_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+      keytype: PRIMARY KEY
+    - name: AGE_GRP_CODE
+      datatype: varchar2
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: AGE_GRP_DESP
+      datatype: varchar2
+      precision: 100
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: AGE_GRP_SCHM_CODE
+      datatype: varchar2
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+  DDS_DMNS_GNDR:
+    database_type: Oracle
+    fields:
+    - name: GNDR_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+      keytype: PRIMARY KEY
+    - name: GNDR_CODE
+      datatype: varchar2
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: GNDR_DESP
+      datatype: varchar2
+      precision: 100
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+  DDS_DMNS_MSSEM_OFCR_TYPE:
+    database_type: Oracle
+    fields:
+    - name: OFCR_TYPE_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+      keytype: PRIMARY KEY
+    - name: OFCR_TYPE_CODE
+      datatype: varchar2
+      precision: 3
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: OFCR_TYPE_DESP
+      datatype: varchar2
+      precision: 100
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+  DDS_DMNS_GMS_SCORE_GRP:
+    database_type: Oracle
+    fields:
+    - name: SCORE_GRP_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+      keytype: PRIMARY KEY
+    - name: SCORE_GRP_CODE
+      datatype: varchar2
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: SCORE_GRP_DESP
+      datatype: varchar2
+      precision: 100
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: SCORE_GRP_SCHM_CODE
+      datatype: varchar2
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+  DDS_DMNS_GMS_MSD_CODE:
+    database_type: Oracle
+    fields:
+    - name: MSD_CODE_SCD_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+      keytype: PRIMARY KEY
+    - name: MSD_CODE
+      datatype: varchar2
+      precision: 30
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: BGN_DATE
+      datatype: date
+      precision: 19
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: END_DATE
+      datatype: date
+      precision: 19
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: TNT_TYPE_CODE
+      datatype: varchar2
+      precision: 30
+      scale: 0
+      nullable: NOTNULL
+      keytype: NOT A KEY
+    - name: MSD_SCHM_TYPE_CODE
+      datatype: varchar2
+      precision: 30
+      scale: 0
+      nullable: NOTNULL
+      keytype: NOT A KEY
+    - name: MSD_CATG_CODE
+      datatype: varchar2
+      precision: 30
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: MSD_CODE_ENG_DESP
+      datatype: varchar2
+      precision: 300
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: MSD_CODE_CHI_DESP
+      datatype: varchar2
+      precision: 200
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: REF_CODE_ENG_DESP
+      datatype: varchar2
+      precision: 200
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: REF_CODE_CHI_DESP
+      datatype: varchar2
+      precision: 200
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: REF_CODE_VAL_TEXT
+      datatype: varchar2
+      precision: 200
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: REF_CODE_GRP_CODE
+      datatype: varchar2
+      precision: 30
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: REF_CODE_SBGRP_CODE
+      datatype: varchar2
+      precision: 30
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+  DDS_HRCHY_GMS_EST:
+    database_type: Oracle
+    fields:
+    - name: EST_SCD_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: NOTNULL
+      keytype: PRIMARY KEY
+    - name: EST_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: BGN_DATE
+      datatype: date
+      precision: 19
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: END_DATE
+      datatype: date
+      precision: 19
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: RGN_KEY
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: RGN_CODE
+      datatype: varchar2
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: RGN_ENG_NAME
+      datatype: varchar2
+      precision: 100
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: MGT_DSTR_KEY
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: MGT_DSTR_CODE
+      datatype: varchar2
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: MGT_DSTR_ENG_NAME
+      datatype: varchar2
+      precision: 100
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: EST_CODE
+      datatype: varchar2
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: EST_TYPE_CODE
+      datatype: varchar2
+      precision: 3
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: EST_ENG_NAME
+      datatype: varchar2
+      precision: 30
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: EST_CHI_NAME
+      datatype: varchar2
+      precision: 180
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+  DPA_FACT_GMS_DLY_MSD_INCDT:
+    database_type: Oracle
+    fields:
+    - name: MSD_INCDT_DATE_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: MSD_CRE_DATE_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: EST_SCD_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: OFCR_TYPE_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: HSHLD_SIZE_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: MSD_CODE_SCD_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: OFNDR_GNDR_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: OFNDR_AGE_GRP_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: OFNC_SCORE_GRP_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: AFT_CMLT_WRT_WARN_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: CMLT_PNT_ALLT_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: CMLT_MSD_TOT_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: REC_RLS_IND
+      datatype: varchar2
+      precision: 2
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: LAST_REC_TXN_DATE
+      datatype: date
+      precision: 19
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: LAST_REC_TXN_TYPE_CODE
+      datatype: varchar2
+      precision: 1
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+  DPA_FACT_GMS_DLY_MSD_SMRY:
+    database_type: Oracle
+    fields:
+    - name: TIME_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: EST_SCD_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: OFCR_TYPE_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: HSHLD_SIZE_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: MSD_CODE_SCD_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: OFNDR_GNDR_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: OFNDR_AGE_GRP_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: OFNC_SCORE_GRP_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: ACTV_OFNC_TNCY_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: CMLT_OFNC_TNCY_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: AFT_CMLT_WRT_WARN_TNCY_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: CMLT_WRT_WARN_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: AFT_CMLT_WRT_WARN_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: ACTV_PNT_ALLT_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: CMLT_PNT_ALLT_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: CMLT_MSD_TOT_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: REC_RLS_IND
+      datatype: varchar2
+      precision: 2
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: LAST_REC_TXN_DATE
+      datatype: date
+      precision: 19
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: LAST_REC_TXN_TYPE_CODE
+      datatype: varchar2
+      precision: 1
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+  DPA_FACT_GMS_DLY_DOG_RGSTR:
+    database_type: Oracle
+    fields:
+    - name: TIME_DMNS_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: EST_SCD_KEY
+      datatype: number(p,s)
+      precision: 10
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: DOG_RGSTR_APRV_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: DOG_RGSTR_APRV_CNCL_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: AUTH_DOG_PNT_ALLT_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: UNAUTH_DOG_PNT_ALLT_CASE_CNT
+      datatype: number(p,s)
+      precision: 8
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: REC_RLS_IND
+      datatype: varchar2
+      precision: 2
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: LAST_REC_TXN_DATE
+      datatype: date
+      precision: 19
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    - name: LAST_REC_TXN_TYPE_CODE
+      datatype: varchar2
+      precision: 1
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+  UTL_JOB_PARAM:
+    database_type: Flat File
+    fields:
+    - name: LINE
+      datatype: string
+      precision: 255
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    file_path: ${OUTPUT_DIR}/UTL_JOB_PARAM
+  UTL_DEV_NULL:
+    database_type: Flat File
+    fields:
+    - name: LINE
+      datatype: string
+      precision: 255
+      scale: 0
+      nullable: 'NULL'
+      keytype: NOT A KEY
+    file_path: ${OUTPUT_DIR}/UTL_DEV_NULL
+variables:
+  v_snsh_date:
+    datatype: string
+    default_value: ''
+    is_persistent: 'NO'
+  $WL_GMS_DDS_APLY.StartTime:
+    datatype: date/time
+    default_value: ''
+    is_persistent: 'NO'
+  $WL_GMS_DDS_APLY.EndTime:
+    datatype: date/time
+    default_value: ''
+    is_persistent: 'NO'
+  $WL_GMS_DDS_APLY.Status:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $WL_GMS_DDS_APLY.PrevTaskStatus:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $WL_GMS_DDS_APLY.ErrorCode:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $WL_GMS_DDS_APLY.ErrorMsg:
+    datatype: string
+    default_value: ''
+    is_persistent: 'NO'
+  $T_MAIL_SUCCESS.StartTime:
+    datatype: date/time
+    default_value: ''
+    is_persistent: 'NO'
+  $T_MAIL_SUCCESS.EndTime:
+    datatype: date/time
+    default_value: ''
+    is_persistent: 'NO'
+  $T_MAIL_SUCCESS.Status:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $T_MAIL_SUCCESS.PrevTaskStatus:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $T_MAIL_SUCCESS.ErrorCode:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $T_MAIL_SUCCESS.ErrorMsg:
+    datatype: string
+    default_value: ''
+    is_persistent: 'NO'
+  $WL_GMS_DDS_SUM.StartTime:
+    datatype: date/time
+    default_value: ''
+    is_persistent: 'NO'
+  $WL_GMS_DDS_SUM.EndTime:
+    datatype: date/time
+    default_value: ''
+    is_persistent: 'NO'
+  $WL_GMS_DDS_SUM.Status:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $WL_GMS_DDS_SUM.PrevTaskStatus:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $WL_GMS_DDS_SUM.ErrorCode:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $WL_GMS_DDS_SUM.ErrorMsg:
+    datatype: string
+    default_value: ''
+    is_persistent: 'NO'
+  $S_GMS_ETL_PARAM_SETUP.StartTime:
+    datatype: date/time
+    default_value: ''
+    is_persistent: 'NO'
+  $S_GMS_ETL_PARAM_SETUP.EndTime:
+    datatype: date/time
+    default_value: ''
+    is_persistent: 'NO'
+  $S_GMS_ETL_PARAM_SETUP.Status:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_GMS_ETL_PARAM_SETUP.PrevTaskStatus:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_GMS_ETL_PARAM_SETUP.ErrorCode:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_GMS_ETL_PARAM_SETUP.ErrorMsg:
+    datatype: string
+    default_value: ''
+    is_persistent: 'NO'
+  $S_GMS_ETL_PARAM_SETUP.SrcSuccessRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_GMS_ETL_PARAM_SETUP.SrcFailedRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_GMS_ETL_PARAM_SETUP.TgtSuccessRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_GMS_ETL_PARAM_SETUP.TgtFailedRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_GMS_ETL_PARAM_SETUP.TotalTransErrors:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_GMS_ETL_PARAM_SETUP.FirstErrorCode:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_GMS_ETL_PARAM_SETUP.FirstErrorMsg:
+    datatype: string
+    default_value: ''
+    is_persistent: 'NO'
+  $Start.StartTime:
+    datatype: date/time
+    default_value: ''
+    is_persistent: 'NO'
+  $Start.EndTime:
+    datatype: date/time
+    default_value: ''
+    is_persistent: 'NO'
+  $Start.Status:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $Start.PrevTaskStatus:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $Start.ErrorCode:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $Start.ErrorMsg:
+    datatype: string
+    default_value: ''
+    is_persistent: 'NO'
+  $S_GMS_ETL_DPA_TRUNCATE.StartTime:
+    datatype: date/time
+    default_value: ''
+    is_persistent: 'NO'
+  $S_GMS_ETL_DPA_TRUNCATE.EndTime:
+    datatype: date/time
+    default_value: ''
+    is_persistent: 'NO'
+  $S_GMS_ETL_DPA_TRUNCATE.Status:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_GMS_ETL_DPA_TRUNCATE.PrevTaskStatus:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_GMS_ETL_DPA_TRUNCATE.ErrorCode:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_GMS_ETL_DPA_TRUNCATE.ErrorMsg:
+    datatype: string
+    default_value: ''
+    is_persistent: 'NO'
+  $S_GMS_ETL_DPA_TRUNCATE.SrcSuccessRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_GMS_ETL_DPA_TRUNCATE.SrcFailedRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_GMS_ETL_DPA_TRUNCATE.TgtSuccessRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_GMS_ETL_DPA_TRUNCATE.TgtFailedRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_GMS_ETL_DPA_TRUNCATE.TotalTransErrors:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_GMS_ETL_DPA_TRUNCATE.FirstErrorCode:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_GMS_ETL_DPA_TRUNCATE.FirstErrorMsg:
+    datatype: string
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_MSD_INCDT.StartTime:
+    datatype: date/time
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_MSD_INCDT.EndTime:
+    datatype: date/time
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_MSD_INCDT.Status:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_MSD_INCDT.PrevTaskStatus:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_MSD_INCDT.ErrorCode:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_MSD_INCDT.ErrorMsg:
+    datatype: string
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_MSD_INCDT.SrcSuccessRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_MSD_INCDT.SrcFailedRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_MSD_INCDT.TgtSuccessRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_MSD_INCDT.TgtFailedRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_MSD_INCDT.TotalTransErrors:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_MSD_INCDT.FirstErrorCode:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_MSD_INCDT.FirstErrorMsg:
+    datatype: string
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_MSD_SMRY.StartTime:
+    datatype: date/time
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_MSD_SMRY.EndTime:
+    datatype: date/time
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_MSD_SMRY.Status:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_MSD_SMRY.PrevTaskStatus:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_MSD_SMRY.ErrorCode:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_MSD_SMRY.ErrorMsg:
+    datatype: string
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_MSD_SMRY.SrcSuccessRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_MSD_SMRY.SrcFailedRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_MSD_SMRY.TgtSuccessRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_MSD_SMRY.TgtFailedRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_MSD_SMRY.TotalTransErrors:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_MSD_SMRY.FirstErrorCode:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_MSD_SMRY.FirstErrorMsg:
+    datatype: string
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_DOG_RGSTR.StartTime:
+    datatype: date/time
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_DOG_RGSTR.EndTime:
+    datatype: date/time
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_DOG_RGSTR.Status:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_DOG_RGSTR.PrevTaskStatus:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_DOG_RGSTR.ErrorCode:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_DOG_RGSTR.ErrorMsg:
+    datatype: string
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_DOG_RGSTR.SrcSuccessRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_DOG_RGSTR.SrcFailedRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_DOG_RGSTR.TgtSuccessRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_DOG_RGSTR.TgtFailedRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_DOG_RGSTR.TotalTransErrors:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_DOG_RGSTR.FirstErrorCode:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DDS_APL_FACT_GMS_DLY_DOG_RGSTR.FirstErrorMsg:
+    datatype: string
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_MSD_INCDT.StartTime:
+    datatype: date/time
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_MSD_INCDT.EndTime:
+    datatype: date/time
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_MSD_INCDT.Status:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_MSD_INCDT.PrevTaskStatus:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_MSD_INCDT.ErrorCode:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_MSD_INCDT.ErrorMsg:
+    datatype: string
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_MSD_INCDT.SrcSuccessRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_MSD_INCDT.SrcFailedRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_MSD_INCDT.TgtSuccessRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_MSD_INCDT.TgtFailedRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_MSD_INCDT.TotalTransErrors:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_MSD_INCDT.FirstErrorCode:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_MSD_INCDT.FirstErrorMsg:
+    datatype: string
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_MSD_SMRY.StartTime:
+    datatype: date/time
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_MSD_SMRY.EndTime:
+    datatype: date/time
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_MSD_SMRY.Status:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_MSD_SMRY.PrevTaskStatus:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_MSD_SMRY.ErrorCode:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_MSD_SMRY.ErrorMsg:
+    datatype: string
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_MSD_SMRY.SrcSuccessRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_MSD_SMRY.SrcFailedRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_MSD_SMRY.TgtSuccessRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_MSD_SMRY.TgtFailedRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_MSD_SMRY.TotalTransErrors:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_MSD_SMRY.FirstErrorCode:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_MSD_SMRY.FirstErrorMsg:
+    datatype: string
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR.StartTime:
+    datatype: date/time
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR.EndTime:
+    datatype: date/time
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR.Status:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR.PrevTaskStatus:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR.ErrorCode:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR.ErrorMsg:
+    datatype: string
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR.SrcSuccessRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR.SrcFailedRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR.TgtSuccessRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR.TgtFailedRows:
+    datatype: bigint
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR.TotalTransErrors:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR.FirstErrorCode:
+    datatype: integer
+    default_value: ''
+    is_persistent: 'NO'
+  $S_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR.FirstErrorMsg:
+    datatype: string
+    default_value: ''
+    is_persistent: 'NO'
