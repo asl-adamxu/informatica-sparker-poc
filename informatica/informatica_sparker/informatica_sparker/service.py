@@ -62,6 +62,11 @@ class ConversionService:
             try:
                 handlers = TransformHandlers(mapping, self.user_config, self.logger)
                 ir_plan = handlers.build_ir_plan()
+                # Set source/target DB type on plan
+                if self.user_config.source_db_type:
+                    ir_plan.source_db_type = self.user_config.source_db_type
+                if self.user_config.target_db_type:
+                    ir_plan.target_db_type = self.user_config.target_db_type
                 ir_plans.append(ir_plan)
 
                 self.codegen.reset()
@@ -89,6 +94,11 @@ class ConversionService:
                     errors=[ReportItem(severity="error", message=str(e))]
                 )
                 all_reports.append(report)
+
+        # Generate runtime_lib.py (shared library)
+        runtime_lib_file = self._generate_runtime_lib()
+        if runtime_lib_file:
+            all_files.append(runtime_lib_file)
 
         workflow_file = self._generate_workflow_file(
             mapping_names, workflow_analysis, parser.folder_name
@@ -359,11 +369,12 @@ class ConversionService:
         lines.append('logger = logging.getLogger(__name__)')
         lines.append('')
         lines.append('def run_workflow():')
+        lines.append('    config = load_config("config.yml")')
         lines.append('    results = {}')
         for m in mappings_info:
             lines.append(f'    logger.info("Running mapping: {m["name"]}")')
             lines.append(f'    try:')
-            lines.append(f'        run_{m["safe_name"]}()')
+            lines.append(f'        run_{m["safe_name"]}(config)')
             lines.append(f'        results["{m["name"]}"] = "SUCCESS"')
             lines.append(f'    except Exception as e:')
             lines.append(f'        logger.error(f"Failed: {m["name"]} - {{e}}")')
@@ -378,12 +389,84 @@ class ConversionService:
                                mappings, source_detections: List[SourceDetectionResult],
                                folder_name: str) -> Optional[GeneratedFile]:
         try:
+            # Collect database connections from source definitions
+            db_connections = {}
+            tables = {}
+            mapping_variables = {}
+            seen_db_names = set()
+
+            for mapping in mappings:
+                # Collect source tables and their connections
+                for src in getattr(mapping, 'sources', []):
+                    db_name = src.db_name or "default"
+                    raw_type = src.database_type or "Oracle"
+                    from .models import normalize_db_type, get_jdbc_driver, get_default_port
+                    std_type = normalize_db_type(raw_type)
+                    
+                    if db_name not in seen_db_names:
+                        seen_db_names.add(db_name)
+                        db_connections[db_name] = {
+                            "type": std_type,
+                            "port": get_default_port(raw_type),
+                            "database": db_name,
+                            "schema": src.owner_name or "dbo",
+                            "driver": get_jdbc_driver(raw_type),
+                        }
+                    
+                    tables[src.name] = {
+                        "connection": db_name,
+                        "database": db_name,
+                        "schema": src.owner_name or "dbo",
+                        "type": "source",
+                    }
+
+                # Collect target tables
+                for tgt in getattr(mapping, 'targets', []):
+                    if tgt.name not in tables:
+                        tables[tgt.name] = {
+                            "connection": "target",
+                            "database": "",
+                            "schema": "dbo",
+                            "type": "target",
+                        }
+
+                # Collect mapping variables
+                for var in getattr(mapping, 'mapping_variables', []):
+                    var_name = var.name.replace("$$", "")
+                    if var_name not in mapping_variables:
+                        mapping_variables[var_name] = {
+                            "datatype": var.datatype or "string",
+                            "default_value": var.default_value or "",
+                        }
+
+            # Also collect from source_detections to ensure full coverage
+            for sd in source_detections:
+                if sd.connection_info and sd.connection_info.database_name:
+                    db_name = sd.connection_info.database_name
+                    if db_name not in seen_db_names:
+                        seen_db_names.add(db_name)
+                        raw_type = sd.connection_info.database_type or "oracle"
+                        from .models import normalize_db_type, get_jdbc_driver, get_default_port
+                        std_type = normalize_db_type(raw_type)
+                        db_connections[db_name] = {
+                            "type": std_type,
+                            "port": get_default_port(raw_type),
+                            "database": db_name,
+                            "schema": sd.connection_info.schema_name or "dbo",
+                            "driver": get_jdbc_driver(raw_type),
+                        }
+
             template = self.codegen.env.get_template("config.yml.j2")
             content = template.render(
                 mapping_name=folder_name or mapping_names[0] if mapping_names else "default",
+                db_connections=db_connections,
+                tables=tables,
+                mapping_variables=mapping_variables,
                 user_config=self.user_config,
             )
-        except Exception:
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
             content = self._generate_config_fallback(
                 mapping_names, mappings, source_detections, folder_name
             )
@@ -406,28 +489,110 @@ class ConversionService:
             '  master: "${SPARK_MASTER:local[*]}"',
             "",
             "connections:",
-            '  CDM_PRE_LANDING:',
-            '    db_type: "sqlserver"',
-            '    host: "${MSSQL_HOST}"',
-            '    database: "msscdm_dev"',
-            '    user: "${MSSQL_USER}"',
-            '    password: "${MSSQL_PASSWORD}"',
-            '    driver: "com.microsoft.sqlserver.jdbc.SQLServerDriver"',
-            "",
-            "sources:",
         ]
+
+        # Collect unique database connections from source detections
+        seen_conns = set()
+        for sd in source_detections:
+            if sd.connection_info and sd.connection_info.database_name:
+                db_name = sd.connection_info.database_name
+                if db_name not in seen_conns:
+                    seen_conns.add(db_name)
+                    db_type = (sd.connection_info.database_type or "oracle").lower()
+                    db_type_short = "sqlserver" if "sql server" in db_type else db_type
+                    port = 1521 if "oracle" in db_type else 1433
+                    driver = "oracle.jdbc.driver.OracleDriver" if "oracle" in db_type else "com.microsoft.sqlserver.jdbc.SQLServerDriver"
+                    schema = sd.connection_info.schema_name or "dbo"
+                    
+                    lines.append(f"  {db_name}:")
+                    lines.append(f'    type: "{db_type_short}"')
+                    lines.append(f'    host: "${{DB_HOST}}"')
+                    lines.append(f'    port: {port}')
+                    lines.append(f'    database: "{db_name}"')
+                    lines.append(f'    username: "${{DB_USER}}"')
+                    lines.append(f'    password: "${{DB_PASSWORD}}"')
+                    lines.append(f'    schema: "{schema}"')
+                    lines.append(f'    driver: "{driver}"')
+                    lines.append("")
+
+        # If no connections found from detections, use the mappings' sources
+        if not seen_conns:
+            for mapping in mappings:
+                for src in mapping.sources:
+                    db_name = src.db_name or "default"
+                    if db_name not in seen_conns:
+                        seen_conns.add(db_name)
+                        db_type = (src.database_type or "oracle").lower()
+                        db_type_short = "sqlserver" if "sql server" in db_type else ("oracle" if "oracle" in db_type else db_type)
+                        port = 1521 if "oracle" in db_type else 1433
+                        driver = "oracle.jdbc.driver.OracleDriver" if "oracle" in db_type else "com.microsoft.sqlserver.jdbc.SQLServerDriver"
+                        schema = src.owner_name or "dbo"
+                        
+                        lines.append(f"  {db_name}:")
+                        lines.append(f'    type: "{db_type_short}"')
+                        lines.append(f'    host: "${{DB_HOST}}"')
+                        lines.append(f'    port: {port}')
+                        lines.append(f'    database: "{db_name}"')
+                        lines.append(f'    username: "${{DB_USER}}"')
+                        lines.append(f'    password: "${{DB_PASSWORD}}"')
+                        lines.append(f'    schema: "{schema}"')
+                        lines.append(f'    driver: "{driver}"')
+                        lines.append("")
+                
+                for tgt in mapping.targets:
+                    if tgt.database_type and tgt.database_type != "Flat File":
+                        lines.append(f"  target:")
+                        lines.append(f'    type: "oracle"')
+                        lines.append(f'    host: "${{DB_HOST}}"')
+                        lines.append(f'    port: 1521')
+                        lines.append(f'    database: "${{TARGET_DB_NAME}}"')
+                        lines.append(f'    username: "${{DB_USER}}"')
+                        lines.append(f'    password: "${{DB_PASSWORD}}"')
+                        lines.append(f'    schema: "{tgt.name}"')
+                        lines.append(f'    driver: "oracle.jdbc.driver.OracleDriver"')
+                        lines.append("")
+                        break
+
+        # Default connection if nothing found
+        if not seen_conns:
+            lines.append("  default:")
+            lines.append('    type: "oracle"')
+            lines.append('    host: "${DB_HOST}"')
+            lines.append('    port: 1521')
+            lines.append('    database: "${DB_NAME}"')
+            lines.append('    username: "${DB_USER}"')
+            lines.append('    password: "${DB_PASSWORD}"')
+            lines.append("")
+
+        lines.append("sources:")
         for sd in source_detections:
             lines.append(f"  {sd.source_name}:")
             lines.append(f'    type: "{sd.detected_type.value}"')
             if sd.file_format:
                 lines.append(f'    format: "{sd.file_format.value}"')
-            if sd.connection_info and sd.connection_info.database_name:
-                lines.append(f'    database: "{sd.connection_info.database_name}"')
+            if sd.connection_info:
+                if sd.connection_info.database_name:
+                    lines.append(f'    database: "{sd.connection_info.database_name}"')
+                if sd.connection_info.schema_name:
+                    lines.append(f'    schema: "{sd.connection_info.schema_name}"')
         lines.append("")
         lines.append("mappings:")
         for name in mapping_names:
             lines.append(f"  - {name}")
         return '\n'.join(lines) + '\n'
+
+    def _generate_runtime_lib(self) -> Optional[GeneratedFile]:
+        """Generate the shared runtime library file."""
+        try:
+            template = self.codegen.env.get_template("runtime_lib.py.j2")
+            content = template.render()
+        except Exception:
+            return None
+        return GeneratedFile(
+            filename="runtime_lib.py",
+            content=content,
+            file_type="python",
+        )
 
     def _generate_sql_file(self, queries: List[SQLQueryInfo]) -> GeneratedFile:
         lines = [

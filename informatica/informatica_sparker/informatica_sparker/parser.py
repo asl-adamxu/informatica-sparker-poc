@@ -188,6 +188,7 @@ class InfaXMLParser:
         target = TargetDefinition(
             name=target_elem.get("NAME", ""),
             database_type=target_elem.get("DATABASETYPE", ""),
+            db_name=target_elem.get("DBDNAME", ""),
             table_options=target_elem.get("TABLEOPTIONS", "")
         )
 

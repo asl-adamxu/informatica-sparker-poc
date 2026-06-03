@@ -19,59 +19,60 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 def run_workflow():
+    config = load_config("config.yml")
     results = {}
     logger.info("Running mapping: M_DDS_APL_FACT_GMS_DLY_MSD_SMRY")
     try:
-        run_m_dds_apl_fact_gms_dly_msd_smry()
+        run_m_dds_apl_fact_gms_dly_msd_smry(config)
         results["M_DDS_APL_FACT_GMS_DLY_MSD_SMRY"] = "SUCCESS"
     except Exception as e:
         logger.error(f"Failed: M_DDS_APL_FACT_GMS_DLY_MSD_SMRY - {e}")
         results["M_DDS_APL_FACT_GMS_DLY_MSD_SMRY"] = f"FAILED: {e}"
     logger.info("Running mapping: M_DDS_APL_FACT_GMS_DLY_DOG_RGSTR")
     try:
-        run_m_dds_apl_fact_gms_dly_dog_rgstr()
+        run_m_dds_apl_fact_gms_dly_dog_rgstr(config)
         results["M_DDS_APL_FACT_GMS_DLY_DOG_RGSTR"] = "SUCCESS"
     except Exception as e:
         logger.error(f"Failed: M_DDS_APL_FACT_GMS_DLY_DOG_RGSTR - {e}")
         results["M_DDS_APL_FACT_GMS_DLY_DOG_RGSTR"] = f"FAILED: {e}"
     logger.info("Running mapping: M_DDS_APL_FACT_GMS_DLY_MSD_INCDT")
     try:
-        run_m_dds_apl_fact_gms_dly_msd_incdt()
+        run_m_dds_apl_fact_gms_dly_msd_incdt(config)
         results["M_DDS_APL_FACT_GMS_DLY_MSD_INCDT"] = "SUCCESS"
     except Exception as e:
         logger.error(f"Failed: M_DDS_APL_FACT_GMS_DLY_MSD_INCDT - {e}")
         results["M_DDS_APL_FACT_GMS_DLY_MSD_INCDT"] = f"FAILED: {e}"
     logger.info("Running mapping: M_DPA_SUM_FACT_GMS_DLY_MSD_INCDT")
     try:
-        run_m_dpa_sum_fact_gms_dly_msd_incdt()
+        run_m_dpa_sum_fact_gms_dly_msd_incdt(config)
         results["M_DPA_SUM_FACT_GMS_DLY_MSD_INCDT"] = "SUCCESS"
     except Exception as e:
         logger.error(f"Failed: M_DPA_SUM_FACT_GMS_DLY_MSD_INCDT - {e}")
         results["M_DPA_SUM_FACT_GMS_DLY_MSD_INCDT"] = f"FAILED: {e}"
     logger.info("Running mapping: M_DPA_SUM_FACT_GMS_DLY_MSD_SMRY")
     try:
-        run_m_dpa_sum_fact_gms_dly_msd_smry()
+        run_m_dpa_sum_fact_gms_dly_msd_smry(config)
         results["M_DPA_SUM_FACT_GMS_DLY_MSD_SMRY"] = "SUCCESS"
     except Exception as e:
         logger.error(f"Failed: M_DPA_SUM_FACT_GMS_DLY_MSD_SMRY - {e}")
         results["M_DPA_SUM_FACT_GMS_DLY_MSD_SMRY"] = f"FAILED: {e}"
     logger.info("Running mapping: M_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR")
     try:
-        run_m_dpa_sum_fact_gms_dly_dog_rgstr()
+        run_m_dpa_sum_fact_gms_dly_dog_rgstr(config)
         results["M_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR"] = "SUCCESS"
     except Exception as e:
         logger.error(f"Failed: M_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR - {e}")
         results["M_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR"] = f"FAILED: {e}"
     logger.info("Running mapping: M_UTL_PARAM_SETUP")
     try:
-        run_m_utl_param_setup()
+        run_m_utl_param_setup(config)
         results["M_UTL_PARAM_SETUP"] = "SUCCESS"
     except Exception as e:
         logger.error(f"Failed: M_UTL_PARAM_SETUP - {e}")
         results["M_UTL_PARAM_SETUP"] = f"FAILED: {e}"
     logger.info("Running mapping: M_UTL_DPA_TRUNCATE")
     try:
-        run_m_utl_dpa_truncate()
+        run_m_utl_dpa_truncate(config)
         results["M_UTL_DPA_TRUNCATE"] = "SUCCESS"
     except Exception as e:
         logger.error(f"Failed: M_UTL_DPA_TRUNCATE - {e}")

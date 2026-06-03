@@ -1,6 +1,6 @@
 ================================================================================
 INFORMATICA-SPARKER CONVERSION LOG
-Generated: 2026-06-03 11:03:19
+Generated: 2026-06-03 15:47:35
 ================================================================================
 
 SUMMARY
@@ -8,7 +8,7 @@ SUMMARY
 Total Mappings: 8
 Successful: 8
 Failed: 0
-Total Warnings: 11
+Total Warnings: 1
 Total Errors: 0
 
 SOURCE DETECTION RESULTS
@@ -449,64 +449,37 @@ SOURCE DETECTION RESULTS
 MAPPING: M_DDS_APL_FACT_GMS_DLY_MSD_SMRY
   Status: SUCCESS
   Generated Files: m_dds_apl_fact_gms_dly_msd_smry.py
-  Warnings (2):
-    [WARN] No connection alias found for DDS_FACT_GMS_DLY_MSD_SMRY, using 'target_db'
-    [WARN] No connection alias found for DDS_FACT_GMS_DLY_MSD_SMRY, using 'target_db'
 
 MAPPING: M_DDS_APL_FACT_GMS_DLY_DOG_RGSTR
   Status: SUCCESS
   Generated Files: m_dds_apl_fact_gms_dly_dog_rgstr.py
-  Warnings (2):
-    [WARN] No connection alias found for DDS_FACT_GMS_DLY_DOG_RGSTR, using 'target_db'
-    [WARN] No connection alias found for DDS_FACT_GMS_DLY_DOG_RGSTR, using 'target_db'
 
 MAPPING: M_DDS_APL_FACT_GMS_DLY_MSD_INCDT
   Status: SUCCESS
   Generated Files: m_dds_apl_fact_gms_dly_msd_incdt.py
-  Warnings (1):
-    [WARN] No connection alias found for DDS_FACT_GMS_DLY_MSD_INCDT, using 'target_db'
 
 MAPPING: M_DPA_SUM_FACT_GMS_DLY_MSD_INCDT
   Status: SUCCESS
   Generated Files: m_dpa_sum_fact_gms_dly_msd_incdt.py
-  Warnings (1):
-    [WARN] No connection alias found for DPA_FACT_GMS_DLY_MSD_INCDT, using 'target_db'
 
 MAPPING: M_DPA_SUM_FACT_GMS_DLY_MSD_SMRY
   Status: SUCCESS
   Generated Files: m_dpa_sum_fact_gms_dly_msd_smry.py
-  Warnings (1):
-    [WARN] No connection alias found for DPA_FACT_GMS_DLY_MSD_SMRY, using 'target_db'
 
 MAPPING: M_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR
   Status: SUCCESS
   Generated Files: m_dpa_sum_fact_gms_dly_dog_rgstr.py
-  Warnings (1):
-    [WARN] No connection alias found for DPA_FACT_GMS_DLY_DOG_RGSTR, using 'target_db'
 
 MAPPING: M_UTL_PARAM_SETUP
   Status: SUCCESS
   Generated Files: m_utl_param_setup.py
-  Warnings (1):
-    [WARN] No connection alias found for UTL_JOB_PARAM, using 'target_db'
 
 MAPPING: M_UTL_DPA_TRUNCATE
   Status: SUCCESS
   Generated Files: m_utl_dpa_truncate.py
-  Warnings (2):
+  Warnings (1):
     [WARN] Unsupported transformation type: Stored Procedure (SP_TRUNCATE)
-    [WARN] No connection alias found for UTL_DEV_NULL, using 'target_db'
 
 ALL WARNINGS
 ----------------------------------------
-  [WARN] No connection alias found for DDS_FACT_GMS_DLY_MSD_SMRY, using 'target_db'
-  [WARN] No connection alias found for DDS_FACT_GMS_DLY_MSD_SMRY, using 'target_db'
-  [WARN] No connection alias found for DDS_FACT_GMS_DLY_DOG_RGSTR, using 'target_db'
-  [WARN] No connection alias found for DDS_FACT_GMS_DLY_DOG_RGSTR, using 'target_db'
-  [WARN] No connection alias found for DDS_FACT_GMS_DLY_MSD_INCDT, using 'target_db'
-  [WARN] No connection alias found for DPA_FACT_GMS_DLY_MSD_INCDT, using 'target_db'
-  [WARN] No connection alias found for DPA_FACT_GMS_DLY_MSD_SMRY, using 'target_db'
-  [WARN] No connection alias found for DPA_FACT_GMS_DLY_DOG_RGSTR, using 'target_db'
-  [WARN] No connection alias found for UTL_JOB_PARAM, using 'target_db'
   [WARN] Unsupported transformation type: Stored Procedure (SP_TRUNCATE)
-  [WARN] No connection alias found for UTL_DEV_NULL, using 'target_db'

@@ -10,19 +10,15 @@ environment:
   log_level: ${LOG_LEVEL:INFO}
   
 # =============================================================================
-# SPARK CONFIGURATION (Matching Reference Code Settings)
+# SPARK CONFIGURATION
 # =============================================================================
 spark:
   app_name: "PCIS_GMS"
   master: ${SPARK_MASTER:local[*]}
   config:
     spark.ui.port: "4040"
-    spark.driver.extraClassPath: "${MSSQL_DRIVER_JAR:/opt/drivers/mssql-jdbc-12.4.2.jre11.jar}"
-    spark.executor.extraClassPath: "${MSSQL_DRIVER_JAR:/opt/drivers/mssql-jdbc-12.4.2.jre11.jar}"
     spark.driver.memory: "16g"
     spark.executor.memory: "16g"
-    spark.memory.offHeap.enabled: "true"
-    spark.memory.offHeap.size: "16g"
     spark.sql.shuffle.partitions: "50"
     spark.default.parallelism: "50"
     spark.sql.debug.maxToStringFields: "100"
@@ -32,76 +28,39 @@ spark:
     spark.memory.storageFraction: "0.3"
     spark.dynamicAllocation.enabled: "true"
     spark.shuffle.service.enabled: "true"
-    spark.sql.extensions: "io.delta.sql.DeltaSparkSessionExtension"
-    spark.sql.catalog.spark_catalog: "org.apache.spark.sql.delta.catalog.DeltaCatalog"
     spark.sql.adaptive.enabled: "true"
-    spark.databricks.delta.optimizeWrite.enabled: "true"
-    spark.databricks.delta.autoCompact.enabled: "true"
 
 # =============================================================================
-# DATABASE CONNECTIONS (All MSSQL)
-# Connection to Database Mapping (Priority: Connection Name > XML Database Name)
-# CDM_PRE_LANDING     -> msscdm_dev
-# CDM_PRE_LANDING_INV -> msscdm_inv
-# CDM_LANDING         -> cmx_ors_10_3
-# CDM_LANDING_INV     -> cmx_ors_inv
-# TARGET (Fixed)      -> msscdm_dev3
+# DATABASE CONNECTIONS (Auto-detected from XML)
 # =============================================================================
 connections:
-  # Pre-Landing Source Connection (MSSQL)
-  CDM_PRE_LANDING:
-    db_type: "sqlserver"
-    jdbc_url: "jdbc:sqlserver://${MSSQL_HOST};databaseName=msscdm_dev;user=${MSSQL_USER};password=${MSSQL_PASSWORD};trustServerCertificate=true;encrypt=false"
-    host: "${MSSQL_HOST}"
-    database: "msscdm_dev"
-    user: "${MSSQL_USER}"
-    password: "${MSSQL_PASSWORD}"
+  DDS:
+    type: "oracle"
+    host: "${DB_HOST}"
+    port: 1521
+    database: "DDS"
+    username: "${DB_USER}"
+    password: "${DB_PASSWORD}"
+    schema: "PDDS"
+    driver: "oracle.jdbc.driver.OracleDriver"
+  DPA:
+    type: "oracle"
+    host: "${DB_HOST}"
+    port: 1521
+    database: "DPA"
+    username: "${DB_USER}"
+    password: "${DB_PASSWORD}"
+    schema: "PDPA"
+    driver: "oracle.jdbc.driver.OracleDriver"
+  UTL:
+    type: "flatfile"
+    host: "${DB_HOST}"
+    port: 1433
+    database: "UTL"
+    username: "${DB_USER}"
+    password: "${DB_PASSWORD}"
+    schema: "dbo"
     driver: "com.microsoft.sqlserver.jdbc.SQLServerDriver"
-    driver_jar: "${MSSQL_DRIVER_JAR:/opt/drivers/mssql-jdbc-12.4.2.jre11.jar}"
-  
-  # Pre-Landing Inventory Connection (MSSQL)
-  CDM_PRE_LANDING_INV:
-    db_type: "sqlserver"
-    jdbc_url: "jdbc:sqlserver://${MSSQL_HOST};databaseName=msscdm_inv;user=${MSSQL_USER};password=${MSSQL_PASSWORD};trustServerCertificate=true;encrypt=false"
-    host: "${MSSQL_HOST}"
-    database: "msscdm_inv"
-    user: "${MSSQL_USER}"
-    password: "${MSSQL_PASSWORD}"
-    driver: "com.microsoft.sqlserver.jdbc.SQLServerDriver"
-    driver_jar: "${MSSQL_DRIVER_JAR:/opt/drivers/mssql-jdbc-12.4.2.jre11.jar}"
-  
-  # Landing Source Connection (MSSQL)
-  CDM_LANDING:
-    db_type: "sqlserver"
-    jdbc_url: "jdbc:sqlserver://${MSSQL_HOST};databaseName=cmx_ors_10_3;user=${MSSQL_USER};password=${MSSQL_PASSWORD};trustServerCertificate=true;encrypt=false"
-    host: "${MSSQL_HOST}"
-    database: "cmx_ors_10_3"
-    user: "${MSSQL_USER}"
-    password: "${MSSQL_PASSWORD}"
-    driver: "com.microsoft.sqlserver.jdbc.SQLServerDriver"
-    driver_jar: "${MSSQL_DRIVER_JAR:/opt/drivers/mssql-jdbc-12.4.2.jre11.jar}"
-  
-  # Landing Inventory Source Connection (MSSQL)
-  CDM_LANDING_INV:
-    db_type: "sqlserver"
-    jdbc_url: "jdbc:sqlserver://${MSSQL_HOST};databaseName=cmx_ors_inv;user=${MSSQL_USER};password=${MSSQL_PASSWORD};trustServerCertificate=true;encrypt=false"
-    host: "${MSSQL_HOST}"
-    database: "cmx_ors_inv"
-    user: "${MSSQL_USER}"
-    password: "${MSSQL_PASSWORD}"
-    driver: "com.microsoft.sqlserver.jdbc.SQLServerDriver"
-    driver_jar: "${MSSQL_DRIVER_JAR:/opt/drivers/mssql-jdbc-12.4.2.jre11.jar}"
-  
-  # Fixed Target Connection (MSSQL) - Always msscdm_dev3
-  TARGET:
-    db_type: "sqlserver"
-    jdbc_url: "jdbc:sqlserver://${MSSQL_HOST};databaseName=msscdm_dev3;user=${MSSQL_USER};password=${MSSQL_PASSWORD};trustServerCertificate=true;encrypt=false"
-    host: "${MSSQL_HOST}"
-    database: "msscdm_dev3"
-    user: "${MSSQL_USER}"
-    password: "${MSSQL_PASSWORD}"
-    driver: "com.microsoft.sqlserver.jdbc.SQLServerDriver"
-    driver_jar: "${MSSQL_DRIVER_JAR:/opt/drivers/mssql-jdbc-12.4.2.jre11.jar}"
 
 # =============================================================================
 # FILE PATHS
@@ -109,50 +68,98 @@ connections:
 paths:
   input_base: "${INPUT_PATH:/data/input}"
   output_base: "${OUTPUT_PATH:/data/output}"
-  checkpoint: "${CHECKPOINT_PATH:/data/checkpoints}"
   staging: "${STAGING_PATH:/data/staging}"
   archive: "${ARCHIVE_PATH:/data/archive}"
 
-# Cloud storage configuration
-cloud_storage:
-  provider: "${CLOUD_PROVIDER:azure}"  # azure, aws, gcp
-  container: "${STORAGE_CONTAINER}"
-  account: "${STORAGE_ACCOUNT}"
+# =============================================================================
+# SOURCE/TARGET TABLE DEFINITIONS
+# =============================================================================
+tables:
+  DDS_DMNS_GMS_MSD_CODE:
+    connection: "DDS"
+    database: "DDS"
+    schema: "PDDS"
+    type: "source"    DDS_DMNS_GMS_SCORE_GRP:
+    connection: "DDS"
+    database: "DDS"
+    schema: "PDDS"
+    type: "source"    DDS_FACT_GMS_DLY_MSD_SMRY:
+    connection: "DDS"
+    database: "DDS"
+    schema: "PDDS"
+    type: "source"    DPA_FACT_GMS_DLY_MSD_SMRY:
+    connection: "DPA"
+    database: "DPA"
+    schema: "PDPA"
+    type: "source"    DDS_HRCHY_GMS_EST:
+    connection: "DDS"
+    database: "DDS"
+    schema: "PDDS"
+    type: "source"    DDS_FACT_GMS_DLY_DOG_RGSTR:
+    connection: "DDS"
+    database: "DDS"
+    schema: "PDDS"
+    type: "source"    DPA_FACT_GMS_DLY_DOG_RGSTR:
+    connection: "DPA"
+    database: "DPA"
+    schema: "PDPA"
+    type: "source"    DPA_FACT_GMS_DLY_MSD_INCDT:
+    connection: "DPA"
+    database: "DPA"
+    schema: "PDPA"
+    type: "source"    UTL_SESSION_LIST:
+    connection: "UTL"
+    database: "UTL"
+    schema: "dbo"
+    type: "source"    UTL_SSA_TBL_LIST:
+    connection: "UTL"
+    database: "UTL"
+    schema: "dbo"
+    type: "source"    DDS_FACT_GMS_DLY_MSD_INCDT:
+    connection: "target"
+    database: ""
+    schema: "dbo"
+    type: "target"    DDS_DMNS_TIME:
+    connection: "target"
+    database: ""
+    schema: "dbo"
+    type: "target"    DDS_DMNS_EMS_AGE_GRP:
+    connection: "target"
+    database: ""
+    schema: "dbo"
+    type: "target"    DDS_DMNS_GNDR:
+    connection: "target"
+    database: ""
+    schema: "dbo"
+    type: "target"    DDS_DMNS_MSSEM_OFCR_TYPE:
+    connection: "target"
+    database: ""
+    schema: "dbo"
+    type: "target"    UTL_JOB_PARAM:
+    connection: "target"
+    database: ""
+    schema: "dbo"
+    type: "target"    UTL_DEV_NULL:
+    connection: "target"
+    database: ""
+    schema: "dbo"
+    type: "target"  
+# =============================================================================
+# MAPPING VARIABLES
+# =============================================================================
+variables:
+  v_snsh_date:
+    datatype: "string"
+    default_value: ""
 
 # =============================================================================
-# SOURCE CONFIGURATION
-# =============================================================================
-sources:
-  # Sources will be configured based on mapping analysis
-  default_source:
-    type: "SQL"
-    connection: "source_db"
-
-# =============================================================================
-# TARGET CONFIGURATION
-# =============================================================================
-targets:
-  # Targets will be configured based on mapping analysis
-  default_target:
-    format: "delta"
-    mode: "append"
-    path: "${OUTPUT_PATH}/default_output"
-
-# =============================================================================
-# CONVERSION OPTIONS / FEATURE FLAGS
+# CONVERSION OPTIONS
 # =============================================================================
 options:
   use_delta_format: true
   broadcast_lookups: true
-  generate_tests: false
   enable_schema_evolution: true
   enable_metrics: true
-  
-# Data quality settings
-data_quality:
-  enable_validation: true
-  null_handling: "coalesce"  # coalesce, filter, error
-  type_mismatch: "cast"      # cast, error, skip
 
 # =============================================================================
 # MAPPING-SPECIFIC RULES

@@ -1,5 +1,6 @@
 README.md
 pyproject.toml
+setup.cfg
 informatica_sparker/__init__.py
 informatica_sparker/analyzer.py
 informatica_sparker/cli.py
@@ -33,3 +34,5 @@ informatica_sparker/templates/lib/expressions.py.j2
 informatica_sparker/templates/lib/io.py.j2
 informatica_sparker/templates/lib/logging.py.j2
 informatica_sparker/templates/lib/spark.py.j2
+informatica_sparker/utils/__init__.py
+informatica_sparker/utils/sql_dialect.py

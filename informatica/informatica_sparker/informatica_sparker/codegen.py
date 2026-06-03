@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Dict, List, Any
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from .ir import IRPlan, IRStep, IRStepType
-from .models import UserConfig, GeneratedFile, GenerationResult, CONNECTION_TO_DATABASE_MAP, resolve_database_name
+from .models import UserConfig, GeneratedFile, GenerationResult
 
 
 class CodeGenerator:
@@ -33,6 +33,14 @@ class CodeGenerator:
 
         return files
 
+    def _get_db_type_from_plan(self, plan: IRPlan) -> str:
+        """Extract database type from plan steps."""
+        for step in plan.steps:
+            db_type = step.params.get("db_type", "")
+            if db_type:
+                return db_type
+        return "oracle"
+
     def reset(self):
         pass
 
@@ -45,12 +53,39 @@ class CodeGenerator:
     def _generate_mapping(self, plan: IRPlan, user_config: UserConfig) -> str:
         try:
             template = self.env.get_template("mapping.py.j2")
+            
+            # Get database types from plan
+            source_db_type = self._get_db_type_from_plan(plan)
+            target_db_type = plan.target_db_type or source_db_type
+            
+            # Extract mapping variables
+            mapping_vars = {}
+            for step in plan.steps:
+                for v in step.params.get("mapping_variables", []):
+                    mapping_vars[v] = ""
+            
+            # Determine connection names from plan
+            source_conn_name = "source"
+            target_conn_name = "target"
+            for step in plan.steps:
+                conn_alias = step.params.get("connection_alias", "")
+                if conn_alias:
+                    if step.step_type in (IRStepType.READ_SQL, IRStepType.APPLY_SOURCE_QUALIFIER):
+                        source_conn_name = conn_alias
+                    elif step.step_type == IRStepType.WRITE_TARGET:
+                        target_conn_name = conn_alias
+            
             return template.render(
                 mapping_name=plan.mapping_name,
                 steps=plan.steps,
                 lookup_dfs=plan.lookup_dfs,
                 user_config=user_config,
-                IRStepType=IRStepType
+                IRStepType=IRStepType,
+                source_db_type=source_db_type,
+                target_db_type=target_db_type,
+                source_conn_name=source_conn_name,
+                target_conn_name=target_conn_name,
+                mapping_variables=mapping_vars
             )
         except Exception as e:
             import traceback
@@ -288,19 +323,21 @@ finally:
         if step.step_type == IRStepType.READ_SQL:
             table = step.params.get("table_name", "")
             query = step.params.get("query", "")
+            conn_name = step.params.get("connection_alias", "source")
+            db_type = step.params.get("db_type", "oracle")
             is_lookup = step.params.get("is_lookup", False)
-            read_func = "read_mssql_lkp_query" if is_lookup else "read_mssql_query"
-
+            
             lines.append(f'# Reading Data From Source - {step.step_name or table}')
             lines.append(f'# Description : {"Lookup" if is_lookup else "Relational Reader"}')
+            lines.append(f'# Connection : {conn_name} ({db_type})')
             lines.append('')
 
             if query:
-                lines.append(f'{step.df_output} = {read_func}("""')
+                lines.append(f'{step.df_output} = read_sql(spark, {conn_name}_conn, query="""')
                 lines.append(f'{query.strip()}')
                 lines.append(f'""")')
             else:
-                lines.append(f'{step.df_output} = {read_func}("""SELECT * FROM {table}""")')
+                lines.append(f'{step.df_output} = read_sql(spark, {conn_name}_conn, table="{table}")')
 
             lines.append(f'print("Data Count {step.df_output}:", {step.df_output}.count())')
 
@@ -850,13 +887,9 @@ finally:
         lines.append('connections:')
 
         for conn_name, conn_config in user_config.db_connections.items():
-            resolved_db = resolve_database_name(conn_name, conn_config.get("database", ""))
             lines.append(f'  {conn_name}:')
             for key, value in conn_config.items():
-                if key == "database":
-                    lines.append(f'    {key}: "{resolved_db}"')
-                else:
-                    lines.append(f'    {key}: "{value}"')
+                lines.append(f'    {key}: "{value}"')
 
         if not user_config.db_connections:
             lines.append('  CDM_PRE_LANDING:')

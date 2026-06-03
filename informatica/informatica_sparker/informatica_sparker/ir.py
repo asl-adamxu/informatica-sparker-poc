@@ -40,7 +40,8 @@ class ReadSQLStep(IRStep):
 
     def __init__(self, step_name: str, df_output: str,
                  connection_alias: str, table_name: str = "",
-                 query: str = "", is_lookup: bool = False, **kwargs):
+                 query: str = "", is_lookup: bool = False,
+                 db_type: str = "oracle", **kwargs):
         super().__init__(
             step_name=step_name,
             df_output=df_output,
@@ -48,7 +49,8 @@ class ReadSQLStep(IRStep):
                 "connection_alias": connection_alias,
                 "table_name": table_name,
                 "query": query,
-                "is_lookup": is_lookup
+                "is_lookup": is_lookup,
+                "db_type": db_type
             },
             **kwargs
         )
@@ -373,6 +375,8 @@ class IRPlan(BaseModel):
     errors: List[str] = Field(default_factory=list)
     pre_sql: List[str] = Field(default_factory=list)
     post_sql: List[str] = Field(default_factory=list)
+    source_db_type: str = "oracle"
+    target_db_type: str = "spark"
 
     def add_step(self, step: IRStep):
         self.steps.append(step)

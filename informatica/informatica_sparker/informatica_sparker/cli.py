@@ -16,6 +16,10 @@ def main():
     convert_parser.add_argument("xml_file", help="Path to Informatica XML file")
     convert_parser.add_argument("-o", "--output", default="output", help="Output directory (default: output)")
     convert_parser.add_argument("-c", "--config", help="Path to user config YAML file")
+    convert_parser.add_argument("--source-db", default="",
+                              help="Override source database type (oracle, sqlserver, postgresql). Default: auto-detect from XML")
+    convert_parser.add_argument("--target-db", default="",
+                              help="Target database type for SQL translation (spark, oracle, sqlserver). Default: spark")
 
     analyze_parser = subparsers.add_parser("analyze", help="Analyze XML and show mapping details")
     analyze_parser.add_argument("xml_file", help="Path to Informatica XML file")
@@ -40,6 +44,10 @@ def _run_convert(args):
     user_config = UserConfig()
     if args.config:
         user_config = _load_user_config(args.config)
+    if args.source_db:
+        user_config.source_db_type = args.source_db
+    if args.target_db:
+        user_config.target_db_type = args.target_db
 
     service = ConversionService(user_config=user_config)
 

@@ -3,27 +3,68 @@ from typing import Optional, List, Dict, Any
 from enum import Enum
 
 
-CONNECTION_TO_DATABASE_MAP = {
-    "CDM_PRE_LANDING": "msscdm_dev",
-    "CDM_PRE_LANDING_INV": "msscdm_inv",
-    "CDM_LANDING": "cmx_ors_10_3",
-    "CDM_LANDING_INV": "cmx_ors_inv",
+# Database type constants (derived from XML metadata, not hardcoded)
+DB_TYPE_MAP = {
+    "Microsoft SQL Server": "sqlserver",
+    "Oracle": "oracle",
+    "Sybase": "sybase",
+    "Informix": "informix",
+    "DB2": "db2",
+    "Teradata": "teradata",
+    "ODBC": "odbc",
+    "PostgreSQL": "postgresql",
+    "MySQL": "mysql",
+    "Flat File": "flatfile",
+    "": "unknown",
 }
 
-KNOWN_DATABASES = ["msscdm_dev", "msscdm_inv", "cmx_ors_10_3", "cmx_ors_inv"]
+DB_PORT_MAP = {
+    "sqlserver": 1433,
+    "oracle": 1521,
+    "postgresql": 5432,
+    "mysql": 3306,
+    "db2": 50000,
+    "teradata": 1025,
+    "informix": 9088,
+    "sybase": 5000,
+}
 
 
-def resolve_database_name(connection_name: str, xml_db_name: str = "") -> str:
-    if not connection_name:
-        return xml_db_name or ""
+def normalize_db_type(raw_type: str) -> str:
+    """Normalize database type string from XML to standard form."""
+    if not raw_type:
+        return "unknown"
+    raw_lower = raw_type.lower().strip()
+    # Direct match
+    for xml_type, std_type in DB_TYPE_MAP.items():
+        if xml_type.lower() == raw_lower:
+            return std_type
+    # Partial match
+    for xml_type, std_type in DB_TYPE_MAP.items():
+        if xml_type.lower() in raw_lower or raw_lower in xml_type.lower():
+            return std_type
+    return raw_lower
 
-    conn_upper = connection_name.upper().strip()
 
-    for known_conn, db_name in CONNECTION_TO_DATABASE_MAP.items():
-        if known_conn.upper() in conn_upper or conn_upper in known_conn.upper():
-            return db_name
+def get_default_port(db_type: str) -> int:
+    """Get default port for a database type."""
+    std_type = normalize_db_type(db_type)
+    return DB_PORT_MAP.get(std_type, 1433)
 
-    return xml_db_name or connection_name
+
+def get_jdbc_driver(db_type: str) -> str:
+    """Get JDBC driver class for a database type."""
+    drivers = {
+        "sqlserver": "com.microsoft.sqlserver.jdbc.SQLServerDriver",
+        "oracle": "oracle.jdbc.driver.OracleDriver",
+        "postgresql": "org.postgresql.Driver",
+        "mysql": "com.mysql.cj.jdbc.Driver",
+        "db2": "com.ibm.db2.jcc.DB2Driver",
+        "teradata": "com.teradata.jdbc.TeraDriver",
+        "informix": "com.informix.jdbc.IfxDriver",
+        "sybase": "com.sybase.jdbc4.jdbc.SybDriver",
+    }
+    return drivers.get(std_type := normalize_db_type(db_type), "com.microsoft.sqlserver.jdbc.SQLServerDriver")
 
 
 class SourceType(str, Enum):
@@ -118,6 +159,7 @@ class TargetField(BaseModel):
 class TargetDefinition(BaseModel):
     name: str
     database_type: str = ""
+    db_name: str = ""
     table_options: str = ""
     fields: List[TargetField] = Field(default_factory=list)
 
@@ -298,6 +340,8 @@ class UserConfig(BaseModel):
     db_connections: Dict[str, Dict[str, str]] = Field(default_factory=dict)
     connection_mappings: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
     options: Dict[str, Any] = Field(default_factory=dict)
+    source_db_type: str = ""  # Override source database type (oracle, sqlserver, etc.)
+    target_db_type: str = ""  # Override target database type (spark, oracle, etc.)
 
 
 class GeneratedFile(BaseModel):

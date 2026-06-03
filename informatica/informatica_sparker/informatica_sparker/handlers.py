@@ -3,7 +3,7 @@ from typing import Dict, List, Optional, Any
 from .models import (
     MappingDefinition, Transformation, Instance, Connector,
     SourceDefinition, TargetDefinition, UserConfig, SourceConfig, TargetConfig,
-    resolve_database_name, CONNECTION_TO_DATABASE_MAP
+    normalize_db_type
 )
 from .ir import (
     IRPlan, IRStep, ReadSQLStep, ReadFileStep, ApplySourceQualifierStep,
@@ -340,15 +340,17 @@ class TransformHandlers:
 
         source_config = self._get_source_config(source.name)
 
-        from .models import SourceType
+        from .models import SourceType, normalize_db_type
         if source.source_type == SourceType.SQL:
             conn_alias = (source_config.connection_alias if source_config and source_config.connection_alias
                          else source.db_name or "default_conn")
+            db_type = normalize_db_type(source.database_type)
             return ReadSQLStep(
                 step_name=f"read_{instance.name}",
                 df_output=df_name,
                 connection_alias=conn_alias,
-                table_name=source.name
+                table_name=source.name,
+                db_type=db_type
             )
         else:
             file_format = source_config.file_format.value if source_config and source_config.file_format else "csv"
@@ -421,7 +423,25 @@ class TransformHandlers:
                 else:
                     conn_alias = source_conn
 
+        # Determine source database type for potential SQL translation
+        source_db_type = "oracle"
+        if source_inputs:
+            raw_type = source_inputs[0].get("database_type", "")
+            if raw_type:
+                from .models import normalize_db_type
+                source_db_type = normalize_db_type(raw_type)
+        
         if use_sql_pushdown:
+            # Only translate SQL if source and target DB types differ
+            target_db_type = getattr(self.user_config, 'target_db_type', 'spark')
+            sql_translated = False
+            if source_db_type != target_db_type and target_db_type != 'oracle':
+                from .utils.sql_dialect import translate_sql
+                translated_sql = translate_sql(final_sql, source_dialect=source_db_type, target_dialect=target_db_type)
+                if translated_sql != final_sql:
+                    sql_translated = True
+                final_sql = translated_sql
+            
             step = ApplySourceQualifierStep(
                 step_name=f"apply_{instance.name}",
                 df_input=input_df,
@@ -434,7 +454,10 @@ class TransformHandlers:
             step.params["sql_query"] = final_sql
             step.params["filter_condition"] = ""
             step.params["distinct"] = False
-            step.comments.append(f"SQL Pushdown: Executing exact SQ SQL on source database")
+            step.params["db_type"] = source_db_type
+            step.comments.append(f"SQL Pushdown: Executing SQ SQL on source database ({source_db_type})")
+            if sql_translated:
+                step.comments.append(f"SQL translated from {source_db_type} to {target_db_type}")
         else:
             step = ApplySourceQualifierStep(
                 step_name=f"apply_{instance.name}",
@@ -448,6 +471,7 @@ class TransformHandlers:
             step.params["sql_query"] = ""
             step.params["filter_condition"] = translated_filter
             step.params["distinct"] = distinct
+            step.params["db_type"] = source_db_type
 
         step.params["connection_alias"] = conn_alias
         step.params["output_columns"] = output_columns
@@ -462,7 +486,7 @@ class TransformHandlers:
                 if source:
                     xml_db_name = source.db_name or ""
                     conn_alias = source.db_name or source.name or "source_db"
-                    resolved_db = resolve_database_name(conn_alias, xml_db_name)
+                    resolved_db = xml_db_name or conn_alias
                     sources.append({
                         "name": source.name,
                         "connection": conn_alias,
@@ -1021,8 +1045,21 @@ class TransformHandlers:
         step.params["has_delete"] = has_delete
         step.params["needs_merge"] = has_update or has_delete
 
-        if has_update or has_delete:
+        # Generate proper column update flag based on strategy
+        if has_delete:
+            step.params["update_condition"] = "lit(False)"
+            step.params["delete_condition"] = "lit(True)"
+            step.comments.append("DD_DELETE: All incoming rows marked for deletion")
+            step.comments.append("Delete existing data before inserting new snapshot")
+        elif has_update:
+            step.params["update_condition"] = "lit(True)"
+            step.params["delete_condition"] = "lit(False)"
+            step.comments.append("DD_UPDATE: All incoming rows marked for update")
             step.comments.append("Consider using MergeDelta for upsert operations")
+        else:
+            step.params["update_condition"] = "lit(False)"
+            step.params["delete_condition"] = "lit(False)"
+            step.comments.append("DD_INSERT: All incoming rows marked for insert")
 
         return step
 
@@ -1335,9 +1372,24 @@ class TransformHandlers:
                     return landing_keys[0]
             return db_conn_keys[0]
 
+        # Fall back to source/target definition's db_name from XML
+        lookup_name = target_name or instance_name
+        for src in self.mapping.sources:
+            if lookup_name and (lookup_name == src.name or lookup_name.startswith(src.name)):
+                conn_name = src.db_name or src.name
+                if plan:
+                    plan.warnings = [w for w in plan.warnings if "No connection alias found" not in w]
+                return conn_name
+        for tgt in self.mapping.targets:
+            if lookup_name and (lookup_name == tgt.name or lookup_name.startswith(tgt.name)):
+                conn_name = tgt.db_name or "target"
+                if plan:
+                    plan.warnings = [w for w in plan.warnings if "No connection alias found" not in w]
+                return conn_name
+
         default = "target_db" if is_target else "source_db"
         if plan:
-            plan.add_warning(f"No connection alias found for {target_name or instance_name}, using '{default}'")
+            plan.add_warning(f"No connection alias found for {lookup_name}, using '{default}'")
         return default
 
     def _handle_with_type(self, instance: Instance, inferred_type: str, plan: IRPlan):

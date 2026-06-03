@@ -17,682 +17,68 @@
 * Please review the business rules before productionizing.
 '''
 
-import pyspark
-from pyspark import SparkConf, SQLContext, SparkContext as PySparkContext, StorageLevel
-from pyspark.sql import SparkSession, DataFrame, Window, Row
-from pyspark.sql.functions import *
-import pyspark.sql.functions as f
-from pyspark.sql.types import *
-from pyspark.sql.window import Window
-import requests
-from datetime import datetime
-import time
-import os
-import sys
-import re
-import yaml
-from functools import reduce
-from typing import Dict, Any, List, Optional
-from os.path import join, abspath
-import jaydebeapi
 import logging
-
-# =============================================================================
-# CONFIGURATION LOADER
-# =============================================================================
-
-def resolve_env_vars(value: Any) -> Any:
-    """Resolve environment variable placeholders in config values.
-    
-    Supports ${VAR_NAME} and ${VAR_NAME:default_value} syntax.
-    """
-    if isinstance(value, str):
-        pattern = r'\$\{([^}:]+)(?::([^}]*))?\}'
-        
-        def replace_var(match):
-            var_name = match.group(1)
-            default_value = match.group(2) if match.group(2) is not None else ''
-            return os.environ.get(var_name, default_value)
-        
-        return re.sub(pattern, replace_var, value)
-    elif isinstance(value, dict):
-        return {k: resolve_env_vars(v) for k, v in value.items()}
-    elif isinstance(value, list):
-        return [resolve_env_vars(item) for item in value]
-    return value
-
-
-def load_config(config_path: str = None) -> Dict[str, Any]:
-    """Load configuration from YAML file with environment variable resolution."""
-    if config_path is None:
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        config_path = os.environ.get('CONFIG_PATH', os.path.join(script_dir, 'config_m_utl_param_setup.yml'))
-    
-    if not os.path.exists(config_path):
-        raise FileNotFoundError(f"Configuration file not found: {config_path}")
-    
-    with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
-    
-    return resolve_env_vars(config)
+from datetime import datetime
+from typing import Dict, Any, Optional
+from runtime_lib import (
+    SparkContext, MappingMetrics,
+    get_spark_session, load_config, get_db_config,
+    read_sql, write_sql, execute_sql,
+    normalize_column_names, safe_col,
+    infa_iif, infa_decode, infa_nvl,
+    smart_repartition, safe_write_jdbc, write_target
+)
+from pyspark.sql import DataFrame
+from pyspark.sql.functions import *
+from pyspark.sql.types import *
 
 
 # Load configuration
-config = load_config()
+config = load_config('config.yml')
 
 # =============================================================================
-# CONNECTION DETAILS FROM CONFIG
+# CONNECTION NAMES FROM CONFIG
 # =============================================================================
+# Connection names are read from config.yml under 'connections' section.
+# Each connection has a 'type' field (oracle, sqlserver, postgresql, etc.)
+# that determines which JDBC driver and URL format to use.
+# The runtime_lib.get_db_config() function resolves the correct connection.
 
-# Connection to Database Mapping (Priority: Connection Name > XML Database Name)
-# CDM_PRE_LANDING     -> msscdm_dev
-# CDM_PRE_LANDING_INV -> msscdm_inv
-# CDM_LANDING         -> cmx_ors_10_3
-# CDM_LANDING_INV     -> cmx_ors_inv
-CONNECTION_DB_MAPPING = {
-    "CDM_PRE_LANDING": "msscdm_dev",
-    "CDM_PRE_LANDING_INV": "msscdm_inv",
-    "CDM_LANDING": "cmx_ors_10_3",
-    "CDM_LANDING_INV": "cmx_ors_inv"
-}
-
-def resolve_database_name(connection_name: str, xml_database_name: str = "") -> str:
-    """Resolve database name using connection mapping, fallback to XML database name."""
-    if connection_name and connection_name in CONNECTION_DB_MAPPING:
-        return CONNECTION_DB_MAPPING[connection_name]
-    return xml_database_name if xml_database_name else "msscdm_dev"
-
-def get_source_connection(connection_name: str = None, xml_database_name: str = None):
-    """Get source connection config based on connection name or XML database."""
-    connections = config.get('connections', {})
-    if connection_name and connection_name in connections:
-        return connections[connection_name]
-    for conn_name, db_name in CONNECTION_DB_MAPPING.items():
-        if db_name == xml_database_name and conn_name in connections:
-            return connections[conn_name]
-    return connections.get('CDM_PRE_LANDING', {})
-
-# =============================================================================
-# MSSQL CONNECTION SETTINGS
-# =============================================================================
-
-# Server and credentials from config
-server_name = config.get('connections', {}).get('CDM_PRE_LANDING', {}).get('host', '${MSSQL_HOST}')
-user = config.get('connections', {}).get('CDM_PRE_LANDING', {}).get('user', '${MSSQL_USER}')
-password = config.get('connections', {}).get('CDM_PRE_LANDING', {}).get('password', '${MSSQL_PASSWORD}')
-
-# Database names for source, lookup and target
-database_name_source = config.get('connections', {}).get('CDM_PRE_LANDING', {}).get('database', 'msscdm_dev')
-database_name_lkp = config.get('connections', {}).get('CDM_PRE_LANDING', {}).get('database', 'msscdm_dev')
-database_name_target = "msscdm_dev3"  # Fixed target database
-
-# JDBC URLs for each connection type
-jdbc_url_source = f"jdbc:sqlserver://{server_name}; databaseName={database_name_source}; user={user}; password={password}; trustServerCertificate=true; encrypt=false"
-jdbc_url_lkp = f"jdbc:sqlserver://{server_name}; databaseName={database_name_lkp}; user={user}; password={password}; trustServerCertificate=true; encrypt=false"
-jdbc_url_target = f"jdbc:sqlserver://{server_name}; databaseName={database_name_target}; user={user}; password={password}; trustServerCertificate=true; encrypt=false"
-
-# JDBC Driver Path
-jdbc_driver_path = config.get('connections', {}).get('CDM_PRE_LANDING', {}).get('driver_jar', '${MSSQL_DRIVER_JAR:/opt/drivers/mssql-jdbc-12.4.2.jre11.jar}')
-authentication_dll_path = config.get('paths', {}).get('authentication_dll', '${AUTH_DLL_PATH:/opt/drivers}')
-
-# Target connection config
-target_config = config.get('connections', {}).get('TARGET', {})
-target_USER = user
-target_PASSWORD = password
-target_driver = "com.microsoft.sqlserver.jdbc.SQLServerDriver"
-target_mode = 'append'
-
-# MSSQL driver and fetchsize settings
-mssql_driver = "com.microsoft.sqlserver.jdbc.SQLServerDriver"
-mssql_fetchsize = "10000"
-
-# Parameters from config
-params = config.get('params', {})
-SRC_SYSTEM_NM = params.get('SRC_SYSTEM_NM', 'SSC')
-
-# Connection Properties
-connection_properties = {
-    "driver": "com.microsoft.sqlserver.jdbc.SQLServerDriver"
-}
+# Get source and target connection configs
+source_conn = get_db_config(config, 'lookup_conn')
+target_conn = get_db_config(config, 'target')
 
 # =============================================================================
 # SPARK SESSION INITIALIZATION
 # =============================================================================
+spark = get_spark_session("M_UTL_PARAM_SETUP", config)
 
-# Spark configs from config file
-spark_config = config.get('spark', {}).get('config', {})
-
-# Initialize Spark Session with MSSQL JDBC Configuration
-spark = SparkSession.builder \
-    .appName("M_UTL_PARAM_SETUP") \
-    .config("spark.ui.port", spark_config.get("spark.ui.port", "4040")) \
-    .config("spark.driver.extraClassPath", jdbc_driver_path) \
-    .config("spark.executor.extraClassPath", jdbc_driver_path) \
-    .config("spark.executor.extraJavaOptions", f"-Djava.library.path={authentication_dll_path}") \
-    .config("spark.driver.memory", spark_config.get("spark.driver.memory", "16g")) \
-    .config("spark.executor.memory", spark_config.get("spark.executor.memory", "16g")) \
-    .config("spark.memory.offHeap.enabled", spark_config.get("spark.memory.offHeap.enabled", "true")) \
-    .config("spark.memory.offHeap.size", spark_config.get("spark.memory.offHeap.size", "16g")) \
-    .config("spark.sql.shuffle.partitions", spark_config.get("spark.sql.shuffle.partitions", "50")) \
-    .config("spark.default.parallelism", spark_config.get("spark.default.parallelism", "50")) \
-    .config("spark.sql.debug.maxToStringFields", spark_config.get("spark.sql.debug.maxToStringFields", "100")) \
-    .config("spark.driver.maxResultSize", spark_config.get("spark.driver.maxResultSize", "8g")) \
-    .config("spark.sql.autoBroadcastJoinThreshold", spark_config.get("spark.sql.autoBroadcastJoinThreshold", "-1")) \
-    .config("spark.memory.fraction", spark_config.get("spark.memory.fraction", "0.8")) \
-    .config("spark.memory.storageFraction", spark_config.get("spark.memory.storageFraction", "0.3")) \
-    .config("spark.dynamicAllocation.enabled", spark_config.get("spark.dynamicAllocation.enabled", "true")) \
-    .config("spark.shuffle.service.enabled", spark_config.get("spark.shuffle.service.enabled", "true")) \
-    .getOrCreate()
-
-def get_spark_session(app_name: str = None) -> SparkSession:
-    """Get existing Spark session or create new one."""
-    return spark
-
-# Global Variables
-PMMappingName = "M_UTL_PARAM_SETUP_pyspark"
-PMWorkflowName = "wf_M_UTL_PARAM_SETUP"
-
-# Database connections for executing SQL statements (MSSQL Target)
-conn = spark._sc._gateway.jvm.java.sql.DriverManager.getConnection(jdbc_url_target, target_USER, target_PASSWORD)
-stmt = conn.createStatement()
-
-# JayDeBeApi connection for cursor operations
-conn_jaydebeapi = jaydebeapi.connect(
-    "com.microsoft.sqlserver.jdbc.SQLServerDriver",
-    jdbc_url_target,
-    [target_USER, target_PASSWORD],
-    jars=jdbc_driver_path
-)
-curs = conn_jaydebeapi.cursor()
-
-
-def execute_pre_sql(sql_statement: str):
-    """Execute pre-SQL statement before mapping runs."""
-    try:
-        stmt.executeUpdate(sql_statement)
-        print(f"Pre-SQL executed successfully")
-    except Exception as e:
-        print(f"Pre-SQL execution warning: {e}")
-
-
-def execute_post_sql(sql_statement: str):
-    """Execute post-SQL statement after mapping runs."""
-    try:
-        stmt.executeUpdate(sql_statement)
-        print(f"Post-SQL executed successfully")
-    except Exception as e:
-        print(f"Post-SQL execution warning: {e}")
-
-
-class SparkContext:
-    """Context holder for Spark session and registered DataFrames."""
-    
-    def __init__(self, spark: SparkSession):
-        self.spark = spark
-        self.dataframes: Dict[str, DataFrame] = {}
-        self.logger = logging.getLogger(self.__class__.__name__)
-    
-    def register_df(self, name: str, df: DataFrame):
-        """Register a DataFrame for later reference."""
-        self.dataframes[name] = df
-    
-    def get_df(self, name: str) -> Optional[DataFrame]:
-        """Get a registered DataFrame by name."""
-        return self.dataframes.get(name)
-
-
-class MappingMetrics:
-    """Track metrics for a mapping execution."""
-    
-    def __init__(self, mapping_name: str):
-        self.mapping_name = mapping_name
-        self.start_time: Optional[datetime] = None
-        self.end_time: Optional[datetime] = None
-        self.row_counts: Dict[str, int] = {}
-        self.warnings: List[str] = []
-        self.status: str = "PENDING"
-        self.error: Optional[str] = None
-        self.logger = logging.getLogger(f"Metrics.{mapping_name}")
-    
-    def start(self):
-        """Mark mapping start."""
-        self.start_time = datetime.now()
-        self.status = "RUNNING"
-        self.logger.info(f"Started mapping: {self.mapping_name}")
-    
-    def complete(self):
-        """Mark mapping completion."""
-        self.end_time = datetime.now()
-        self.status = "SUCCESS"
-        duration = (self.end_time - self.start_time).total_seconds() if self.start_time else 0
-        self.logger.info(f"Completed mapping: {self.mapping_name} in {duration:.2f}s")
-    
-    def fail(self, error: Exception):
-        """Mark mapping failure."""
-        self.end_time = datetime.now()
-        self.status = "FAILED"
-        self.error = str(error)
-        self.logger.error(f"Failed mapping: {self.mapping_name} - {error}")
-    
-    def log_row_count(self, step_name: str, count: int):
-        """Log row count for a step."""
-        self.row_counts[step_name] = count
-        self.logger.debug(f"Step {step_name}: {count} rows")
-    
-    def add_warning(self, warning: str):
-        """Add a warning message."""
-        self.warnings.append(warning)
-        self.logger.warning(f"{self.mapping_name}: {warning}")
-    
-    def get_summary(self) -> Dict[str, Any]:
-        """Get metrics summary."""
-        duration = None
-        if self.start_time and self.end_time:
-            duration = (self.end_time - self.start_time).total_seconds()
-        
-        return {
-            "mapping_name": self.mapping_name,
-            "status": self.status,
-            "start_time": self.start_time.isoformat() if self.start_time else None,
-            "end_time": self.end_time.isoformat() if self.end_time else None,
-            "duration_seconds": duration,
-            "row_counts": self.row_counts,
-            "warnings": self.warnings,
-            "error": self.error
-        }
+# Mapping Variables
 
 
 # =============================================================================
-# I/O FUNCTIONS - Matching sample code pattern exactly
+# MAPPING LOGIC
 # =============================================================================
 
-def read_source(query: str) -> DataFrame:
-    """Read from MSSQL source database."""
-    df = spark.read.format("jdbc").options(
-        url=jdbc_url_source,
-        driver=mssql_driver,
-        user=user,
-        password=password,
-        query=query,
-        fetchsize=mssql_fetchsize
-    ).load()
-    return normalize_column_names(df)
-
-
-def read_lookup(query: str) -> DataFrame:
-    """Read from MSSQL lookup database."""
-    df = spark.read.format("jdbc").options(
-        url=jdbc_url_lkp,
-        driver=mssql_driver,
-        user=user,
-        password=password,
-        query=query,
-        fetchsize=mssql_fetchsize
-    ).load()
-    return normalize_column_names(df)
-
-
-def smart_repartition(df: DataFrame, target_partitions: int = 20, min_rows_per_partition: int = 1000) -> DataFrame:
-    """Dynamically repartition DataFrame based on data size.
-    
-    Handles empty datasets gracefully and optimizes partition count based on row count.
-    - Empty DataFrame: Returns as-is (no repartition to avoid errors)
-    - Small datasets (< target_partitions * min_rows): Uses fewer partitions
-    - Large datasets: Uses target_partitions
+def run_mapping(ctx: SparkContext = None, metrics: MappingMetrics = None) -> bool:
+    """
+    Execute the M_UTL_PARAM_SETUP mapping transformations.
     
     Args:
-        df: Input DataFrame
-        target_partitions: Desired number of partitions for large datasets (default: 20)
-        min_rows_per_partition: Minimum rows per partition for efficiency (default: 1000)
+        ctx: Optional SparkContext for session and DataFrame registry
+        metrics: Optional metrics tracker
     
     Returns:
-        Appropriately partitioned DataFrame
+        bool: True if successful
     """
-    try:
-        row_count = df.count()
-        
-        if row_count == 0:
-            logging.info("Empty DataFrame detected - skipping repartition")
-            return df
-        
-        optimal_partitions = max(1, min(target_partitions, row_count // min_rows_per_partition))
-        
-        if optimal_partitions < df.rdd.getNumPartitions():
-            logging.info(f"Coalescing from {df.rdd.getNumPartitions()} to {optimal_partitions} partitions for {row_count} rows")
-            return df.coalesce(optimal_partitions)
-        elif optimal_partitions > df.rdd.getNumPartitions():
-            logging.info(f"Repartitioning from {df.rdd.getNumPartitions()} to {optimal_partitions} partitions for {row_count} rows")
-            return df.repartition(optimal_partitions)
-        else:
-            return df
-    except Exception as e:
-        logging.warning(f"Error in smart_repartition: {e}, returning original DataFrame")
-        return df
-
-
-def safe_write_jdbc(df: DataFrame, jdbc_url: str, table_name: str, user: str, 
-                    password: str, driver: str, mode: str = "append", 
-                    batch_size: int = 10000, partitions: int = 20) -> bool:
-    """Safely write DataFrame to JDBC target with dynamic partitioning and empty data handling.
+    _spark = ctx.spark if ctx else spark
     
-    Args:
-        df: Input DataFrame to write
-        jdbc_url: JDBC connection URL
-        table_name: Target table name
-        user: Database username
-        password: Database password
-        driver: JDBC driver class
-        mode: Write mode (append, overwrite, etc.)
-        batch_size: JDBC batch size for writes
-        partitions: Target number of partitions
-    
-    Returns:
-        True if write successful, False if skipped (empty data)
-    """
-    try:
-        row_count = df.count()
-        
-        if row_count == 0:
-            logging.info(f"No data to write to {table_name} - skipping JDBC write")
-            return False
-        
-        partitioned_df = smart_repartition(df, partitions)
-        
-        partitioned_df.write.format("jdbc") \
-            .option("url", jdbc_url) \
-            .option("dbtable", table_name) \
-            .option("user", user) \
-            .option("password", password) \
-            .option("driver", driver) \
-            .option("batchsize", batch_size) \
-            .mode(mode) \
-            .save()
-        
-        logging.info(f"Successfully wrote {row_count} rows to {table_name}")
-        return True
-        
-    except Exception as e:
-        logging.error(f"Error writing to {table_name}: {e}")
-        raise
-
-
-def write_target(df: DataFrame, table_name: str, mode: str = "append"):
-    """Write to MSSQL target database (msscdm_dev3) with smart partitioning."""
-    return safe_write_jdbc(
-        df=df,
-        jdbc_url=jdbc_url_target,
-        table_name=table_name,
-        user=target_USER,
-        password=target_PASSWORD,
-        driver=target_driver,
-        mode=mode,
-        batch_size=10000,
-        partitions=20
-    )
-
-
-def read_file(spark: SparkSession, path: str, format: str = "csv", 
-              options: Dict = None) -> DataFrame:
-    """Read data from file (CSV, Parquet, Delta, JSON, etc.)."""
-    reader = spark.read.format(format)
-    
-    if options:
-        for key, value in options.items():
-            reader = reader.option(key, str(value))
-    
-    if format.lower() == "csv" and not options:
-        reader = reader.option("header", "true").option("inferSchema", "true")
-    
-    return reader.load(path)
-
-
-def write_sql(df: DataFrame, conn_config: Dict, table: str, 
-              mode: str = "append") -> None:
-    """Write DataFrame to SQL database using JDBC."""
-    db_type = conn_config.get("db_type", "sqlserver")
-    host = conn_config.get("host", "localhost")
-    port = conn_config.get("port", 1433)
-    database = conn_config.get("database", "")
-    user = conn_config.get("user", "")
-    password = conn_config.get("password", "")
-    
-    if db_type == "sqlserver":
-        jdbc_url = f"jdbc:sqlserver://{host}:{port};databaseName={database}"
-        driver = "com.microsoft.sqlserver.jdbc.SQLServerDriver"
-    elif db_type == "oracle":
-        jdbc_url = f"jdbc:oracle:thin:@{host}:{port}:{database}"
-        driver = "oracle.jdbc.driver.OracleDriver"
-    elif db_type == "postgresql":
-        jdbc_url = f"jdbc:postgresql://{host}:{port}/{database}"
-        driver = "org.postgresql.Driver"
-    elif db_type == "mysql":
-        jdbc_url = f"jdbc:mysql://{host}:{port}/{database}"
-        driver = "com.mysql.cj.jdbc.Driver"
-    else:
-        jdbc_url = conn_config.get("jdbc_url", "")
-        driver = conn_config.get("driver", "")
-    
-    jdbc_url = conn_config.get("jdbc_url", jdbc_url)
-    
-    df.write.format("jdbc") \
-        .option("url", jdbc_url) \
-        .option("dbtable", table) \
-        .option("user", user) \
-        .option("password", password) \
-        .option("driver", driver) \
-        .mode(mode) \
-        .save()
-
-
-def write_file(df: DataFrame, path: str, format: str = "delta", 
-               mode: str = "append", partition_by: List[str] = None,
-               options: Dict = None) -> None:
-    """Write DataFrame to file (Delta, Parquet, CSV, etc.)."""
-    writer = df.write.format(format).mode(mode)
-    
-    if partition_by:
-        writer = writer.partitionBy(*partition_by)
-    
-    if options:
-        for key, value in options.items():
-            writer = writer.option(key, str(value))
-    
-    writer.save(path)
-
-
-def get_target_connection() -> Dict[str, Any]:
-    """Get target connection configuration (MSSQL - msscdm_dev3)."""
-    return config.get('connections', {}).get('TARGET', {})
-
-
-def spark_type_to_mssql(spark_type: str) -> str:
-    """Convert Spark/Informatica data type to MSSQL data type."""
-    type_map = {
-        "string": "NVARCHAR(MAX)",
-        "varchar": "NVARCHAR",
-        "nvarchar": "NVARCHAR",
-        "char": "NCHAR",
-        "nchar": "NCHAR",
-        "integer": "INT",
-        "int": "INT",
-        "long": "BIGINT",
-        "bigint": "BIGINT",
-        "short": "SMALLINT",
-        "smallint": "SMALLINT",
-        "tinyint": "TINYINT",
-        "double": "FLOAT",
-        "float": "REAL",
-        "decimal": "DECIMAL",
-        "numeric": "NUMERIC",
-        "date": "DATE",
-        "datetime": "DATETIME2",
-        "timestamp": "DATETIME2",
-        "boolean": "BIT",
-        "binary": "VARBINARY(MAX)",
-        "blob": "VARBINARY(MAX)",
-        "clob": "NVARCHAR(MAX)",
-        "text": "NVARCHAR(MAX)",
-        "ntext": "NVARCHAR(MAX)",
-        "money": "MONEY",
-        "smallmoney": "SMALLMONEY",
-        "uniqueidentifier": "UNIQUEIDENTIFIER",
-        "xml": "XML"
-    }
-    spark_type_lower = spark_type.lower().split('(')[0].strip()
-    return type_map.get(spark_type_lower, "NVARCHAR(MAX)")
-
-
-def generate_mssql_create_table(table_name: str, columns: List[Dict[str, Any]], 
-                                  schema: str = "dbo", if_not_exists: bool = True) -> str:
-    """Generate MSSQL-standard CREATE TABLE statement.
-    
-    Args:
-        table_name: Name of the table to create
-        columns: List of column definitions with 'name', 'datatype', 'precision', 'scale', 'nullable'
-        schema: Schema name (default: dbo)
-        if_not_exists: Whether to add IF NOT EXISTS check
-    
-    Returns:
-        MSSQL CREATE TABLE statement
-    """
-    col_defs = []
-    for col in columns:
-        col_name = col.get('name', '')
-        datatype = spark_type_to_mssql(col.get('datatype', 'string'))
-        precision = col.get('precision', 0)
-        scale = col.get('scale', 0)
-        nullable = col.get('nullable', True)
-        is_identity = col.get('is_identity', False)
-        
-        if datatype in ('DECIMAL', 'NUMERIC') and precision > 0:
-            datatype = f"{datatype}({precision},{scale})"
-        elif datatype in ('NVARCHAR', 'VARCHAR', 'NCHAR', 'CHAR') and precision > 0:
-            datatype = f"{datatype}({precision})"
-        elif datatype in ('VARBINARY',) and precision > 0:
-            datatype = f"{datatype}({precision})"
-        
-        null_str = "NULL" if nullable else "NOT NULL"
-        identity_str = " IDENTITY(1,1)" if is_identity else ""
-        
-        col_defs.append(f"    [{col_name}] {datatype}{identity_str} {null_str}")
-    
-    columns_sql = ",\n".join(col_defs)
+    if metrics:
+        metrics.start()
     full_table_name = f"[{schema}].[{table_name}]"
     
-    if if_not_exists:
-        return f"""IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'{full_table_name}') AND type in (N'U'))
-BEGIN
-    CREATE TABLE {full_table_name} (
-{columns_sql}
-    )
-END"""
-    else:
-        return f"""CREATE TABLE {full_table_name} (
-{columns_sql}
-)"""
-
-
-def execute_sql_statement(spark: SparkSession, conn_config: Dict, sql: str) -> None:
-    """Execute a SQL statement (DDL/DML) against MSSQL database using Spark JDBC.
-    
-    Uses Spark's JDBC connection pooling and driver management for consistency
-    with the rest of the PySpark pipeline.
-    """
-    db_type = conn_config.get("db_type", "sqlserver")
-    host = conn_config.get("host", "localhost")
-    port = conn_config.get("port", 1433)
-    database = conn_config.get("database", "msscdm_dev3")
-    user = conn_config.get("user", "")
-    password = conn_config.get("password", "")
-    
-    jdbc_url = f"jdbc:sqlserver://{host}:{port};databaseName={database}"
-    driver = "com.microsoft.sqlserver.jdbc.SQLServerDriver"
-    
-    jdbc_url = conn_config.get("jdbc_url", jdbc_url)
-    
-    spark._jvm.java.lang.Class.forName(driver)
-    conn = spark._jvm.java.sql.DriverManager.getConnection(jdbc_url, user, password)
-    try:
-        stmt = conn.createStatement()
-        stmt.execute(sql)
-        conn.commit()
-        stmt.close()
-    finally:
-        conn.close()
-
-
-# --- Delta Lake Functions ---
-
-def merge_into_delta(spark: SparkSession, source_df: DataFrame, 
-                     target_table: str, merge_keys: List[str],
-                     update_columns: List[str] = None) -> None:
-    """Merge source DataFrame into Delta table (upsert)."""
-    from delta.tables import DeltaTable
-    
-    if not DeltaTable.isDeltaTable(spark, target_table):
-        source_df.write.format("delta").saveAsTable(target_table)
-        return
-    
-    delta_table = DeltaTable.forName(spark, target_table)
-    
-    merge_condition = " AND ".join([f"target.{k} = source.{k}" for k in merge_keys])
-    
-    merge_builder = delta_table.alias("target").merge(
-        source_df.alias("source"),
-        merge_condition
-    )
-    
-    if update_columns:
-        update_set = {col: f"source.{col}" for col in update_columns}
-        merge_builder = merge_builder.whenMatchedUpdate(set=update_set)
-    else:
-        merge_builder = merge_builder.whenMatchedUpdateAll()
-    
-    merge_builder.whenNotMatchedInsertAll().execute()
-
-
-def merge_with_update_flag(spark: SparkSession, source_df: DataFrame,
-                           target_table: str, merge_keys: List[str]) -> None:
-    """Merge with _update_flag column (I=Insert, U=Update, D=Delete)."""
-    from delta.tables import DeltaTable
-    
-    if not DeltaTable.isDeltaTable(spark, target_table):
-        insert_df = source_df.filter(col("_update_flag") != "D")
-        insert_df.drop("_update_flag").write.format("delta").saveAsTable(target_table)
-        return
-    
-    delta_table = DeltaTable.forName(spark, target_table)
-    merge_condition = " AND ".join([f"target.{k} = source.{k}" for k in merge_keys])
-    
-    delta_table.alias("target").merge(
-        source_df.alias("source"),
-        merge_condition
-    ).whenMatchedDelete(
-        condition="source._update_flag = 'D'"
-    ).whenMatchedUpdateAll(
-        condition="source._update_flag = 'U'"
-    ).whenNotMatchedInsertAll(
-        condition="source._update_flag = 'I'"
-    ).execute()
-
-
-def normalize_flag_column(df: DataFrame, target_name: str) -> DataFrame:
-    """Rename any flag column variant to standard name for union compatibility.
-    
-    Handles various Informatica flag column naming conventions:
-    - del_ins_upd_flag
-    - del_upd_ins_flag
-    - ins_upd_del_flag
-    """
-    flag_variants = ["del_ins_upd_flag", "del_upd_ins_flag", "ins_upd_del_flag"]
-    for col in df.columns:
-        if col.lower() in flag_variants:
-            return df.withColumnRenamed(col, target_name)
-    return df
-
-
-def get_actual_column(df: DataFrame, col_name: str) -> str:
-    """Get the actual column name from DataFrame using case-insensitive matching.
+# All utility functions (MappingMetrics, I/O, expressions, etc.)
+# are imported from runtime_lib. Only mapping-specific logic is below.
     
     This handles Informatica's case-insensitive column references by finding
     the actual column name in the DataFrame that matches (ignoring case).
@@ -701,102 +87,25 @@ def get_actual_column(df: DataFrame, col_name: str) -> str:
         df: The DataFrame to search for the column
         col_name: The column name to find (may be different case)
     
-    Returns:
-        The actual column name from the DataFrame, or original if not found
-    """
-    col_lower = col_name.lower()
-    for actual_col in df.columns:
-        if actual_col.lower() == col_lower:
-            return actual_col
-    return col_name
-
-
-def normalize_column_names(df: DataFrame) -> DataFrame:
-    """Normalize all column names to lowercase for consistent access.
-    
-    This helps avoid case mismatch issues when Informatica expressions
-    reference columns with different casing than the source.
-    Also normalizes common flag column variants to a standard name.
-    """
-    flag_variants = {
-        "del_ins_upd_flag": "del_upd_ins_flag",
-        "ins_upd_del_flag": "del_upd_ins_flag",
-        "ins_del_upd_flag": "del_upd_ins_flag",
-        "upd_del_ins_flag": "del_upd_ins_flag",
-        "upd_ins_del_flag": "del_upd_ins_flag",
-    }
-    
-    for col_name in df.columns:
-        new_name = col_name.lower()
-        if new_name in flag_variants:
-            new_name = flag_variants[new_name]
-        if col_name != new_name:
-            df = df.withColumnRenamed(col_name, new_name)
-    return df
-
-
-def safe_col(df: DataFrame, col_name: str):
-    """Get a column reference with case-insensitive matching.
-    
-    Returns col(actual_name) where actual_name is the case-matched column.
-    """
-    actual = get_actual_column(df, col_name)
-    return col(actual)
-
-
-# --- Expression Helper Functions ---
-
-def infa_iif(condition, true_val, false_val):
-    """Informatica IIF equivalent."""
-    return when(condition, true_val).otherwise(false_val)
-
-
-def infa_decode(col_expr, *args):
-    """Informatica DECODE equivalent."""
-    if len(args) < 2:
-        return lit(None)
-    
-    result = None
-    pairs = list(args)
-    default_val = pairs.pop() if len(pairs) % 2 == 1 else lit(None)
-    
-    for i in range(0, len(pairs), 2):
-        search_val = pairs[i]
-        return_val = pairs[i + 1]
-        if result is None:
-            result = when(col_expr == search_val, return_val)
-        else:
-            result = result.when(col_expr == search_val, return_val)
-    
-    return result.otherwise(default_val) if result else default_val
-
-
-def infa_nvl(col_expr, default_val):
-    """Informatica NVL equivalent (COALESCE)."""
-    return coalesce(col_expr, default_val)
-
-
-def infa_nvl2(col_expr, not_null_val, null_val):
-    """Informatica NVL2 equivalent."""
-    return when(col_expr.isNotNull(), not_null_val).otherwise(null_val)
-
+# All utility functions (normalize_column_names, safe_col, infa_*, etc.)
+# are imported from runtime_lib. Only mapping-specific logic is below.
 
 # =============================================================================
 # MAPPING LOGIC
 # =============================================================================
 
-def run_mapping(ctx: SparkContext, metrics: MappingMetrics = None) -> bool:
+def run_mapping(ctx: SparkContext = None, metrics: MappingMetrics = None) -> bool:
     """
     Execute the M_UTL_PARAM_SETUP mapping transformations.
     
     Args:
-        ctx: SparkContext containing spark session and registered DataFrames
-        metrics: Optional metrics tracker for logging
+        ctx: Optional SparkContext for session and DataFrame registry
+        metrics: Optional metrics tracker
     
     Returns:
-        bool: True if successful, False otherwise
+        bool: True if successful
     """
-    spark = ctx.spark
+    _spark = ctx.spark if ctx else spark
     
     if metrics:
         metrics.start()
@@ -830,8 +139,7 @@ def run_mapping(ctx: SparkContext, metrics: MappingMetrics = None) -> bool:
         
         # Reading Data From Source - read_LKPTRANS
         query = f"""SELECT SOR_SYS_PRPTY.VAL as VAL, SOR_SYS_PRPTY.PRPTY_DESP as PRPTY_DESP, SOR_SYS_PRPTY.PRPTY as PRPTY FROM PSOR.SOR_SYS_PRPTY"""
-        df_lkp_4 = spark.read.format("jdbc").options(url=jdbc_url_source, driver="com.microsoft.sqlserver.jdbc.SQLServerDriver", query=query).load()
-        # Normalize column names to lowercase for case-insensitive matching
+        df_lkp_4 = read_sql(spark, lookup_conn, query=query)
         df_lkp_4 = normalize_column_names(df_lkp_4)
         print("Source Data Count df_lkp_4:", df_lkp_4.count())
         df_lkp_4 = df_lkp_4.coalesce(1).withColumn("jkey", monotonically_increasing_id())

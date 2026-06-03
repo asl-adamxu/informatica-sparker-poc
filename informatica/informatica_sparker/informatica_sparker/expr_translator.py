@@ -524,6 +524,18 @@ class ExpressionTranslator:
             safe_pm = pm_var.replace("'", "''")
             result = result.replace(pm_var, f"'{safe_pm}'")
 
+        # Handle $$ mapping variables (e.g., $$v_snsh_date)
+        # Replace with Python f-string placeholders that will be resolved at runtime
+        remaining_global = re.findall(r'\$\$[A-Za-z_][A-Za-z0-9_]*', result)
+        for var_name in remaining_global:
+            var_value = self.pm_variables.get(var_name, "")
+            if var_value:
+                safe_value = str(var_value).replace("'", "''")
+                result = result.replace(var_name, f"'{safe_value}'")
+            else:
+                clean_name = var_name.replace("$$", "")
+                result = result.replace(var_name, f"${{{{_{clean_name}}}}}")
+
         return result
 
     def _translate_iif(self, expr: str) -> str:
