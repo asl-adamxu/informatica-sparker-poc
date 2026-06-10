@@ -19,8 +19,10 @@ def test_run_mapping_basic(spark, monkeypatch):
     import m_dpa_sum_fact_gms_dly_dog_rgstr as mod
 
     def fake_read_sql(spark_arg, conn, table=None, query=None):
+        # return full set of columns expected by the mapping
         if query:
-            return spark.createDataFrame([{"TIME_DMNS_KEY": 1}])
+            row = {"TIME_DMNS_KEY": 1, "EST_SCD_KEY": 0, "DOG_RGSTR_APRV_CNT": 0, "DOG_RGSTR_APRV_CNCL_CNT": 0, "AUTH_DOG_PNT_ALLT_CASE_CNT": 0, "UNAUTH_DOG_PNT_ALLT_CASE_CNT": 0, "REC_RLS_IND": "Y", "LAST_REC_TXN_DATE": "2020-01-01", "LAST_REC_TXN_TYPE_CODE": "X"}
+            return spark.createDataFrame([row])
         if table:
             return spark.createDataFrame([{"TIME_DMNS_KEY": 1, "EST_SCD_KEY": 0}])
         return spark.createDataFrame([{}])

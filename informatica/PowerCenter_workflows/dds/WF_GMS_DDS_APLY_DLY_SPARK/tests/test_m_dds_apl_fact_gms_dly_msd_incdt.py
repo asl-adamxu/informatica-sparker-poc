@@ -27,6 +27,8 @@ def test_run_mapping_basic(spark, monkeypatch):
 
     def fake_read_sql(spark_arg, conn, table=None, query=None):
         row = {c: 1 for c in cols}
+        # ensure CMLT_MSD_TOT_CASE_CNT exists
+        row["CMLT_MSD_TOT_CASE_CNT"] = 0
         row["LAST_REC_TXN_DATE"] = "2020-01-01"
         return spark.createDataFrame([row])
 

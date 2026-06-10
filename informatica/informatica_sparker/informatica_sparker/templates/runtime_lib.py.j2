@@ -61,6 +61,28 @@ def read_sql(spark: SparkSession, conn_config: Dict[str, Any],
     return reader.load()
 
 
+def read_file(spark: SparkSession, path: str, format: str = "csv", options: Dict[str, Any] = None) -> DataFrame:
+    """Read a local file into a Spark DataFrame. Used by generated mappings during tests.
+
+    This is a lightweight helper that prefers local file paths. It supports CSV with header by default.
+    """
+    opts = options or {}
+    fmt = (format or "csv").lower()
+    if fmt == "csv":
+        reader = spark.read.options(header=opts.get("header", "true"))
+        # support file:// prefix or plain path
+        if path.startswith("file://"):
+            target = path
+        else:
+            target = f"file://{path}" if path.startswith("/") else path
+        return reader.csv(target)
+    # fallback: try generic spark reader
+    reader = spark.read.format(fmt)
+    for k, v in opts.items():
+        reader = reader.option(k, v)
+    return reader.load(path)
+
+
 def write_sql(df: DataFrame, conn_config: Dict[str, Any], table: str,
               mode: str = "append") -> None:
     """Write DataFrame to SQL database."""

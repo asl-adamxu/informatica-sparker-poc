@@ -23,7 +23,7 @@ from typing import Dict, Any, Optional
 from runtime_lib import (
     SparkContext, MappingMetrics,
     get_spark_session, load_config, get_db_config,
-    read_sql, write_sql, execute_sql,
+    read_file, read_sql, write_sql, execute_sql,
     normalize_column_names, safe_col,
     infa_iif, infa_decode, infa_nvl,
     smart_repartition, safe_write_jdbc, write_target

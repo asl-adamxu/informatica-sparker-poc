@@ -37,7 +37,7 @@ export SPARK_HOME=/opt/cloudera/parcels/SPARK3/lib/spark3
 export PYTHONPATH=$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.9.7-src.zip
 export PYSPARK_PYTHON=/usr/bin/python3.6
 export PYSPARK_DRIVER_PYTHON=/usr/bin/python3.6
-/usr/bin/python3.6 -m pytest -q /var/lib/airflow/dags/adam/informatica/PowerCenter_workflows/dds/WF_GMS_DDS_APLY_DLY_SPARK/tests/test_m_utl_param_setup.py -q
+/usr/bin/python3.6 -m pytest -q /var/lib/airflow/dags/adam/informatica/PowerCenter_workflows/dds/WF_GMS_DDS_APLY_DLY_SPARK/tests/test_m_utl_param_setup.py
 ```
 
 - If the env var `USE_TEST_DB` is not set (or set to `0`), the test will use the CSV file at `tests/data/sor_sys_prpty.csv` as a fallback. The `UTL_SESSION_LIST` is always read from `tests/data/utl_session_list.csv` (since in the original workflow it is a flat file source).
