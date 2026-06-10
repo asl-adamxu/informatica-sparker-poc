@@ -7,3 +7,5 @@ select max(disp_date) from airflow.bda_study_source_table;
 select disp_date, sum(disp_qty) as qty_count from airflow.bda_study_source_table group by disp_date;
 
 select disp_qty, t.* from airflow.bda_study_source_table t where rownum <= 10 order by disp_date desc;
+
+select * from airflow.SOR_SYS_PRPTY;

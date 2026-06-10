@@ -451,13 +451,16 @@ class InfaXMLParser:
             }
             workflow_analysis["workflows"].append(workflow)
 
-            for task_elem in wf_elem.findall("TASK"):
+            for task_elem in self.root.findall(".//TASK"):
                 task = {
                     "name": task_elem.get("NAME", ""),
                     "type": task_elem.get("TYPE", ""),
                     "description": task_elem.get("DESCRIPTION", ""),
-                    "pyspark_equivalent": self._get_task_pyspark_equivalent(task_elem.get("TYPE", ""))
+                    "pyspark_equivalent": self._get_task_pyspark_equivalent(task_elem.get("TYPE", "")),
+                    "attributes": {},
                 }
+                for attr in task_elem.findall("ATTRIBUTE"):
+                    task["attributes"][attr.get("NAME", "")] = attr.get("VALUE", "")
                 workflow_analysis["tasks"].append(task)
 
             for link_elem in wf_elem.findall("WORKFLOWLINK"):

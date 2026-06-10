@@ -66,14 +66,31 @@ class CodeGenerator:
             
             # Determine connection names from plan
             source_conn_name = "source"
+            lookup_conn_name = ""
             target_conn_name = "target"
+            
+            # Collect source and target connection names
             for step in plan.steps:
                 conn_alias = step.params.get("connection_alias", "")
                 if conn_alias:
                     if step.step_type in (IRStepType.READ_SQL, IRStepType.APPLY_SOURCE_QUALIFIER):
-                        source_conn_name = conn_alias
+                        if not step.params.get("is_lookup", False):
+                            source_conn_name = conn_alias
                     elif step.step_type == IRStepType.WRITE_TARGET:
                         target_conn_name = conn_alias
+            
+            # Resolve lookup connection: prefer its actual alias, only fall back if it's a hardcoded default
+            hardcoded_defaults = {"lookup_conn", "lookup", "default_conn"}
+            for step in plan.steps:
+                conn_alias = step.params.get("connection_alias", "")
+                if conn_alias and step.params.get("is_lookup", False):
+                    if conn_alias.lower() in hardcoded_defaults:
+                        lookup_conn_name = source_conn_name
+                    else:
+                        lookup_conn_name = conn_alias
+                    break
+            if not lookup_conn_name:
+                lookup_conn_name = source_conn_name
             
             return template.render(
                 mapping_name=plan.mapping_name,
@@ -84,6 +101,7 @@ class CodeGenerator:
                 source_db_type=source_db_type,
                 target_db_type=target_db_type,
                 source_conn_name=source_conn_name,
+                lookup_conn_name=lookup_conn_name,
                 target_conn_name=target_conn_name,
                 mapping_variables=mapping_vars
             )

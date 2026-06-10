@@ -165,6 +165,7 @@ class TransformHandlers:
         return None
 
     def _find_lookup_connection(self, lookup_name: str) -> str:
+        # Check user config first
         for config in self.user_config.sources:
             if config.source_name == lookup_name:
                 return config.connection_alias or "lookup_conn"
@@ -177,7 +178,17 @@ class TransformHandlers:
             if config.connection_alias:
                 return config.connection_alias
 
-        return "lookup_conn"
+        # Fall back to source definition's db_name from XML
+        for src in self.mapping.sources:
+            if src.name == lookup_name or lookup_name.startswith(src.name):
+                return src.db_name or src.name
+
+        # Try to find any source that might contain this lookup table
+        for src in self.mapping.sources:
+            if src.db_name:
+                return src.db_name
+
+        return "source"
 
     def build_ir_plan(self) -> IRPlan:
         plan = IRPlan(mapping_name=self.mapping.name)
