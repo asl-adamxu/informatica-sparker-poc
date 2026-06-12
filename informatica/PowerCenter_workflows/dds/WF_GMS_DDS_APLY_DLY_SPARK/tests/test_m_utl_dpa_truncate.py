@@ -21,7 +21,7 @@ def test_run_mapping_truncate(spark, monkeypatch):
     # fake read_file to load local CSV
     def fake_read_file(spark_arg, path, format="csv", options=None):
         data_path = os.path.join(os.path.dirname(__file__), "data", "utl_ssa_tbl_list.csv")
-        return spark.read.option("header", "true").csv(f"file://{data_path}")
+        return spark.read.option("header", "true").csv(data_path)
 
     monkeypatch.setattr(mod, "read_file", fake_read_file, raising=False)
     monkeypatch.setattr(mod, "normalize_column_names", lambda df: df, raising=False)

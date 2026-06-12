@@ -22,7 +22,7 @@ def test_run_mapping_basic(spark, monkeypatch):
     # Provide input file from tests/data for easier inspection
     def fake_read_file(spark_arg, path, format="csv", options=None):
         data_path = os.path.join(os.path.dirname(__file__), "data", "utl_session_list.csv")
-        return spark.read.option("header", "true").csv(f"file://{data_path}")
+        return spark.read.option("header", "true").csv(data_path)
 
     # Provide fake lookup table rows: match PRPTY = 'V1' -> VAL='VAL1'
     def fake_read_sql(spark_arg, conn, query=None):
@@ -58,7 +58,7 @@ def test_run_mapping_basic(spark, monkeypatch):
             return spark.createDataFrame(rows, ["VAL", "PRPTY_DESP", "PROPERTY"])
         else:
             data_path = os.path.join(os.path.dirname(__file__), "data", "sor_sys_prpty.csv")
-            return spark.read.option("header", "true").csv(f"file://{data_path}")
+            return spark.read.option("header", "true").csv(data_path)
 
     monkeypatch.setattr(mod, "read_file", fake_read_file, raising=False)
     monkeypatch.setattr(mod, "read_sql", fake_read_sql, raising=False)

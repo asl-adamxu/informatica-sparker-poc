@@ -12,9 +12,15 @@ environment:
 # =============================================================================
 # SPARK CONFIGURATION
 # =============================================================================
+# Select which Spark connection profile to use:
+#   spark_local      - local[*] mode, no cluster deps
+#   spark3_client    - YARN client mode (spark3 kerberos + executor PYTHONPATH)
+#   spark3_on_yarn   - YARN cluster mode (spark3 kerberos + executor PYTHONPATH)
 spark:
   app_name: "PCIS_GMS"
-  master: ${SPARK_MASTER:local[*]}
+  connection: ${SPARK_CONNECTION:spark_local}
+  master: ${SPARK_MASTER:yarn}
+  # Common spark config shared across all profiles (profile-specific overrides below)
   config:
     spark.ui.port: "4040"
     spark.driver.memory: "16g"
@@ -29,38 +35,54 @@ spark:
     spark.dynamicAllocation.enabled: "true"
     spark.shuffle.service.enabled: "true"
     spark.sql.adaptive.enabled: "true"
+    spark.driver.extraClassPath: "/opt/cloudera/parcels/SPARK3-3.5.4.3.5.7191000.0-30-1.p0.68499982/lib/spark3/jars/ojdbc8.jar"
+
+# =============================================================================
+# SPARK CONNECTION PROFILES
+# =============================================================================
+# Profile config merges on top of spark.config (spark.config values can be overridden per profile).
+spark_connections:
+  spark_local:
+    master: "local[*]"
+    config: {}
+
+  spark3_client:
+    master: "yarn"
+    deploy-mode: "client"
+    config:
+      spark.kerberos.keytab: "/appl/hadoop/cdp/keytabs/etl_user.keytab"
+      spark.kerberos.principal: "etl_user@AIDA.COM"
+      spark.executorEnv.PYTHONPATH: "/opt/cloudera/parcels/SPARK3/lib/spark3/python:/opt/cloudera/parcels/SPARK3/lib/spark3/python/lib/py4j-0.10.9.7-src.zip"
+
+  spark3_on_yarn:
+    master: "yarn"
+    deploy-mode: "cluster"
+    config:
+      spark.kerberos.keytab: "/appl/hadoop/cdp/keytabs/etl_user.keytab"
+      spark.kerberos.principal: "etl_user@AIDA.COM"
+      spark.executorEnv.PYTHONPATH: "/opt/cloudera/parcels/SPARK3/lib/spark3/python:/opt/cloudera/parcels/SPARK3/lib/spark3/python/lib/py4j-0.10.9.7-src.zip"
 
 # =============================================================================
 # DATABASE CONNECTIONS (Auto-detected from XML)
 # =============================================================================
+oracle-defaults: &oracle
+  type: "oracle"
+  host: 192.168.55.107
+  port: 1521
+  service_name: "CDCUATPDB"
+  username: "airflow"
+  password: "airflow"
+  driver: "oracle.jdbc.driver.OracleDriver"
+
 connections:
   DDS:
-    type: "oracle"
-    host: "${DB_HOST}"
-    port: 1521
+    <<: *oracle
     database: "DDS"
-    username: "${DB_USER}"
-    password: "${DB_PASSWORD}"
     schema: "PDDS"
-    driver: "oracle.jdbc.driver.OracleDriver"
   DPA:
-    type: "oracle"
-    host: "${DB_HOST}"
-    port: 1521
+    <<: *oracle
     database: "DPA"
-    username: "${DB_USER}"
-    password: "${DB_PASSWORD}"
     schema: "PDPA"
-    driver: "oracle.jdbc.driver.OracleDriver"
-  UTL:
-    type: "flatfile"
-    host: "${DB_HOST}"
-    port: 1433
-    database: "UTL"
-    username: "${DB_USER}"
-    password: "${DB_PASSWORD}"
-    schema: "dbo"
-    driver: "com.microsoft.sqlserver.jdbc.SQLServerDriver"
 
 # =============================================================================
 # FILE PATHS
@@ -70,113 +92,6 @@ paths:
   output_base: "${OUTPUT_PATH:/data/output}"
   staging: "${STAGING_PATH:/data/staging}"
   archive: "${ARCHIVE_PATH:/data/archive}"
-
-# =============================================================================
-# SOURCE/TARGET TABLE DEFINITIONS
-# =============================================================================
-tables:
-DDS_DMNS_GMS_MSD_CODE:
-    connection: "DDS"
-    database: "DDS"
-    schema: "PDDS"
-    type: "source"
-
-DDS_DMNS_GMS_SCORE_GRP:
-    connection: "DDS"
-    database: "DDS"
-    schema: "PDDS"
-    type: "source"
-
-DDS_FACT_GMS_DLY_MSD_SMRY:
-    connection: "DDS"
-    database: "DDS"
-    schema: "PDDS"
-    type: "source"
-
-DPA_FACT_GMS_DLY_MSD_SMRY:
-    connection: "DPA"
-    database: "DPA"
-    schema: "PDPA"
-    type: "source"
-
-DDS_HRCHY_GMS_EST:
-    connection: "DDS"
-    database: "DDS"
-    schema: "PDDS"
-    type: "source"
-
-DDS_FACT_GMS_DLY_DOG_RGSTR:
-    connection: "DDS"
-    database: "DDS"
-    schema: "PDDS"
-    type: "source"
-
-DPA_FACT_GMS_DLY_DOG_RGSTR:
-    connection: "DPA"
-    database: "DPA"
-    schema: "PDPA"
-    type: "source"
-
-DPA_FACT_GMS_DLY_MSD_INCDT:
-    connection: "DPA"
-    database: "DPA"
-    schema: "PDPA"
-    type: "source"
-
-UTL_SESSION_LIST:
-    connection: "UTL"
-    database: "UTL"
-    schema: "dbo"
-    type: "source"
-
-UTL_SSA_TBL_LIST:
-    connection: "UTL"
-    database: "UTL"
-    schema: "dbo"
-    type: "source"
-
-DDS_FACT_GMS_DLY_MSD_INCDT_target:
-    connection: "target"
-    database: ""
-    schema: "dbo"
-    type: "target"
-
-DDS_DMNS_TIME_target:
-    connection: "target"
-    database: ""
-    schema: "dbo"
-    type: "target"
-
-DDS_DMNS_EMS_AGE_GRP_target:
-    connection: "target"
-    database: ""
-    schema: "dbo"
-    type: "target"
-
-DDS_DMNS_GNDR_target:
-    connection: "target"
-    database: ""
-    schema: "dbo"
-    type: "target"
-
-DDS_DMNS_MSSEM_OFCR_TYPE_target:
-    connection: "target"
-    database: ""
-    schema: "dbo"
-    type: "target"
-
-UTL_JOB_PARAM_target:
-    connection: "target"
-    database: ""
-    schema: "dbo"
-    type: "target"
-
-UTL_DEV_NULL_target:
-    connection: "target"
-    database: ""
-    schema: "dbo"
-    type: "target"
-
 
 # =============================================================================
 # MAPPING VARIABLES

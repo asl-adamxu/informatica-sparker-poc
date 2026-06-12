@@ -14,12 +14,25 @@ import yaml
 
 
 def get_db_config(config: Dict[str, Any], conn_name: str = "source") -> Dict[str, Any]:
-    """Get database connection configuration by name."""
-    return config.get("connections", {}).get(conn_name, config.get("connections", {}).get("source", {}))
+    """Get database connection configuration by name.
+    
+    Looks up config['connections'][conn_name] first, then falls back
+    to config[conn_name] (top-level) for standalone connection entries.
+    """
+    result = config.get("connections", {}).get(conn_name)
+    if result is not None:
+        return result
+    return config.get(conn_name, config.get("connections", {}).get("source", {}))
 
 
 def get_jdbc_url(conn_config: Dict[str, Any]) -> str:
-    """Build JDBC URL from connection configuration."""
+    """Build JDBC URL from connection configuration.
+
+    Supports:
+      - Oracle SID:     jdbc:oracle:thin:@host:port:sid
+      - Oracle Service:  jdbc:oracle:thin:@//host:port/service_name
+      - SQL Server, PostgreSQL, MySQL
+    """
     db_type = conn_config.get("type", "oracle").lower()
     host = conn_config.get("host", "localhost")
     port = conn_config.get("port", 1521)
@@ -28,6 +41,9 @@ def get_jdbc_url(conn_config: Dict[str, Any]) -> str:
     if db_type in ("sqlserver", "mssql", "microsoft sql server"):
         return f"jdbc:sqlserver://{host}:{port};databaseName={database};encrypt=false"
     elif db_type == "oracle":
+        service_name = conn_config.get("service_name")
+        if service_name:
+            return f"jdbc:oracle:thin:@//{host}:{port}/{service_name}"
         return f"jdbc:oracle:thin:@{host}:{port}:{database}"
     elif db_type == "postgresql":
         return f"jdbc:postgresql://{host}:{port}/{database}"
@@ -62,20 +78,16 @@ def read_sql(spark: SparkSession, conn_config: Dict[str, Any],
 
 
 def read_file(spark: SparkSession, path: str, format: str = "csv", options: Dict[str, Any] = None) -> DataFrame:
-    """Read a local file into a Spark DataFrame. Used by generated mappings during tests.
+    """Read a file into a Spark DataFrame.
 
-    This is a lightweight helper that prefers local file paths. It supports CSV with header by default.
+    The path is passed through as-is so Spark resolves it via its configured
+    default filesystem (e.g. HDFS if fs.defaultFS=hdfs://..., local otherwise).
     """
     opts = options or {}
     fmt = (format or "csv").lower()
     if fmt == "csv":
         reader = spark.read.options(header=opts.get("header", "true"))
-        # support file:// prefix or plain path
-        if path.startswith("file://"):
-            target = path
-        else:
-            target = f"file://{path}" if path.startswith("/") else path
-        return reader.csv(target)
+        return reader.csv(path)
     # fallback: try generic spark reader
     reader = spark.read.format(fmt)
     for k, v in opts.items():
@@ -101,6 +113,16 @@ def write_sql(df: DataFrame, conn_config: Dict[str, Any], table: str,
         .save()
 
 
+def write_file(df: DataFrame, path: str, format: str = "csv",
+               mode: str = "overwrite", options: Dict[str, Any] = None) -> None:
+    """Write DataFrame to file (CSV, Parquet, etc.)."""
+    writer = df.write.format(format).mode(mode)
+    if options:
+        for k, v in options.items():
+            writer = writer.option(k, str(v))
+    writer.save(path)
+
+
 def execute_sql(spark: SparkSession, conn_config: Dict[str, Any], sql: str) -> None:
     """Execute a SQL statement (DDL/DML)."""
     jdbc_url = get_jdbc_url(conn_config)
@@ -113,7 +135,7 @@ def execute_sql(spark: SparkSession, conn_config: Dict[str, Any], sql: str) -> N
     try:
         stmt = conn.createStatement()
         stmt.execute(sql)
-        conn.commit()
+        # conn.commit()
         stmt.close()
     finally:
         conn.close()
@@ -129,12 +151,60 @@ def load_config(config_path: str = "config.yml") -> Dict[str, Any]:
 
 
 def get_spark_session(app_name: str, config: Dict[str, Any] = None) -> SparkSession:
-    """Get or create Spark session."""
+    """Get or create Spark session.
+
+    Supports three connection profiles defined in config.yml's spark_connections:
+      - spark_local:      local[*] mode, no cluster deps
+      - spark3_client:    YARN client mode with kerberos + executor PYTHONPATH
+      - spark3_on_yarn:   YARN cluster mode with kerberos + executor PYTHONPATH
+
+    The active profile is selected via spark.connection (default: spark_local).
+    This mirrors how @task.pyspark(conn_id="spark3_on_yarn") works in Airflow DAGs.
+    """
+    spark_cfg = (config or {}).get("spark", {})
+    # Allow SPARK_CONNECTION env var to override config value
+    conn_name = os.environ.get("SPARK_CONNECTION") or spark_cfg.get("connection", "spark_local")
+
+    # Look up the connection profile under spark_connections
+    profiles = (config or {}).get("spark_connections", {})
+    profile = profiles.get(conn_name, profiles.get("spark_local", {}))
+
     builder = SparkSession.builder.appName(app_name)
-    if config and "spark" in config:
-        for key, value in config["spark"].get("config", {}).items():
-            builder = builder.config(key, str(value))
-    return builder.getOrCreate()
+
+    # 1. Set master from profile (or fallback to spark.master)
+    master_url = profile.get("master") or spark_cfg.get("master")
+    if master_url:
+        builder = builder.master(str(master_url))
+
+    # 2. Set deploy-mode if present
+    deploy_mode = profile.get("deploy-mode")
+    if deploy_mode:
+        builder = builder.config("spark.submit.deployMode", str(deploy_mode))
+
+    # 3. Apply config entries from the profile
+    for key, value in profile.get("config", {}).items():
+        builder = builder.config(key, str(value))
+
+    # 4. Apply any spark-level config overrides (can override profile values)
+    for key, value in spark_cfg.get("config", {}).items():
+        builder = builder.config(key, str(value))
+
+    spark = builder.getOrCreate()
+
+    # Inject spark.hadoop.* into Hadoop Configuration so absolute paths
+    # resolve via the cluster's default filesystem (like @task.pyspark does).
+    try:
+        all_cfg = {}
+        all_cfg.update(profile.get("config", {}))
+        all_cfg.update(spark_cfg.get("config", {}))
+        for key, value in all_cfg.items():
+            if key.startswith("spark.hadoop."):
+                hadoop_key = key.replace("spark.hadoop.", "")
+                spark.sparkContext._jsc.hadoopConfiguration().set(hadoop_key, str(value))
+    except Exception:
+        pass  # best-effort
+
+    return spark
 
 
 def normalize_column_names(df: DataFrame) -> DataFrame:

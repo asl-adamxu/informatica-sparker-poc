@@ -12,9 +12,15 @@ environment:
 # =============================================================================
 # SPARK CONFIGURATION
 # =============================================================================
+# Select which Spark connection profile to use:
+#   spark_local      - local[*] mode, no cluster deps
+#   spark3_client    - YARN client mode (spark3 kerberos + executor PYTHONPATH)
+#   spark3_on_yarn   - YARN cluster mode (spark3 kerberos + executor PYTHONPATH)
 spark:
   app_name: "{{ mapping_name }}"
-  master: ${SPARK_MASTER:local[*]}
+  connection: ${SPARK_CONNECTION:spark_local}
+  master: ${SPARK_MASTER:yarn}
+  # Common spark config shared across all profiles (profile-specific overrides below)
   config:
     spark.ui.port: "4040"
     spark.driver.memory: "16g"
@@ -29,22 +35,52 @@ spark:
     spark.dynamicAllocation.enabled: "true"
     spark.shuffle.service.enabled: "true"
     spark.sql.adaptive.enabled: "true"
+    spark.driver.extraClassPath: "/opt/cloudera/parcels/SPARK3-3.5.4.3.5.7191000.0-30-1.p0.68499982/lib/spark3/jars/ojdbc8.jar"
+
+# =============================================================================
+# SPARK CONNECTION PROFILES
+# =============================================================================
+# Profile config merges on top of spark.config (spark.config values can be overridden per profile).
+spark_connections:
+  spark_local:
+    master: "local[*]"
+    config: {}
+
+  spark3_client:
+    master: "yarn"
+    deploy-mode: "client"
+    config:
+      spark.kerberos.keytab: "/appl/hadoop/cdp/keytabs/etl_user.keytab"
+      spark.kerberos.principal: "etl_user@AIDA.COM"
+      spark.executorEnv.PYTHONPATH: "/opt/cloudera/parcels/SPARK3/lib/spark3/python:/opt/cloudera/parcels/SPARK3/lib/spark3/python/lib/py4j-0.10.9.7-src.zip"
+
+  spark3_on_yarn:
+    master: "yarn"
+    deploy-mode: "cluster"
+    config:
+      spark.kerberos.keytab: "/appl/hadoop/cdp/keytabs/etl_user.keytab"
+      spark.kerberos.principal: "etl_user@AIDA.COM"
+      spark.executorEnv.PYTHONPATH: "/opt/cloudera/parcels/SPARK3/lib/spark3/python:/opt/cloudera/parcels/SPARK3/lib/spark3/python/lib/py4j-0.10.9.7-src.zip"
 
 # =============================================================================
 # DATABASE CONNECTIONS (Auto-detected from XML)
 # =============================================================================
+oracle-defaults: &oracle
+  type: "oracle"
+  host: 192.168.55.107
+  port: 1521
+  service_name: "CDCUATPDB"
+  username: "airflow"
+  password: "airflow"
+  driver: "oracle.jdbc.driver.OracleDriver"
+
 connections:
-{% for conn_name, conn_info in db_connections.items() %}
+{% for conn_name, conn_info in db_connections.items() %}{% if conn_info.type != 'flatfile' %}
   {{ conn_name }}:
-    type: "{{ conn_info.type }}"
-    host: "${DB_HOST}"
-    port: {{ conn_info.port }}
+    <<: *oracle
     database: "{{ conn_info.database }}"
-    username: "${DB_USER}"
-    password: "${DB_PASSWORD}"
     schema: "{{ conn_info.schema }}"
-    driver: "{{ conn_info.driver }}"
-{% endfor %}
+{% endif %}{% endfor %}
 
 # =============================================================================
 # FILE PATHS
@@ -54,20 +90,6 @@ paths:
   output_base: "${OUTPUT_PATH:/data/output}"
   staging: "${STAGING_PATH:/data/staging}"
   archive: "${ARCHIVE_PATH:/data/archive}"
-
-# =============================================================================
-# SOURCE/TARGET TABLE DEFINITIONS
-# =============================================================================
-tables:
-{% for table_name, table_info in tables.items() %}
-  {%- set rendered_name = table_name + ('_target' if table_info.type != 'source' else '') -%}
-  {{ rendered_name }}:
-    connection: "{{ table_info.connection }}"
-    database: "{{ table_info.database }}"
-    schema: "{{ table_info.schema }}"
-    type: "{{ table_info.type }}"
-
-{% endfor %}
 
 # =============================================================================
 # MAPPING VARIABLES

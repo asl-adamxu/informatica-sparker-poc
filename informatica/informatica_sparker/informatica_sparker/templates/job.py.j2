@@ -6,7 +6,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 import yaml
-from runtime_lib import *
+import runtime_lib as lib
 
 
 def main():
@@ -14,8 +14,14 @@ def main():
     spark = SparkSession.builder.appName("{{ mapping_name }}").getOrCreate()
     
     # Load configuration
-    with open("config.yaml", "r") as f:
+    with open("config.yml", "r") as f:
         config = yaml.safe_load(f)
+    # Load object definitions (separate file for table/file metadata)
+    try:
+        with open("objects.yml", "r") as f:
+            objects = yaml.safe_load(f).get('objects', {})
+    except Exception:
+        objects = {}
     
 {% for step in steps %}
     # {{ step.step_name }} ({{ step.step_type.value }})
@@ -28,18 +34,28 @@ def main():
     db_config = config["connections"]["{{ step.params.connection_alias }}"]
 {% if step.params.query %}
     query = """{{ step.params.query }}"""
-    {{ step.df_output }} = read_sql(spark, db_config, query=query)
+    {{ step.df_output }} = lib.read_sql(spark, db_config, query=query)
 {% else %}
-    {{ step.df_output }} = read_sql(spark, db_config, table="{{ step.params.table_name }}")
+    {{ step.df_output }} = lib.read_sql(spark, db_config, table="{{ step.params.table_name }}")
 {% endif %}
 {% elif step.step_type == IRStepType.READ_FILE %}
-{% if step.params.file_format == "parquet" %}
-    {{ step.df_output }} = spark.read.parquet("{{ step.params.file_path }}")
-{% elif step.params.file_format == "csv" %}
-    {{ step.df_output }} = spark.read.csv("{{ step.params.file_path }}", header=True, inferSchema=True)
-{% else %}
-    {{ step.df_output }} = spark.read.format("{{ step.params.file_format }}").load("{{ step.params.file_path }}")
-{% endif %}
+    # Read from file - prefer objects.yml metadata if available
+    _obj_name = "{{ step.params.get('table_name', '') or step.params.get('object_name', '') }}"
+    _file_path = None
+    _file_format = "{{ step.params.get('file_format', 'csv') }}"
+    _file_options = {{ step.params.get('options', {}) }}
+    if _obj_name:
+        _obj = objects.get(_obj_name)
+        if _obj and isinstance(_obj, dict):
+            _file_cfg = _obj.get('file')
+            if _file_cfg:
+                _file_path = _file_cfg.get('path')
+                _file_format = _file_cfg.get('format', _file_format)
+                _file_options = _file_cfg.get('options', _file_options)
+    if not _file_path:
+        # No file path found in objects.yml or step params — fail fast so generator users must provide paths
+        raise RuntimeError(f"Missing file path for object '{_obj_name}' in objects.yml or step params for mapping '{{ mapping_name }}'. Please define the file.path for this object.")
+    {{ step.df_output }} = lib.read_file(spark, _file_path, format=_file_format, options=_file_options)
 {% elif step.step_type == IRStepType.APPLY_SOURCE_QUALIFIER %}
     {{ step.df_output }} = {{ step.df_input }}
 {% if step.params.filter_condition %}

@@ -16,8 +16,12 @@ pip3.11 install informatica-sparker
 
 3. use the package to convert the workflow to pyspark code
 ```sh
-informatica-python WF_GMS_DDS_APLY_DLY.XML -o WF_GMS_DDS_APLY_DLY --data-lib pyspark
 informatica-sparker convert WF_GMS_DDS_APLY_DLY.XML -o WF_GMS_DDS_APLY_DLY_SPARK
+```
+
+4. test the generated mapping (example for the truncate step)
+```sh
+SPARK_CONNECTION=spark3_client python3.6 m_utl_dpa_truncate.py 2>&1
 ```
 
 # Agent Prompt

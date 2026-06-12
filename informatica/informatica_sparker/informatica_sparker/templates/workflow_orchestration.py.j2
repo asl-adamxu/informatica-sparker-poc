@@ -25,17 +25,35 @@ from {{ mapping.module_name }} import run_mapping as run_{{ mapping.safe_name }}
 # =============================================================================
 
 def get_spark_session(app_name: str, config: Dict = None) -> SparkSession:
-    """Create or get SparkSession with configuration."""
+    """Create or get SparkSession with configuration.
+
+    Supports spark connection profiles defined in config.yml spark_connections:
+      - spark_local (default), spark3_client, spark3_on_yarn.
+    Selected via spark.connection or SPARK_CONNECTION env var.
+    """
+    spark_cfg = (config or {}).get("spark", {})
+    # Allow SPARK_CONNECTION env var to override
+    conn_name = os.environ.get("SPARK_CONNECTION") or spark_cfg.get("connection", "spark_local")
+
+    profiles = (config or {}).get("spark_connections", {})
+    profile = profiles.get(conn_name, profiles.get("spark_local", {}))
+
     builder = SparkSession.builder.appName(app_name)
-    
-    if config and "spark" in config:
-        spark_config = config["spark"]
-        if "master" in spark_config:
-            builder = builder.master(spark_config["master"])
-        if "configs" in spark_config:
-            for key, value in spark_config["configs"].items():
-                builder = builder.config(key, str(value))
-    
+
+    master_url = profile.get("master") or spark_cfg.get("master")
+    if master_url:
+        builder = builder.master(str(master_url))
+
+    deploy_mode = profile.get("deploy-mode")
+    if deploy_mode:
+        builder = builder.config("spark.submit.deployMode", str(deploy_mode))
+
+    for key, value in profile.get("config", {}).items():
+        builder = builder.config(key, str(value))
+
+    for key, value in spark_cfg.get("config", {}).items():
+        builder = builder.config(key, str(value))
+
     return builder.getOrCreate()
 
 

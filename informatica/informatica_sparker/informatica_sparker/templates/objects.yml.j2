@@ -1,0 +1,23 @@
+# Object definitions (minimal) generated from Informatica XML
+# Generated from: {{ mapping_name }}
+
+objects:
+{% for table_name, table_info in tables.items() %}
+  {%- set rendered_name = table_name -%}
+  {{ rendered_name }}:
+    {%- if table_info.type == 'source' and table_info.connection in ['UTL', 'flatfile'] -%}
+    # file-type object — no connection field needed
+    {%- elif table_info.connection == 'target' -%}
+    connection: "${TARGET_CONNECTION:target}"
+    {%- else -%}
+    connection: "{{ table_info.connection }}"
+    {%- endif %}
+    {%- if table_info.type == 'source' and table_info.connection in ['UTL', 'flatfile'] -%}
+    file:
+      format: "{{ table_info.get('format', 'csv') }}"
+      path: "{{ table_info.get('path', paths.input_base + '/' + table_name + '.csv') }}"
+      delimiter: "{{ table_info.get('delimiter', ',') }}"
+      header: "{{ table_info.get('header', 'true') }}"
+    {%- endif %}
+
+{% endfor %}

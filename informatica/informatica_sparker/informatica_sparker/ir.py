@@ -61,14 +61,17 @@ class ReadFileStep(IRStep):
 
     def __init__(self, step_name: str, df_output: str,
                  file_format: str, file_path: str,
-                 options: Dict[str, Any] = None, **kwargs):
+                 options: Dict[str, Any] = None,
+                 table_name: str = "", **kwargs):
         super().__init__(
             step_name=step_name,
             df_output=df_output,
             params={
                 "file_format": file_format,
                 "file_path": file_path,
-                "options": options or {}
+                "options": options or {},
+                "table_name": table_name,
+                "object_name": table_name
             },
             **kwargs
         )

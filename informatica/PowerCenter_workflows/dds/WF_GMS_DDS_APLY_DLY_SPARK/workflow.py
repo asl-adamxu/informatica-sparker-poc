@@ -54,8 +54,8 @@ def run_workflow():
     logger.info("Running 2 sessions in parallel")
     with ThreadPoolExecutor(max_workers=2) as executor:
         _futures = {
-            executor.submit(run_m_utl_param_setup, config): "S_GMS_ETL_PARAM_SETUP",
             executor.submit(run_m_utl_dpa_truncate, config): "S_GMS_ETL_DPA_TRUNCATE",
+            executor.submit(run_m_utl_param_setup, config): "S_GMS_ETL_PARAM_SETUP",
         }
         for _future in as_completed(_futures):
             _sname = _futures[_future]

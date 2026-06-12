@@ -379,7 +379,8 @@ class TransformHandlers:
                 df_output=df_name,
                 file_format=file_format,
                 file_path=file_path,
-                options=options
+                options=options,
+                table_name=source.name
             )
 
     def _handle_source_qualifier(self, instance: Instance, plan: IRPlan) -> Optional[IRStep]:
@@ -1136,9 +1137,11 @@ class TransformHandlers:
             ))
 
         mapped_columns = set()
+        field_map = {}  # target_field -> source_field for connectors to this target
         for conn in self.mapping.connectors:
             if conn.to_instance == instance.name:
                 mapped_columns.add(conn.to_field)
+                field_map[conn.to_field] = conn.from_field
 
         unmapped_columns = []
         if target:
@@ -1151,11 +1154,20 @@ class TransformHandlers:
         table_name = target.name if target else target_name
         mode = "append"
 
+        # Detect flat file targets — use csv sink, path comes from objects.yml
+        if target and target.database_type and "flat" in target.database_type.lower():
+            sink_type = "csv"
+            table_name = target.name
+
         if target_config:
-            sink_type = target_config.output_format
-            path = target_config.destination_path
-            table_name = target_config.table_name or table_name
-            mode = target_config.write_mode
+            if target_config.output_format:
+                sink_type = target_config.output_format
+            if target_config.destination_path:
+                path = target_config.destination_path
+            if target_config.table_name:
+                table_name = target_config.table_name
+            if target_config.write_mode:
+                mode = target_config.write_mode
 
         target_columns = []
         target_column_types = {}
@@ -1188,6 +1200,8 @@ class TransformHandlers:
         if target_columns:
             write_step.params["target_columns"] = target_columns
             write_step.params["target_column_types"] = target_column_types
+            if field_map:
+                write_step.params["field_map"] = field_map
             write_step.comments.append("Selecting only target-mapped columns with correct casing and data types")
 
         if unmapped_columns:
