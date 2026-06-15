@@ -437,11 +437,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics: lib.MappingMetrics = None
         lib.write_sql(df_write, lib.get_db_config(config, "target"), "{{ table_name }}", mode="{{ mode }}")
         {% elif path %}
         # TODO: Update file path after code generation
-        lib.write_file(df_write, "{{ path or '/data/output/sample_output' }}", format="{{ sink_type }}", mode="{{ mode }}")
+        lib.write_file(df_write, "{{ path or '/tmp/output/sample_output' }}", format="{{ sink_type }}", mode="{{ mode }}")
         {% else %}
         # Write to file — prefer objects.yml metadata, then step path param, then derived default
         _write_obj = objects.get("{{ table_name }}")
-        _write_path = "/data/{{ table_name }}"
+        _write_path = "/tmp/{{ table_name }}"
         _write_fmt = "{{ sink_type }}"
         if _write_obj and isinstance(_write_obj, dict) and _write_obj.get('file'):
             _file_cfg = _write_obj['file']

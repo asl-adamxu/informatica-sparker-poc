@@ -103,17 +103,17 @@ def run_mapping(ctx: lib.SparkContext = None, metrics: lib.MappingMetrics = None
         ctx.register_df("df_exp_3", df_exp_3)
         
         # Reading Data From Source - read_LKPTRANS
-        query = f"""SELECT SOR_SYS_PRPTY.VAL as VAL, SOR_SYS_PRPTY.PRPTY_DESP as PRPTY_DESP, SOR_SYS_PRPTY.PRPTY as PRPTY FROM PSOR.SOR_SYS_PRPTY"""
+        query = f"""SELECT SOR_SYS_PRPTY.VAL as VAL, SOR_SYS_PRPTY.PRPTY_DESP as PRPTY_DESP, SOR_SYS_PRPTY.PRPTY as PRPTY FROM SOR_SYS_PRPTY"""
         df_lkp_4 = lib.read_sql(spark, lib.get_db_config(config, "DDS"), query=query)
         df_lkp_4 = lib.normalize_column_names(df_lkp_4)
         print("Source Data Count df_lkp_4:", df_lkp_4.count())
         df_lkp_4 = df_lkp_4.coalesce(1).withColumn("jkey", monotonically_increasing_id())
         
         # Lookup: apply_LKPTRANS
-        # Join condition: PRPTY=PROPERTY        
+        # Join condition: PROPERTY=prpty        
         df_lkp_result_5 = df_exp_3.join(
 broadcast(df_lkp_4),
-(df_exp_3["PRPTY"] == df_lkp_4["PROPERTY"]),
+(df_exp_3["PROPERTY"] == df_lkp_4["PRPTY"]),
             "left"
         )
         ctx.register_df("df_lkp_result_5", df_lkp_result_5)
@@ -154,7 +154,7 @@ broadcast(df_lkp_4),
         df_write = df_write.select(*[col for col in ['LINE'] if col in df_write.columns])
         # Write to file — prefer objects.yml metadata, then step path param, then derived default
         _write_obj = objects.get("UTL_JOB_PARAM")
-        _write_path = "/data/UTL_JOB_PARAM"
+        _write_path = "/tmp/UTL_JOB_PARAM"
         _write_fmt = "csv"
         if _write_obj and isinstance(_write_obj, dict) and _write_obj.get('file'):
             _file_cfg = _write_obj['file']
