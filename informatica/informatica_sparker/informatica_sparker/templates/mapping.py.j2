@@ -149,7 +149,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics: lib.MappingMetrics = None
         {% set expr_str = col.get('expression', 'NULL') %}
         {% if ':SP.' in expr_str or '.SP_' in expr_str %}
         # Execute stored procedure for each input value via JDBC
-        _sp_conn = lib.get_db_config(config, "oracle_target")
+        _sp_conn = lib.get_db_config(config, "oracle-defaults")
         {% set sp_body = expr_str | replace(':SP.', '') %}
         {% set sp_name = sp_body.split('(')[0] %}
         {% set sp_full = step.params.get('sp_call_text', sp_name) %}
@@ -399,6 +399,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics: lib.MappingMetrics = None
                     df_write = df_write.withColumn(c, col(c).cast(TimestampType()))
         {% endif %}
         {% endfor %}
+        {% if drop_columns %}
         # Drop control columns not in target definition
         for col_to_drop in {{ drop_columns }}:
             if col_to_drop in df_write.columns:
@@ -438,17 +439,15 @@ def run_mapping(ctx: lib.SparkContext = None, metrics: lib.MappingMetrics = None
         # TODO: Update file path after code generation
         lib.write_file(df_write, "{{ path or '/data/output/sample_output' }}", format="{{ sink_type }}", mode="{{ mode }}")
         {% else %}
-        # Try to resolve file path from objects.yml for flat file targets
+        # Write to file — prefer objects.yml metadata, then step path param, then derived default
         _write_obj = objects.get("{{ table_name }}")
+        _write_path = "/data/{{ table_name }}"
+        _write_fmt = "{{ sink_type }}"
         if _write_obj and isinstance(_write_obj, dict) and _write_obj.get('file'):
-            _write_path = _write_obj['file'].get('path')
-            _write_fmt = _write_obj['file'].get('format', 'csv')
-            if _write_path:
-                lib.write_file(df_write, _write_path, format=_write_fmt, mode="{{ mode }}")
-            else:
-                df_write.write.format("{{ sink_type }}").mode("{{ mode }}").saveAsTable("{{ table_name }}")
-        else:
-            df_write.write.format("{{ sink_type }}").mode("{{ mode }}").saveAsTable("{{ table_name }}")
+            _file_cfg = _write_obj['file']
+            _write_path = _file_cfg.get('path', _write_path)
+            _write_fmt = _file_cfg.get('format', _write_fmt)
+        lib.write_file(df_write, _write_path, format=_write_fmt, mode="overwrite")
         {% endif %}
         if metrics:
             metrics.log_row_count("{{ step.step_name }}_written", df_write.count())
@@ -456,7 +455,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics: lib.MappingMetrics = None
         {% elif step.step_type == IRStepType.WORKFLOW_DAG %}
         # Workflow DAG step - handled by orchestration
         pass
-        
         {% endif %}
         {% if step.warnings %}
         {% for warning in step.warnings %}

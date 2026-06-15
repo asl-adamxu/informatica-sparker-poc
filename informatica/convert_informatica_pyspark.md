@@ -24,6 +24,8 @@ informatica-sparker convert WF_GMS_DDS_APLY_DLY.XML -o WF_GMS_DDS_APLY_DLY_SPARK
 SPARK_CONNECTION=spark3_client python3.6 m_utl_dpa_truncate.py 2>&1
 ```
 
+kinit -kt /home/asl/etl_user.keytab etl_user
+
 # Agent Prompt
 
 ```markdown

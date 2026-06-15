@@ -115,12 +115,42 @@ def write_sql(df: DataFrame, conn_config: Dict[str, Any], table: str,
 
 def write_file(df: DataFrame, path: str, format: str = "csv",
                mode: str = "overwrite", options: Dict[str, Any] = None) -> None:
-    """Write DataFrame to file (CSV, Parquet, etc.)."""
-    writer = df.write.format(format).mode(mode)
-    if options:
-        for k, v in options.items():
+    """Write DataFrame to file (CSV, Parquet, etc.).
+
+    For CSV format the output is coalesced to a single partition and the
+    single part file is renamed to the target path (so the result is a
+    single file rather than a Spark-partitioned directory).
+    """
+    opts = options or {}
+    fmt = (format or "csv").lower()
+    df_out = df.coalesce(1)
+
+    if fmt == "csv":
+        # Default CSV options
+        csv_opts = {"header": "true"}
+        csv_opts.update(opts)
+        # Write to a temporary directory, then rename the single part file
+        _tmp_dir = path + ".__tmp__"
+        writer = df_out.write.format("csv").mode("overwrite")
+        for k, v in csv_opts.items():
             writer = writer.option(k, str(v))
-    writer.save(path)
+        writer.save(_tmp_dir)
+
+        # Find the part-*.csv file and rename it to the final path
+        import glob
+        part_files = glob.glob(os.path.join(_tmp_dir, "part-*.csv"))
+        if part_files:
+            if os.path.exists(path):
+                os.remove(path)
+            os.rename(part_files[0], path)
+        # Clean up temp directory
+        import shutil
+        shutil.rmtree(_tmp_dir, ignore_errors=True)
+    else:
+        writer = df_out.write.format(fmt).mode(mode)
+        for k, v in opts.items():
+            writer = writer.option(k, str(v))
+        writer.save(path)
 
 
 def execute_sql(spark: SparkSession, conn_config: Dict[str, Any], sql: str) -> None:

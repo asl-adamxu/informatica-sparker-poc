@@ -61,6 +61,6 @@ objects:
     UTL_DEV_NULL:
         file:
             format: "csv"
-            path: "/tmp/UTL_DEV_NULL"
+            path: "/tmp/UTL_DEV_NULL.csv"
             delimiter: ","
             header: "true"
