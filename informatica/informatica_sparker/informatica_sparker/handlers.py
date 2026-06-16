@@ -665,10 +665,9 @@ class TransformHandlers:
                 left_col = match.group(1).split('.')[-1]
                 right_col = match.group(2).split('.')[-1]
                 # Informatica lookups use format: LOOKUP_COL = SOURCE_COL
-                # The lookup column will be normalized to lowercase at runtime
                 result["join_columns"].append({
                     "source_col": right_col,
-                    "lookup_col": left_col.lower()
+                    "lookup_col": left_col
                 })
 
         if not result["join_columns"]:

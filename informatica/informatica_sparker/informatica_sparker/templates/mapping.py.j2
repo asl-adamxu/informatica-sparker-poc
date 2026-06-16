@@ -15,8 +15,6 @@ from pyspark.sql import DataFrame
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 
-{% set safe_mapping_name = mapping_name | lower | replace(' ', '_') | replace('-', '_') %}
-
 # Load configuration
 config = lib.load_config('config.yml')
 # Load object definitions (separate small file for table/file metadata)
@@ -164,8 +162,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics: lib.MappingMetrics = None
         {% endif %}
         {% endfor %}
         {% set output_columns = step.params.get('output_columns', []) %}
-        {% set output_columns = step.params.get('output_columns', []) %}
-        {% if output_columns %}
+        {% if output_columns %}       
         # Select only mapping output ports (prevents column leakage)
         {{ step.df_output }} = {{ step.df_output }}.select({% for c in output_columns %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %})
         {% endif %}
@@ -362,7 +359,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics: lib.MappingMetrics = None
         {% set target_columns = step.params.get('target_columns', []) %}
         {% set target_column_types = step.params.get('target_column_types', {}) %}
         {% set unmapped_columns = step.params.get('unmapped_columns', []) %}
-        {% set identity_columns = step.params.get('identity_columns', ['src_rowid', 'SRC_ROWID']) %}
         df_write = {{ step.df_input }}
         # Cast columns to match target schema data types
         {% for col_name, col_type in target_column_types.items() %}
@@ -424,22 +420,14 @@ def run_mapping(ctx: lib.SparkContext = None, metrics: lib.MappingMetrics = None
         {% endif %}
         # Select columns with exact casing from target definition
         target_col_map = {c.lower(): c for c in {{ target_columns }}}
-        final_cols = []
         for c in df_write.columns:
             if c.lower() in target_col_map:
                 if c != target_col_map[c.lower()]:
                     df_write = df_write.withColumnRenamed(c, target_col_map[c.lower()])
-                final_cols.append(target_col_map[c.lower()])
         df_write = df_write.select(*[col for col in {{ target_columns }} if col in df_write.columns])
         {% endif %}
-        {% if sink_type == 'jdbc' %}
-        # Write to target database using connection configuration
-        lib.write_sql(df_write, lib.get_db_config(config, "target"), "{{ table_name }}", mode="{{ mode }}")
-        {% elif path %}
-        # TODO: Update file path after code generation
-        lib.write_file(df_write, "{{ path or '/tmp/output/sample_output' }}", format="{{ sink_type }}", mode="{{ mode }}")
-        {% else %}
-        # Write to file — prefer objects.yml metadata, then step path param, then derived default
+        {% if sink_type == 'csv' %}
+        # Write to flat file — prefer objects.yml metadata, then derived default path
         _write_obj = objects.get("{{ table_name }}")
         _write_path = "/tmp/{{ table_name }}"
         _write_fmt = "{{ sink_type }}"
@@ -448,6 +436,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics: lib.MappingMetrics = None
             _write_path = _file_cfg.get('path', _write_path)
             _write_fmt = _file_cfg.get('format', _write_fmt)
         lib.write_file(df_write, _write_path, format=_write_fmt, mode="overwrite")
+        {% else %}
+        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
+        lib.write_table(df_write, lib.get_db_config(config, "target"), "{{ table_name }}", mode="{{ mode }}")
         {% endif %}
         if metrics:
             metrics.log_row_count("{{ step.step_name }}_written", df_write.count())

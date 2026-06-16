@@ -297,35 +297,38 @@ def smart_repartition(df: DataFrame, target_partitions: int = 20,
         return df
 
 
-def safe_write_jdbc(df: DataFrame, jdbc_url: str, table_name: str, user: str,
-                    password: str, driver: str, mode: str = "append",
-                    batch_size: int = 10000, partitions: int = 20) -> bool:
-    """Safely write DataFrame to JDBC target."""
+def write_table(df: DataFrame, conn_config: Dict[str, Any], table_name: str,
+                mode: str = "append") -> None:
+    """Write DataFrame to SQL database (mirrors write_sql interface).
+
+    Args:
+        df: DataFrame to write
+        conn_config: Connection configuration dict (with host, port, username, etc.)
+        table_name: Target table name
+        mode: Write mode (append, overwrite, etc.)
+    """
+    jdbc_url = get_jdbc_url(conn_config)
+    user = conn_config.get("username", "")
+    password = conn_config.get("password", "")
+    driver = conn_config.get("driver", "oracle.jdbc.driver.OracleDriver")
+
     try:
         row_count = df.count()
         if row_count == 0:
-            return False
-        partitioned_df = smart_repartition(df, partitions)
-        partitioned_df.write.format("jdbc") \
+            return
+        df_out = smart_repartition(df, 20)
+        df_out.write.format("jdbc") \
             .option("url", jdbc_url) \
             .option("dbtable", table_name) \
             .option("user", user) \
             .option("password", password) \
             .option("driver", driver) \
-            .option("batchsize", batch_size) \
+            .option("batchsize", 10000) \
             .mode(mode) \
             .save()
-        return True
     except Exception as e:
         logging.error(f"Error writing to {table_name}: {e}")
         raise
-
-
-def write_target(df: DataFrame, table_name: str, mode: str = "append"):
-    """Write to target database."""
-    return safe_write_jdbc(df=df, jdbc_url="", table_name=table_name,
-                           user="", password="", driver="",
-                           mode=mode, batch_size=10000, partitions=20)
 
 
 class SparkContext:
