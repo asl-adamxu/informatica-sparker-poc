@@ -119,10 +119,10 @@ class ConversionService:
             sql_file = self._generate_sql_file(all_sql_queries)
             all_files.append(sql_file)
 
-        error_log = self._generate_error_log(
+        conversion_log = self._generate_conversion_log(
             all_warnings, all_errors, all_reports, all_source_detections
         )
-        all_files.append(error_log)
+        all_files.append(conversion_log)
 
         result = GenerationResult(
             files=all_files,
@@ -861,6 +861,10 @@ class ConversionService:
             tables = {}
             mapping_variables = {}
             seen_db_names = set()
+            paths = {
+                "input_base": "${INPUT_PATH:/tmp}",
+                "output_base": "${OUTPUT_PATH:/tmp}",
+            }
 
             for mapping in mappings:
                 # Collect source tables and their connections
@@ -880,21 +884,27 @@ class ConversionService:
                             "driver": get_jdbc_driver(raw_type),
                         }
                     
+                    is_flat = db_name.lower() in ('utl', 'flatfile')
                     tables[src.name] = {
                         "connection": db_name,
                         "database": db_name,
                         "schema": src.owner_name or "dbo",
                         "type": "source",
+                        "format": src.file_format.value if src.file_format else "csv",
+                        "path": f"/tmp/{src.name}.csv",
                     }
 
                 # Collect target tables
                 for tgt in getattr(mapping, 'targets', []):
                     if tgt.name not in tables:
+                        from .models import normalize_db_type
+                        is_flat = tgt.database_type and "flat" in tgt.database_type.lower()
                         tables[tgt.name] = {
-                            "connection": "target",
+                            "connection": "target" if not is_flat else db_name,
                             "database": "",
                             "schema": "dbo",
                             "type": "target",
+                            "is_flat_file": is_flat,
                         }
 
                 # Collect mapping variables
@@ -928,6 +938,7 @@ class ConversionService:
                 mapping_name=folder_name or mapping_names[0] if mapping_names else "default",
                 db_connections=db_connections,
                 tables=tables,
+                paths=paths,
                 mapping_variables=mapping_variables,
                 user_config=self.user_config,
             )
@@ -1095,7 +1106,7 @@ class ConversionService:
             file_type="sql",
         )
 
-    def _generate_error_log(self, warnings: List[str], errors: List[str],
+    def _generate_conversion_log(self, warnings: List[str], errors: List[str],
                              reports: List[ConversionReport],
                              source_detections: List[SourceDetectionResult]) -> GeneratedFile:
         lines = [
@@ -1163,7 +1174,7 @@ class ConversionService:
             lines.append("")
 
         return GeneratedFile(
-            filename="error_log.txt",
+            filename="conversion_log.txt",
             content='\n'.join(lines),
             file_type="text",
         )
@@ -1171,7 +1182,18 @@ class ConversionService:
     def _write_output(self, files: List[GeneratedFile], output_dir: str):
         out_path = Path(output_dir)
         out_path.mkdir(parents=True, exist_ok=True)
+        env_path = out_path / "env"
+        env_path.mkdir(parents=True, exist_ok=True)
 
         for gen_file in files:
-            file_path = out_path / gen_file.filename
+            # .md report goes to current working directory (not in workflow folder)
+            if gen_file.filename.endswith(".md"):
+                file_path = Path.cwd() / gen_file.filename
+            # Mapping scripts and workflow.py go directly in output_dir
+            elif gen_file.filename == "workflow.py" or gen_file.filename.startswith("m_"):
+                file_path = out_path / gen_file.filename
+            # Everything else (config.yml, runtime_lib.py, etc.) goes in env/
+            else:
+                file_path = env_path / gen_file.filename
+            file_path.parent.mkdir(parents=True, exist_ok=True)
             file_path.write_text(gen_file.content, encoding="utf-8")

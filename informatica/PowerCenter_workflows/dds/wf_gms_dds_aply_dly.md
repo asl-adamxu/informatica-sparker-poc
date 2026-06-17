@@ -7,8 +7,8 @@ Auto-generated from Informatica PowerCenter workflow
 ```mermaid
 flowchart TD
     subgraph Stage1["Stage 1 (Parallel)"]
-        S_GMS_ETL_PARAM_SETUP["S_GMS_ETL_PARAM_SETUP<br/>(M_UTL_PARAM_SETUP)"]
         S_GMS_ETL_DPA_TRUNCATE["S_GMS_ETL_DPA_TRUNCATE<br/>(M_UTL_DPA_TRUNCATE)"]
+        S_GMS_ETL_PARAM_SETUP["S_GMS_ETL_PARAM_SETUP<br/>(M_UTL_PARAM_SETUP)"]
     end
     subgraph Stage2["WL_GMS_DDS_SUM (Parallel)"]
         S_DPA_SUM_FACT_GMS_DLY_MSD_INCDT["M_DPA_SUM_FACT_GMS_DLY_MSD_INCDT"]
@@ -30,8 +30,8 @@ flowchart TD
 
 | Session | Mapping | Type |
 |---------|---------|------|
-| S_GMS_ETL_PARAM_SETUP | M_UTL_PARAM_SETUP | Parallel |
 | S_GMS_ETL_DPA_TRUNCATE | M_UTL_DPA_TRUNCATE | Parallel |
+| S_GMS_ETL_PARAM_SETUP | M_UTL_PARAM_SETUP | Parallel |
 | S_DPA_SUM_FACT_GMS_DLY_MSD_INCDT | M_DPA_SUM_FACT_GMS_DLY_MSD_INCDT | Worklet |
 | S_DPA_SUM_FACT_GMS_DLY_MSD_SMRY | M_DPA_SUM_FACT_GMS_DLY_MSD_SMRY | Worklet |
 | S_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR | M_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR | Worklet |

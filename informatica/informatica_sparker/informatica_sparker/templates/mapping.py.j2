@@ -8,17 +8,19 @@
 '''
 
 import logging
+import sys
 from datetime import datetime
 from typing import Dict, Any, Optional
-import runtime_lib as lib
+sys.path.insert(0, 'env')
+import env.runtime_lib as lib
 from pyspark.sql import DataFrame
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 
 # Load configuration
-config = lib.load_config('config.yml')
-# Load object definitions (separate small file for table/file metadata)
-objects = lib.load_config('objects.yml').get('objects', {})
+config = lib.load_config('env/config.yml')
+# Load file object definitions from config.yml (file-type objects only)
+objects = lib.load_config('env/config.yml').get('objects', {})
 
 # =============================================================================
 # SPARK SESSION INITIALIZATION
@@ -109,29 +111,25 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
         {{ step.df_output }} = {{ step.df_output }}.coalesce(1).withColumn("jkey", monotonically_increasing_id())
         
         {% elif step.step_type == IRStepType.READ_FILE %}
-        # Read from file (prefer objects.yml metadata if present)
+        # Read from file (prefer config.yml objects metadata if present)
         # Determine object/table name emitted by the generator (if any)
         _obj_name = "{{ step.params.get('table_name', '') or step.params.get('object_name', '') }}"
-        _file_path = None
-        _file_format = "{{ step.params.get('file_format', 'csv') }}"
         _file_options = {{ step.params.get('options', {}) }}
         if _obj_name:
             _obj = objects.get(_obj_name)
             if _obj and isinstance(_obj, dict):
-                _file_cfg = _obj.get('file')
-                if _file_cfg:
-                    _file_path = _file_cfg.get('path')
-                    _file_format = _file_cfg.get('format', _file_format)
-                    # merge options if present
-                    try:
-                        _file_opts_from_obj = _file_cfg.get('options', {})
-                        if isinstance(_file_opts_from_obj, dict):
-                            _file_options = {**_file_options, **_file_opts_from_obj}
-                    except Exception:
-                        pass
+                _file_path = _obj.get('path')
+                _file_format = _obj.get('format', '{{ step.params.get('file_format', 'csv') }}')
+                # merge options if present
+                try:
+                    _file_opts_from_obj = _obj.get('options', {})
+                    if isinstance(_file_opts_from_obj, dict):
+                        _file_options = {**_file_options, **_file_opts_from_obj}
+                except Exception:
+                    pass
         if not _file_path:
-            # No file path found in objects.yml or step params — fail fast so generator users must provide paths
-            raise RuntimeError(f"Missing file path for object '{_obj_name}' in objects.yml or step params for mapping '{{ mapping_name }}'. Please define the file.path for this object.")
+            # No file path found in config.yml or step params — fail fast so generator users must provide paths
+            raise RuntimeError(f"Missing file path for object '{_obj_name}' in config.yml or step params for mapping '{{ mapping_name }}'. Please define the file.path for this object.")
         {{ step.df_output }} = lib.read_file(
             spark,
             _file_path,
@@ -459,14 +457,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
         df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
         {% endif %}
         {% if sink_type == 'csv' %}
-        # Write to flat file — prefer objects.yml metadata, then derived default path
+        # Write to flat file — prefer config.yml objects metadata, then derived default path
         _write_obj = objects.get("{{ table_name }}")
-        _write_path = "/tmp/{{ table_name }}"
-        _write_fmt = "{{ sink_type }}"
-        if _write_obj and isinstance(_write_obj, dict) and _write_obj.get('file'):
-            _file_cfg = _write_obj['file']
-            _write_path = _file_cfg.get('path', _write_path)
-            _write_fmt = _file_cfg.get('format', _write_fmt)
+        if _write_obj and isinstance(_write_obj, dict):
+            _write_path = _write_obj.get('path', '/tmp/{{ table_name }}')
+            _write_fmt = _write_obj.get('format', '{{ sink_type }}')
         lib.write_file(df_write, _write_path, format=_write_fmt, mode="overwrite")
         {% else %}
         # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)

@@ -99,7 +99,7 @@ def _run_convert(args):
         for w in shown:
             print(f"    ! {w}")
         if len(result.warnings) > 20:
-            print(f"    ... and {len(result.warnings) - 20} more (see error_log.txt)")
+            print(f"    ... and {len(result.warnings) - 20} more (see conversion_log.txt)")
 
     print()
 

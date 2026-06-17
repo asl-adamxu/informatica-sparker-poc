@@ -13,6 +13,16 @@ from pyspark.sql.types import *
 import yaml
 
 
+def _resolve_path(value: str) -> str:
+    """Resolve shell variables ($VAR, ${VAR}) and $(pwd) in config values."""
+    if not isinstance(value, str):
+        return value
+    value = os.path.expandvars(value)
+    if "$(pwd)" in value:
+        value = value.replace("$(pwd)", os.getcwd())
+    return value
+
+
 def get_db_config(config: Dict[str, Any], conn_name: str = "source") -> Dict[str, Any]:
     """Get database connection configuration by name.
     
@@ -23,6 +33,65 @@ def get_db_config(config: Dict[str, Any], conn_name: str = "source") -> Dict[str
     if result is not None:
         return result
     return config.get(conn_name, config.get("connections", {}).get("source", {}))
+
+
+def _resolve_password(spark: SparkSession, conn_config: Dict[str, Any]) -> str:
+    """Resolve password from connection config, using Hadoop CredentialProvider if applicable.
+    
+    If the password starts with 'credential:', the remainder is treated as a
+    credential alias looked up via the Hadoop CredentialProvider.
+    Otherwise the plaintext value is returned as-is.
+    """
+    raw = conn_config.get("password", "")
+    if not raw:
+        return raw
+    if not raw.startswith("credential:"):
+        return raw
+    alias = raw[len("credential:"):]
+    try:
+        chars = spark.sparkContext._jsc.hadoopConfiguration().getPassword(alias)
+        if chars:
+            return "".join(chars)
+    except Exception:
+        pass
+
+    # Credential not found in provider — check if it exists (created externally)
+    _cred_path = _resolve_path(spark.sparkContext._jsc.hadoopConfiguration().get(
+        "hadoop.security.credential.provider.path", ""))
+    import subprocess
+    _list = subprocess.run(
+        "hadoop credential list -provider {} 2>/dev/null".format(_cred_path),
+        shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+    if alias in _list.stdout:
+        # Credential exists but getPassword failed — try reading it again
+        try:
+            chars = spark.sparkContext._jsc.hadoopConfiguration().getPassword(alias)
+            if chars:
+                return "".join(chars)
+        except Exception:
+            pass
+
+    # Interactive first-time setup
+    print(f"")
+    print(f"!!! Credential '{alias}' not found in provider: {_cred_path}")
+    import getpass
+    _pwd = getpass.getpass(f"    Password for {alias}: ")
+    if _pwd:
+        import shlex
+        _cmd = f"hadoop credential create {alias} -value {shlex.quote(_pwd)} -provider {_cred_path}"
+        _result = subprocess.run(_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        if _result.returncode == 0:
+            print(f"    Credential '{alias}' saved successfully.")
+        else:
+            # May already exist — try updating instead
+            _upd = f"hadoop credential update {alias} -value {shlex.quote(_pwd)} -provider {_cred_path}"
+            subprocess.run(_upd, shell=True, check=True)
+            print(f"    Credential '{alias}' updated successfully.")
+        return _pwd
+    print(f"    Skipped. Create it later with:")
+    print(f"    hadoop credential create {alias} -provider {_cred_path}")
+    print(f"")
+    return raw
 
 
 def get_jdbc_url(conn_config: Dict[str, Any]) -> str:
@@ -58,7 +127,7 @@ def read_sql(spark: SparkSession, conn_config: Dict[str, Any],
     """Read data from SQL database."""
     jdbc_url = get_jdbc_url(conn_config)
     user = conn_config.get("username", "")
-    password = conn_config.get("password", "")
+    password = _resolve_password(spark, conn_config)
     driver = conn_config.get("driver", "oracle.jdbc.driver.OracleDriver")
     
     reader = spark.read.format("jdbc") \
@@ -100,7 +169,8 @@ def write_sql(df: DataFrame, conn_config: Dict[str, Any], table: str,
     """Write DataFrame to SQL database."""
     jdbc_url = get_jdbc_url(conn_config)
     user = conn_config.get("username", "")
-    password = conn_config.get("password", "")
+    spark = df.sparkSession
+    password = _resolve_password(spark, conn_config)
     driver = conn_config.get("driver", "oracle.jdbc.driver.OracleDriver")
     
     df.write.format("jdbc") \
@@ -157,7 +227,7 @@ def execute_sql(spark: SparkSession, conn_config: Dict[str, Any], sql: str) -> N
     """Execute a SQL statement (DDL/DML)."""
     jdbc_url = get_jdbc_url(conn_config)
     user = conn_config.get("username", "")
-    password = conn_config.get("password", "")
+    password = _resolve_password(spark, conn_config)
     driver = conn_config.get("driver", "oracle.jdbc.driver.OracleDriver")
     
     spark._jvm.java.lang.Class.forName(driver)
@@ -171,7 +241,7 @@ def execute_sql(spark: SparkSession, conn_config: Dict[str, Any], sql: str) -> N
         conn.close()
 
 
-def load_config(config_path: str = "config.yml") -> Dict[str, Any]:
+def load_config(config_path: str = "env/config.yml") -> Dict[str, Any]:
     """Load configuration from YAML file."""
     if not os.path.exists(config_path):
         return {}
@@ -230,7 +300,7 @@ def get_spark_session(app_name: str, config: Dict[str, Any] = None) -> SparkSess
         for key, value in all_cfg.items():
             if key.startswith("spark.hadoop."):
                 hadoop_key = key.replace("spark.hadoop.", "")
-                spark.sparkContext._jsc.hadoopConfiguration().set(hadoop_key, str(value))
+                spark.sparkContext._jsc.hadoopConfiguration().set(hadoop_key, _resolve_path(str(value)))
     except Exception:
         pass  # best-effort
 
@@ -309,7 +379,8 @@ def write_table(df: DataFrame, conn_config: Dict[str, Any], table_name: str,
     """
     jdbc_url = get_jdbc_url(conn_config)
     user = conn_config.get("username", "")
-    password = conn_config.get("password", "")
+    spark = df.sparkSession
+    password = _resolve_password(spark, conn_config)
     driver = conn_config.get("driver", "oracle.jdbc.driver.OracleDriver")
 
     try:

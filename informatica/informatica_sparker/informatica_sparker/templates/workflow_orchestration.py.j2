@@ -57,7 +57,7 @@ def get_spark_session(app_name: str, config: Dict = None) -> SparkSession:
     return builder.getOrCreate()
 
 
-def load_config(config_path: str = "config.yml") -> Dict[str, Any]:
+def load_config(config_path: str = "env/config.yml") -> Dict[str, Any]:
     """Load configuration from YAML file with environment variable substitution."""
     if not os.path.exists(config_path):
         return {}
@@ -313,7 +313,7 @@ def run_workflow(config: Dict[str, Any] = None,
         dict: Workflow execution results
     """
     if config is None:
-        config = load_config("config.yml")
+        config = load_config("env/config.yml")
     
     spark = get_spark_session("{{ workflow_name }}", config)
     ctx = SparkContext(spark, config)
@@ -382,7 +382,7 @@ def run_single_mapping(mapping_name: str, config: Dict[str, Any] = None) -> bool
         bool: True if successful
     """
     if config is None:
-        config = load_config("config.yml")
+        config = load_config("env/config.yml")
     
     spark = get_spark_session(mapping_name, config)
     ctx = SparkContext(spark, config)
@@ -416,7 +416,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="{{ workflow_name }} Workflow Orchestration")
     parser.add_argument("--mapping", "-m", help="Run specific mapping only")
-    parser.add_argument("--config", "-c", default="config.yml", help="Config file path")
+    parser.add_argument("--config", "-c", default="env/config.yml", help="Config file path")
     parser.add_argument("--fail-fast", action="store_true", default=True, 
                        help="Stop on first failure")
     parser.add_argument("--continue-on-error", action="store_true",

@@ -374,7 +374,7 @@ class TransformHandlers:
         else:
             file_format = source_config.file_format.value if source_config and source_config.file_format else "csv"
             file_path = (source_config.file_path if source_config and source_config.file_path
-                        else f"/data/{source.name}")
+                        else f"/tmp/{source.name}")
             options = {}
             if source_config:
                 options = {

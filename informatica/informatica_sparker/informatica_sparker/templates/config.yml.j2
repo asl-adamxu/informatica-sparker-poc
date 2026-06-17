@@ -36,6 +36,16 @@ spark:
     spark.shuffle.service.enabled: "true"
     spark.sql.adaptive.enabled: "true"
     spark.driver.extraClassPath: "/opt/cloudera/parcels/SPARK3-3.5.4.3.5.7191000.0-30-1.p0.68499982/lib/spark3/jars/ojdbc8.jar"
+    spark.hadoop.hadoop.security.credential.provider.path: "jceks://file/$(pwd)/env/passwords.jceks"
+
+# =============================================================================
+# CREDENTIAL PROVIDER
+# =============================================================================
+# Passwords support Hadoop CredentialProvider for encryption.
+# Set password to "credential:<alias>" to use a stored credential.
+# 
+# Create credentials (run once before first execution):
+#   hadoop credential create connections.oracle.password -provider jceks://file/$(pwd)/env/passwords.jceks
 
 # =============================================================================
 # SPARK CONNECTION PROFILES
@@ -72,7 +82,7 @@ connections:
     port: 1521
     service_name: "CDCUATPDB"
     username: "airflow"
-    password: "airflow"
+    password: "credential:connections.oracle.password"
     driver: "oracle.jdbc.driver.OracleDriver"
 
 {% for conn_name, conn_info in db_connections.items() %}
@@ -90,10 +100,26 @@ connections:
 # FILE PATHS
 # =============================================================================
 paths:
-  input_base: "${INPUT_PATH:/data/input}"
-  output_base: "${OUTPUT_PATH:/data/output}"
-  staging: "${STAGING_PATH:/data/staging}"
-  archive: "${ARCHIVE_PATH:/data/archive}"
+  input_base: "${INPUT_PATH:/tmp}"
+  output_base: "${OUTPUT_PATH:/tmp}"
+  staging: "${STAGING_PATH:/tmp}"
+  archive: "${ARCHIVE_PATH:/tmp}"
+
+# =============================================================================
+# FILE OBJECTS (Only file-type objects; database tables use connections directly)
+# =============================================================================
+objects:
+{% for table_name, table_info in tables.items() %}
+  {%- set is_file_object = (table_info.type == 'source' and table_info.connection in ['UTL', 'flatfile']) or table_info.get('is_flat_file', False) %}
+  {%- if is_file_object %}
+  
+  {{ table_name }}:
+    format: "csv"
+    path: "{{ table_info.get('path', '/tmp/' + table_name) }}"
+    delimiter: "{{ table_info.get('delimiter', ',') }}"
+    header: "{{ table_info.get('header', 'true') }}"
+  {%- endif %}
+{% endfor %}
 
 # =============================================================================
 # MAPPING VARIABLES

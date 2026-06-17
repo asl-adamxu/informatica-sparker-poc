@@ -15,7 +15,7 @@ A Python framework that converts Informatica PowerCenter workflow/mapping XML ex
   - `workflow.py` - Workflow orchestration with dependency management
   - `config.yml` - Unified YAML configuration with environment variable support
   - `all_sql_queries.sql` - All extracted SQL queries organized by mapping
-  - `error_log.txt` - Detailed conversion log with warnings, errors, and source detection results
+  - `conversion_log.txt` - Detailed conversion log with warnings, errors, and source detection results
 - **Transformation Coverage**: Supports Source Qualifier, Expression, Filter, Lookup, Joiner, Aggregator, Sorter, Union, Router, Sequence Generator, Update Strategy, Stored Procedure, Mapplet
 - **Python 3.10+ Compatible**
 
@@ -99,7 +99,7 @@ output/
   workflow.py           # Workflow orchestration (runs all mappings in order)
   config.yml            # Unified YAML config (connections, sources, targets)
   all_sql_queries.sql   # All SQL queries extracted from all mappings
-  error_log.txt         # Conversion log with warnings, errors, detections
+  conversion_log.txt         # Conversion log with warnings, errors, detections
 ```
 
 ## Source Type Detection

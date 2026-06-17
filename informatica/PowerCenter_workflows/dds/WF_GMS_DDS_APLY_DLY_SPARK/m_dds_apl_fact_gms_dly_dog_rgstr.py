@@ -8,17 +8,19 @@
 '''
 
 import logging
+import sys
 from datetime import datetime
 from typing import Dict, Any, Optional
-import runtime_lib as lib
+sys.path.insert(0, 'env')
+import env.runtime_lib as lib
 from pyspark.sql import DataFrame
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 
 # Load configuration
-config = lib.load_config('config.yml')
-# Load object definitions (separate small file for table/file metadata)
-objects = lib.load_config('objects.yml').get('objects', {})
+config = lib.load_config('env/config.yml')
+# Load file object definitions from config.yml (file-type objects only)
+objects = lib.load_config('env/config.yml').get('objects', {})
 
 # =============================================================================
 # SPARK SESSION INITIALIZATION

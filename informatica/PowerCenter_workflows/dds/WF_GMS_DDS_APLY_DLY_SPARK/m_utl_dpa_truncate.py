@@ -8,17 +8,19 @@
 '''
 
 import logging
+import sys
 from datetime import datetime
 from typing import Dict, Any, Optional
-import runtime_lib as lib
+sys.path.insert(0, 'env')
+import env.runtime_lib as lib
 from pyspark.sql import DataFrame
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 
 # Load configuration
-config = lib.load_config('config.yml')
-# Load object definitions (separate small file for table/file metadata)
-objects = lib.load_config('objects.yml').get('objects', {})
+config = lib.load_config('env/config.yml')
+# Load file object definitions from config.yml (file-type objects only)
+objects = lib.load_config('env/config.yml').get('objects', {})
 
 # =============================================================================
 # SPARK SESSION INITIALIZATION
@@ -50,29 +52,25 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
     metrics.start()
     
     try:
-        # Read from file (prefer objects.yml metadata if present)
+        # Read from file (prefer config.yml objects metadata if present)
         # Determine object/table name emitted by the generator (if any)
         _obj_name = "UTL_SSA_TBL_LIST"
-        _file_path = None
-        _file_format = "csv"
         _file_options = {}
         if _obj_name:
             _obj = objects.get(_obj_name)
             if _obj and isinstance(_obj, dict):
-                _file_cfg = _obj.get('file')
-                if _file_cfg:
-                    _file_path = _file_cfg.get('path')
-                    _file_format = _file_cfg.get('format', _file_format)
-                    # merge options if present
-                    try:
-                        _file_opts_from_obj = _file_cfg.get('options', {})
-                        if isinstance(_file_opts_from_obj, dict):
-                            _file_options = {**_file_options, **_file_opts_from_obj}
-                    except Exception:
-                        pass
+                _file_path = _obj.get('path')
+                _file_format = _obj.get('format', 'csv')
+                # merge options if present
+                try:
+                    _file_opts_from_obj = _obj.get('options', {})
+                    if isinstance(_file_opts_from_obj, dict):
+                        _file_options = {**_file_options, **_file_opts_from_obj}
+                except Exception:
+                    pass
         if not _file_path:
-            # No file path found in objects.yml or step params — fail fast so generator users must provide paths
-            raise RuntimeError(f"Missing file path for object '{_obj_name}' in objects.yml or step params for mapping 'M_UTL_DPA_TRUNCATE'. Please define the file.path for this object.")
+            # No file path found in config.yml or step params — fail fast so generator users must provide paths
+            raise RuntimeError(f"Missing file path for object '{_obj_name}' in config.yml or step params for mapping 'M_UTL_DPA_TRUNCATE'. Please define the file.path for this object.")
         df_src_1 = lib.read_file(
             spark,
             _file_path,
@@ -121,14 +119,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['LINE']
         df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
-        # Write to flat file — prefer objects.yml metadata, then derived default path
+        # Write to flat file — prefer config.yml objects metadata, then derived default path
         _write_obj = objects.get("UTL_DEV_NULL")
-        _write_path = "/tmp/UTL_DEV_NULL"
-        _write_fmt = "csv"
-        if _write_obj and isinstance(_write_obj, dict) and _write_obj.get('file'):
-            _file_cfg = _write_obj['file']
-            _write_path = _file_cfg.get('path', _write_path)
-            _write_fmt = _file_cfg.get('format', _write_fmt)
+        if _write_obj and isinstance(_write_obj, dict):
+            _write_path = _write_obj.get('path', '/tmp/UTL_DEV_NULL')
+            _write_fmt = _write_obj.get('format', 'csv')
         lib.write_file(df_write, _write_path, format=_write_fmt, mode="overwrite")
 
         metrics.log_row_count("write_UTL_DEV_NULL_written", df_write.count())
