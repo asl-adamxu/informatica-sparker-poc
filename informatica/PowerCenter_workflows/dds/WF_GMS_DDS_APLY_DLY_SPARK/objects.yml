@@ -56,7 +56,11 @@ objects:
         connection: "${TARGET_CONNECTION:target}"
 
     UTL_JOB_PARAM:
-        connection: "${TARGET_CONNECTION:target}"
+        file:
+            format: "csv"
+            path: "/tmp/UTL_JOB_PARAM"
+            delimiter: ","
+            header: "true"
 
     UTL_DEV_NULL:
         file:

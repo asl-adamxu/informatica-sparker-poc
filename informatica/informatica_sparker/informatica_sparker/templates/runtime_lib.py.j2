@@ -345,6 +345,32 @@ class SparkContext:
         return self.dataframes.get(name)
 
 
+class NullMetrics:
+    """No-op metrics tracker — used when no metrics collection is needed.
+    Provides the same interface as MappingMetrics but with empty method bodies.
+    """
+    def __init__(self, mapping_name: str = ""):
+        self.mapping_name = mapping_name
+        self.row_counts = {}
+        self.warnings = []
+        self.status = "PENDING"
+
+    def start(self):
+        self.status = "RUNNING"
+
+    def complete(self):
+        self.status = "SUCCESS"
+
+    def fail(self, error: Exception):
+        self.status = "FAILED"
+
+    def log_row_count(self, step_name: str, count: int):
+        self.row_counts[step_name] = count
+
+    def add_warning(self, warning: str):
+        self.warnings.append(warning)
+
+
 class MappingMetrics:
     """Track metrics for a mapping execution."""
     def __init__(self, mapping_name: str):

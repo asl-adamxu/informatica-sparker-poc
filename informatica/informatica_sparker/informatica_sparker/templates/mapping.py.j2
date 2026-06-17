@@ -21,42 +21,60 @@ config = lib.load_config('config.yml')
 objects = lib.load_config('objects.yml').get('objects', {})
 
 # =============================================================================
-# CONNECTION NAMES FROM CONFIG
-# =============================================================================
-# Connection resolution should be done inline where needed via get_db_config(config, '<name>')
-
-# =============================================================================
 # SPARK SESSION INITIALIZATION
 # =============================================================================
 spark = lib.get_spark_session("{{ mapping_name }}", config)
 
-# Mapping Variables
+# connection names from config
+conn_oracle = lib.get_db_config(config, "oracle-defaults")
+conn_source = lib.get_db_config(config, "{{ source_conn_name }}")
+conn_target = lib.get_db_config(config, "{{ target_conn_name }}")
+
 {% if mapping_variables %}
+# Load mapping variables from UTL_JOB_PARAM file (produced by m_utl_param_setup)
 {% for var_name, var_default in mapping_variables.items() %}
-{{ var_name }} = config.get('variables', {}).get('{{ var_name }}', '{{ var_default }}')
+{% set clean_name = var_name | replace('$', '') %}
+{{ clean_name }} = "{{ var_default }}"
 {% endfor %}
+try:
+    _param_obj = objects.get("UTL_JOB_PARAM", {})
+    _param_path = None
+    if isinstance(_param_obj, dict):
+        _param_cfg = _param_obj.get('file')
+        if _param_cfg:
+            _param_path = _param_cfg.get('path')
+    if not _param_path:
+        _param_path = "/tmp/UTL_JOB_PARAM"
+    with open(_param_path, "r") as _f:
+        for _line in _f:
+            _line = _line.strip()
+            for _var in [{% for var_name, var_default in mapping_variables.items() %} "{{ var_name }}", {% endfor %}]:
+                if _line.startswith(_var + "="):
+                    _val = _line.split("=", 1)[1]
+                    globals()[_var.replace("$", "")] = _val
+                    print(f"Loaded {_var}={_val} from {_param_path}")
+except Exception:
+    print(f"UTL_JOB_PARAM not found, using default values")
+
 {% endif %}
-
-
 # =============================================================================
 # MAPPING LOGIC
 # =============================================================================
 
-def run_mapping(ctx: lib.SparkContext = None, metrics: lib.MappingMetrics = None) -> bool:
+def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
     """
     Execute the {{ mapping_name }} mapping transformations.
     
     Args:
         ctx: Optional SparkContext for session and DataFrame registry
-        metrics: Optional metrics tracker
+        metrics: Optional metrics tracker (or NullMetrics if not provided)
     
     Returns:
         bool: True if successful
     """
     _spark = ctx.spark if ctx else spark
-    
-    if metrics:
-        metrics.start()
+    metrics = metrics or lib.NullMetrics()
+    metrics.start()
     
     try:
         {% for step in steps %}
@@ -70,9 +88,21 @@ def run_mapping(ctx: lib.SparkContext = None, metrics: lib.MappingMetrics = None
         {% set conn_name = step.params.get('connection_alias', 'source') %}
         {% if step.params.get('query') %}
         query = f"""{{ step.params.get('query') }}"""
-        {{ step.df_output }} = lib.read_sql(spark, lib.get_db_config(config, "{{ conn_name }}"), query=query)
+        {% if mapping_variables %}
+        {% for var_name, var_default in mapping_variables.items() %}
+        {% set clean_name = var_name | replace('$', '') %}
+        query = query.replace("{{ var_name }}", {{ clean_name }})
+        {% endfor %}
+        {% endif %}
+        {% if step.params.get('source_schema') %}
+        # Substitute schema from connection config
+        _src_schema = conn_source.get("schema", "")
+        if _src_schema and _src_schema.lower() != "{{ step.params.get('source_schema').lower() }}":
+            query = query.replace("{{ step.params.get('source_schema') }}.", _src_schema + ".")
+        {% endif %}
+        {{ step.df_output }} = lib.read_sql(spark, conn_source, query=query)
         {% else %}
-        {{ step.df_output }} = lib.read_sql(spark, lib.get_db_config(config, "{{ conn_name }}"), table="{{ step.params.get('table_name', '') }}")
+        {{ step.df_output }} = lib.read_sql(spark, conn_source, table="{{ step.params.get('table_name', '') }}")
         {% endif %}
         {{ step.df_output }} = lib.normalize_column_names({{ step.df_output }})
         print("Source Data Count {{ step.df_output }}:", {{ step.df_output }}.count())
@@ -117,7 +147,19 @@ def run_mapping(ctx: lib.SparkContext = None, metrics: lib.MappingMetrics = None
         {% if step.params.get('use_sql_override') and step.params.get('sql_query') %}
         # SQL Pushdown - executes Informatica SQ SQL on source database
         query = f"""{{ step.params.get('sql_query') }}"""
-        {{ step.df_output }} = lib.read_sql(spark, lib.get_db_config(config, "{{ step.params.get('connection_alias', 'source') }}"), query=query)
+        {% if mapping_variables %}
+        {% for var_name, var_default in mapping_variables.items() %}
+        {% set clean_name = var_name | replace('$', '') %}
+        query = query.replace("{{ var_name }}", {{ clean_name }})
+        {% endfor %}
+        {% endif %}
+        {% if step.params.get('source_schema') %}
+        # Substitute schema from connection config
+        _src_schema = conn_source.get("schema", "")
+        if _src_schema and _src_schema.lower() != "{{ step.params.get('source_schema').lower() }}":
+            query = query.replace("{{ step.params.get('source_schema') }}.", _src_schema + ".")
+        {% endif %}
+        {{ step.df_output }} = lib.read_sql(spark, conn_source, query=query)
         {{ step.df_output }} = lib.normalize_column_names({{ step.df_output }})
         {% else %}
         {{ step.df_output }} = {{ step.df_input }}
@@ -147,7 +189,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics: lib.MappingMetrics = None
         {% set expr_str = col.get('expression', 'NULL') %}
         {% if ':SP.' in expr_str or '.SP_' in expr_str %}
         # Execute stored procedure for each input value via JDBC
-        _sp_conn = lib.get_db_config(config, "oracle-defaults")
+        _sp_conn = conn_oracle
         {% set sp_body = expr_str | replace(':SP.', '') %}
         {% set sp_name = sp_body.split('(')[0] %}
         {% set sp_full = step.params.get('sp_call_text', sp_name) %}
@@ -330,7 +372,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics: lib.MappingMetrics = None
         
         {% elif step.step_type == IRStepType.EXECUTE_SQL %}
         # Execute SQL: {{ step.step_name }} ({{ step.params.get('sql_type', 'pre') }}-SQL)
-        lib.execute_sql(spark, lib.get_db_config(config, "target"), """{{ step.params.get('sql_statement', '') }}""")
+        lib.execute_sql(spark, conn_target, """{{ step.params.get('sql_statement', '') }}""")
         
         {% elif step.step_type == IRStepType.MERGE_DELTA %}
         # Merge into Delta: {{ step.step_name }}
@@ -395,12 +437,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics: lib.MappingMetrics = None
                     df_write = df_write.withColumn(c, col(c).cast(TimestampType()))
         {% endif %}
         {% endfor %}
-        {% if drop_columns %}
-        # Drop control columns not in target definition
-        for col_to_drop in {{ drop_columns }}:
-            if col_to_drop in df_write.columns:
-                df_write = df_write.drop(col_to_drop)
-        {% endif %}
         {% if unmapped_columns %}
         # Add NULL for unmapped target columns (schema parity) - excluding identity columns
         {% for col in unmapped_columns %}
@@ -418,13 +454,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics: lib.MappingMetrics = None
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         {% endif %}
-        # Select columns with exact casing from target definition
-        target_col_map = {c.lower(): c for c in {{ target_columns }}}
-        for c in df_write.columns:
-            if c.lower() in target_col_map:
-                if c != target_col_map[c.lower()]:
-                    df_write = df_write.withColumnRenamed(c, target_col_map[c.lower()])
-        df_write = df_write.select(*[col for col in {{ target_columns }} if col in df_write.columns])
+        # Select only target-defined columns (field_map already handled name alignment)
+        _target_cols = {{ target_columns }}
+        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
         {% endif %}
         {% if sink_type == 'csv' %}
         # Write to flat file — prefer objects.yml metadata, then derived default path
@@ -438,11 +470,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics: lib.MappingMetrics = None
         lib.write_file(df_write, _write_path, format=_write_fmt, mode="overwrite")
         {% else %}
         # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, lib.get_db_config(config, "target"), "{{ table_name }}", mode="{{ mode }}")
+        lib.write_table(df_write, conn_target, "{{ table_name }}", mode="{{ mode }}")
         {% endif %}
-        if metrics:
-            metrics.log_row_count("{{ step.step_name }}_written", df_write.count())
-        
+
+        metrics.log_row_count("{{ step.step_name }}_written", df_write.count())
         {% elif step.step_type == IRStepType.WORKFLOW_DAG %}
         # Workflow DAG step - handled by orchestration
         pass
@@ -450,20 +481,16 @@ def run_mapping(ctx: lib.SparkContext = None, metrics: lib.MappingMetrics = None
         {% if step.warnings %}
         {% for warning in step.warnings %}
         # WARNING: {{ warning }}
-        if metrics:
-            metrics.add_warning("{{ warning }}")
+        metrics.add_warning("{{ warning }}")
         {% endfor %}
         {% endif %}
         {% endfor %}
         
-        if metrics:
-            metrics.complete()
-        
+        metrics.complete()
         return True
         
     except Exception as e:
-        if metrics:
-            metrics.fail(e)
+        metrics.fail(e)
         raise
 
 

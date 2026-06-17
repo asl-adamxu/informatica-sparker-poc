@@ -65,22 +65,26 @@ spark_connections:
 # =============================================================================
 # DATABASE CONNECTIONS (Auto-detected from XML)
 # =============================================================================
-oracle-defaults: &oracle
-  type: "oracle"
-  host: 192.168.55.107
-  port: 1521
-  service_name: "CDCUATPDB"
-  username: "airflow"
-  password: "airflow"
-  driver: "oracle.jdbc.driver.OracleDriver"
-
 connections:
-{% for conn_name, conn_info in db_connections.items() %}{% if conn_info.type != 'flatfile' %}
+  oracle-defaults: &oracle
+    type: "oracle"
+    host: 192.168.55.107
+    port: 1521
+    service_name: "CDCUATPDB"
+    username: "airflow"
+    password: "airflow"
+    driver: "oracle.jdbc.driver.OracleDriver"
+
+{% for conn_name, conn_info in db_connections.items() %}
   {{ conn_name }}:
     <<: *oracle
+    {% if conn_info.type == 'flatfile' or not conn_info.database %}
+    database: "{{ conn_info.database or conn_name }}"
+    {% else %}
     database: "{{ conn_info.database }}"
+    {% endif %}
     schema: "{{ conn_info.schema }}"
-{% endif %}{% endfor %}
+{% endfor %}
 
 # =============================================================================
 # FILE PATHS

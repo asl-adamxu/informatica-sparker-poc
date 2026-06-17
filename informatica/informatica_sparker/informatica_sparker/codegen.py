@@ -59,11 +59,8 @@ class CodeGenerator:
             source_db_type = self._get_db_type_from_plan(plan)
             target_db_type = plan.target_db_type or source_db_type
             
-            # Extract mapping variables
-            mapping_vars = {}
-            for step in plan.steps:
-                for v in step.params.get("mapping_variables", []):
-                    mapping_vars[v] = ""
+            # Extract mapping variables from plan
+            mapping_vars = dict(plan.mapping_variables)
             
             # Determine connection names from plan
             source_conn_name = "source"
@@ -78,7 +75,12 @@ class CodeGenerator:
                         if not step.params.get("is_lookup", False):
                             source_conn_name = conn_alias
                     elif step.step_type == IRStepType.WRITE_TARGET:
-                        target_conn_name = conn_alias
+                        if conn_alias:
+                            target_conn_name = conn_alias
+            
+            # Resolve target connection: if still default "target", fall back to source or oracle-defaults
+            if target_conn_name == "target" or not target_conn_name:
+                target_conn_name = source_conn_name if source_conn_name != "source" else "oracle-defaults"
             
             # Resolve lookup connection: prefer its actual alias, only fall back if it's a hardcoded default
             hardcoded_defaults = {"lookup_conn", "lookup", "default_conn"}

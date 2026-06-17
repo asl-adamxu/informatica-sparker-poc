@@ -65,16 +65,16 @@ spark_connections:
 # =============================================================================
 # DATABASE CONNECTIONS (Auto-detected from XML)
 # =============================================================================
-oracle-defaults: &oracle
-  type: "oracle"
-  host: 192.168.55.107
-  port: 1521
-  service_name: "CDCUATPDB"
-  username: "airflow"
-  password: "airflow"
-  driver: "oracle.jdbc.driver.OracleDriver"
-
 connections:
+  oracle-defaults: &oracle
+    type: "oracle"
+    host: 192.168.55.107
+    port: 1521
+    service_name: "CDCUATPDB"
+    username: "airflow"
+    password: "airflow"
+    driver: "oracle.jdbc.driver.OracleDriver"
+
   DDS:
     <<: *oracle
     database: "DDS"
@@ -83,6 +83,10 @@ connections:
     <<: *oracle
     database: "DPA"
     schema: "PDPA"
+  UTL:
+    <<: *oracle
+    database: "UTL"
+    schema: "dbo"
 
 # =============================================================================
 # FILE PATHS

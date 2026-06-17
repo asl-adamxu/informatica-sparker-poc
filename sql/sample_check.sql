@@ -9,3 +9,10 @@ select disp_date, sum(disp_qty) as qty_count from airflow.bda_study_source_table
 select disp_qty, t.* from airflow.bda_study_source_table t where rownum <= 10 order by disp_date desc;
 
 select * from airflow.SOR_SYS_PRPTY;
+SELECT * FROM  AIRFLOW.DPA_FACT_GMS_DLY_MSD_INCDT;
+SELECT * FROM  AIRFLOW.DDS_FACT_GMS_DLY_MSD_INCDT;
+SELECT * FROM  AIRFLOW.DPA_FACT_GMS_DLY_MSD_SMRY;
+SELECT * FROM  AIRFLOW.DDS_FACT_GMS_DLY_MSD_SMRY;
+SELECT * FROM  AIRFLOW.DPA_FACT_GMS_DLY_DOG_RGSTR;
+SELECT * FROM  AIRFLOW.DDS_FACT_GMS_DLY_DOG_RGSTR;
+SELECT * FROM  AIRFLOW.PKG_CDI_TRUNCATE_LOG ORDER BY TRUNCATED_AT DESC;

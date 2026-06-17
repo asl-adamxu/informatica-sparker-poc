@@ -380,6 +380,7 @@ class IRPlan(BaseModel):
     post_sql: List[str] = Field(default_factory=list)
     source_db_type: str = "oracle"
     target_db_type: str = "spark"
+    mapping_variables: Dict[str, str] = Field(default_factory=dict)
 
     def add_step(self, step: IRStep):
         self.steps.append(step)

@@ -191,7 +191,15 @@ class TransformHandlers:
         return "source"
 
     def build_ir_plan(self) -> IRPlan:
-        plan = IRPlan(mapping_name=self.mapping.name)
+        # Collect mapping variables from XML definition
+        mvars = {}
+        for v in getattr(self.mapping, 'mapping_variables', []):
+            name = v.name if hasattr(v, 'name') else v
+            mvars[name] = v.default_value if hasattr(v, 'default_value') else ""
+        plan = IRPlan(
+            mapping_name=self.mapping.name,
+            mapping_variables=mvars
+        )
 
         self.logger.log(LogStage.GRAPH, "Mapping", self.mapping.name, "Building transformation graph", LogLevel.INFO)
 
@@ -444,15 +452,8 @@ class TransformHandlers:
                 source_db_type = normalize_db_type(raw_type)
         
         if use_sql_pushdown:
-            # Only translate SQL if source and target DB types differ
-            target_db_type = getattr(self.user_config, 'target_db_type', 'spark')
-            sql_translated = False
-            if source_db_type != target_db_type and target_db_type != 'oracle':
-                from .utils.sql_dialect import translate_sql
-                translated_sql = translate_sql(final_sql, source_dialect=source_db_type, target_dialect=target_db_type)
-                if translated_sql != final_sql:
-                    sql_translated = True
-                final_sql = translated_sql
+            # SQL Pushdown: execute native SQL on source database — no dialect translation
+            # (Oracle (+) outer-join syntax, DECODE, etc. must be preserved as-is)
             
             step = ApplySourceQualifierStep(
                 step_name=f"apply_{instance.name}",
@@ -467,9 +468,9 @@ class TransformHandlers:
             step.params["filter_condition"] = ""
             step.params["distinct"] = False
             step.params["db_type"] = source_db_type
+            if source_inputs:
+                step.params["source_schema"] = source_inputs[0].get("owner", "")
             step.comments.append(f"SQL Pushdown: Executing SQ SQL on source database ({source_db_type})")
-            if sql_translated:
-                step.comments.append(f"SQL translated from {source_db_type} to {target_db_type}")
         else:
             step = ApplySourceQualifierStep(
                 step_name=f"apply_{instance.name}",
@@ -596,13 +597,24 @@ class TransformHandlers:
         lookup_conn = self._find_lookup_connection(lookup_table or instance.name)
 
         if lookup_sql:
-            steps.append(ReadSQLStep(
+            # Extract schema from source definition for this lookup
+            lookup_schema = ""
+            for src in self.mapping.sources:
+                if lookup_table and (lookup_table.lower() in src.name.lower() or src.name.lower() in lookup_table.lower()):
+                    lookup_schema = src.owner_name or ""
+                    break
+                if lookup_sql and src.owner_name and src.owner_name.lower() in lookup_sql.lower():
+                    lookup_schema = src.owner_name
+                    
+            rs = ReadSQLStep(
                 step_name=f"read_{instance.name}",
                 df_output=lookup_df,
                 connection_alias=lookup_conn,
                 query=lookup_sql,
                 is_lookup=True
-            ))
+            )
+            rs.params["source_schema"] = lookup_schema
+            steps.append(rs)
         elif lookup_table:
             steps.append(ReadSQLStep(
                 step_name=f"read_{instance.name}",
