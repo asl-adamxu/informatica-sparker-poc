@@ -36,13 +36,8 @@ conn_target = lib.get_db_config(config, "DDS")
 v_snsh_date = ""
 try:
     _param_obj = objects.get("UTL_JOB_PARAM", {})
-    _param_path = None
     if isinstance(_param_obj, dict):
-        _param_cfg = _param_obj.get('file')
-        if _param_cfg:
-            _param_path = _param_cfg.get('path')
-    if not _param_path:
-        _param_path = "/tmp/UTL_JOB_PARAM"
+        _param_path = _param_obj.get('path', '/tmp/UTL_JOB_PARAM')
     with open(_param_path, "r") as _f:
         for _line in _f:
             _line = _line.strip()

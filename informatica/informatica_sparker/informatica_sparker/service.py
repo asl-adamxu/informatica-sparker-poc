@@ -686,7 +686,7 @@ class ConversionService:
         for m in mappings_info:
             lines.append(f'from {m["module_name"]} import run_mapping as run_{m["safe_name"]}')
         lines.append('')
-        lines.append('from runtime_lib import load_config, get_spark_session')
+        lines.append('from env.runtime_lib import load_config, get_spark_session')
         lines.append('')
         # Check if any task is an email task
         needs_email = False

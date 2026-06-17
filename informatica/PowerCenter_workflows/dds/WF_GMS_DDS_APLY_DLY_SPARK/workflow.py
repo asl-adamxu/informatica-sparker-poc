@@ -17,7 +17,7 @@ from m_dpa_sum_fact_gms_dly_msd_smry import run_mapping as run_m_dpa_sum_fact_gm
 from m_utl_dpa_truncate import run_mapping as run_m_utl_dpa_truncate
 from m_utl_param_setup import run_mapping as run_m_utl_param_setup
 
-from runtime_lib import load_config, get_spark_session
+from env.runtime_lib import load_config, get_spark_session
 
 import smtplib
 from email.mime.text import MIMEText

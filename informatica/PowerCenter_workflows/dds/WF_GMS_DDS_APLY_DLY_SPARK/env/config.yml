@@ -114,12 +114,12 @@ objects:
   
   UTL_SESSION_LIST:
     format: "csv"
-    path: "/tmp/UTL_SESSION_LIST"
+    path: "/tmp/UTL_SESSION_LIST.csv"
     delimiter: ","
     header: "true"  
   UTL_SSA_TBL_LIST:
     format: "csv"
-    path: "/tmp/UTL_SSA_TBL_LIST"
+    path: "/tmp/UTL_SSA_TBL_LIST.csv"
     delimiter: ","
     header: "true"  
   UTL_JOB_PARAM:
