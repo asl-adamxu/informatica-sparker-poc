@@ -165,6 +165,12 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
         {% endif %}
         {% set sq_output_columns = step.params.get('output_columns', []) %}
         {% if sq_output_columns %}
+        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions like nvl(col,0))
+        _sql_cols = {{ step.df_output }}.columns
+        _port_cols = [{% for c in sq_output_columns %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
+            if _sql_cols[_i].lower() != _port_cols[_i].lower():
+                {{ step.df_output }} = {{ step.df_output }}.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
         {{ step.df_output }} = {{ step.df_output }}.select({% for c in sq_output_columns %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %})
         {% endif %}
@@ -434,7 +440,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
         # Add NULL for unmapped target columns (schema parity) - excluding identity columns
         {% for col in unmapped_columns %}
         {% if col.lower() not in ['src_rowid'] %}
-        df_write = df_write.withColumn("{{ col }}", lit(None))
+        df_write = df_write.withColumn("{{ col }}", lit(None).cast(StringType()))
         {% endif %}
         {% endfor %}
         {% endif %}

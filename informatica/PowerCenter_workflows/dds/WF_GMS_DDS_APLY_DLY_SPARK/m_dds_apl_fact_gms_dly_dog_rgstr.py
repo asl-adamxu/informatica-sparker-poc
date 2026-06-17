@@ -92,6 +92,12 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
             query = query.replace("PDDS.", _src_schema + ".")
         df_sq_3 = lib.read_sql(spark, conn_source, query=query)
         df_sq_3 = lib.normalize_column_names(df_sq_3)
+        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        _sql_cols = df_sq_3.columns
+        _port_cols = ["TIME_DMNS_KEY"]
+        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
+            if _sql_cols[_i].lower() != _port_cols[_i].lower():
+                df_sq_3 = df_sq_3.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
         df_sq_3 = df_sq_3.select("TIME_DMNS_KEY")
         ctx.register_df("df_sq_3", df_sq_3)
@@ -138,14 +144,14 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
                 if c.lower() == "last_rec_txn_type_code":
                     df_write = df_write.withColumn(c, col(c).cast(StringType()))
         # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("EST_SCD_KEY", lit(None))
-        df_write = df_write.withColumn("DOG_RGSTR_APRV_CNT", lit(None))
-        df_write = df_write.withColumn("DOG_RGSTR_APRV_CNCL_CNT", lit(None))
-        df_write = df_write.withColumn("AUTH_DOG_PNT_ALLT_CASE_CNT", lit(None))
-        df_write = df_write.withColumn("UNAUTH_DOG_PNT_ALLT_CASE_CNT", lit(None))
-        df_write = df_write.withColumn("REC_RLS_IND", lit(None))
-        df_write = df_write.withColumn("LAST_REC_TXN_DATE", lit(None))
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None))
+        df_write = df_write.withColumn("EST_SCD_KEY", lit(None).cast(StringType()))
+        df_write = df_write.withColumn("DOG_RGSTR_APRV_CNT", lit(None).cast(StringType()))
+        df_write = df_write.withColumn("DOG_RGSTR_APRV_CNCL_CNT", lit(None).cast(StringType()))
+        df_write = df_write.withColumn("AUTH_DOG_PNT_ALLT_CASE_CNT", lit(None).cast(StringType()))
+        df_write = df_write.withColumn("UNAUTH_DOG_PNT_ALLT_CASE_CNT", lit(None).cast(StringType()))
+        df_write = df_write.withColumn("REC_RLS_IND", lit(None).cast(StringType()))
+        df_write = df_write.withColumn("LAST_REC_TXN_DATE", lit(None).cast(StringType()))
+        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
         # Map source columns to target columns using connector field map (handles name mismatches)
         _field_map = {"TIME_DMNS_KEY": "TIME_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():

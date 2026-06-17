@@ -29,7 +29,7 @@ spark = lib.get_spark_session("M_DPA_SUM_FACT_GMS_DLY_MSD_INCDT", config)
 
 # connection names from config
 conn_oracle = lib.get_db_config(config, "oracle-defaults")
-conn_source = lib.get_db_config(config, "source_db")
+conn_source = lib.get_db_config(config, "oracle-defaults")
 conn_target = lib.get_db_config(config, "DPA")
 
 # Load mapping variables from UTL_JOB_PARAM file (produced by m_utl_param_setup)
@@ -170,6 +170,12 @@ est_scd_key, ofcr_type_dmns_key, hshld_size_dmns_key, msd_code_scd_key, gndr_dmn
         query = query.replace("$$v_snsh_date", v_snsh_date)
         df_sq_2 = lib.read_sql(spark, conn_source, query=query)
         df_sq_2 = lib.normalize_column_names(df_sq_2)
+        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions like nvl(col,0))
+        _sql_cols = df_sq_2.columns
+        _port_cols = ["MSD_INCDT_DATE_DMNS_KEY", "MSD_CRE_DATE_DMNS_KEY", "EST_SCD_KEY", "OFCR_TYPE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MSD_CODE_SCD_KEY", "OFNDR_GNDR_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY", "AFT_CMLT_WRT_WARN_CASE_CNT", "CMLT_PNT_ALLT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE"]
+        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
+            if _sql_cols[_i].lower() != _port_cols[_i].lower():
+                df_sq_2 = df_sq_2.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
         df_sq_2 = df_sq_2.select("MSD_INCDT_DATE_DMNS_KEY", "MSD_CRE_DATE_DMNS_KEY", "EST_SCD_KEY", "OFCR_TYPE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MSD_CODE_SCD_KEY", "OFNDR_GNDR_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY", "AFT_CMLT_WRT_WARN_CASE_CNT", "CMLT_PNT_ALLT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE")
         ctx.register_df("df_sq_2", df_sq_2)
@@ -204,7 +210,7 @@ est_scd_key, ofcr_type_dmns_key, hshld_size_dmns_key, msd_code_scd_key, gndr_dmn
         if "rec_rls_ind" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:
                 if c.lower() == "rec_rls_ind":
-                    df_write = df_write.withColumn(c, col(c).cast(StringType()))
+                    df_write = df_write.withColumn(c, col(c).cast(IntegerType()).cast(StringType()))
         if "last_rec_txn_date" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:
                 if c.lower() == "last_rec_txn_date":
@@ -214,7 +220,7 @@ est_scd_key, ofcr_type_dmns_key, hshld_size_dmns_key, msd_code_scd_key, gndr_dmn
                 if c.lower() == "last_rec_txn_type_code":
                     df_write = df_write.withColumn(c, col(c).cast(StringType()))
         # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("CMLT_MSD_TOT_CASE_CNT", lit(None))
+        df_write = df_write.withColumn("CMLT_MSD_TOT_CASE_CNT", lit(None).cast(StringType()))
         # Map source columns to target columns using connector field map (handles name mismatches)
         _field_map = {"AFT_CMLT_WRT_WARN_CASE_CNT": "AFT_CMLT_WRT_WARN_CASE_CNT", "CMLT_PNT_ALLT_CASE_CNT": "CMLT_PNT_ALLT_CASE_CNT", "EST_SCD_KEY": "EST_SCD_KEY", "HSHLD_SIZE_DMNS_KEY": "HSHLD_SIZE_DMNS_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "MSD_CODE_SCD_KEY": "MSD_CODE_SCD_KEY", "MSD_CRE_DATE_DMNS_KEY": "MSD_CRE_DATE_DMNS_KEY", "MSD_INCDT_DATE_DMNS_KEY": "MSD_INCDT_DATE_DMNS_KEY", "OFCR_TYPE_DMNS_KEY": "OFCR_TYPE_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY": "OFNC_SCORE_GRP_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY": "OFNDR_AGE_GRP_DMNS_KEY", "OFNDR_GNDR_DMNS_KEY": "OFNDR_GNDR_DMNS_KEY", "REC_RLS_IND": "REC_RLS_IND"}
         for _tgt_col, _src_col in _field_map.items():

@@ -142,6 +142,12 @@ group by est_scd_key"""
             query = query.replace("PDPA.", _src_schema + ".")
         df_sq_2 = lib.read_sql(spark, conn_source, query=query)
         df_sq_2 = lib.normalize_column_names(df_sq_2)
+        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        _sql_cols = df_sq_2.columns
+        _port_cols = ["TIME_DMNS_KEY", "EST_SCD_KEY", "DOG_RGSTR_APRV_CNT", "DOG_RGSTR_APRV_CNCL_CNT", "AUTH_DOG_PNT_ALLT_CASE_CNT", "UNAUTH_DOG_PNT_ALLT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE"]
+        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
+            if _sql_cols[_i].lower() != _port_cols[_i].lower():
+                df_sq_2 = df_sq_2.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
         df_sq_2 = df_sq_2.select("TIME_DMNS_KEY", "EST_SCD_KEY", "DOG_RGSTR_APRV_CNT", "DOG_RGSTR_APRV_CNCL_CNT", "AUTH_DOG_PNT_ALLT_CASE_CNT", "UNAUTH_DOG_PNT_ALLT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE")
         ctx.register_df("df_sq_2", df_sq_2)

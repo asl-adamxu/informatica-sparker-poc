@@ -169,7 +169,7 @@ def write_sql(df: DataFrame, conn_config: Dict[str, Any], table: str,
     """Write DataFrame to SQL database."""
     jdbc_url = get_jdbc_url(conn_config)
     user = conn_config.get("username", "")
-    spark = df.sparkSession
+    spark = SparkSession.builder.getOrCreate()
     password = _resolve_password(spark, conn_config)
     driver = conn_config.get("driver", "oracle.jdbc.driver.OracleDriver")
     
@@ -379,7 +379,7 @@ def write_table(df: DataFrame, conn_config: Dict[str, Any], table_name: str,
     """
     jdbc_url = get_jdbc_url(conn_config)
     user = conn_config.get("username", "")
-    spark = df.sparkSession
+    spark = SparkSession.builder.getOrCreate()
     password = _resolve_password(spark, conn_config)
     driver = conn_config.get("driver", "oracle.jdbc.driver.OracleDriver")
 
