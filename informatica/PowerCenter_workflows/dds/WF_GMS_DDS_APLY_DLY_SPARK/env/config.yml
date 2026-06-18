@@ -114,12 +114,12 @@ objects:
   
   UTL_SESSION_LIST:
     format: "csv"
-    path: "/tmp/UTL_SESSION_LIST"
+    path: "/tmp/UTL_SESSION_LIST.csv"
     delimiter: ","
     header: "true"  
   UTL_SSA_TBL_LIST:
     format: "csv"
-    path: "/tmp/UTL_SSA_TBL_LIST"
+    path: "/tmp/UTL_SSA_TBL_LIST.csv"
     delimiter: ","
     header: "true"  
   UTL_JOB_PARAM:
@@ -139,6 +139,11 @@ variables:
   v_snsh_date:
     datatype: "string"
     default_value: ""
+
+logging:
+  dir: "logs"
+  level: INFO
+  backup_count: 7
 
 # =============================================================================
 # CONVERSION OPTIONS

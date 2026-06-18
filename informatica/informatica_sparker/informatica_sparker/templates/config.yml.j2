@@ -131,6 +131,11 @@ variables:
     default_value: "{{ var_info.default_value }}"
 {% endfor %}
 
+logging:
+  dir: "logs"
+  level: INFO
+  backup_count: 7
+
 # =============================================================================
 # CONVERSION OPTIONS
 # =============================================================================

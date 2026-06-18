@@ -4,13 +4,95 @@ Provides helper functions for database connections, file reading, transformation
 """
 import logging
 import os
+import sys
+import yaml
+import inspect
 from datetime import datetime
 from typing import Dict, Any, Optional, List
+from logging.handlers import TimedRotatingFileHandler
 
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
-import yaml
+
+
+def load_config(config_path: str = "env/config.yml") -> Dict[str, Any]:
+    """Load configuration from YAML file."""
+    if not os.path.exists(config_path):
+        return {}
+    with open(config_path, 'r') as f:
+        config = yaml.safe_load(f) or {}
+    return config
+
+
+# =============================================================================
+# Global logging configuration (automatically executed when module is loaded)
+# =============================================================================
+def init_logger(log_name: str = None):
+    """
+    Initialize logging system, output to terminal stderr and rotating file.
+    
+    Args:
+        log_name: Log file name prefix, e.g., "my_mapping", which generates my_mapping.log
+                  If None, automatically uses the caller's filename (without .py extension)
+    """
+    if not log_name:
+        caller_frame = inspect.stack()[1]
+        caller_file = os.path.basename(caller_frame.filename)
+        log_name = os.path.splitext(caller_file)[0]
+
+    try:
+        config = load_config('env/config.yml')
+        log_config = config.get('logging', {})
+        log_dir = log_config.get('dir', os.getcwd())
+        log_level = getattr(logging, log_config.get('level', 'INFO').upper(), logging.INFO)
+        backup_count = int(log_config.get('backup_count', 7))
+    except Exception:
+        log_dir = os.getcwd()
+        log_level = logging.INFO
+        backup_count = 7
+
+    os.makedirs(log_dir, exist_ok=True)
+
+    logger = logging.getLogger()
+    if logger.handlers:
+        return logger
+    
+    log_formatter = logging.Formatter(
+        # "%(asctime)s [%(levelname)s] %(name)s - %(message)s",
+        "%(asctime)s [%(levelname)s] - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    )
+    
+    logger.setLevel(log_level)
+    
+    console_handler = logging.StreamHandler(sys.stderr)
+    console_handler.setLevel(log_level)
+    console_handler.setFormatter(log_formatter)
+    logger.addHandler(console_handler)
+    
+    log_file = os.path.join(log_dir, f"{log_name}.log")
+    file_handler = TimedRotatingFileHandler(
+        log_file,
+        when="midnight",
+        backupCount=backup_count,
+        encoding="utf-8"
+    )
+    file_handler.setLevel(log_level)
+    file_handler.setFormatter(log_formatter)
+    logger.addHandler(file_handler)
+    
+    logger.propagate = False
+    return logger
+
+
+def get_logger(name: str = None) -> logging.Logger:
+    """Get a logger instance for the calling module."""
+    if not name:
+        caller_frame = inspect.stack()[1]
+        caller_file = os.path.basename(caller_frame.filename)
+        name = os.path.splitext(caller_file)[0]
+    return logging.getLogger(name)
 
 
 def _resolve_path(value: str) -> str:
@@ -241,13 +323,37 @@ def execute_sql(spark: SparkSession, conn_config: Dict[str, Any], sql: str) -> N
         conn.close()
 
 
-def load_config(config_path: str = "env/config.yml") -> Dict[str, Any]:
-    """Load configuration from YAML file."""
-    if not os.path.exists(config_path):
-        return {}
-    with open(config_path, 'r') as f:
-        config = yaml.safe_load(f) or {}
-    return config
+def batch_delete(spark: SparkSession, conn_config: Dict[str, Any],
+                 table_name: str, key_column: str, key_values: list,
+                 batch_size: int = 1000) -> None:
+    """Delete rows from a table by key values using JDBC PreparedStatement (bind variables).
+    
+    Uses PreparedStatement with bind variables to avoid SQL length limits and
+    SQL injection risks. Values are processed in batches.
+    """
+    if not key_values:
+        return
+    jdbc_url = get_jdbc_url(conn_config)
+    user = conn_config.get("username", "")
+    password = _resolve_password(spark, conn_config)
+    driver = conn_config.get("driver", "oracle.jdbc.driver.OracleDriver")
+    
+    spark._jvm.java.lang.Class.forName(driver)
+    conn = spark._jvm.java.sql.DriverManager.getConnection(jdbc_url, user, password)
+    try:
+        sql = "DELETE FROM {} WHERE {} = ?".format(table_name, key_column)
+        pstmt = conn.prepareStatement(sql)
+        for i, val in enumerate(key_values):
+            pstmt.setString(1, str(val))
+            pstmt.addBatch()
+            if (i + 1) % batch_size == 0:
+                pstmt.executeBatch()
+                # conn.commit()
+        pstmt.executeBatch()
+        # conn.commit()
+        pstmt.close()
+    finally:
+        conn.close()
 
 
 def get_spark_session(app_name: str, config: Dict[str, Any] = None) -> SparkSession:

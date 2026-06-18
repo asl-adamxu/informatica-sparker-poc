@@ -1194,6 +1194,21 @@ class TransformHandlers:
                           "DEL_UPD_INS_FLAG", "INS_UPD_DEL_FLAG"]
         columns_to_drop = [c for c in control_columns if c.lower() not in [tc.lower() for tc in target_columns]]
 
+        # Detect if upstream is a DD_DELETE update strategy
+        is_delete = False
+        delete_keys = []
+        for connector in self.mapping.connectors:
+            if connector.to_instance == instance.name:
+                from_trans = self.transform_map.get(connector.from_instance)
+                if from_trans:
+                    strategy_expr = from_trans.table_attributes.get("Update Strategy Expression", "")
+                    if "DD_DELETE" in strategy_expr.upper():
+                        is_delete = True
+                        # Use the connector's effectively mapped field as delete key
+                        if connector.from_field and connector.from_field not in delete_keys:
+                            delete_keys.append(connector.from_field)
+                        break
+
         write_step = WriteTargetStep(
             step_name=f"write_{instance.name}",
             df_input=input_df,
@@ -1205,6 +1220,10 @@ class TransformHandlers:
         )
 
         write_step.params["connection_alias"] = conn_alias
+        if is_delete:
+            write_step.params["is_delete"] = True
+            write_step.params["delete_keys"] = delete_keys
+            write_step.comments.append("DD_DELETE strategy detected — will DELETE matching rows instead of INSERT")
 
         if columns_to_drop:
             write_step.params["drop_columns"] = columns_to_drop

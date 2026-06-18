@@ -7,15 +7,14 @@
 *   This code is auto-generated. Please review the business rules before productionizing.
 '''
 
-import logging
-import sys
-from datetime import datetime
-from typing import Dict, Any, Optional
-sys.path.insert(0, 'env')
 import env.runtime_lib as lib
 from pyspark.sql import DataFrame
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
+
+lib.init_logger()
+logger = lib.get_logger()
+logger.info("Start to run mapping {{ mapping_name }}")
 
 # Load configuration
 config = lib.load_config('env/config.yml')
@@ -49,9 +48,9 @@ try:
                 if _line.startswith(_var + "="):
                     _val = _line.split("=", 1)[1]
                     globals()[_var.replace("$", "")] = _val
-                    print(f"Loaded {_var}={_val} from {_param_path}")
+                    logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
 except Exception:
-    print(f"UTL_JOB_PARAM not found, using default values")
+    logger.warning("UTL_JOB_PARAM not found, using default values")
 
 {% endif %}
 # =============================================================================
@@ -75,11 +74,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
     
     try:
         {% for step in steps %}
-        {% if step.comments %}
-        {% for comment in step.comments %}
-        # {{ comment }}
-        {% endfor %}
-        {% endif %}
+        logger.info("Step: {{ step.step_name }}")
         {% if step.step_type == IRStepType.READ_SQL %}
         # Reading Data From Source - {{ step.step_name }}
         {% set conn_name = step.params.get('connection_alias', 'source') %}
@@ -102,7 +97,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
         {{ step.df_output }} = lib.read_sql(spark, conn_source, table="{{ step.params.get('table_name', '') }}")
         {% endif %}
         {{ step.df_output }} = lib.normalize_column_names({{ step.df_output }})
-        print("Source Data Count {{ step.df_output }}:", {{ step.df_output }}.count())
+        logger.info("Source Data Count {{ step.df_output }}: %s", {{ step.df_output }}.count())
         {{ step.df_output }} = {{ step.df_output }}.coalesce(1).withColumn("jkey", monotonically_increasing_id())
         
         {% elif step.step_type == IRStepType.READ_FILE %}
@@ -137,6 +132,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
         
         {% elif step.step_type == IRStepType.APPLY_SOURCE_QUALIFIER %}
         # Source Qualifier: {{ step.step_name }}
+        {% set sq_output_columns = step.params.get('output_columns', []) %}
         {% if step.params.get('use_sql_override') and step.params.get('sql_query') %}
         # SQL Pushdown - executes Informatica SQ SQL on source database
         query = f"""{{ step.params.get('sql_query') }}"""
@@ -154,6 +150,16 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
         {% endif %}
         {{ step.df_output }} = lib.read_sql(spark, conn_source, query=query)
         {{ step.df_output }} = lib.normalize_column_names({{ step.df_output }})
+        {% if sq_output_columns %}
+        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        _sql_cols = {{ step.df_output }}.columns
+        _port_cols = [{% for c in sq_output_columns %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
+            if _sql_cols[_i].lower() != _port_cols[_i].lower():
+                {{ step.df_output }} = {{ step.df_output }}.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Select only SQ output ports (matches Informatica behavior)
+        {{ step.df_output }} = {{ step.df_output }}.select({% for c in sq_output_columns %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %})
+        {% endif %}
         {% else %}
         {{ step.df_output }} = {{ step.df_input }}
         {% if step.params.get('filter_condition') %}
@@ -162,17 +168,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
         {% if step.params.get('distinct') %}
         {{ step.df_output }} = {{ step.df_output }}.distinct()
         {% endif %}
-        {% endif %}
-        {% set sq_output_columns = step.params.get('output_columns', []) %}
         {% if sq_output_columns %}
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions like nvl(col,0))
-        _sql_cols = {{ step.df_output }}.columns
-        _port_cols = [{% for c in sq_output_columns %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %}]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                {{ step.df_output }} = {{ step.df_output }}.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
         {{ step.df_output }} = {{ step.df_output }}.select({% for c in sq_output_columns %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %})
+        {% endif %}
         {% endif %}
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
         
@@ -400,7 +399,18 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
         {% set target_columns = step.params.get('target_columns', []) %}
         {% set target_column_types = step.params.get('target_column_types', {}) %}
         {% set unmapped_columns = step.params.get('unmapped_columns', []) %}
+        {% set is_delete = step.params.get('is_delete', False) %}
+        {% set delete_keys = step.params.get('delete_keys', []) %}
         df_write = {{ step.df_input }}
+        {% if is_delete and delete_keys %}
+        # DD_DELETE: Delete matching rows from target table by key field(s)
+        for _dk in {{ delete_keys }}:
+            _dk_lower = _dk.lower()
+            if _dk_lower in [c.lower() for c in df_write.columns]:
+                _del_vals = [r for r in df_write.select(col(_dk_lower)).distinct().rdd.flatMap(lambda x: x).collect() if r is not None]
+                if _del_vals:
+                    lib.batch_delete(spark, conn_target, "{{ table_name }}", _dk, _del_vals, 1000)
+        {% else %}
         # Cast columns to match target schema data types
         {% for col_name, col_type in target_column_types.items() %}
         {% set col_lower = col_name.lower() %}
@@ -468,8 +478,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
         # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
         lib.write_table(df_write, conn_target, "{{ table_name }}", mode="{{ mode }}")
         {% endif %}
+        {% endif %}
 
-        metrics.log_row_count("{{ step.step_name }}_written", df_write.count())
+        _write_count = df_write.count()
+        logger.info("{{ step.step_name }} row count: %s", _write_count)
+        metrics.log_row_count("{{ step.step_name }}_written", _write_count)
         {% elif step.step_type == IRStepType.WORKFLOW_DAG %}
         # Workflow DAG step - handled by orchestration
         pass
@@ -487,28 +500,23 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
         
     except Exception as e:
         metrics.fail(e)
-        raise
+        logger.error(f"Mapping {{ mapping_name }} failed: {e}", exc_info=True)
+        return False
 
 
 def main():
     """Standalone execution entry point."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
-    
     spark = lib.get_spark_session("{{ mapping_name }}")
     ctx = lib.SparkContext(spark)
     metrics = lib.MappingMetrics("{{ mapping_name }}")
     
     try:
         success = run_mapping(ctx, metrics)
-        print(f"Mapping {{ mapping_name }} completed: {'SUCCESS' if success else 'FAILED'}")
+        logger.info("Mapping {{ mapping_name }} completed: %s", "SUCCESS" if success else "FAILED")
         return 0 if success else 1
     finally:
         spark.stop()
 
 
 if __name__ == "__main__":
-    import sys
-    sys.exit(main())
+    main()
