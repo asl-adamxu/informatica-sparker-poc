@@ -71,9 +71,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
         logger.info("Step: read_DDS_FACT_GMS_DLY_MSD_SMRY")
         # Reading Data From Source - read_DDS_FACT_GMS_DLY_MSD_SMRY
         df_src_1 = lib.read_sql(spark, conn_source, table="DDS_FACT_GMS_DLY_MSD_SMRY")
-        df_src_1 = lib.normalize_column_names(df_src_1)
         logger.info("Source Data Count df_src_1: %s", df_src_1.count())
-        df_src_1 = df_src_1.coalesce(1).withColumn("jkey", monotonically_increasing_id())
         
         logger.info("Step: apply_SQ_DDS_FACT_GMS_DLY_MSD_SMRY")
         # Source Qualifier: apply_SQ_DDS_FACT_GMS_DLY_MSD_SMRY
@@ -267,7 +265,6 @@ and u.score_grp_code=s.score_grp_code (+)"""
         if _src_schema and _src_schema.lower() != "pdds":
             query = query.replace("PDDS.", _src_schema + ".")
         df_sq_2 = lib.read_sql(spark, conn_source, query=query)
-        df_sq_2 = lib.normalize_column_names(df_sq_2)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_sq_2.columns
         _port_cols = ["TIME_DMNS_KEY", "EST_SCD_KEY", "OFCR_TYPE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MSD_CODE_SCD_KEY", "OFNDR_GNDR_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY", "ACTV_OFNC_TNCY_CNT", "CMLT_OFNC_TNCY_CNT", "AFT_CMLT_WRT_WARN_TNCY_CNT", "CMLT_WRT_WARN_CASE_CNT", "AFT_CMLT_WRT_WARN_CASE_CNT", "ACTV_PNT_ALLT_CASE_CNT", "CMLT_PNT_ALLT_CASE_CNT", "CMLT_MSD_TOT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE"]
@@ -276,30 +273,12 @@ and u.score_grp_code=s.score_grp_code (+)"""
                 df_sq_2 = df_sq_2.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
         df_sq_2 = df_sq_2.select("TIME_DMNS_KEY", "EST_SCD_KEY", "OFCR_TYPE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MSD_CODE_SCD_KEY", "OFNDR_GNDR_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY", "ACTV_OFNC_TNCY_CNT", "CMLT_OFNC_TNCY_CNT", "AFT_CMLT_WRT_WARN_TNCY_CNT", "CMLT_WRT_WARN_CASE_CNT", "AFT_CMLT_WRT_WARN_CASE_CNT", "ACTV_PNT_ALLT_CASE_CNT", "CMLT_PNT_ALLT_CASE_CNT", "CMLT_MSD_TOT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE")
+        
         ctx.register_df("df_sq_2", df_sq_2)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
         df_exp_3 = df_sq_2
-        df_exp_3 = df_exp_3.withColumn("TIME_DMNS_KEY", expr("TIME_DMNS_KEY"))
-        df_exp_3 = df_exp_3.withColumn("EST_SCD_KEY", expr("EST_SCD_KEY"))
-        df_exp_3 = df_exp_3.withColumn("OFCR_TYPE_DMNS_KEY", expr("OFCR_TYPE_DMNS_KEY"))
-        df_exp_3 = df_exp_3.withColumn("HSHLD_SIZE_DMNS_KEY", expr("HSHLD_SIZE_DMNS_KEY"))
-        df_exp_3 = df_exp_3.withColumn("MSD_CODE_SCD_KEY", expr("MSD_CODE_SCD_KEY"))
-        df_exp_3 = df_exp_3.withColumn("OFNDR_GNDR_DMNS_KEY", expr("OFNDR_GNDR_DMNS_KEY"))
-        df_exp_3 = df_exp_3.withColumn("OFNDR_AGE_GRP_DMNS_KEY", expr("OFNDR_AGE_GRP_DMNS_KEY"))
-        df_exp_3 = df_exp_3.withColumn("OFNC_SCORE_GRP_DMNS_KEY", expr("OFNC_SCORE_GRP_DMNS_KEY"))
-        df_exp_3 = df_exp_3.withColumn("ACTV_OFNC_TNCY_CNT", expr("ACTV_OFNC_TNCY_CNT"))
-        df_exp_3 = df_exp_3.withColumn("CMLT_OFNC_TNCY_CNT", expr("CMLT_OFNC_TNCY_CNT"))
-        df_exp_3 = df_exp_3.withColumn("AFT_CMLT_WRT_WARN_TNCY_CNT", expr("AFT_CMLT_WRT_WARN_TNCY_CNT"))
-        df_exp_3 = df_exp_3.withColumn("CMLT_WRT_WARN_CASE_CNT", expr("CMLT_WRT_WARN_CASE_CNT"))
-        df_exp_3 = df_exp_3.withColumn("AFT_CMLT_WRT_WARN_CASE_CNT", expr("AFT_CMLT_WRT_WARN_CASE_CNT"))
-        df_exp_3 = df_exp_3.withColumn("ACTV_PNT_ALLT_CASE_CNT", expr("ACTV_PNT_ALLT_CASE_CNT"))
-        df_exp_3 = df_exp_3.withColumn("CMLT_PNT_ALLT_CASE_CNT", expr("CMLT_PNT_ALLT_CASE_CNT"))
-        df_exp_3 = df_exp_3.withColumn("CMLT_MSD_TOT_CASE_CNT", expr("CMLT_MSD_TOT_CASE_CNT"))
-        df_exp_3 = df_exp_3.withColumn("REC_RLS_IND", expr("REC_RLS_IND"))
-        df_exp_3 = df_exp_3.withColumn("LAST_REC_TXN_DATE", expr("LAST_REC_TXN_DATE"))
-        df_exp_3 = df_exp_3.withColumn("LAST_REC_TXN_TYPE_CODE", expr("LAST_REC_TXN_TYPE_CODE"))
        
         # Select only mapping output ports (prevents column leakage)
         df_exp_3 = df_exp_3.select("TIME_DMNS_KEY", "EST_SCD_KEY", "OFCR_TYPE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MSD_CODE_SCD_KEY", "OFNDR_GNDR_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY", "ACTV_OFNC_TNCY_CNT", "CMLT_OFNC_TNCY_CNT", "AFT_CMLT_WRT_WARN_TNCY_CNT", "CMLT_WRT_WARN_CASE_CNT", "AFT_CMLT_WRT_WARN_CASE_CNT", "ACTV_PNT_ALLT_CASE_CNT", "CMLT_PNT_ALLT_CASE_CNT", "CMLT_MSD_TOT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE")

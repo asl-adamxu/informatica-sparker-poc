@@ -71,9 +71,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
         logger.info("Step: read_DPA_FACT_GMS_DLY_DOG_RGSTR")
         # Reading Data From Source - read_DPA_FACT_GMS_DLY_DOG_RGSTR
         df_src_1 = lib.read_sql(spark, conn_source, table="DPA_FACT_GMS_DLY_DOG_RGSTR")
-        df_src_1 = lib.normalize_column_names(df_src_1)
         logger.info("Source Data Count df_src_1: %s", df_src_1.count())
-        df_src_1 = df_src_1.coalesce(1).withColumn("jkey", monotonically_increasing_id())
         
         logger.info("Step: apply_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR")
         # Source Qualifier: apply_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR
@@ -141,7 +139,6 @@ group by est_scd_key"""
         if _src_schema and _src_schema.lower() != "pdpa":
             query = query.replace("PDPA.", _src_schema + ".")
         df_sq_2 = lib.read_sql(spark, conn_source, query=query)
-        df_sq_2 = lib.normalize_column_names(df_sq_2)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_sq_2.columns
         _port_cols = ["TIME_DMNS_KEY", "EST_SCD_KEY", "DOG_RGSTR_APRV_CNT", "DOG_RGSTR_APRV_CNCL_CNT", "AUTH_DOG_PNT_ALLT_CASE_CNT", "UNAUTH_DOG_PNT_ALLT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE"]
@@ -150,20 +147,12 @@ group by est_scd_key"""
                 df_sq_2 = df_sq_2.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
         df_sq_2 = df_sq_2.select("TIME_DMNS_KEY", "EST_SCD_KEY", "DOG_RGSTR_APRV_CNT", "DOG_RGSTR_APRV_CNCL_CNT", "AUTH_DOG_PNT_ALLT_CASE_CNT", "UNAUTH_DOG_PNT_ALLT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE")
+        
         ctx.register_df("df_sq_2", df_sq_2)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
         df_exp_3 = df_sq_2
-        df_exp_3 = df_exp_3.withColumn("TIME_DMNS_KEY", expr("TIME_DMNS_KEY"))
-        df_exp_3 = df_exp_3.withColumn("EST_SCD_KEY", expr("EST_SCD_KEY"))
-        df_exp_3 = df_exp_3.withColumn("DOG_RGSTR_APRV_CNT", expr("DOG_RGSTR_APRV_CNT"))
-        df_exp_3 = df_exp_3.withColumn("DOG_RGSTR_APRV_CNCL_CNT", expr("DOG_RGSTR_APRV_CNCL_CNT"))
-        df_exp_3 = df_exp_3.withColumn("AUTH_DOG_PNT_ALLT_CASE_CNT", expr("AUTH_DOG_PNT_ALLT_CASE_CNT"))
-        df_exp_3 = df_exp_3.withColumn("UNAUTH_DOG_PNT_ALLT_CASE_CNT", expr("UNAUTH_DOG_PNT_ALLT_CASE_CNT"))
-        df_exp_3 = df_exp_3.withColumn("REC_RLS_IND", expr("REC_RLS_IND"))
-        df_exp_3 = df_exp_3.withColumn("LAST_REC_TXN_DATE", expr("LAST_REC_TXN_DATE"))
-        df_exp_3 = df_exp_3.withColumn("LAST_REC_TXN_TYPE_CODE", expr("LAST_REC_TXN_TYPE_CODE"))
        
         # Select only mapping output ports (prevents column leakage)
         df_exp_3 = df_exp_3.select("TIME_DMNS_KEY", "EST_SCD_KEY", "DOG_RGSTR_APRV_CNT", "DOG_RGSTR_APRV_CNCL_CNT", "AUTH_DOG_PNT_ALLT_CASE_CNT", "UNAUTH_DOG_PNT_ALLT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE")
@@ -176,7 +165,7 @@ group by est_scd_key"""
         if "rec_rls_ind" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:
                 if c.lower() == "rec_rls_ind":
-                    df_write = df_write.withColumn(c, col(c).cast(IntegerType()).cast(StringType()))
+                    df_write = df_write.withColumn(c, col(c).cast(StringType()))
         if "last_rec_txn_date" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:
                 if c.lower() == "last_rec_txn_date":

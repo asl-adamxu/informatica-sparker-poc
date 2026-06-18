@@ -413,15 +413,6 @@ def get_spark_session(app_name: str, config: Dict[str, Any] = None) -> SparkSess
     return spark
 
 
-def normalize_column_names(df: DataFrame) -> DataFrame:
-    """Normalize column names to lowercase."""
-    for col_name in df.columns:
-        new_name = col_name.lower()
-        if col_name != new_name:
-            df = df.withColumnRenamed(col_name, new_name)
-    return df
-
-
 def safe_col(df: DataFrame, col_name: str):
     """Get a column with case-insensitive matching."""
     col_lower = col_name.lower()
@@ -429,6 +420,13 @@ def safe_col(df: DataFrame, col_name: str):
         if c.lower() == col_lower:
             return col(c)
     return col(col_name)
+
+
+def safe_string(col_expr):
+    """Convert column to string, avoiding scientific notation for numeric types.
+    First casts to the column's own numeric type if applicable, then to string.
+    """
+    return format_string("%s", col_expr)
 
 
 def infa_iif(condition, true_val, false_val):

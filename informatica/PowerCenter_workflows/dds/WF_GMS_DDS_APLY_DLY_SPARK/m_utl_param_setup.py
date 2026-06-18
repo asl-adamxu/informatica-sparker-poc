@@ -77,8 +77,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
             format=_file_format,
             options=_file_options
         )
-        # Normalize column names to lowercase for case-insensitive matching
-        df_src_1 = lib.normalize_column_names(df_src_1)
         ctx.register_df("df_src_1", df_src_1)
         
         logger.info("Step: apply_SQ_UTL_SESSION_LIST")
@@ -102,9 +100,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
         # Reading Data From Source - read_LKPTRANS
         query = f"""SELECT SOR_SYS_PRPTY.VAL as VAL, SOR_SYS_PRPTY.PRPTY_DESP as PRPTY_DESP, SOR_SYS_PRPTY.PRPTY as PRPTY FROM SOR_SYS_PRPTY"""
         df_lkp_4 = lib.read_sql(spark, conn_source, query=query)
-        df_lkp_4 = lib.normalize_column_names(df_lkp_4)
         logger.info("Source Data Count df_lkp_4: %s", df_lkp_4.count())
-        df_lkp_4 = df_lkp_4.coalesce(1).withColumn("jkey", monotonically_increasing_id())
         
         logger.info("Step: apply_LKPTRANS")
         # Lookup: apply_LKPTRANS

@@ -77,8 +77,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
             format=_file_format,
             options=_file_options
         )
-        # Normalize column names to lowercase for case-insensitive matching
-        df_src_1 = lib.normalize_column_names(df_src_1)
         ctx.register_df("df_src_1", df_src_1)
         
         logger.info("Step: apply_SQ_UTL_SSA_TBL_LIST")
@@ -91,7 +89,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
         logger.info("Step: apply_EXPTRANS2")
         # Expression: apply_EXPTRANS2
         df_exp_3 = df_sq_2
-        df_exp_3 = df_exp_3.withColumn("TABLE", expr("TABLE"))
         # Execute stored procedure for each input value via JDBC
         _sp_conn = conn_oracle
         _input_vals = [row["TABLE"] for row in df_sq_2.select("TABLE").collect()]

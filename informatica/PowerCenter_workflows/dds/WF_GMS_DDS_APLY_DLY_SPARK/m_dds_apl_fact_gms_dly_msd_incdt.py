@@ -71,9 +71,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
         logger.info("Step: read_DPA_FACT_GMS_DLY_MSD_INCDT")
         # Reading Data From Source - read_DPA_FACT_GMS_DLY_MSD_INCDT
         df_src_1 = lib.read_sql(spark, conn_source, table="DPA_FACT_GMS_DLY_MSD_INCDT")
-        df_src_1 = lib.normalize_column_names(df_src_1)
         logger.info("Source Data Count df_src_1: %s", df_src_1.count())
-        df_src_1 = df_src_1.coalesce(1).withColumn("jkey", monotonically_increasing_id())
         
         logger.info("Step: apply_SQ_DPA_FACT_GMS_DLY_MSD_INCDT")
         # Source Qualifier: apply_SQ_DPA_FACT_GMS_DLY_MSD_INCDT

@@ -96,9 +96,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
         {% else %}
         {{ step.df_output }} = lib.read_sql(spark, conn_source, table="{{ step.params.get('table_name', '') }}")
         {% endif %}
-        {{ step.df_output }} = lib.normalize_column_names({{ step.df_output }})
         logger.info("Source Data Count {{ step.df_output }}: %s", {{ step.df_output }}.count())
-        {{ step.df_output }} = {{ step.df_output }}.coalesce(1).withColumn("jkey", monotonically_increasing_id())
         
         {% elif step.step_type == IRStepType.READ_FILE %}
         # Read from file (prefer config.yml objects metadata if present)
@@ -126,8 +124,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
             format=_file_format,
             options=_file_options
         )
-        # Normalize column names to lowercase for case-insensitive matching
-        {{ step.df_output }} = lib.normalize_column_names({{ step.df_output }})
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
         
         {% elif step.step_type == IRStepType.APPLY_SOURCE_QUALIFIER %}
@@ -149,7 +145,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
             query = query.replace("{{ step.params.get('source_schema') }}.", _src_schema + ".")
         {% endif %}
         {{ step.df_output }} = lib.read_sql(spark, conn_source, query=query)
-        {{ step.df_output }} = lib.normalize_column_names({{ step.df_output }})
         {% if sq_output_columns %}
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = {{ step.df_output }}.columns
@@ -159,6 +154,39 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
                 {{ step.df_output }} = {{ step.df_output }}.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
         {{ step.df_output }} = {{ step.df_output }}.select({% for c in sq_output_columns %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %})
+        
+        {% set sq_col_types = step.params.get('output_column_types', {}) %}
+        {% for col_name, col_type in sq_col_types.items() %}
+        {% set col_lower = col_name.lower() %}
+        {% if col_type.upper() in ['INTEGER', 'INT', 'BIGINT', 'SMALLINT', 'TINYINT'] %}
+        if "{{ col_lower }}" in [c.lower() for c in {{ step.df_output }}.columns]:
+            for c in {{ step.df_output }}.columns:
+                if c.lower() == "{{ col_lower }}":
+                    {{ step.df_output }} = {{ step.df_output }}.withColumn(c, col(c).cast(LongType()))
+        {% elif col_type.upper() in ['FLOAT', 'DOUBLE', 'REAL'] %}
+        if "{{ col_lower }}" in [c.lower() for c in {{ step.df_output }}.columns]:
+            for c in {{ step.df_output }}.columns:
+                if c.lower() == "{{ col_lower }}":
+                    {{ step.df_output }} = {{ step.df_output }}.withColumn(c, col(c).cast(DoubleType()))
+        {% elif 'DECIMAL' in col_type.upper() or 'NUMERIC' in col_type.upper() or col_type.upper() == 'NUMBER' %}
+        if "{{ col_lower }}" in [c.lower() for c in {{ step.df_output }}.columns]:
+            for c in {{ step.df_output }}.columns:
+                if c.lower() == "{{ col_lower }}":
+                    {{ step.df_output }} = {{ step.df_output }}.withColumn(c, col(c).cast(DecimalType(38, 10)))
+        {% elif col_type.upper() in ['DATE'] %}
+        if "{{ col_lower }}" in [c.lower() for c in {{ step.df_output }}.columns]:
+            for c in {{ step.df_output }}.columns:
+                if c.lower() == "{{ col_lower }}":
+                    {{ step.df_output }} = {{ step.df_output }}.withColumn(c, col(c).cast(DateType()))
+        {% elif col_type.upper() in ['DATETIME', 'TIMESTAMP'] %}
+        if "{{ col_lower }}" in [c.lower() for c in {{ step.df_output }}.columns]:
+            for c in {{ step.df_output }}.columns:
+                if c.lower() == "{{ col_lower }}":
+                    {{ step.df_output }} = {{ step.df_output }}.withColumn(c, col(c).cast(TimestampType()))
+        {% else %}
+        # VARCHAR, CHAR, STRING etc — keep as-is
+        {% endif %}
+        {% endfor %}
         {% endif %}
         {% else %}
         {{ step.df_output }} = {{ step.df_input }}
@@ -197,7 +225,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
             lib.execute_sql(spark, _sp_conn,
                 "BEGIN {{ sp_full }}('" + _val + "'); END;")
         {{ step.df_output }} = {{ step.df_output }}.withColumn("{{ col.get('name', 'col') }}", lit("SUCCESS"))
-        {% else %}
+        {% elif expr_str | trim != col.get('name', 'col') %}
         {{ step.df_output }} = {{ step.df_output }}.withColumn("{{ col.get('name', 'col') }}", expr("{{ expr_str }}"))
         {% endif %}
         {% endfor %}

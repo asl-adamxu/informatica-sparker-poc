@@ -71,16 +71,12 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
         logger.info("Step: read_DDS_FACT_GMS_DLY_MSD_SMRY")
         # Reading Data From Source - read_DDS_FACT_GMS_DLY_MSD_SMRY
         df_src_1 = lib.read_sql(spark, conn_source, table="DDS_FACT_GMS_DLY_MSD_SMRY")
-        df_src_1 = lib.normalize_column_names(df_src_1)
         logger.info("Source Data Count df_src_1: %s", df_src_1.count())
-        df_src_1 = df_src_1.coalesce(1).withColumn("jkey", monotonically_increasing_id())
         
         logger.info("Step: read_DPA_FACT_GMS_DLY_MSD_SMRY")
         # Reading Data From Source - read_DPA_FACT_GMS_DLY_MSD_SMRY
         df_src_2 = lib.read_sql(spark, conn_source, table="DPA_FACT_GMS_DLY_MSD_SMRY")
-        df_src_2 = lib.normalize_column_names(df_src_2)
         logger.info("Source Data Count df_src_2: %s", df_src_2.count())
-        df_src_2 = df_src_2.coalesce(1).withColumn("jkey", monotonically_increasing_id())
         
         logger.info("Step: apply_SQ_DDS_FACT_GMS_DLY_MSD_SMRY")
         # Source Qualifier: apply_SQ_DDS_FACT_GMS_DLY_MSD_SMRY
@@ -92,7 +88,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
         if _src_schema and _src_schema.lower() != "pdds":
             query = query.replace("PDDS.", _src_schema + ".")
         df_sq_3 = lib.read_sql(spark, conn_source, query=query)
-        df_sq_3 = lib.normalize_column_names(df_sq_3)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_sq_3.columns
         _port_cols = ["TIME_DMNS_KEY"]
@@ -101,6 +96,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
                 df_sq_3 = df_sq_3.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
         df_sq_3 = df_sq_3.select("TIME_DMNS_KEY")
+        
         ctx.register_df("df_sq_3", df_sq_3)
         
         logger.info("Step: apply_SQ_DPA_FACT_GMS_DLY_MSD_SMRY")
