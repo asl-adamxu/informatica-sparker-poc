@@ -12,65 +12,77 @@ from pyspark.sql import DataFrame
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 
-lib.init_logger()
-logger = lib.get_logger()
-logger.info("Start to run mapping {{ mapping_name }}")
-
-# Load configuration
-config = lib.load_config('env/config.yml')
-# Load file object definitions from config.yml (file-type objects only)
-objects = lib.load_config('env/config.yml').get('objects', {})
-
-# =============================================================================
-# SPARK SESSION INITIALIZATION
-# =============================================================================
-spark = lib.get_spark_session("{{ mapping_name }}", config)
-
-# connection names from config
-conn_oracle = lib.get_db_config(config, "oracle-defaults")
-conn_source = lib.get_db_config(config, "{{ source_conn_name }}")
-conn_target = lib.get_db_config(config, "{{ target_conn_name }}")
-
-{% if mapping_variables %}
-# Load mapping variables from UTL_JOB_PARAM file (produced by m_utl_param_setup)
-{% for var_name, var_default in mapping_variables.items() %}
-{% set clean_name = var_name | replace('$', '') %}
-{{ clean_name }} = "{{ var_default }}"
-{% endfor %}
-try:
-    _param_obj = objects.get("UTL_JOB_PARAM", {})
-    if isinstance(_param_obj, dict):
-        _param_path = _param_obj.get('path', '/tmp/UTL_JOB_PARAM')
-    with open(_param_path, "r") as _f:
-        for _line in _f:
-            _line = _line.strip()
-            for _var in [{% for var_name, var_default in mapping_variables.items() %} "{{ var_name }}", {% endfor %}]:
-                if _line.startswith(_var + "="):
-                    _val = _line.split("=", 1)[1]
-                    globals()[_var.replace("$", "")] = _val
-                    logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-except Exception:
-    logger.warning("UTL_JOB_PARAM not found, using default values")
-
-{% endif %}
 # =============================================================================
 # MAPPING LOGIC
 # =============================================================================
 
-def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
+def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> bool:
     """
     Execute the {{ mapping_name }} mapping transformations.
+
+    All initialization (logging, config, spark session, connections) happens
+    lazily inside this function, so importing the module has no side effects.
     
     Args:
         ctx: Optional SparkContext for session and DataFrame registry
         metrics: Optional metrics tracker (or NullMetrics if not provided)
+        job_params: Optional dict of job parameters loaded by workflow
     
     Returns:
         bool: True if successful
     """
-    _spark = ctx.spark if ctx else spark
+    lib.init_logger()
+    logger = lib.get_logger()
+    logger.info("Start to run mapping {{ mapping_name }}")
+
+    config = lib.load_config('env/config.yml')
+    objects = config.get('objects', {})
+
+    spark = ctx.spark if ctx else lib.get_spark_session("{{ mapping_name }}", config)
     metrics = metrics or lib.NullMetrics()
     metrics.start()
+
+    conn_oracle = lib.get_db_config(config, "oracle-defaults")
+    conn_source = lib.get_db_config(config, "{{ source_conn_name }}")
+    conn_target = lib.get_db_config(config, "{{ target_conn_name }}")
+
+    {% if mapping_variables %}
+    {% for var_name, var_default in mapping_variables.items() %}
+    {% set clean_name = var_name | replace('$', '') %}
+    {{ clean_name }} = "{{ var_default }}"
+    {% endfor %}
+    # Load mapping variables from job_params or UTL_JOB_PARAM file
+    if job_params:
+        for _var, _val in job_params.items():
+            _clean = _var.replace("$", "")
+            if _clean in [{% for var_name, var_default in mapping_variables.items() %} "{{ var_name | replace('$', '') }}", {% endfor %}]:
+                {% for var_name, var_default in mapping_variables.items() %}
+                {% set clean_name = var_name | replace('$', '') %}
+                if _clean == "{{ clean_name }}":
+                    {{ clean_name }} = _val
+                {% endfor %}
+                logger.info("Loaded %s=%s from job_params", _var, _val)
+    else:
+        try:
+            _param_obj = objects.get("UTL_JOB_PARAM", {})
+            if isinstance(_param_obj, dict):
+                _param_path = _param_obj.get('path', '/tmp/UTL_JOB_PARAM')
+            with open(_param_path, "r") as _f:
+                for _line in _f:
+                    _line = _line.strip()
+                    for _var in [{% for var_name, var_default in mapping_variables.items() %} "{{ var_name }}", {% endfor %}]:
+                        if _line.startswith(_var + "="):
+                            _val = _line.split("=", 1)[1]
+                            _clean = _var.replace("$", "")
+                            {% for var_name, var_default in mapping_variables.items() %}
+                            {% set clean_name = var_name | replace('$', '') %}
+                            if _clean == "{{ clean_name }}":
+                                {{ clean_name }} = _val
+                            {% endfor %}
+                            logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
+        except Exception:
+            logger.warning("UTL_JOB_PARAM not found, using default values")
+    {% endif %}
     
     try:
         {% for step in steps %}
@@ -446,7 +458,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
         if "{{ col_lower }}" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:
                 if c.lower() == "{{ col_lower }}":
-                    df_write = df_write.withColumn(c, col(c).cast(StringType()))
+                    df_write = df_write.withColumn(c,
+                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
+                             col(c).cast(DecimalType(38,0)).cast(StringType()))
+                        .otherwise(col(c).cast(StringType())))
         {% elif col_type and col_type.upper() in ['INTEGER', 'INT', 'BIGINT', 'SMALLINT', 'TINYINT'] %}
         if "{{ col_lower }}" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:
@@ -534,7 +549,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None) -> bool:
 
 def main():
     """Standalone execution entry point."""
-    spark = lib.get_spark_session("{{ mapping_name }}")
+    lib.init_logger()
+    logger = lib.get_logger()
+    config = lib.load_config('env/config.yml')
+    spark = lib.get_spark_session("{{ mapping_name }}", config)
     ctx = lib.SparkContext(spark)
     metrics = lib.MappingMetrics("{{ mapping_name }}")
     

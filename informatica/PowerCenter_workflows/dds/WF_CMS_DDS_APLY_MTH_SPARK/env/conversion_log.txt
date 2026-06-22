@@ -1,0 +1,998 @@
+================================================================================
+INFORMATICA-SPARKER CONVERSION LOG
+Generated: 2026-06-22 18:10:26
+================================================================================
+
+SUMMARY
+----------------------------------------
+Total Mappings: 10
+Successful: 10
+Failed: 0
+Total Warnings: 18
+Total Errors: 0
+
+SOURCE DETECTION RESULTS
+----------------------------------------
+  DPA_FACT_CMS_CASE_OSTD_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_CASE_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_ORD_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_CASE_PRNT_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_REF_CASE_TYPE: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ITEM_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ARTSN_ORD_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ITEM: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_WO_ITEM_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_WO_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_HSE_EST: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CUST_RQS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  UTL_DPA_TBL_LIST: FILE [no_ext] (confidence: high)
+    - File format: no_ext
+    - Location: local
+  UTL_SESSION_LIST: FILE [no_ext] (confidence: high)
+    - File format: no_ext
+    - Location: local
+  DPA_FACT_CMS_CASE_OSTD_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_CASE_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_ORD_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_CASE_PRNT_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_REF_CASE_TYPE: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ITEM_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ARTSN_ORD_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ITEM: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_WO_ITEM_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_WO_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_HSE_EST: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CUST_RQS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  UTL_DPA_TBL_LIST: FILE [no_ext] (confidence: high)
+    - File format: no_ext
+    - Location: local
+  UTL_SESSION_LIST: FILE [no_ext] (confidence: high)
+    - File format: no_ext
+    - Location: local
+  DPA_FACT_CMS_CASE_OSTD_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_CASE_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_ORD_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_CASE_PRNT_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_REF_CASE_TYPE: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ITEM_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ARTSN_ORD_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ITEM: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_WO_ITEM_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_WO_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_HSE_EST: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CUST_RQS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  UTL_DPA_TBL_LIST: FILE [no_ext] (confidence: high)
+    - File format: no_ext
+    - Location: local
+  UTL_SESSION_LIST: FILE [no_ext] (confidence: high)
+    - File format: no_ext
+    - Location: local
+  DPA_FACT_CMS_CASE_OSTD_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_CASE_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_ORD_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_CASE_PRNT_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_REF_CASE_TYPE: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ITEM_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ARTSN_ORD_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ITEM: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_WO_ITEM_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_WO_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_HSE_EST: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CUST_RQS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  UTL_DPA_TBL_LIST: FILE [no_ext] (confidence: high)
+    - File format: no_ext
+    - Location: local
+  UTL_SESSION_LIST: FILE [no_ext] (confidence: high)
+    - File format: no_ext
+    - Location: local
+  DPA_FACT_CMS_CASE_OSTD_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_CASE_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_ORD_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_CASE_PRNT_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_REF_CASE_TYPE: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ITEM_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ARTSN_ORD_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ITEM: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_WO_ITEM_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_WO_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_HSE_EST: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CUST_RQS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  UTL_DPA_TBL_LIST: FILE [no_ext] (confidence: high)
+    - File format: no_ext
+    - Location: local
+  UTL_SESSION_LIST: FILE [no_ext] (confidence: high)
+    - File format: no_ext
+    - Location: local
+  DPA_FACT_CMS_CASE_OSTD_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_CASE_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_ORD_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_CASE_PRNT_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_REF_CASE_TYPE: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ITEM_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ARTSN_ORD_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ITEM: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_WO_ITEM_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_WO_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_HSE_EST: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CUST_RQS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  UTL_DPA_TBL_LIST: FILE [no_ext] (confidence: high)
+    - File format: no_ext
+    - Location: local
+  UTL_SESSION_LIST: FILE [no_ext] (confidence: high)
+    - File format: no_ext
+    - Location: local
+  DPA_FACT_CMS_CASE_OSTD_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_CASE_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_ORD_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_CASE_PRNT_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_REF_CASE_TYPE: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ITEM_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ARTSN_ORD_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ITEM: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_WO_ITEM_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_WO_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_HSE_EST: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CUST_RQS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  UTL_DPA_TBL_LIST: FILE [no_ext] (confidence: high)
+    - File format: no_ext
+    - Location: local
+  UTL_SESSION_LIST: FILE [no_ext] (confidence: high)
+    - File format: no_ext
+    - Location: local
+  DPA_FACT_CMS_CASE_OSTD_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_CASE_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_ORD_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_CASE_PRNT_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_REF_CASE_TYPE: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ITEM_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ARTSN_ORD_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ITEM: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_WO_ITEM_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_WO_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_HSE_EST: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CUST_RQS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  UTL_DPA_TBL_LIST: FILE [no_ext] (confidence: high)
+    - File format: no_ext
+    - Location: local
+  UTL_SESSION_LIST: FILE [no_ext] (confidence: high)
+    - File format: no_ext
+    - Location: local
+  DPA_FACT_CMS_CASE_OSTD_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_CASE_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_ORD_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_CASE_PRNT_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_REF_CASE_TYPE: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ITEM_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ARTSN_ORD_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ITEM: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_WO_ITEM_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_WO_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_HSE_EST: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CUST_RQS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  UTL_DPA_TBL_LIST: FILE [no_ext] (confidence: high)
+    - File format: no_ext
+    - Location: local
+  UTL_SESSION_LIST: FILE [no_ext] (confidence: high)
+    - File format: no_ext
+    - Location: local
+  DPA_FACT_CMS_CASE_OSTD_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_CASE_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_ORD_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  DPA_FACT_CMS_CASE_PRNT_SMRY: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: DPA
+    - Schema/Owner: PDPA
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_REF_CASE_TYPE: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ITEM_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ARTSN_ORD_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_ITEM: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_WO_ITEM_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_WO_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_HSE_EST: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CUST_RQS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE_STS: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  SOR_CMS_CASE: SQL (confidence: high)
+    - Database type: Oracle
+    - Database name: SOR
+    - Schema/Owner: PSOR
+    - JDBC driver: oracle.jdbc.driver.OracleDriver
+    - Driver JAR: ojdbc.jar
+  UTL_DPA_TBL_LIST: FILE [no_ext] (confidence: high)
+    - File format: no_ext
+    - Location: local
+  UTL_SESSION_LIST: FILE [no_ext] (confidence: high)
+    - File format: no_ext
+    - Location: local
+
+MAPPING: M_DPA_APLY_FACT_CMS_CASE_OSTD_SMRY
+  Status: SUCCESS
+  Generated Files: m_dpa_aply_fact_cms_case_ostd_smry.py
+
+MAPPING: M_DDS_APLY_FACT_CMS_CASE_SMRY
+  Status: SUCCESS
+  Generated Files: m_dds_aply_fact_cms_case_smry.py
+
+MAPPING: M_DDS_APLY_FACT_CMS_ORD_SMRY
+  Status: SUCCESS
+  Generated Files: m_dds_aply_fact_cms_ord_smry.py
+
+MAPPING: M_DDS_APLY_FACT_CMS_CASE_PRNT_SMRY
+  Status: SUCCESS
+  Generated Files: m_dds_aply_fact_cms_case_prnt_smry.py
+
+MAPPING: M_DPA_SUMMARIZE_FACT_CMS_CASE_SMRY
+  Status: SUCCESS
+  Generated Files: m_dpa_summarize_fact_cms_case_smry.py
+  Warnings (7):
+    [WARN] Mapplet MPLT_LKP_HSE_UNIT_KEY treated as pass-through (no expressions found)
+    [WARN] Mapplet MPLT_LKP_EST_CODE treated as pass-through (no expressions found)
+    [WARN] Mapplet MPLT_LKP_BLK_CODE treated as pass-through (no expressions found)
+    [WARN] Mapplet MPLT_GET_EST_OFFC_SCD_KEY treated as pass-through (no expressions found)
+    [WARN] Mapplet MPLT_GET_CMS_EST_SCD_KEY treated as pass-through (no expressions found)
+    [WARN] Mapplet MPLT_GET_CHNL_DMNS_KEY treated as pass-through (no expressions found)
+    [WARN] Mapplet MPLT_LKP_TNCY_AGRMT treated as pass-through (no expressions found)
+
+MAPPING: M_DPA_SUMMARIZE_FACT_CMS_CASE_OSTD_SMRY
+  Status: SUCCESS
+  Generated Files: m_dpa_summarize_fact_cms_case_ostd_smry.py
+  Warnings (5):
+    [WARN] Mapplet MPLT_LKP_EST_CODE treated as pass-through (no expressions found)
+    [WARN] Mapplet MPLT_LKP_BLK_CODE treated as pass-through (no expressions found)
+    [WARN] Mapplet MPLT_GET_OSTD_PRD_DMNS_KEY treated as pass-through (no expressions found)
+    [WARN] Mapplet MPLT_GET_EST_OFFC_SCD_KEY treated as pass-through (no expressions found)
+    [WARN] Mapplet MPLT_GET_CMS_EST_SCD_KEY treated as pass-through (no expressions found)
+
+MAPPING: M_DPA_SUMMARIZE_FACT_CMS_ORD_SMRY
+  Status: SUCCESS
+  Generated Files: m_dpa_summarize_fact_cms_ord_smry.py
+  Warnings (5):
+    [WARN] Mapplet MPLT_GET_EST_OFFC_SCD_KEY treated as pass-through (no expressions found)
+    [WARN] Mapplet MPLT_LKP_EST_CODE treated as pass-through (no expressions found)
+    [WARN] Mapplet MPLT_LKP_BLK_CODE treated as pass-through (no expressions found)
+    [WARN] Mapplet MPLT_LKP_HSE_UNIT_KEY treated as pass-through (no expressions found)
+    [WARN] Mapplet MPLT_GET_CMS_EST_SCD_KEY treated as pass-through (no expressions found)
+
+MAPPING: M_DPA_SUMMARIZE_FACT_CMS_CASE_PRNT_SMRY
+  Status: SUCCESS
+  Generated Files: m_dpa_summarize_fact_cms_case_prnt_smry.py
+
+MAPPING: M_UTL_DPA_TRUNCATE
+  Status: SUCCESS
+  Generated Files: m_utl_dpa_truncate.py
+  Warnings (1):
+    [WARN] Unsupported transformation type: Stored Procedure (SP_TRUNCATE)
+
+MAPPING: M_UTL_PARAM_SETUP
+  Status: SUCCESS
+  Generated Files: m_utl_param_setup.py
+
+ALL WARNINGS
+----------------------------------------
+  [WARN] Mapplet MPLT_LKP_HSE_UNIT_KEY treated as pass-through (no expressions found)
+  [WARN] Mapplet MPLT_LKP_EST_CODE treated as pass-through (no expressions found)
+  [WARN] Mapplet MPLT_LKP_BLK_CODE treated as pass-through (no expressions found)
+  [WARN] Mapplet MPLT_GET_EST_OFFC_SCD_KEY treated as pass-through (no expressions found)
+  [WARN] Mapplet MPLT_GET_CMS_EST_SCD_KEY treated as pass-through (no expressions found)
+  [WARN] Mapplet MPLT_GET_CHNL_DMNS_KEY treated as pass-through (no expressions found)
+  [WARN] Mapplet MPLT_LKP_TNCY_AGRMT treated as pass-through (no expressions found)
+  [WARN] Mapplet MPLT_LKP_EST_CODE treated as pass-through (no expressions found)
+  [WARN] Mapplet MPLT_LKP_BLK_CODE treated as pass-through (no expressions found)
+  [WARN] Mapplet MPLT_GET_OSTD_PRD_DMNS_KEY treated as pass-through (no expressions found)
+  [WARN] Mapplet MPLT_GET_EST_OFFC_SCD_KEY treated as pass-through (no expressions found)
+  [WARN] Mapplet MPLT_GET_CMS_EST_SCD_KEY treated as pass-through (no expressions found)
+  [WARN] Mapplet MPLT_GET_EST_OFFC_SCD_KEY treated as pass-through (no expressions found)
+  [WARN] Mapplet MPLT_LKP_EST_CODE treated as pass-through (no expressions found)
+  [WARN] Mapplet MPLT_LKP_BLK_CODE treated as pass-through (no expressions found)
+  [WARN] Mapplet MPLT_LKP_HSE_UNIT_KEY treated as pass-through (no expressions found)
+  [WARN] Mapplet MPLT_GET_CMS_EST_SCD_KEY treated as pass-through (no expressions found)
+  [WARN] Unsupported transformation type: Stored Procedure (SP_TRUNCATE)

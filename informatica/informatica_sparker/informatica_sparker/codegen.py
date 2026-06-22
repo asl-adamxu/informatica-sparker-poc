@@ -2,6 +2,7 @@ import os
 import re
 from pathlib import Path
 from typing import Dict, List, Any
+import json
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from .ir import IRPlan, IRStep, IRStepType
 import datetime
@@ -20,6 +21,8 @@ class CodeGenerator:
             trim_blocks=True,
             lstrip_blocks=True
         )
+        self.env.filters['topython'] = lambda v: json.dumps(v, indent=2).replace(
+            'true', 'True').replace('false', 'False').replace('null', 'None')
 
     def generate(self, plan: IRPlan, user_config: UserConfig) -> List[GeneratedFile]:
         files = []
@@ -68,14 +71,16 @@ class CodeGenerator:
             target_conn_name = "target"
             
             # Collect source and target connection names
+            hardcoded_defaults = {"source_db", "target_db", "default_conn", "lookup_conn", "lookup"}
             for step in plan.steps:
                 conn_alias = step.params.get("connection_alias", "")
                 if conn_alias:
                     if step.step_type in (IRStepType.READ_SQL, IRStepType.APPLY_SOURCE_QUALIFIER):
                         if not step.params.get("is_lookup", False):
-                            source_conn_name = conn_alias
+                            if conn_alias.lower() not in hardcoded_defaults:
+                                source_conn_name = conn_alias
                     elif step.step_type == IRStepType.WRITE_TARGET:
-                        if conn_alias:
+                        if conn_alias and conn_alias.lower() not in hardcoded_defaults:
                             target_conn_name = conn_alias
             
             # Resolve target connection: if still default "target", fall back to source or oracle-defaults

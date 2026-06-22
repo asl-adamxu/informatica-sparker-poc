@@ -429,19 +429,13 @@ class TransformHandlers:
         if filter_cond:
             translated_filter = self.expr_translator.translate_for_filter(filter_cond, "source_filter")
 
-        conn_alias = "source_db"
         source_inputs = self._get_source_inputs_for_sq(instance.name)
-        if source_inputs:
-            source_conn = source_inputs[0].get("connection")
-            if source_conn and source_conn in self.user_config.db_connections:
-                conn_alias = source_conn
-            elif source_conn:
-                for k in self.user_config.db_connections.keys():
-                    if source_conn.lower() in k.lower() or k.lower() in source_conn.lower():
-                        conn_alias = k
-                        break
-                else:
-                    conn_alias = source_conn
+        source_name = source_inputs[0].get("name", "") if source_inputs else ""
+        conn_alias = self._resolve_connection_alias(
+            instance_name=instance.name,
+            target_name=source_name,
+            plan=plan
+        )
 
         # Determine source database type for potential SQL translation
         source_db_type = "oracle"

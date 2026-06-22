@@ -444,10 +444,14 @@ class ConversionService:
             
             # Emit worklet (runs after parallel sessions in its level complete)
             if worklet_found:
+                # Determine if worklet sessions can run in parallel:
+                # parallel if no internal dependency links exist between tasks
+                wkl_parallel = len(wkl_links.get(worklet_found, [])) == 0
                 execution_plan.append({
                     "type": "worklet",
                     "name": worklet_found,
                     "sessions": worklet_sessions[worklet_found],
+                    "parallel": wkl_parallel,
                 })
             
             # Emit non-worklet, non-session tasks (email etc.)
@@ -499,6 +503,7 @@ class ConversionService:
                 mappings=mappings_info,
                 execution_plan=execution_plan,
                 worklet_sessions=worklet_sessions,
+                task_info=task_info,
             )
         except Exception:
             content = self._generate_workflow_fallback(
@@ -511,7 +516,7 @@ class ConversionService:
         )
 
         return [
-            GeneratedFile(filename="workflow.py", content=content, file_type="python"),
+            GeneratedFile(filename=f"{self._make_safe_name(workflow_name)}.py", content=content, file_type="python"),
             GeneratedFile(filename=f"{self._make_safe_name(workflow_name)}.md",
                           content=md_content, file_type="markdown"),
         ]
@@ -1189,8 +1194,8 @@ class ConversionService:
             # .md report goes to current working directory (not in workflow folder)
             if gen_file.filename.endswith(".md"):
                 file_path = Path.cwd() / gen_file.filename
-            # Mapping scripts and workflow.py go directly in output_dir
-            elif gen_file.filename == "workflow.py" or gen_file.filename.startswith("m_"):
+            # Mapping scripts and workflow file go directly in output_dir
+            elif gen_file.filename.startswith("m_") or gen_file.filename.lower().startswith("wf_"):
                 file_path = out_path / gen_file.filename
             # Everything else (config.yml, runtime_lib.py, etc.) goes in env/
             else:

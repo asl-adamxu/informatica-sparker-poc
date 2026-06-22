@@ -96,6 +96,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: read_LKPTRANS")
         # Reading Data From Source - read_LKPTRANS
         query = f"""SELECT SOR_SYS_PRPTY.VAL as VAL, SOR_SYS_PRPTY.PRPTY_DESP as PRPTY_DESP, SOR_SYS_PRPTY.PRPTY as PRPTY FROM PSOR.SOR_SYS_PRPTY"""
+        # Substitute schema from connection config
+        _src_schema = conn_source.get("schema", "")
+        if _src_schema and _src_schema.lower() != "psor":
+            query = query.replace("PSOR.", _src_schema + ".")
         df_lkp_4 = lib.read_sql(spark, conn_source, query=query)
         logger.info("Source Data Count df_lkp_4: %s", df_lkp_4.count())
         
@@ -111,7 +115,7 @@ broadcast(df_lkp_4),
         
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
-        df_exp_6 = df_lkp_result_5
+        df_exp_6 = df_exp_3
         df_exp_6 = df_exp_6.withColumn("LINE", expr("concat(PARAMETER,CASE WHEN (VAL IS NULL) THEN '' ELSE VAL END)"))
        
         # Select only mapping output ports (prevents column leakage)

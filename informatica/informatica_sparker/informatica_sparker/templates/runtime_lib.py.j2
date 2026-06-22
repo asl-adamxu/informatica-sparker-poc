@@ -28,9 +28,13 @@ def load_config(config_path: str = "env/config.yml") -> Dict[str, Any]:
 # =============================================================================
 # Global logging configuration (automatically executed when module is loaded)
 # =============================================================================
+_LOG_FILES = set()
+
+
 def init_logger(log_name: str = None):
     """
     Initialize logging system, output to terminal stderr and rotating file.
+    Each unique log_name gets its own log file.
     
     Args:
         log_name: Log file name prefix, e.g., "my_mapping", which generates my_mapping.log
@@ -54,35 +58,38 @@ def init_logger(log_name: str = None):
 
     os.makedirs(log_dir, exist_ok=True)
 
-    logger = logging.getLogger()
-    if logger.handlers:
-        return logger
-    
     log_formatter = logging.Formatter(
-        # "%(asctime)s [%(levelname)s] %(name)s - %(message)s",
         "%(asctime)s [%(levelname)s] - %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S"
     )
-    
+
+    # Root logger: console handler only (once)
+    root_logger = logging.getLogger()
+    root_logger.setLevel(log_level)
+    if not any(isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler) for h in root_logger.handlers):
+        console_handler = logging.StreamHandler(sys.stderr)
+        console_handler.setLevel(log_level)
+        console_handler.setFormatter(log_formatter)
+        root_logger.addHandler(console_handler)
+
+    # Named logger: file handler only (separate log per module)
+    logger = logging.getLogger(log_name)
     logger.setLevel(log_level)
-    
-    console_handler = logging.StreamHandler(sys.stderr)
-    console_handler.setLevel(log_level)
-    console_handler.setFormatter(log_formatter)
-    logger.addHandler(console_handler)
-    
-    log_file = os.path.join(log_dir, f"{log_name}.log")
-    file_handler = TimedRotatingFileHandler(
-        log_file,
-        when="midnight",
-        backupCount=backup_count,
-        encoding="utf-8"
-    )
-    file_handler.setLevel(log_level)
-    file_handler.setFormatter(log_formatter)
-    logger.addHandler(file_handler)
-    
-    logger.propagate = False
+    logger.propagate = True
+
+    if log_name not in _LOG_FILES:
+        _LOG_FILES.add(log_name)
+        log_file = os.path.join(log_dir, f"{log_name}.log")
+        file_handler = TimedRotatingFileHandler(
+            log_file,
+            when="midnight",
+            backupCount=backup_count,
+            encoding="utf-8"
+        )
+        file_handler.setLevel(log_level)
+        file_handler.setFormatter(log_formatter)
+        logger.addHandler(file_handler)
+
     return logger
 
 
@@ -110,11 +117,28 @@ def get_db_config(config: Dict[str, Any], conn_name: str = "source") -> Dict[str
     
     Looks up config['connections'][conn_name] first, then falls back
     to config[conn_name] (top-level) for standalone connection entries.
+    If conn_name is not found directly, tries to match by checking if
+    any connection key is a prefix of conn_name (e.g. 'DPA_FACT_...' -> 'DPA').
     """
-    result = config.get("connections", {}).get(conn_name)
+    connections = config.get("connections", {})
+    result = connections.get(conn_name)
     if result is not None:
         return result
-    return config.get(conn_name, config.get("connections", {}).get("source", {}))
+
+    # Try prefix match: find a connection key that is a prefix of conn_name
+    conn_lower = conn_name.lower()
+    for key in sorted(connections.keys(), key=len, reverse=True):
+        if conn_lower.startswith(key.lower()):
+            return connections[key]
+
+    result = config.get(conn_name)
+    if result is not None:
+        return result
+
+    return connections.get("source", {})
+
+
+_PASSWORD_CACHE = {}
 
 
 def _resolve_password(spark: SparkSession, conn_config: Dict[str, Any]) -> str:
@@ -123,6 +147,7 @@ def _resolve_password(spark: SparkSession, conn_config: Dict[str, Any]) -> str:
     If the password starts with 'credential:', the remainder is treated as a
     credential alias looked up via the Hadoop CredentialProvider.
     Otherwise the plaintext value is returned as-is.
+    Results are cached in memory so the first caller's input is reused by all subsequent callers.
     """
     raw = conn_config.get("password", "")
     if not raw:
@@ -130,10 +155,17 @@ def _resolve_password(spark: SparkSession, conn_config: Dict[str, Any]) -> str:
     if not raw.startswith("credential:"):
         return raw
     alias = raw[len("credential:"):]
+
+    # Check in-memory cache first
+    if alias in _PASSWORD_CACHE:
+        return _PASSWORD_CACHE[alias]
+
     try:
         chars = spark.sparkContext._jsc.hadoopConfiguration().getPassword(alias)
         if chars:
-            return "".join(chars)
+            _pwd = "".join(chars)
+            _PASSWORD_CACHE[alias] = _pwd
+            return _pwd
     except Exception:
         pass
 
@@ -149,7 +181,9 @@ def _resolve_password(spark: SparkSession, conn_config: Dict[str, Any]) -> str:
         try:
             chars = spark.sparkContext._jsc.hadoopConfiguration().getPassword(alias)
             if chars:
-                return "".join(chars)
+                _pwd = "".join(chars)
+                _PASSWORD_CACHE[alias] = _pwd
+                return _pwd
         except Exception:
             pass
 
@@ -169,6 +203,7 @@ def _resolve_password(spark: SparkSession, conn_config: Dict[str, Any]) -> str:
             _upd = f"hadoop credential update {alias} -value {shlex.quote(_pwd)} -provider {_cred_path}"
             subprocess.run(_upd, shell=True, check=True)
             print(f"    Credential '{alias}' updated successfully.")
+        _PASSWORD_CACHE[alias] = _pwd
         return _pwd
     print(f"    Skipped. Create it later with:")
     print(f"    hadoop credential create {alias} -provider {_cred_path}")
@@ -303,6 +338,31 @@ def write_file(df: DataFrame, path: str, format: str = "csv",
         for k, v in opts.items():
             writer = writer.option(k, str(v))
         writer.save(path)
+
+
+def test_connection(spark: SparkSession, conn_config: Dict[str, Any]) -> bool:
+    """Test a database connection by attempting to connect and run a simple query.
+    
+    Returns True if successful, False otherwise.
+    """
+    try:
+        jdbc_url = get_jdbc_url(conn_config)
+        user = conn_config.get("username", "")
+        password = _resolve_password(spark, conn_config)
+        driver = conn_config.get("driver", "oracle.jdbc.driver.OracleDriver")
+        spark._jvm.java.lang.Class.forName(driver)
+        conn = spark._jvm.java.sql.DriverManager.getConnection(jdbc_url, user, password)
+        try:
+            stmt = conn.createStatement()
+            stmt.execute("SELECT 1 FROM DUAL")
+            stmt.close()
+        finally:
+            conn.close()
+        return True
+    except Exception as e:
+        logger = get_logger()
+        logger.error("Connection test failed: %s", e)
+        return False
 
 
 def execute_sql(spark: SparkSession, conn_config: Dict[str, Any], sql: str) -> None:
