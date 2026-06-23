@@ -11,6 +11,10 @@ from datetime import datetime
 from typing import Dict, Any, Optional, List
 from logging.handlers import TimedRotatingFileHandler
 
+# Save builtins before pyspark.sql.functions shadows max/min with column versions
+_builtin_max = max
+_builtin_min = min
+
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
@@ -63,16 +67,20 @@ def init_logger(log_name: str = None):
         datefmt="%Y-%m-%d %H:%M:%S"
     )
 
-    # Root logger: console handler only (once)
+    # Root logger: console handler (once) + file handler (first caller only)
     root_logger = logging.getLogger()
     root_logger.setLevel(log_level)
-    if not any(isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler) for h in root_logger.handlers):
+    has_console = any(
+        isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler)
+        for h in root_logger.handlers
+    )
+    if not has_console:
         console_handler = logging.StreamHandler(sys.stderr)
         console_handler.setLevel(log_level)
         console_handler.setFormatter(log_formatter)
         root_logger.addHandler(console_handler)
 
-    # Named logger: file handler only (separate log per module)
+    # Named logger: separate log file per module
     logger = logging.getLogger(log_name)
     logger.setLevel(log_level)
     logger.propagate = True
@@ -89,6 +97,11 @@ def init_logger(log_name: str = None):
         file_handler.setLevel(log_level)
         file_handler.setFormatter(log_formatter)
         logger.addHandler(file_handler)
+        # Also give root the same file handler once, so loggers like
+        # env.runtime_lib (used by shared workflow functions) have their
+        # messages written to the first caller's log file.
+        if not any(isinstance(h, logging.FileHandler) for h in root_logger.handlers):
+            root_logger.addHandler(file_handler)
 
     return logger
 
@@ -251,8 +264,9 @@ def read_sql(spark: SparkSession, conn_config: Dict[str, Any],
         .option("url", jdbc_url) \
         .option("user", user) \
         .option("password", password) \
-        .option("driver", driver)
-    
+        .option("driver", driver) \
+        .option("isolationLevel", "READ_COMMITTED")
+
     if query:
         reader = reader.option("query", query)
     elif table:
@@ -521,7 +535,7 @@ def smart_repartition(df: DataFrame, target_partitions: int = 20,
         row_count = df.count()
         if row_count == 0:
             return df
-        optimal = max(1, min(target_partitions, row_count // min_rows_per_partition))
+        optimal = _builtin_max([1, _builtin_min([target_partitions, row_count // min_rows_per_partition])])
         if optimal < df.rdd.getNumPartitions():
             return df.coalesce(optimal)
         elif optimal > df.rdd.getNumPartitions():
@@ -632,3 +646,452 @@ class MappingMetrics:
 
     def log_row_count(self, step_name: str, count: int):
         self.row_counts[step_name] = count
+
+
+# =============================================================================
+# Reusable Workflow Runner
+# =============================================================================
+# These functions are imported by generated workflow orchestrators.
+# Every workflow only needs to define EXECUTION_PLAN, TASK_INFO, and
+# MAPPING_FUNCTIONS; the run_workflow() logic below is shared.
+
+logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Shared helper functions used by every generated workflow orchestrator
+# =============================================================================
+
+def discover_mappings(directory: str = None) -> dict:
+    """Auto-discover mapping modules (m_*.py) and return {module_name: run_mapping}.
+
+    Args:
+        directory: Directory to scan (default: same directory as caller's file).
+
+    Returns:
+        Dict mapping lowercase module names to their run_mapping functions.
+    """
+    import glob as _glob
+    import importlib as _importlib
+    import os as _os
+
+    if directory is None:
+        caller = inspect.stack()[1]
+        directory = _os.path.dirname(caller.filename) or "."
+    functions = {}
+    for file_path in sorted(_glob.glob(_os.path.join(directory, "m_*.py"))):
+        module_name = _os.path.splitext(_os.path.basename(file_path))[0]
+        try:
+            module = _importlib.import_module(module_name)
+            if not hasattr(module, "run_mapping"):
+                raise AttributeError(
+                    f"Module '{module_name}' missing 'run_mapping' function"
+                )
+            functions[module_name] = module.run_mapping
+            logger.info("Registered mapping: %s", module_name)
+        except Exception as e:
+            logger.error("Failed to load mapping '%s': %s", module_name, e)
+            raise
+    return functions
+
+
+def format_infa_template(template: str, context: dict) -> str:
+    """Replace Informatica-style placeholders with actual values."""
+    replacements = {
+        "%s": context.get("session_name", ""),
+        "%n": context.get("folder_name", ""),
+        "%e": context.get("error_code", ""),
+        "%b": context.get("error_msg", ""),
+        "%c": context.get("session_status", ""),
+        "%i": context.get("run_id", ""),
+        "%g": context.get("log_file", ""),
+    }
+    for placeholder, value in replacements.items():
+        template = template.replace(placeholder, value)
+    return template
+
+
+def send_email(subject: str, body: str, to_address: str = None):
+    """Send email notification via SMTP."""
+    import smtplib as _smtplib
+    from email.mime.text import MIMEText as _MIMEText
+
+    smtp_host = os.environ.get("SMTP_HOST", "localhost")
+    smtp_port = int(os.environ.get("SMTP_PORT", "25"))
+    from_address = os.environ.get("SMTP_FROM", "noreply@example.com")
+    message = _MIMEText(body, _charset="utf-8")
+    message["Subject"] = subject
+    message["From"] = from_address
+    message["To"] = to_address or from_address
+    try:
+        with _smtplib.SMTP(smtp_host, smtp_port) as server:
+            server.sendmail(from_address, [message["To"]], message.as_string())
+        logger.info("Email sent: %s", subject)
+    except Exception as e:
+        logger.warning("Failed to send email: %s", e)
+
+
+# =============================================================================
+# Reusable Workflow Runner
+# =============================================================================
+
+def _resolve_mapping_from_plan(plan_step, mapping_functions):
+    """Recursively resolve a mapping name from a plan step for validation."""
+    name = plan_step.get("mapping_name", "")
+    if name and name.lower() in mapping_functions:
+        return
+    if not name:
+        name = plan_step.get("name", "")
+    if name:
+        for s in plan_step.get("sessions", []):
+            mn = s.get("mapping_name", "")
+            if mn and mn.lower() in mapping_functions:
+                return
+    for s in plan_step.get("steps", []):
+        _resolve_mapping_from_plan(s, mapping_functions)
+    for s in plan_step.get("plan", []):
+        _resolve_mapping_from_plan(s, mapping_functions)
+
+
+def validate_execution_plan(execution_plan, mapping_functions, task_info=None):
+    """Validate every mapping referenced in the plan is registered."""
+    valid_types = {"session", "parallel_group", "worklet", "task", "sequential_chain"}
+    task_info = task_info or {}
+
+    def _validate_step(step, path=""):
+        stype = step.get("type", "")
+        if stype not in valid_types:
+            raise ValueError(
+                f"{path}: unknown step type '{stype}', valid: {valid_types}"
+            )
+        if stype == "parallel_group":
+            for i, s in enumerate(step.get("steps", [])):
+                _validate_step(s, f"{path}[{i}]")
+        elif stype == "worklet":
+            for i, s in enumerate(step.get("plan", [])):
+                _validate_step(s, f"{path}/{step.get('name','worklet')}[{i}]")
+        elif stype in ("session", "sequential_chain"):
+            sessions = step.get("sessions", [step])
+            for s in sessions:
+                mn = s.get("mapping_name", "")
+                if mn and mn.lower() not in mapping_functions:
+                    available = list(mapping_functions.keys())
+                    raise ValueError(
+                        f"{path}: mapping '{mn}' not found. Available: {available}"
+                    )
+        elif stype == "task":
+            name = step.get("name", "")
+            if name and task_info and name not in task_info:
+                logger.warning("Task '%s' has no TASK_INFO entry, will skip", name)
+
+    for i, step in enumerate(execution_plan):
+        _validate_step(step, f"Step[{i}]")
+
+    logger.info("Execution plan validation passed: %d top-level steps", len(execution_plan))
+
+
+def run_sessions_sequential(sessions_list, mapping_functions, ctx, metrics_cls,
+                            fail_fast=True, job_params=None):
+    """Execute a list of sessions one after another (respects DAG order)."""
+    completed = set()
+    failed = set()
+    results = {}
+    for session_info in sessions_list:
+        session_name = session_info["session_name"]
+        mapping_name = session_info.get("mapping_name", session_name)
+        metrics = metrics_cls(mapping_name) if metrics_cls else NullMetrics()
+        try:
+            fn = mapping_functions[mapping_name.lower()]
+            _ok = fn(ctx, metrics, job_params)
+            if not _ok:
+                raise RuntimeError("Mapping returned failure status")
+            completed.add(session_name)
+            results[session_name] = {"status": "SUCCESS"}
+        except Exception as e:
+            logger.error("Session '%s' failed: %s", session_name, e)
+            failed.add(session_name)
+            results[session_name] = {"status": "FAILED", "error": str(e)}
+            if fail_fast:
+                break
+    return completed, failed, results
+
+
+def run_sessions_parallel(sessions_list, mapping_functions, ctx, metrics_cls,
+                          fail_fast=True, job_params=None):
+    """Execute a list of sessions concurrently (independent tasks at same DAG level)."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from threading import Lock
+
+    completed = set()
+    failed = set()
+    results = {}
+    lock = Lock()
+    should_cancel = False
+
+    with ThreadPoolExecutor(max_workers=_builtin_max([1, len(sessions_list)])) as executor:
+        future_map = {}
+        for session_info in sessions_list:
+            session_name = session_info["session_name"]
+            mapping_name = session_info.get("mapping_name", session_name)
+            metrics = metrics_cls(mapping_name) if metrics_cls else NullMetrics()
+            fn = mapping_functions[mapping_name.lower()]
+            future_map[executor.submit(fn, ctx, metrics, job_params)] = session_name
+
+        for future in as_completed(future_map):
+            if should_cancel:
+                future.cancel()
+                continue
+            session_name = future_map[future]
+            try:
+                _ok = future.result()
+                if not _ok:
+                    raise RuntimeError("Mapping returned failure status")
+                with lock:
+                    completed.add(session_name)
+                    results[session_name] = {"status": "SUCCESS"}
+            except Exception as e:
+                logger.error("Session '%s' failed: %s", session_name, e)
+                with lock:
+                    failed.add(session_name)
+                    results[session_name] = {"status": "FAILED", "error": str(e)}
+                if fail_fast:
+                    should_cancel = True
+                    for f, name in future_map.items():
+                        if f != future and not f.done():
+                            f.cancel()
+                            logger.warning("Cancelled session '%s' due to fail_fast", name)
+
+    return completed, failed, results
+
+
+def execute_plan_step(step, mapping_functions, ctx, metrics_cls,
+                      fail_fast, job_params, workflow_name="",
+                      task_info=None, send_email_fn=None,
+                      format_infa_fn=None):
+    """Execute a single plan step, recursing into worklets and parallel groups.
+
+    Returns (completed: set, failed: set, results: dict).
+    Raises RuntimeError if fail_fast triggers.
+    """
+    completed = set()
+    failed = set()
+    results = {}
+    stype = step.get("type", "")
+
+    if stype == "session":
+        sessions_list = [{
+            "session_name": step.get("name", ""),
+            "mapping_name": step.get("mapping_name", ""),
+        }]
+        c, f, r = run_sessions_parallel(sessions_list, mapping_functions, ctx,
+                                        metrics_cls, fail_fast, job_params)
+        completed.update(c)
+        failed.update(f)
+        results.update(r)
+
+    elif stype == "parallel_group":
+        sub_steps = step.get("steps", [])
+        logger.info("Executing parallel group: %d steps", len(sub_steps))
+        c, f, r = run_sessions_parallel(
+            [{"session_name": s.get("name", s.get("mapping_name", "")),
+              "mapping_name": s.get("mapping_name", "")}
+             for s in sub_steps if s.get("type") == "session"],
+            mapping_functions, ctx, metrics_cls, fail_fast, job_params
+        )
+        completed.update(c)
+        failed.update(f)
+        results.update(r)
+        for s in sub_steps:
+            if s.get("type") == "task":
+                task_name = s.get("name", "")
+                logger.info("Processing task: %s", task_name)
+                try:
+                    if task_info and send_email_fn:
+                        tcfg = task_info.get(task_name, {})
+                        if tcfg.get("type") == "email":
+                            ctx_data = {
+                                "session_name": task_name,
+                                "folder_name": workflow_name,
+                            }
+                            send_email_fn(
+                                subject=format_infa_fn(tcfg.get("subject", ""), ctx_data) if format_infa_fn else tcfg.get("subject", ""),
+                                body=format_infa_fn(tcfg.get("text", ""), ctx_data) if format_infa_fn else tcfg.get("text", ""),
+                                to_address=tcfg.get("user"),
+                            )
+                    results[task_name] = {"status": "SUCCESS"}
+                except Exception as e:
+                    logger.error("Task '%s' failed: %s", task_name, e)
+                    results[task_name] = {"status": "FAILED"}
+                    failed.add(task_name)
+            elif s.get("type") == "worklet":
+                c2, f2, r2 = execute_plan_step(
+                    s, mapping_functions, ctx, metrics_cls,
+                    fail_fast, job_params, workflow_name,
+                    task_info, send_email_fn, format_infa_fn
+                )
+                completed.update(c2)
+                failed.update(f2)
+                results.update(r2)
+
+    elif stype == "sequential_chain":
+        sessions_list = step.get("sessions", [])
+        logger.info("Executing sequential chain: %d sessions", len(sessions_list))
+        c, f, r = run_sessions_sequential(sessions_list, mapping_functions, ctx,
+                                          metrics_cls, fail_fast, job_params)
+        completed.update(c)
+        failed.update(f)
+        results.update(r)
+
+    elif stype == "worklet":
+        wkl_name = step.get("name", "worklet")
+        wkl_plan = step.get("plan", [])
+        logger.info("Entering worklet [%s]: %d steps", wkl_name, len(wkl_plan))
+        for sub_step in wkl_plan:
+            c, f, r = execute_plan_step(
+                sub_step, mapping_functions, ctx, metrics_cls,
+                fail_fast, job_params, workflow_name,
+                task_info, send_email_fn, format_infa_fn
+            )
+            completed.update(c)
+            failed.update(f)
+            results.update(r)
+            if failed and fail_fast:
+                break
+
+    elif stype == "task":
+        task_name = step.get("name", "")
+        logger.info("Processing task: %s", task_name)
+        try:
+            if task_info and send_email_fn:
+                tcfg = task_info.get(task_name, {})
+                if tcfg.get("type") == "email":
+                    ctx_data = {
+                        "session_name": task_name,
+                        "folder_name": workflow_name,
+                    }
+                    send_email_fn(
+                        subject=format_infa_fn(tcfg.get("subject", ""), ctx_data) if format_infa_fn else tcfg.get("subject", ""),
+                        body=format_infa_fn(tcfg.get("text", ""), ctx_data) if format_infa_fn else tcfg.get("text", ""),
+                        to_address=tcfg.get("user"),
+                    )
+            results[task_name] = {"status": "SUCCESS"}
+        except Exception as e:
+            logger.error("Task '%s' failed: %s", task_name, e)
+            results[task_name] = {"status": "FAILED"}
+            failed.add(task_name)
+
+    if failed and fail_fast:
+        raise RuntimeError(f"Step failed: {failed}")
+
+    return completed, failed, results
+
+
+def run_workflow(execution_plan, mapping_functions, workflow_name,
+                 task_info=None, send_email_fn=None, format_infa_fn=None,
+                 config=None, fail_fast=True, metrics_cls=None):
+    """Execute a workflow from its execution plan (reusable across workflows).
+
+    Args:
+        execution_plan: list of plan-step dicts (top-level, sequential order)
+        mapping_functions: dict of {module_name_lower: callable}
+        workflow_name: str used for logging and Spark app name
+        task_info: optional dict of task_name → config for email tasks
+        send_email_fn: optional callable(subject, body, to_address);
+                       defaults to this module's send_email
+        format_infa_fn: optional callable(template, context) → str;
+                        defaults to this module's format_infa_template
+        config: optional config dict (loaded from config.yml if None)
+        fail_fast: stop at first failure when True
+        metrics_cls: optional metrics class (defaults to NullMetrics)
+
+    Returns:
+        dict with workflow_name, status, completed, failed, results
+    """
+    if send_email_fn is None:
+        send_email_fn = send_email
+    if format_infa_fn is None:
+        format_infa_fn = format_infa_template
+    metrics_cls = metrics_cls or NullMetrics
+    validate_execution_plan(execution_plan, mapping_functions, task_info)
+
+    if config is None:
+        config = load_config("env/config.yml")
+
+    # Inject email config from config.yml into task_info so email recipients
+    # can be configured per-environment without regenerating the workflow.
+    _email_cfg = config.get("email", {})
+    if task_info and _email_cfg.get("mail_to"):
+        mail_to = _email_cfg["mail_to"]
+        for _tname, _tcfg in task_info.items():
+            if isinstance(_tcfg, dict) and _tcfg.get("type") == "email":
+                _tcfg["user"] = mail_to
+
+    job_params = {}
+    param_file = config.get("objects", {}).get("UTL_JOB_PARAM", {}).get("path", "/tmp/UTL_JOB_PARAM")
+    if os.path.exists(param_file):
+        with open(param_file, "r") as f:
+            for line in f:
+                line = line.strip()
+                if "=" in line:
+                    key, value = line.split("=", 1)
+                    job_params[key.strip()] = value.strip()
+        logger.info("Loaded job params from %s: %s", param_file, job_params)
+    else:
+        logger.warning("Job param file not found: %s", param_file)
+
+    spark = get_spark_session(workflow_name, config)
+    ctx = SparkContext(spark)
+
+    connections = config.get("connections", {})
+    logger.info("Validating %d database connections ...", len(connections))
+    conn_ok = True
+    for cname, ccfg in connections.items():
+        if ccfg.get("type", "").lower() in ("oracle", "sqlserver", "postgresql", "mysql"):
+            if not test_connection(spark, ccfg):
+                logger.error("Connection '%s' is not reachable", cname)
+                conn_ok = False
+    if not conn_ok:
+        spark.stop()
+        raise RuntimeError("One or more database connections are unreachable. Aborting workflow.")
+
+    completed = set()
+    failed = set()
+    results = {}
+
+    try:
+        for plan_step in execution_plan:
+            c, f, r = execute_plan_step(
+                plan_step, mapping_functions, ctx, metrics_cls,
+                fail_fast, job_params, workflow_name,
+                task_info, send_email_fn, format_infa_fn
+            )
+            completed.update(c)
+            failed.update(f)
+            results.update(r)
+            if failed and fail_fast:
+                break
+
+        if failed and task_info and send_email_fn:
+            fail_config = task_info.get("T_MAIL_FAIL")
+            if fail_config and fail_config.get("type") == "email":
+                first_failed = next(iter(failed), "")
+                email_ctx = {
+                    "session_name": ", ".join(sorted(failed)),
+                    "folder_name": workflow_name,
+                    "error_code": "FAILED",
+                    "session_status": "FAILED",
+                    "error_msg": str(results.get(first_failed, {}).get("error", "")),
+                    "log_file": "",
+                }
+                send_email_fn(
+                    subject=format_infa_fn(fail_config.get("subject", ""), email_ctx) if format_infa_fn else fail_config.get("subject", ""),
+                    body=format_infa_fn(fail_config.get("text", ""), email_ctx) if format_infa_fn else fail_config.get("text", ""),
+                    to_address=fail_config.get("user"),
+                )
+
+        workflow_status = "FAILED" if failed else "SUCCESS"
+        logger.info("Workflow %s: completed=%d, failed=%d", workflow_status, len(completed), len(failed))
+        return {"workflow_name": workflow_name, "status": workflow_status,
+                "completed": list(completed), "failed": list(failed), "results": results}
+    finally:
+        spark.stop()

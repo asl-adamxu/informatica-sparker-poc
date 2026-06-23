@@ -1,4 +1,5 @@
 import re
+import networkx as nx
 from typing import Dict, List, Optional, Any
 from .models import (
     MappingDefinition, Transformation, Instance, Connector,
@@ -1288,63 +1289,334 @@ class TransformHandlers:
         return inputs
 
     def _handle_mapplet(self, instance: Instance, plan: IRPlan) -> List[IRStep]:
-        steps = []
+        """Fully inline a mapplet by building a mini-DAG from its instances/connectors
+        and dispatching each internal instance to the appropriate handler (Lookup,
+        Expression, etc.) in topological order.
 
+        Two mapplet structures are supported:
+          Type A – instance-based: only INSTANCE + CONNECTOR children; transformation
+                   definitions may be in the mapplet's own TRANSFORMATION children,
+                   in the mapping's transform_map, or (for reusable lookups) absent.
+          Type B – inline transformations: full TRANSFORMATION children for each step.
+        """
+        steps: List[IRStep] = []
+
+        # --- 1. Resolve mapplet identity ------------------------------------------------
         input_df = self._get_input_df(instance.name)
         if not input_df:
             plan.add_warning(f"No input DataFrame found for mapplet {instance.name}")
             input_df = "df_input"
 
-        df_output = self._get_df_name("df_mplt")
-        self._register_df(instance, df_output)
-
         mapplet_name = instance.transformation_name or instance.name
-        computed_columns = []
-
         mapplet_def = self.mapping.mapplets.get(mapplet_name) if hasattr(self.mapping, 'mapplets') else None
+        if not mapplet_def:
+            self.logger.log_mapplet(instance.name, f"Mapplet definition not found: {mapplet_name}", LogLevel.WARNING)
+            plan.add_warning(f"Mapplet definition not found: {mapplet_name}")
+            self.current_df_map[instance.name] = input_df
+            return steps
 
-        if mapplet_def:
-            for transform in mapplet_def.get("transformations", []):
-                if transform.type and "Expression" in transform.type:
-                    for field in transform.fields:
-                        if field.expression and "OUTPUT" in field.port_type:
-                            translated = self.expr_translator.translate(field.expression, "column", field.name)
-                            computed_columns.append(ComputedColumn(
-                                name=field.name,
-                                expression=translated,
-                                datatype=field.datatype
-                            ))
-                elif transform.type and "Filter" in transform.type:
-                    filter_cond = transform.table_attributes.get("Filter Condition", "")
-                    if filter_cond:
-                        plan.add_warning(f"Mapplet {mapplet_name} contains Filter: {filter_cond}")
+        # --- 2. Build local maps -------------------------------------------------------
+        mpl_instances: Dict[str, Instance] = {}
+        for i in mapplet_def.get("instances", []):
+            mpl_instances[i.name] = i
 
-        if not computed_columns:
-            transform = self.transform_map.get(mapplet_name)
-            if transform:
+        # Combine mapplet-local transformations with the mapping-level transform_map
+        # so that reusable Lookup / Expression definitions in the folder scope are found.
+        mpl_transforms: Dict[str, Transformation] = dict(self.transform_map)
+        for t in mapplet_def.get("transformations", []):
+            if t.name not in mpl_transforms:
+                mpl_transforms[t.name] = t
+
+        mpl_connectors: List[Connector] = mapplet_def.get("connectors", [])
+
+        if not mpl_instances:
+            self.logger.log_mapplet(instance.name, "Mapplet has no instances", LogLevel.WARNING)
+            plan.add_warning(f"Mapplet {mapplet_name} has no instances")
+            self.current_df_map[instance.name] = input_df
+            return steps
+
+        # --- 3. Build mini-DAG ---------------------------------------------------------
+        mpl_graph = nx.DiGraph()
+        for inst_name, inst_obj in mpl_instances.items():
+            mpl_graph.add_node(inst_name)
+        for conn in mpl_connectors:
+            if conn.from_instance in mpl_instances and conn.to_instance in mpl_instances:
+                mpl_graph.add_edge(conn.from_instance, conn.to_instance)
+
+        # Topological sort with cycle fallback
+        try:
+            mpl_order = list(nx.topological_sort(mpl_graph))
+        except nx.NetworkXUnfeasible:
+            self.logger.log_mapplet(instance.name, "Cycle detected in mapplet graph, using raw order", LogLevel.WARNING)
+            plan.add_warning(f"Mapplet {mapplet_name} has cyclic dependencies; order may be incorrect")
+            mpl_order = list(mpl_instances.keys())
+
+        # Identify INPUT / OUTPUT boundary instances
+        input_inst = None
+        output_inst = None
+        for inst_obj in mpl_instances.values():
+            itype = inst_obj.transformation_type or ""
+            if "Input Transformation" in itype:
+                input_inst = inst_obj
+            elif "Output Transformation" in itype:
+                output_inst = inst_obj
+
+        # --- 4. Map INPUT ports to upstream columns ------------------------------------
+        input_field_map: Dict[str, str] = {}
+        for conn in self.mapping.connectors:
+            if conn.to_instance == instance.name:
+                input_field_map[conn.to_field] = conn.from_field
+
+        # --- 5. Track DataFrames within mapplet ----------------------------------------
+        mpl_df_map: Dict[str, str] = {}
+        if input_inst:
+            mpl_df_map[input_inst.name] = input_df
+
+        # --- 6. Process internal instances in topological order ------------------------
+        for mpl_inst_name in mpl_order:
+            mpl_inst = mpl_instances.get(mpl_inst_name)
+            if not mpl_inst:
+                continue
+
+            mpl_inst_type = (mpl_inst.transformation_type or "").strip()
+
+            if "Input Transformation" in mpl_inst_type:
+                # Input is already mapped to input_df
+                continue
+
+            elif "Output Transformation" in mpl_inst_type:
+                # Handled after the loop — collect which instance feeds OUTPUT
+                continue
+
+            elif "Lookup Procedure" in mpl_inst_type:
+                # Resolve the transformation definition
+                lookup_transform = mpl_transforms.get(
+                    mpl_inst.transformation_name or mpl_inst.name
+                )
+                if not lookup_transform:
+                    # Try fuzzy matching against transform_map keys
+                    for tname, txf in mpl_transforms.items():
+                        if txf.type and "Lookup" in txf.type and (
+                            mpl_inst_name in tname or tname in mpl_inst_name
+                        ):
+                            lookup_transform = txf
+                            break
+
+                if not lookup_transform:
+                    self.logger.log_mapplet(
+                        instance.name,
+                        f"Lookup transform not found for {mpl_inst_name}",
+                        LogLevel.WARNING,
+                    )
+                    plan.add_warning(
+                        f"Mapplet {mapplet_name}: lookup {mpl_inst_name} skipped "
+                        f"(transformation definition not found)"
+                    )
+                    continue
+
+                lookup_sql = lookup_transform.table_attributes.get("Lookup Sql Override", "")
+                lookup_table = lookup_transform.table_attributes.get("Lookup table name", "")
+                lookup_cond = lookup_transform.table_attributes.get("Lookup condition", "")
+
+                # Create lookup read step when we have SQL or table
+                lookup_df_name = self._get_df_name("df_mplt_lkp")
+                if lookup_sql:
+                    lookup_conn = self._resolve_connection_alias(lookup_table or mpl_inst.name)
+                    steps.append(ReadSQLStep(
+                        step_name=f"read_mplt_{mpl_inst.name}",
+                        df_output=lookup_df_name,
+                        connection_alias=lookup_conn,
+                        query=lookup_sql,
+                        is_lookup=True,
+                    ))
+                elif lookup_table:
+                    lookup_conn = self._resolve_connection_alias(lookup_table)
+                    steps.append(ReadSQLStep(
+                        step_name=f"read_mplt_{mpl_inst.name}",
+                        df_output=lookup_df_name,
+                        connection_alias=lookup_conn,
+                        table_name=lookup_table,
+                        is_lookup=True,
+                    ))
+                else:
+                    # Skip — no SQL or table to read
+                    self.logger.log_mapplet(
+                        instance.name,
+                        f"Lookup {mpl_inst_name} has no SQL override or table name",
+                        LogLevel.WARNING,
+                    )
+                    continue
+
+                plan.lookup_dfs[f"mplt_{mpl_inst.name}"] = lookup_df_name
+
+                # Find which DataFrame feeds this lookup within the mapplet
+                mpl_input_df = None
+                for conn in mpl_connectors:
+                    if conn.to_instance == mpl_inst_name:
+                        mpl_input_df = mpl_df_map.get(conn.from_instance)
+                        if mpl_input_df:
+                            break
+
+                if mpl_input_df and lookup_df_name:
+                    parsed = self._parse_lookup_condition(lookup_cond, lookup_df_name)
+                    join_result_df = self._get_df_name("df_mplt_join")
+                    mpl_df_map[mpl_inst_name] = join_result_df
+
+                    # Collect output columns from the lookup
+                    output_cols = []
+                    for field in lookup_transform.fields:
+                        port_type = (field.port_type or "").upper()
+                        if "OUTPUT" in port_type and "RETURN" not in port_type:
+                            output_cols.append(field.name)
+
+                    plan.lookup_return_ports[f"mplt_{mpl_inst.name}"] = output_cols
+
+                    steps.append(ApplyLookupStep(
+                        step_name=f"apply_mplt_{mpl_inst.name}",
+                        df_input=mpl_input_df,
+                        df_output=join_result_df,
+                        lookup_df=lookup_df_name,
+                        join_predicates=parsed.get("join_columns", []),
+                        join_expr=parsed.get("condition_expr") or "",
+                        output_columns=output_cols,
+                        lookup_type="left",
+                    ))
+
+            elif "Expression" in mpl_inst_type:
+                transform = mpl_transforms.get(
+                    mpl_inst.transformation_name or mpl_inst.name
+                )
+                if not transform:
+                    continue
+
+                # Find input DataFrame for this expression
+                mpl_input_df = None
+                for conn in mpl_connectors:
+                    if conn.to_instance == mpl_inst_name:
+                        mpl_input_df = mpl_df_map.get(conn.from_instance)
+                        if mpl_input_df:
+                            break
+
+                if not mpl_input_df:
+                    # Fall back to the mapplet's primary input
+                    mpl_input_df = input_df
+
+                computed_cols = []
                 for field in transform.fields:
-                    if field.expression and "OUTPUT" in field.port_type:
-                        translated = self.expr_translator.translate(field.expression, "column", field.name)
-                        computed_columns.append(ComputedColumn(
+                    if field.expression and "OUTPUT" in (field.port_type or "").upper():
+                        translated = self.expr_translator.translate(
+                            field.expression, "column", field.name
+                        )
+                        computed_cols.append(ComputedColumn(
                             name=field.name,
                             expression=translated,
-                            datatype=field.datatype
+                            datatype=field.datatype,
                         ))
 
-        if computed_columns:
-            self.logger.log_mapplet(instance.name, f"Converted {len(computed_columns)} expressions", LogLevel.SUCCESS)
-            steps.append(ApplyExpressionStep(
-                step_name=f"apply_{instance.name}",
-                df_input=input_df,
-                df_output=df_output,
-                computed_columns=computed_columns
-            ))
+                if computed_cols:
+                    expr_df_name = self._get_df_name("df_mplt_expr")
+                    mpl_df_map[mpl_inst_name] = expr_df_name
+                    steps.append(ApplyExpressionStep(
+                        step_name=f"apply_mplt_{mpl_inst.name}",
+                        df_input=mpl_input_df,
+                        df_output=expr_df_name,
+                        computed_columns=computed_cols,
+                    ))
+                else:
+                    # Expression with no computed columns → pass-through
+                    mpl_df_map[mpl_inst_name] = mpl_input_df
+
+            elif "Filter" in mpl_inst_type:
+                transform = mpl_transforms.get(
+                    mpl_inst.transformation_name or mpl_inst.name
+                )
+                if transform:
+                    filter_cond = transform.table_attributes.get("Filter Condition", "")
+                    if filter_cond:
+                        plan.add_warning(
+                            f"Mapplet {mapplet_name} contains Filter: "
+                            f"{filter_cond[:120]}"
+                        )
+
+        # --- 7. Map OUTPUT back to the calling mapping ----------------------------------
+        if output_inst:
+            # Find which internal instance feeds the OUTPUT
+            output_input_df = None
+            for conn in mpl_connectors:
+                if conn.to_instance == output_inst.name:
+                    output_input_df = mpl_df_map.get(conn.from_instance)
+                    if output_input_df:
+                        break
+
+            if not output_input_df:
+                # No internal feed; use the primary input
+                output_input_df = input_df
+
+            # Collect output port names from the Mapplet-type wrapper transformation
+            mapplet_wrapper = mpl_transforms.get(mapplet_name)
+            output_ports: List[str] = []
+            if mapplet_wrapper:
+                for field in mapplet_wrapper.fields:
+                    port_type = (field.port_type or "").upper()
+                    if "OUTPUT" in port_type:
+                        output_ports.append(field.name)
+
+            df_output = self._get_df_name("df_mplt")
+            self._register_df(instance, df_output)
+
+            if steps:
+                # There are real transformation steps — the final step's df_output
+                # is the mapplet result; register it under the mapplet instance name
+                self.current_df_map[instance.name] = df_output
+                if output_ports:
+                    steps.append(ApplyExpressionStep(
+                        step_name=f"apply_{instance.name}",
+                        df_input=output_input_df,
+                        df_output=df_output,
+                        computed_columns=[],
+                        output_columns=output_ports,
+                    ))
+                else:
+                    # Pass-through of the last internal DataFrame as output
+                    steps.append(ApplyExpressionStep(
+                        step_name=f"apply_{instance.name}",
+                        df_input=output_input_df,
+                        df_output=df_output,
+                        computed_columns=[],
+                    ))
+            else:
+                # No internal steps generated → pass-through with warning
+                steps.append(ApplyExpressionStep(
+                    step_name=f"apply_{instance.name}",
+                    df_input=output_input_df,
+                    df_output=df_output,
+                    computed_columns=[],
+                ))
+                self.logger.log_mapplet(
+                    instance.name,
+                    "No mapplet internal steps generated; treated as pass-through",
+                    LogLevel.WARNING,
+                )
+                plan.add_warning(
+                    f"Mapplet {instance.name} treated as pass-through "
+                    f"(no expressions or lookups could be generated)"
+                )
+
+            self.logger.log_mapplet(instance.name, f"Converted ({len(steps)} steps)", LogLevel.SUCCESS)
         else:
+            # No OUTPUT instance — treat entire mapplet as pass-through
             self.current_df_map[instance.name] = input_df
             if instance.transformation_name and instance.transformation_name != instance.name:
                 self.current_df_map[instance.transformation_name] = input_df
-            self.logger.log_mapplet(instance.name, "Treated as pass-through (no expressions found)", LogLevel.WARNING)
-            plan.add_warning(f"Mapplet {instance.name} treated as pass-through (no expressions found)")
+            self.logger.log_mapplet(
+                instance.name,
+                "No OUTPUT instance found; treated as pass-through",
+                LogLevel.WARNING,
+            )
+            plan.add_warning(
+                f"Mapplet {instance.name}: no OUTPUT instance found; "
+                f"treated as pass-through"
+            )
 
         return steps
 

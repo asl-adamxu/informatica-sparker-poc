@@ -108,21 +108,30 @@ class WorkflowBuilder:
             for session in dag.sessions:
                 if session.name == to_task:
                     session.dependencies.append(from_task)
-                    if "fail" in condition.lower():
+                    cond_lower = condition.lower()
+                    if "fail" in cond_lower and "never" not in cond_lower:
+                        session.on_failure.append(from_task)
+                    elif "abort" in cond_lower:
+                        # ABORT links fire on abort; treat as failure dependency
                         session.on_failure.append(from_task)
                     else:
                         session.on_success.append(from_task)
 
         visited: set = set()
+        visiting: set = set()  # back-edge detection for cycle breaking
         temp_order: List[str] = []
 
         def visit(name: str):
             if name in visited:
                 return
-            visited.add(name)
+            if name in visiting:
+                # Cycle detected — skip this back-edge to avoid infinite recursion
+                return
+            visiting.add(name)
             for dep in deps.get(name, []):
-                if dep not in visited:
-                    visit(dep)
+                visit(dep)
+            visiting.discard(name)
+            visited.add(name)
             temp_order.append(name)
 
         for session in dag.sessions:

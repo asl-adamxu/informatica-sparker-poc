@@ -167,3 +167,12 @@ rules:
   decimal_scale: 10
   string_max_length: 4000
   batch_size: 10000
+
+# =============================================================================
+# EMAIL NOTIFICATIONS
+# =============================================================================
+email:
+  mail_to: "asl@aidacdp04.bda.com"
+  mail_from: "noreply@example.com"
+  smtp_host: "192.168.55.104"
+  smtp_port: "25"

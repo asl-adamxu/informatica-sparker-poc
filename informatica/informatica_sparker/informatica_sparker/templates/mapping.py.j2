@@ -108,7 +108,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% else %}
         {{ step.df_output }} = lib.read_sql(spark, conn_source, table="{{ step.params.get('table_name', '') }}")
         {% endif %}
-        logger.info("Source Data Count {{ step.df_output }}: %s", {{ step.df_output }}.count())
         
         {% elif step.step_type == IRStepType.READ_FILE %}
         # Read from file (prefer config.yml objects metadata if present)
@@ -238,7 +237,16 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
                 "BEGIN {{ sp_full }}('" + _val + "'); END;")
         {{ step.df_output }} = {{ step.df_output }}.withColumn("{{ col.get('name', 'col') }}", lit("SUCCESS"))
         {% elif expr_str | trim != col.get('name', 'col') %}
+        {% if mapping_variables and '$$' in expr_str %}
+        _expr = """{{ expr_str }}"""
+        {% for var_name, var_default in mapping_variables.items() %}
+        {% set clean_name = var_name | replace('$', '') %}
+        _expr = _expr.replace("{{ var_name }}", str({{ clean_name }}))
+        {% endfor %}
+        {{ step.df_output }} = {{ step.df_output }}.withColumn("{{ col.get('name', 'col') }}", expr(_expr))
+        {% else %}
         {{ step.df_output }} = {{ step.df_output }}.withColumn("{{ col.get('name', 'col') }}", expr("{{ expr_str }}"))
+        {% endif %}
         {% endif %}
         {% endfor %}
         {% set output_columns = step.params.get('output_columns', []) %}
@@ -523,9 +531,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% endif %}
         {% endif %}
 
-        _write_count = df_write.count()
-        logger.info("{{ step.step_name }} row count: %s", _write_count)
-        metrics.log_row_count("{{ step.step_name }}_written", _write_count)
+        logger.info("{{ step.step_name }} write completed")
         {% elif step.step_type == IRStepType.WORKFLOW_DAG %}
         # Workflow DAG step - handled by orchestration
         pass
@@ -539,11 +545,12 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% endfor %}
         
         metrics.complete()
+        logger.info("Mapping {{ mapping_name }} completed: SUCCESS")
         return True
         
     except Exception as e:
         metrics.fail(e)
-        logger.error(f"Mapping {{ mapping_name }} failed: {e}", exc_info=True)
+        logger.error(f"Mapping {{ mapping_name }} FAILED: {e}", exc_info=True)
         return False
 
 
@@ -558,7 +565,6 @@ def main():
     
     try:
         success = run_mapping(ctx, metrics)
-        logger.info("Mapping {{ mapping_name }} completed: %s", "SUCCESS" if success else "FAILED")
         return 0 if success else 1
     finally:
         spark.stop()

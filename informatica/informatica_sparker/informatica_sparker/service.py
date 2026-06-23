@@ -365,104 +365,186 @@ class ConversionService:
             if sessions_in_wkl:
                 worklet_sessions[wname] = sessions_in_wkl
 
-        # Build full execution plan from task dependencies
-        # Group: [(stage_name, type, [items])]
-        # type: "sequential" | "parallel"
-        execution_plan = []
-        dependencies = workflow_analysis.get("task_dependencies", [])
-        
-        # Build dependency graph
-        dep_graph = {}
-        all_tasks = set()
-        for dep in dependencies:
-            from_t = dep.get("from_task", "")
-            to_t = dep.get("to_task", "")
-            if to_t:
-                all_tasks.add(to_t)
-            if from_t:
-                all_tasks.add(from_t)
-            if to_t not in dep_graph:
-                dep_graph[to_t] = []
-            if from_t:
-                dep_graph[to_t].append(from_t)
+        # ── Helper: build a DAG execution plan from links ──────────────────
+        def _build_dag_plan(links: list, known_sessions: dict, known_worklets: dict,
+                            known_tasks: set) -> list:
+            """Return a list of plan-step dicts respecting topological order.
 
-        # Topological sort with levels (for parallel grouping)
-        levels = {}  # task_name -> level number
-        for t in all_tasks:
-            real_deps = [d for d in dep_graph.get(t, []) if d != "Start"]
-            if not real_deps:
-                levels[t] = 0
+            Each step is one of:
+              {"type": "parallel_group", "steps": [...]}  – concurrent items
+              {"type": "worklet", "name": ..., "plan": [...]}  – nested plan
+              {"type": "task", "name": ...}  – email / command
+            """
+            # Dependency graph: task_name → [prerequisites]  (exclude "Start")
+            deps: dict = {}
+            all_nodes: set = set()
+            for link in links:
+                f = link.get("from_task", "")
+                t = link.get("to_task", "")
+                if t:
+                    all_nodes.add(t)
+                if f and f != "Start":
+                    all_nodes.add(f)
+                if t:
+                    deps.setdefault(t, [])
+                if f and f != "Start" and t:
+                    deps[t].append(f)
 
-        changed = True
-        while changed and len(levels) < len(all_tasks):
-            changed = False
-            for t in all_tasks:
-                if t in levels:
-                    continue
-                real_deps = [d for d in dep_graph.get(t, []) if d != "Start"]
-                if all(d in levels for d in real_deps):
-                    levels[t] = max((levels[d] + 1 for d in real_deps), default=0)
-                    changed = True
+            # Ensure every known session/worklet/task is in all_nodes
+            for s in known_sessions:
+                all_nodes.add(s)
+            for w in known_worklets:
+                all_nodes.add(w)
+            for t in known_tasks:
+                all_nodes.add(t)
 
-        # Group tasks by level
-        level_groups = {}
-        for t, lvl in levels.items():
-            if lvl not in level_groups:
-                level_groups[lvl] = []
-            level_groups[lvl].append(t)
+            # Compute level for each node (longest distance from a root)
+            levels: dict = {}
+            for n in all_nodes:
+                prereqs = [d for d in deps.get(n, []) if d != "Start"]
+                if not prereqs:
+                    levels[n] = 0
 
-        # Build execution plan items - group same-level sessions into parallel groups
-        for lvl in sorted(level_groups.keys()):
-            tasks_at_level = level_groups[lvl]
-            
-            # Group sessions at the same level into parallel groups
-            parallel_sessions = []
-            worklet_found = None
-            
-            for task_name in tasks_at_level:
-                if task_name in worklet_sessions:
-                    worklet_found = task_name
-                elif task_name in session_to_mapping:
-                    parallel_sessions.append({
-                        "session_name": task_name,
-                        "mapping_name": session_to_mapping[task_name],
+            changed = True
+            while changed and len(levels) < len(all_nodes):
+                changed = False
+                for n in all_nodes:
+                    if n in levels:
+                        continue
+                    prereqs = [d for d in deps.get(n, []) if d != "Start"]
+                    if all(d in levels for d in prereqs):
+                        levels[n] = max((levels[d] + 1 for d in prereqs), default=0)
+                        changed = True
+
+            # Any node not reached → put at level 0
+            for n in all_nodes:
+                if n not in levels:
+                    levels[n] = 0
+
+            # Group by level
+            level_groups: dict = {}
+            for n, lvl in levels.items():
+                level_groups.setdefault(lvl, []).append(n)
+
+            plan = []
+            for lvl in sorted(level_groups.keys()):
+                items = level_groups[lvl]
+                parallel_steps = []
+
+                for name in items:
+                    if name in known_worklets:
+                        parallel_steps.append({
+                            "type": "worklet",
+                            "name": name,
+                            "plan": known_worklets[name],
+                        })
+                    elif name in known_sessions:
+                        parallel_steps.append({
+                            "type": "session",
+                            "name": name,
+                            "mapping_name": known_sessions[name],
+                        })
+                    elif name in known_tasks:
+                        parallel_steps.append({
+                            "type": "task",
+                            "name": name,
+                        })
+
+                if len(parallel_steps) == 1:
+                    plan.append(parallel_steps[0])
+                elif len(parallel_steps) > 1:
+                    plan.append({
+                        "type": "parallel_group",
+                        "steps": parallel_steps,
                     })
-            
-            # If multiple sessions at same level, emit as parallel group
-            if len(parallel_sessions) > 1:
-                execution_plan.append({
-                    "type": "parallel_sessions",
-                    "sessions": parallel_sessions,
-                })
-            elif len(parallel_sessions) == 1:
-                s = parallel_sessions[0]
-                execution_plan.append({
-                    "type": "session",
-                    "name": s["session_name"],
-                    "mapping_name": s["mapping_name"],
-                })
-            
-            # Emit worklet (runs after parallel sessions in its level complete)
-            if worklet_found:
-                # Determine if worklet sessions can run in parallel:
-                # parallel if no internal dependency links exist between tasks
-                wkl_parallel = len(wkl_links.get(worklet_found, [])) == 0
-                execution_plan.append({
-                    "type": "worklet",
-                    "name": worklet_found,
-                    "sessions": worklet_sessions[worklet_found],
-                    "parallel": wkl_parallel,
-                })
-            
-            # Emit non-worklet, non-session tasks (email etc.)
-            for task_name in tasks_at_level:
-                if (task_name not in worklet_sessions 
-                    and task_name not in session_to_mapping 
-                    and task_name != "Start"):
-                    execution_plan.append({
-                        "type": "task",
-                        "name": task_name,
+
+            return plan
+
+        # ── Build worklet sub-plans from worklet-internal links ────────────
+        def _build_worklet_subplan(wkl_name: str,
+                                   wkl_links: dict,
+                                   session_to_mapping: dict) -> list:
+            """Build a mini execution plan for one worklet."""
+            links = wkl_links.get(wkl_name, [])
+            if not links:
+                # No internal links → all sessions can run in parallel
+                wkl_sessions = worklet_sessions.get(wkl_name, [])
+                session_steps = []
+                for s in wkl_sessions:
+                    session_steps.append({
+                        "type": "session",
+                        "name": s["session_name"],
+                        "mapping_name": s["mapping_name"],
                     })
+                if len(session_steps) == 1:
+                    return session_steps
+                elif session_steps:
+                    return [{
+                        "type": "parallel_group",
+                        "steps": session_steps,
+                    }]
+                return []
+
+            # Build local session map for this worklet
+            local_sessions = {}
+            local_tasks = set()
+            for s in worklet_sessions.get(wkl_name, []):
+                local_sessions[s["session_name"]] = s["mapping_name"]
+
+            # Also check for task instances inside the worklet (e.g. Start)
+            wkl_tasks = wkl_task_map.get(wkl_name, [])
+            for t in wkl_tasks:
+                tname = t.get("task_name") or t["name"]
+                ttype = t.get("task_type", "")
+                if ttype != "Session" and tname != "Start":
+                    local_tasks.add(tname)
+
+            return _build_dag_plan(links, local_sessions, {}, local_tasks)
+
+        # Build worklet sub-plans
+        worklet_plans = {}
+        for wname in worklet_sessions:
+            worklet_plans[wname] = _build_worklet_subplan(
+                wname, wkl_links, session_to_mapping
+            )
+
+        # ── Build main workflow execution plan ────────────────────────────
+        # Collect worklet-internal session names so they are excluded from the
+        # main workflow plan (they already appear inside their worklet sub-plans).
+        worklet_internal_session_names = set()
+        for wname, slist in worklet_sessions.items():
+            for s in slist:
+                worklet_internal_session_names.add(s["session_name"])
+
+        # Workflow-level sessions (exclude those belonging to worklets)
+        main_sessions = {
+            name: mname
+            for name, mname in session_to_mapping.items()
+            if name not in worklet_internal_session_names
+        }
+
+        # Collect task names that appear in workflow links (only these are
+        # part of the main execution flow; tasks not linked are special
+        # handlers like failure emails or reusable templates).
+        linked_task_names = set()
+        for link in workflow_analysis.get("task_dependencies", []):
+            f = link.get("from_task", "")
+            t = link.get("to_task", "")
+            if f and f != "Start":
+                linked_task_names.add(f)
+            if t and t != "Start":
+                linked_task_names.add(t)
+
+        workflow_tasks = set()
+        for t in workflow_analysis.get("tasks", []):
+            tname = t.get("name", "")
+            if tname and tname != "Start" and tname in linked_task_names:
+                workflow_tasks.add(tname)
+
+        main_links = workflow_analysis.get("task_dependencies", [])
+        execution_plan = _build_dag_plan(
+            main_links, main_sessions, worklet_plans, workflow_tasks
+        )
 
         # Build mappings info for imports
         all_mapping_names = set()
@@ -502,12 +584,11 @@ class ConversionService:
                 workflow_name=workflow_name,
                 mappings=mappings_info,
                 execution_plan=execution_plan,
-                worklet_sessions=worklet_sessions,
                 task_info=task_info,
             )
         except Exception:
             content = self._generate_workflow_fallback(
-                workflow_name, mappings_info, execution_plan, worklet_sessions, task_info
+                workflow_name, mappings_info, execution_plan, task_info
             )
 
         # Generate separate markdown file with Mermaid flowchart
@@ -538,323 +619,178 @@ class ConversionService:
             "## Session to Mapping",
             "",
         ]
-        # Add session-to-mapping table
-        lines.append("| Session | Mapping | Type |")
-        lines.append("|---------|---------|------|")
-        for step in execution_plan:
-            step_type = step.get("type", "")
-            if step_type == "parallel_sessions":
-                for s in step.get("sessions", []):
-                    lines.append(f'| {s["session_name"]} | {s["mapping_name"]} | Parallel |')
-            elif step_type == "worklet":
-                for s in step.get("sessions", []):
-                    lines.append(f'| {s["session_name"]} | {s["mapping_name"]} | Worklet |')
-            elif step_type == "session":
-                lines.append(f'| {step["name"]} | {step["mapping_name"]} | Sequential |')
-            elif step_type == "task":
-                lines.append(f'| {step["name"]} | - | Task |')
+        # Add session-to-mapping table (recursively walks worklet sub-plans)
+        lines.append("| Session | Mapping | Plan-Level |")
+        lines.append("|---------|---------|------------|")
+
+        def _walk_plan(plan: list, context: str = ""):
+            for step in plan:
+                stype = step.get("type", "")
+                if stype == "parallel_group":
+                    for s in step.get("steps", []):
+                        _walk_plan([s], context)
+                elif stype == "worklet":
+                    wname = step.get("name", "")
+                    for s in step.get("plan", []):
+                        _walk_plan([s], f"Worklet: {wname}")
+                elif stype == "session":
+                    lines.append(f'| {step["name"]} | {step.get("mapping_name", "-")} | {context or "Top-Level"} |')
+                elif stype == "task":
+                    lines.append(f'| {step["name"]} | - | {context or "Top-Level"} |')
+
+        _walk_plan(execution_plan)
         return "\n".join(lines)
 
-    def _generate_mermaid_diagram(self, execution_plan: List[dict],
-                                   workflow_name: str) -> str:
-        """Generate a Mermaid flowchart from the execution plan."""
-        lines = []
-        lines.append("```mermaid")
-        lines.append("flowchart TD")
-        
-        stage_count = 0
-        subgraph_nodes = {}  # node_name -> subgraph_id
-        node_labels = {}     # node_name -> display label
-        
-        for step in execution_plan:
-            step_type = step.get("type", "")
-            step_name = step.get("name", "")
-            
-            if step_type == "parallel_sessions":
-                sessions = step.get("sessions", [])
-                if len(sessions) > 1:
-                    stage_count += 1
-                    sg_id = f"Stage{stage_count}"
-                    lines.append(f'    subgraph {sg_id}["Stage {stage_count} (Parallel)"]')
-                    for s in sessions:
-                        sname = s.get("session_name", "")
-                        mname = s.get("mapping_name", "")
-                        safe_name = sname.replace("-", "_").replace(" ", "_")
-                        label = f"{sname}<br/>({mname})"
-                        lines.append(f'        {safe_name}["{label}"]')
-                        subgraph_nodes[sname] = sg_id
-                        node_labels[sname] = safe_name
+    def _generate_mermaid_diagram(self, execution_plan, workflow_name):
+        """Generate a detailed Mermaid flowchart from the nested DAG execution plan."""
+        import re as _re
+        lines = ["```mermaid", "flowchart TD"]
+        nc = [0]
+
+        def _rp(plan):
+            lids = []
+            for step in plan:
+                st = step.get("type", "")
+                if st == "parallel_group":
+                    kids = []
+                    for c in step.get("steps", []):
+                        kids.extend(_rp([c]))
+                    if len(kids) > 1:
+                        nc[0] += 1
+                        sid = f"pg{nc[0]}"
+                        lines.append(f"    subgraph {sid}[Parallel]")
+                        for k in kids:
+                            lines.append(f"        {k}")
+                        lines.append("    end")
+                        lids.append(sid)
+                    elif len(kids) == 1:
+                        lids.append(kids[0])
+                elif st == "session":
+                    nc[0] += 1
+                    nid = f"n{nc[0]}"
+                    sn = step.get("name", "")
+                    mn = step.get("mapping_name", "")
+                    lb = f"{sn}<br/><i>({mn})</i>" if mn else sn
+                    lines.append(f"    {nid}[\"{lb}\"]")
+                    lids.append(nid)
+                elif st == "worklet":
+                    wn = step.get("name", "worklet")
+                    wp = step.get("plan", [])
+                    nc[0] += 1
+                    sid = f"wkl{nc[0]}"
+                    lines.append(f"    subgraph {sid}[\"{wn}\"]")
+                    kids = _rp(wp)
+                    if len(kids) > 1:
+                        for i in range(len(kids) - 1):
+                            lines.append(f"        {kids[i]} --> {kids[i+1]}")
                     lines.append("    end")
-                elif len(sessions) == 1:
-                    s = sessions[0]
-                    sname = s.get("session_name", "")
-                    mname = s.get("mapping_name", "")
-                    safe_name = sname.replace("-", "_").replace(" ", "_")
-                    label = f"{sname}<br/>({mname})"
-                    lines.append(f'    {safe_name}["{label}"]')
-                    node_labels[sname] = safe_name
-            
-            elif step_type == "worklet":
-                wname = step.get("name", "")
-                sessions = step.get("sessions", [])
-                stage_count += 1
-                sg_id = f"Stage{stage_count}"
-                safe_wname = wname.replace("-", "_").replace(" ", "_")
-                lines.append(f'    subgraph {sg_id}["{wname} (Parallel)"]')
-                for s in sessions:
-                    sname = s.get("session_name", "")
-                    mname = s.get("mapping_name", "")
-                    safe_sname = sname.replace("-", "_").replace(" ", "_")
-                    label = f"{mname}"
-                    lines.append(f'        {safe_sname}["{label}"]')
-                    subgraph_nodes[sname] = sg_id
-                    node_labels[sname] = safe_sname
-                lines.append("    end")
-                node_labels[wname] = safe_wname
-            
-            elif step_type == "session":
-                sname = step.get("name", "")
-                mname = step.get("mapping_name", "")
-                safe_name = sname.replace("-", "_").replace(" ", "_")
-                label = f"{sname}<br/>({mname})"
-                lines.append(f'    {safe_name}["{label}"]')
-                node_labels[sname] = safe_name
-            
-            elif step_type == "task":
-                tname = step.get("name", "")
-                safe_name = tname.replace("-", "_").replace(" ", "_")
-                lines.append(f'    {safe_name}["{tname}"]')
-                node_labels[tname] = safe_name
-        
-        # Add connections between stages/steps in execution plan order
-        # Use subgraph-to-subgraph flow for clean diagrams
-        prev_sg_id = None
-        for idx, step in enumerate(execution_plan):
-            step_type = step.get("type", "")
-            
-            if step_type == "parallel_sessions":
-                stage_num = sum(1 for s in execution_plan[:idx+1] 
-                               if s.get("type") in ("parallel_sessions", "worklet"))
-                current_sg_id = f"Stage{stage_num}"
-                if prev_sg_id:
-                    lines.append(f'    {prev_sg_id} --> {current_sg_id}')
-                prev_sg_id = current_sg_id
-            
-            elif step_type == "worklet":
-                stage_num = sum(1 for s in execution_plan[:idx+1] 
-                               if s.get("type") in ("parallel_sessions", "worklet"))
-                current_sg_id = f"Stage{stage_num}"
-                if prev_sg_id:
-                    lines.append(f'    {prev_sg_id} --> {current_sg_id}')
-                prev_sg_id = current_sg_id
-            
-            elif step_type == "session":
-                sname = step.get("name", "")
-                safe = node_labels.get(sname, "")
-                if safe and prev_sg_id:
-                    lines.append(f'    {prev_sg_id} --> {safe}')
-                elif safe:
-                    prev_sg_id = safe
-                if safe:
-                    prev_sg_id = safe
-            
-            elif step_type == "task":
-                tname = step.get("name", "")
-                safe = node_labels.get(tname, "")
-                if safe and prev_sg_id:
-                    lines.append(f'    {prev_sg_id} --> {safe}')
-                elif safe:
-                    prev_sg_id = safe
-                if safe:
-                    prev_sg_id = safe
-        
+                    lids.append(sid)
+                elif st == "task":
+                    nc[0] += 1
+                    nid = f"n{nc[0]}"
+                    tn = step.get("name", "")
+                    lines.append(f"    {nid}[\"{tn}\"]")
+                    lines.append(f"    style {nid} fill:#ffd,stroke:#aaa,stroke-width:1px")
+                    lids.append(nid)
+            return lids
+
+        tp = _rp(execution_plan)
+        for i in range(len(tp) - 1):
+            lines.append(f"    {tp[i]} --> {tp[i+1]}")
         lines.append("```")
         return "\n".join(lines)
-
     def _generate_workflow_fallback(self, workflow_name: str,
-                                     mappings_info: List[dict],
-                                     execution_plan: List[dict] = None,
-                                     worklet_sessions: dict = None,
-                                     task_info: dict = None) -> str:
+                                 mappings_info: List[dict],
+                                 execution_plan: List[dict] = None,
+                                 task_info: dict = None) -> str:
+        import json as _json
+        ex_plan_s = _json.dumps(execution_plan or [], indent=2, default=str)
+        ti_s = _json.dumps(task_info or {}, indent=2, default=str)
+        wf_lower = workflow_name.lower()
         lines = [
             '"""',
             f'Workflow Orchestration: {workflow_name}',
             'Auto-generated by ASL informatica-sparker',
             '"""',
-            'import os',
-            'import sys',
-            'import logging',
-            'from datetime import datetime',
-            'from concurrent.futures import ThreadPoolExecutor, as_completed',
+            'import os, sys, glob, importlib, json',
+            'import env.runtime_lib as lib',
             '',
+            f"lib.init_logger('{wf_lower}')",
+            f"logger = lib.get_logger('{wf_lower}')",
+            '',
+            '# Auto-discover mapping modules',
+            'MAPPING_FUNCTIONS = {}',
+            'for file_path in sorted(glob.glob(os.path.join(os.path.dirname(__file__) or ".", "m_*.py"))):',
+            '    module_name = os.path.splitext(os.path.basename(file_path))[0]',
+            '    try:',
+            '        module = importlib.import_module(module_name)',
+            "        if not hasattr(module, 'run_mapping'):",
+            "            raise AttributeError(f\"Module '{module_name}' missing 'run_mapping' function\")",
+            '        MAPPING_FUNCTIONS[module_name] = module.run_mapping',
+            '        logger.info("Registered mapping: %s", module_name)',
+            '    except Exception as e:',
+            "        logger.error(\"Failed to load mapping '%s': %s\", module_name, e)",
+            '        raise',
+            '',
+            f'EXECUTION_PLAN = json.loads("""{ex_plan_s}""")',
+            f'TASK_INFO = json.loads("""{ti_s}""")',
+            '',
+            'def send_email(subject, body, to_address=None):',
+            '    import smtplib',
+            '    from email.mime.text import MIMEText',
+            '    try:',
+            '        smtp_host = os.environ.get("SMTP_HOST", "localhost")',
+            '        smtp_port = int(os.environ.get("SMTP_PORT", "25"))',
+            '        from_address = os.environ.get("SMTP_FROM", "noreply@example.com")',
+            '        message = MIMEText(body, _charset="utf-8")',
+            '        message["Subject"] = subject',
+            '        message["From"] = from_address',
+            '        message["To"] = to_address or from_address',
+            '        with smtplib.SMTP(smtp_host, smtp_port) as server:',
+            '            server.sendmail(from_address, [message["To"]], message.as_string())',
+            '        logger.info("Email sent: %s", subject)',
+            '    except Exception as e:',
+            '        logger.warning("Failed to send email: %s", e)',
+            '',
+            'def format_infa_template(template, context):',
+            '    for ph, val in [("%s", context.get("session_name", "")),',
+            '                   ("%n", context.get("folder_name", "")),',
+            '                   ("%e", context.get("error_code", "")),',
+            '                   ("%b", context.get("error_msg", "")),',
+            '                   ("%c", context.get("session_status", "")),',
+            '                   ("%i", context.get("run_id", "")),',
+            '                   ("%g", context.get("log_file", ""))]:',
+            '        template = template.replace(ph, val)',
+            '    return template',
+            '',
+            'def run_workflow(config=None, fail_fast=True):',
+            '    if config is None:',
+            '        config = lib.load_config("env/config.yml")',
+            '    return lib.run_workflow(',
+            '        execution_plan=EXECUTION_PLAN,',
+            '        mapping_functions=MAPPING_FUNCTIONS,',
+            f'        workflow_name="{workflow_name}",',
+            '        task_info=TASK_INFO,',
+            '        send_email_fn=send_email,',
+            '        format_infa_fn=format_infa_template,',
+            '        config=config,',
+            '        fail_fast=fail_fast,',
+            '        metrics_cls=lib.MappingMetrics,',
+            '    )',
+            '',
+            'def main():',
+            '    import argparse',
+            '    parser = argparse.ArgumentParser()',
+            '    parser.add_argument("--config", "-c", default="env/config.yml")',
+            '    parser.add_argument("--continue-on-error", action="store_true")',
+            '    args = parser.parse_args()',
+            '    config = lib.load_config(args.config)',
+            '    result = run_workflow(config=config, fail_fast=not args.continue_on_error)',
+            '    return 0 if result["status"] == "SUCCESS" else 1',
+            '',
+            'if __name__ == "__main__":',
+            '    main()',
         ]
-        for m in mappings_info:
-            lines.append(f'from {m["module_name"]} import run_mapping as run_{m["safe_name"]}')
-        lines.append('')
-        lines.append('from env.runtime_lib import load_config, get_spark_session')
-        lines.append('')
-        # Check if any task is an email task
-        needs_email = False
-        if task_info:
-            for tname, ti in task_info.items():
-                if ti.get("type") == "email":
-                    needs_email = True
-                    break
-        if needs_email:
-            lines.append('import smtplib')
-            lines.append('from email.mime.text import MIMEText')
-            lines.append('')
-            lines.append('')
-            lines.append('def _send_email(subject, body, to_addr=None):')
-            lines.append('    """Send email notification. Configure SMTP settings as needed."""')
-            lines.append('    try:')
-            lines.append('        smtp_host = os.environ.get("SMTP_HOST", "localhost")')
-            lines.append('        smtp_port = int(os.environ.get("SMTP_PORT", "25"))')
-            lines.append('        from_addr = os.environ.get("SMTP_FROM", "noreply@example.com")')
-            lines.append('        msg = MIMEText(body)')
-            lines.append('        msg["Subject"] = subject')
-            lines.append('        msg["From"] = from_addr')
-            lines.append('        if to_addr:')
-            lines.append('            msg["To"] = to_addr')
-            lines.append('        with smtplib.SMTP(smtp_host, smtp_port) as server:')
-            lines.append('            server.sendmail(from_addr, [to_addr or from_addr], msg.as_string())')
-            lines.append('        logger.info(f"Email sent: {subject}")')
-            lines.append('    except Exception as e:')
-            lines.append('        logger.warning(f"Failed to send email: {e}")')
-            lines.append('')
-        lines.append('')
-        lines.append('logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")')
-        lines.append('logger = logging.getLogger(__name__)')
-        lines.append('')
-
-        def _run_step(session_name, mapping_name, config, results):
-            logger.info(f"Running: {session_name} ({mapping_name})")
-            try:
-                run_func = f"run_{self._make_safe_name(mapping_name)}"
-                globals()[run_func](config)
-                results[mapping_name] = "SUCCESS"
-                logger.info(f"Completed: {session_name}")
-            except Exception as e:
-                logger.error(f"Failed: {session_name} - {e}")
-                results[mapping_name] = f"FAILED: {e}"
-
-        lines.append('')
-        lines.append('def run_workflow():')
-        lines.append('    config = load_config("config.yml")')
-        lines.append('    results = {}')
-        lines.append('    success = True')
-        lines.append('')
-
-        if execution_plan:
-            for step in execution_plan:
-                step_type = step.get("type", "")
-                step_name = step.get("name", "")
-                deps = step.get("dependencies", [])
-                
-                if step_type == "worklet":
-                    sessions = step.get("sessions", [])
-                    if sessions:
-                        lines.append(f'    # Worklet: {step_name} (parallel)')
-                        lines.append(f'    logger.info("--- Starting Worklet: {step_name} ---")')
-                        lines.append(f'    with ThreadPoolExecutor(max_workers={len(sessions)}) as executor:')
-                        lines.append(f'        _futures = {{')
-                        for s in sessions:
-                            safe = self._make_safe_name(s["mapping_name"])
-                            lines.append(f'            executor.submit(run_{safe}, config): "{s["session_name"]}",')
-                        lines.append(f'        }}')
-                        lines.append(f'        for _future in as_completed(_futures):')
-                        lines.append(f'            _sname = _futures[_future]')
-                        lines.append(f'            try:')
-                        lines.append(f'                _future.result()')
-                        lines.append(f'                results[_sname] = "SUCCESS"')
-                        lines.append(f'            except Exception as e:')
-                        lines.append(f'                logger.error(f"Failed: {{_sname}} - {{e}}")')
-                        lines.append(f'                results[_sname] = f"FAILED: {{e}}"')
-                        if task_info and "T_MAIL_FAIL" in task_info:
-                            lines.append(f'                _send_email("CIS - Session Failed", f"{{_sname}}: {{e}}")')
-                        lines.append(f'                success = False')
-                        lines.append(f'    if not success:')
-                        lines.append(f'        return results')
-                        lines.append('')
-                
-                elif step_type == "session":
-                    mname = step.get("mapping_name", "")
-                    step_name = step.get("name", "")
-                    safe = self._make_safe_name(mname)
-                    fail_subject = "CIS - Session Failed"
-                    lines.append(f'    # Session: {step_name}')
-                    lines.append(f'    logger.info("Running session: {step_name}")')
-                    lines.append(f'    try:')
-                    lines.append(f'        run_{safe}(config)')
-                    lines.append(f'        results["{step_name}"] = "SUCCESS"')
-                    lines.append(f'    except Exception as e:')
-                    lines.append(f'        logger.error(f"Session {step_name} failed: {{e}}")')
-                    lines.append(f'        results["{step_name}"] = f"FAILED: {{e}}"')
-                    if task_info and "T_MAIL_FAIL" in task_info:
-                        fail_text = task_info["T_MAIL_FAIL"].get("text", "Session failed").replace('"', "'")
-                        lines.append(f'        _send_email("{fail_subject}", "{step_name}: {{{{e}}}}")')
-                    lines.append(f'        return results')
-                    lines.append('')
-
-                elif step_type == "parallel_sessions":
-                    sessions = step.get("sessions", [])
-                    if sessions:
-                        lines.append(f'    # Parallel sessions')
-                        lines.append(f'    logger.info("Running {len(sessions)} sessions in parallel")')
-                        lines.append(f'    with ThreadPoolExecutor(max_workers={len(sessions)}) as executor:')
-                        lines.append(f'        _futures = {{')
-                        for s in sessions:
-                            safe = self._make_safe_name(s["mapping_name"])
-                            sname = s["session_name"]
-                            lines.append(f'            executor.submit(run_{safe}, config): "{sname}",')
-                        lines.append(f'        }}')
-                        lines.append(f'        for _future in as_completed(_futures):')
-                        lines.append(f'            _sname = _futures[_future]')
-                        lines.append(f'            try:')
-                        lines.append(f'                _future.result()')
-                        lines.append(f'                results[_sname] = "SUCCESS"')
-                        lines.append(f'            except Exception as e:')
-                        lines.append(f'                logger.error(f"Failed: {{_sname}} - {{e}}")')
-                        lines.append(f'                results[_sname] = f"FAILED: {{e}}"')
-                        lines.append(f'                success = False')
-                        lines.append(f'    if not success:')
-                        lines.append(f'        return results')
-                        lines.append('')
-                
-                elif step_type == "task":
-                    lines.append(f'    # Task: {step_name}')
-                    lines.append(f'    logger.info("Processing task: {step_name}")')
-                    # Check if this is an email task
-                    ti = (task_info or {}).get(step_name, {})
-                    if ti.get("type") == "email":
-                        subject = ti.get("subject", "").replace('"', "'")
-                        text = ti.get("text", "").replace('"', "'").replace("\r\n", "\\n").replace("\n", "\\n")
-                        lines.append(f'    try:')
-                        lines.append(f'        _send_email("{subject}", """{text}""")')
-                        lines.append(f'        logger.info("Email sent: {step_name}")')
-                        lines.append(f'        results["{step_name}"] = "SUCCESS"')
-                        lines.append(f'    except Exception as e:')
-                        lines.append(f'        logger.error(f"Email {step_name} failed: {{e}}")')
-                        lines.append('')
-                    else:
-                        lines.append('')
-        else:
-            # Fallback: sequential execution
-            for m in mappings_info:
-                lines.append(f'    logger.info("Running mapping: {m["name"]}")')
-                lines.append(f'    try:')
-                lines.append(f'        run_{m["safe_name"]}(config)')
-                lines.append(f'        results["{m["name"]}"] = "SUCCESS"')
-                lines.append(f'    except Exception as e:')
-                lines.append(f'        logger.error(f"Failed: {m["name"]} - {{e}}")')
-                lines.append(f'        results["{m["name"]}"] = f"FAILED: {{e}}"')
-                lines.append(f'        return results')
-                lines.append('')
-
-        lines.append('    return results')
-        lines.append('')
-        lines.append('if __name__ == "__main__":')
-        lines.append('    run_workflow()')
         return '\n'.join(lines) + '\n'
 
     def _generate_config_file(self, mapping_names: List[str],
@@ -1191,9 +1127,9 @@ class ConversionService:
         env_path.mkdir(parents=True, exist_ok=True)
 
         for gen_file in files:
-            # .md report goes to current working directory (not in workflow folder)
+            # .md report goes alongside the workflow file in output_dir
             if gen_file.filename.endswith(".md"):
-                file_path = Path.cwd() / gen_file.filename
+                file_path = out_path / gen_file.filename
             # Mapping scripts and workflow file go directly in output_dir
             elif gen_file.filename.startswith("m_") or gen_file.filename.lower().startswith("wf_"):
                 file_path = out_path / gen_file.filename

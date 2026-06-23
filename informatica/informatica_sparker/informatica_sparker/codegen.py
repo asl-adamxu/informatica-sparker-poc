@@ -359,7 +359,6 @@ finally:
             else:
                 lines.append(f'{step.df_output} = read_sql(spark, {conn_name}_conn, table="{table}")')
 
-            lines.append(f'print("Data Count {step.df_output}:", {step.df_output}.count())')
 
         elif step.step_type == IRStepType.APPLY_SOURCE_QUALIFIER:
             sql_query = step.params.get("sql_query", "")
@@ -376,7 +375,6 @@ finally:
             else:
                 lines.append(f'{step.df_output} = {step.df_input}')
 
-            lines.append(f'print("Source Data Count {step.df_output}:", {step.df_output}.count())')
 
         elif step.step_type == IRStepType.APPLY_FILTER:
             cond = step.params.get("condition", "lit(True)")
@@ -537,10 +535,8 @@ finally:
                 cols_str = ', '.join([f'"{c}"' for c in target_cols])
                 lines.append(f'# Select exact target columns in order')
                 lines.append(f'df_target_out = {step.df_input}.select({cols_str})')
-                lines.append(f'print("Target Data Count for {table}:", df_target_out.count())')
                 lines.append(f'write_mssql_target(df_target_out, "{table}", "{mode}")')
             else:
-                lines.append(f'print("Target Data Count for {table}:", {step.df_input}.count())')
                 lines.append(f'write_mssql_target({step.df_input}, "{table}", "{mode}")')
 
         else:

@@ -49,7 +49,7 @@ class ExpressionTranslator:
         'LPAD': 'lpad',
         'RPAD': 'rpad',
         'CONCAT': 'concat',
-        'REPLACE': 'regexp_replace',
+        'REPLACE': 'replace',
         'REG_REPLACE': 'regexp_replace',
         'REG_MATCH': 'regexp_extract',
         'REG_EXTRACT': 'regexp_extract',
@@ -80,7 +80,7 @@ class ExpressionTranslator:
         'ACOS': 'acos',
         'ATAN': 'atan',
         'RAND': 'rand',
-        'SYSDATE': 'current_date()',
+        'SYSDATE': 'current_timestamp()',
         'SYSTIMESTAMP': 'current_timestamp()',
         'SESSSTARTTIME': 'current_timestamp()',
         'ADD_TO_DATE': 'date_add',
@@ -296,7 +296,7 @@ class ExpressionTranslator:
                 part_map = {
                     'YEAR': 'year', 'YY': 'year', 'YYYY': 'year',
                     'MONTH': 'month', 'MM': 'month', 'MON': 'month',
-                    'DAY': 'day', 'DD': 'day', 'D': 'day', 'DDD': 'dayofyear',
+                    'DAY': 'day', 'DD': 'day', 'D': 'dayofweek', 'DDD': 'dayofyear',
                     'HOUR': 'hour', 'HH': 'hour', 'HH24': 'hour',
                     'MINUTE': 'minute', 'MI': 'minute',
                     'SECOND': 'second', 'SS': 'second',
@@ -525,7 +525,8 @@ class ExpressionTranslator:
             result = result.replace(pm_var, f"'{safe_pm}'")
 
         # Handle $$ mapping variables (e.g., $$v_snsh_date)
-        # Replace with Python f-string placeholders that will be resolved at runtime
+        # If value is known, substitute directly; otherwise keep the marker for
+        # template-level substitution (handled in mapping.py.j2).
         remaining_global = re.findall(r'\$\$[A-Za-z_][A-Za-z0-9_]*', result)
         for var_name in remaining_global:
             var_value = self.pm_variables.get(var_name, "")
@@ -533,8 +534,9 @@ class ExpressionTranslator:
                 safe_value = str(var_value).replace("'", "''")
                 result = result.replace(var_name, f"'{safe_value}'")
             else:
-                clean_name = var_name.replace("$$", "")
-                result = result.replace(var_name, f"${{{{_{clean_name}}}}}")
+                # Keep $$var_name as-is; the template will do Python-level
+                # .replace() to substitute the runtime variable value.
+                pass
 
         return result
 
