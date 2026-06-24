@@ -571,10 +571,15 @@ class ConversionService:
             ttype = t.get("type", "")
             attrs = t.get("attributes", {})
             if ttype == "Email" or "EMAIL" in ttype.upper():
+                _subject = attrs.get("Email Subject", "")
+                _text = attrs.get("Email Text", "")
+                # Replace literal placeholder with actual workflow name at codegen time
+                _subject = _subject.replace("[Workflow Name]", workflow_name)
+                _text = _text.replace("[Workflow Name]", workflow_name)
                 task_info[tname] = {
                     "type": "email",
-                    "subject": attrs.get("Email Subject", ""),
-                    "text": attrs.get("Email Text", ""),
+                    "subject": _subject,
+                    "text": _text,
                     "user": attrs.get("Email User Name", ""),
                 }
 
@@ -727,7 +732,7 @@ class ConversionService:
             "        if not hasattr(module, 'run_mapping'):",
             "            raise AttributeError(f\"Module '{module_name}' missing 'run_mapping' function\")",
             '        MAPPING_FUNCTIONS[module_name] = module.run_mapping',
-            '        logger.info("Registered mapping: %s", module_name)',
+            '        logger.debug("Registered mapping: %s", module_name)',
             '    except Exception as e:',
             "        logger.error(\"Failed to load mapping '%s': %s\", module_name, e)",
             '        raise',

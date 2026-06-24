@@ -31,9 +31,13 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
     Returns:
         bool: True if successful
     """
+    import logging
     lib.init_logger()
     logger = lib.get_logger()
+    logger.propagate = False  # mapping detail stays in mapping log only
+    _wf_logger = logging.getLogger()  # root logger — workflow-level messages go here
     logger.info("Start to run mapping {{ mapping_name }}")
+    _wf_logger.info("Start to run mapping {{ mapping_name }}")
 
     config = lib.load_config('env/config.yml')
     objects = config.get('objects', {})
@@ -90,23 +94,26 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% if step.step_type == IRStepType.READ_SQL %}
         # Reading Data From Source - {{ step.step_name }}
         {% set conn_name = step.params.get('connection_alias', 'source') %}
+        # Resolve connection by alias (supports lookup/source connections dynamically)
+        _conn = lib.get_db_config(config, "{{ conn_name }}")
         {% if step.params.get('query') %}
+        {% if step.params.get('source_schema') %}
+        {% set src_schema = step.params.get('source_schema') %}
+        # Parameterize schema from connection config
+        _schema = _conn.get("schema", "") or "{{ src_schema }}"
+        query = f"""{{ step.params.get('query') | replace(src_schema + '.', '{_schema}.') }}"""
+        {% else %}
         query = f"""{{ step.params.get('query') }}"""
+        {% endif %}
         {% if mapping_variables %}
         {% for var_name, var_default in mapping_variables.items() %}
         {% set clean_name = var_name | replace('$', '') %}
         query = query.replace("{{ var_name }}", {{ clean_name }})
         {% endfor %}
         {% endif %}
-        {% if step.params.get('source_schema') %}
-        # Substitute schema from connection config
-        _src_schema = conn_source.get("schema", "")
-        if _src_schema and _src_schema.lower() != "{{ step.params.get('source_schema').lower() }}":
-            query = query.replace("{{ step.params.get('source_schema') }}.", _src_schema + ".")
-        {% endif %}
-        {{ step.df_output }} = lib.read_sql(spark, conn_source, query=query)
+        {{ step.df_output }} = lib.read_sql(spark, _conn, query=query)
         {% else %}
-        {{ step.df_output }} = lib.read_sql(spark, conn_source, table="{{ step.params.get('table_name', '') }}")
+        {{ step.df_output }} = lib.read_sql(spark, _conn, table="{{ step.params.get('table_name', '') }}")
         {% endif %}
         
         {% elif step.step_type == IRStepType.READ_FILE %}
@@ -142,20 +149,22 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% set sq_output_columns = step.params.get('output_columns', []) %}
         {% if step.params.get('use_sql_override') and step.params.get('sql_query') %}
         # SQL Pushdown - executes Informatica SQ SQL on source database
+        _conn = lib.get_db_config(config, "{{ source_conn_name }}")
+        {% if step.params.get('source_schema') %}
+        {% set src_schema = step.params.get('source_schema') %}
+        # Parameterize schema from connection config
+        _schema = _conn.get("schema", "") or "{{ src_schema }}"
+        query = f"""{{ step.params.get('sql_query') | replace(src_schema + '.', '{_schema}.') }}"""
+        {% else %}
         query = f"""{{ step.params.get('sql_query') }}"""
+        {% endif %}
         {% if mapping_variables %}
         {% for var_name, var_default in mapping_variables.items() %}
         {% set clean_name = var_name | replace('$', '') %}
         query = query.replace("{{ var_name }}", {{ clean_name }})
         {% endfor %}
         {% endif %}
-        {% if step.params.get('source_schema') %}
-        # Substitute schema from connection config
-        _src_schema = conn_source.get("schema", "")
-        if _src_schema and _src_schema.lower() != "{{ step.params.get('source_schema').lower() }}":
-            query = query.replace("{{ step.params.get('source_schema') }}.", _src_schema + ".")
-        {% endif %}
-        {{ step.df_output }} = lib.read_sql(spark, conn_source, query=query)
+        {{ step.df_output }} = lib.read_sql(spark, _conn, query=query)
         {% if sq_output_columns %}
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = {{ step.df_output }}.columns
@@ -546,11 +555,13 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         
         metrics.complete()
         logger.info("Mapping {{ mapping_name }} completed: SUCCESS")
+        _wf_logger.info("Mapping {{ mapping_name }} completed: SUCCESS")
         return True
         
     except Exception as e:
         metrics.fail(e)
         logger.error(f"Mapping {{ mapping_name }} FAILED: {e}", exc_info=True)
+        _wf_logger.error(f"Mapping {{ mapping_name }} FAILED: {e}")
         return False
 
 

@@ -42,7 +42,41 @@ This file captures conventions, patterns, and rules established during developme
 - To specify day-of-week, `GET_DATE_PART('D')` maps to `dayofweek`.
 - Unresolved `$$` mapping variables kept as-is in expressions; template-level `.replace()` handles substitution.
 
+### SQL Schema Parameterization
+- Hardcoded schema prefixes in SQL queries (e.g. `PSOR.`) are replaced with a dynamic `{_schema}` variable at codegen time.
+- The schema comes from `_conn.get("schema", "")` using the dynamically resolved connection from config.yml.
+- When no matching connection is found, the original schema is kept as the fallback value.
+- Lookup SQL queries extract the schema prefix via regex on `FROM <schema>.` and pass it as `source_schema` in step params.
+- Lookup connection resolution (`_find_lookup_connection`) matches the SQL's schema prefix to a source definition's `owner_name` to use the correct db_name.
+
+### Stored Procedure Handling
+- Stored procedures referenced via `:SP.xxx()` in expression transforms are handled by detecting the reference and reading the `Stored Procedure Name` attribute (e.g. `PDPA.PKG_CDI_UTIL.SP_TRUNCATE`).
+- The schema prefix is stripped, so the generated call text uses `PKG_CDI_UTIL.SP_TRUNCATE`.
+- The `Stored Procedure` instance type is recognized in the dispatch chain (logged at INFO, not WARNING).
+
+### Email Enhancements
+- T_MAIL_FAIL is now sent on ANY mapping failure, including when `fail_fast` raises `RuntimeError`. A local `_send_fail()` helper in `run_workflow` is called from both the normal completion path and the exception handler.
+- The exception handler extracts failed session names from the RuntimeError message.
+- `[Workflow Name]` placeholder in email subjects is replaced with the actual workflow name at code generation time in `service.py`.
+
+### Password Credential Handling
+- Interactively entered passwords are cached in memory (`_PASSWORD_PENDING`) but NOT saved to Hadoop CredentialProvider until connection validation passes.
+- `_flush_pending_passwords()` is called after all connections are verified successfully.
+- On connection failure, no password is persisted to the credential provider.
+
+### Debug/DETAIL Logging Isolation
+- Mapping step-level logs (`"Step: ..."`, `"... write completed"`, `"Loaded ... from job_params"`) use `logger.debug()` instead of `logger.info()`.
+- Mapping loggers set `propagate = False` so DETAIL messages only go to the mapping's own log file, not the workflow log.
+- Workflow-relevant messages (start/completed/error) are dual-logged: to the mapping logger AND the root logger via `_wf_logger`.
+
+### Workflow Run Markers
+- Each `run_workflow()` call prints `===== ... START` / `===== ... END` separators so multiple runs are visually distinguishable in the log.
+
 ## Code Generation Rules
+
+use python3.11 to recompile or build informatica-sparker
+then use informatica-sparker command to convert like `informatica-sparker convert WF_GMS_DDS_APLY_DLY.XML -o WF_GMS_DDS_APLY_DLY_SPARK`
+use default python to run pyspark workflow or mapping 
 
 ### Output Quality
 

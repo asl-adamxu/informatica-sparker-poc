@@ -152,15 +152,48 @@ def get_db_config(config: Dict[str, Any], conn_name: str = "source") -> Dict[str
 
 
 _PASSWORD_CACHE = {}
+_PASSWORD_PENDING = {}  # alias → password deferred for credential provider save
+
+
+def _flush_pending_passwords():
+    """Save interactively-entered passwords to Hadoop CredentialProvider.
+
+    Call this only after the connection has been verified successfully,
+    so we don't persist a wrong password.
+    """
+    if not _PASSWORD_PENDING:
+        return
+    import shlex as _shlex
+    import subprocess as _subprocess
+    for _alias, _pwd in _PASSWORD_PENDING.items():
+        _cred_path = ""
+        try:
+            from pyspark.sql import SparkSession
+            _sp = SparkSession.builder.getOrCreate()
+            _cred_path = _resolve_path(_sp.sparkContext._jsc.hadoopConfiguration().get(
+                "hadoop.security.credential.provider.path", ""))
+        except Exception:
+            _cred_path = "jceks://file/$(pwd)/env/passwords.jceks"
+        _cmd = f"hadoop credential create {_alias} -value {_shlex.quote(_pwd)} -provider {_cred_path}"
+        _result = _subprocess.run(_cmd, shell=True, stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, universal_newlines=True)
+        if _result.returncode == 0:
+            print(f"    Credential '{_alias}' saved successfully.")
+        else:
+            _upd = f"hadoop credential update {_alias} -value {_shlex.quote(_pwd)} -provider {_cred_path}"
+            _subprocess.run(_upd, shell=True, stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, universal_newlines=True, check=True)
+            print(f"    Credential '{_alias}' updated successfully.")
+    _PASSWORD_PENDING.clear()
 
 
 def _resolve_password(spark: SparkSession, conn_config: Dict[str, Any]) -> str:
     """Resolve password from connection config, using Hadoop CredentialProvider if applicable.
-    
+
     If the password starts with 'credential:', the remainder is treated as a
     credential alias looked up via the Hadoop CredentialProvider.
     Otherwise the plaintext value is returned as-is.
     Results are cached in memory so the first caller's input is reused by all subsequent callers.
+    Interactive passwords are NOT saved to the credential provider until
+    _flush_pending_passwords() is called (after connection verification).
     """
     raw = conn_config.get("password", "")
     if not raw:
@@ -173,6 +206,10 @@ def _resolve_password(spark: SparkSession, conn_config: Dict[str, Any]) -> str:
     if alias in _PASSWORD_CACHE:
         return _PASSWORD_CACHE[alias]
 
+    # Don't search credential provider if we already have a pending (unverified) entry
+    if alias in _PASSWORD_PENDING:
+        return _PASSWORD_PENDING[alias]
+
     try:
         chars = spark.sparkContext._jsc.hadoopConfiguration().getPassword(alias)
         if chars:
@@ -182,40 +219,15 @@ def _resolve_password(spark: SparkSession, conn_config: Dict[str, Any]) -> str:
     except Exception:
         pass
 
-    # Credential not found in provider — check if it exists (created externally)
+    # Interactive first-time setup — cache in memory only; save deferred
     _cred_path = _resolve_path(spark.sparkContext._jsc.hadoopConfiguration().get(
         "hadoop.security.credential.provider.path", ""))
-    import subprocess
-    _list = subprocess.run(
-        "hadoop credential list -provider {} 2>/dev/null".format(_cred_path),
-        shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-    if alias in _list.stdout:
-        # Credential exists but getPassword failed — try reading it again
-        try:
-            chars = spark.sparkContext._jsc.hadoopConfiguration().getPassword(alias)
-            if chars:
-                _pwd = "".join(chars)
-                _PASSWORD_CACHE[alias] = _pwd
-                return _pwd
-        except Exception:
-            pass
-
-    # Interactive first-time setup
     print(f"")
     print(f"!!! Credential '{alias}' not found in provider: {_cred_path}")
     import getpass
     _pwd = getpass.getpass(f"    Password for {alias}: ")
     if _pwd:
-        import shlex
-        _cmd = f"hadoop credential create {alias} -value {shlex.quote(_pwd)} -provider {_cred_path}"
-        _result = subprocess.run(_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-        if _result.returncode == 0:
-            print(f"    Credential '{alias}' saved successfully.")
-        else:
-            # May already exist — try updating instead
-            _upd = f"hadoop credential update {alias} -value {shlex.quote(_pwd)} -provider {_cred_path}"
-            subprocess.run(_upd, shell=True, check=True)
-            print(f"    Credential '{alias}' updated successfully.")
+        _PASSWORD_PENDING[alias] = _pwd
         _PASSWORD_CACHE[alias] = _pwd
         return _pwd
     print(f"    Skipped. Create it later with:")
@@ -688,7 +700,7 @@ def discover_mappings(directory: str = None) -> dict:
                     f"Module '{module_name}' missing 'run_mapping' function"
                 )
             functions[module_name] = module.run_mapping
-            logger.info("Registered mapping: %s", module_name)
+            logger.debug("Registered mapping: %s", module_name)
         except Exception as e:
             logger.error("Failed to load mapping '%s': %s", module_name, e)
             raise
@@ -1007,6 +1019,10 @@ def run_workflow(execution_plan, mapping_functions, workflow_name,
     Returns:
         dict with workflow_name, status, completed, failed, results
     """
+    logger.info("=" * 60)
+    logger.info("Workflow [%s] START", workflow_name)
+    logger.info("=" * 60)
+
     if send_email_fn is None:
         send_email_fn = send_email
     if format_infa_fn is None:
@@ -1020,6 +1036,11 @@ def run_workflow(execution_plan, mapping_functions, workflow_name,
     # Inject email config from config.yml into task_info so email recipients
     # can be configured per-environment without regenerating the workflow.
     _email_cfg = config.get("email", {})
+    if _email_cfg:
+        # Set SMTP env vars from config so send_email() picks them up
+        os.environ.setdefault("SMTP_HOST", _email_cfg.get("smtp_host", "localhost"))
+        os.environ.setdefault("SMTP_PORT", str(_email_cfg.get("smtp_port", 25)))
+        os.environ.setdefault("SMTP_FROM", _email_cfg.get("mail_from", "noreply@example.com"))
     if task_info and _email_cfg.get("mail_to"):
         mail_to = _email_cfg["mail_to"]
         for _tname, _tcfg in task_info.items():
@@ -1053,44 +1074,71 @@ def run_workflow(execution_plan, mapping_functions, workflow_name,
     if not conn_ok:
         spark.stop()
         raise RuntimeError("One or more database connections are unreachable. Aborting workflow.")
+    # All connections verified — now persist any interactively-entered passwords
+    _flush_pending_passwords()
 
     completed = set()
     failed = set()
     results = {}
 
     try:
-        for plan_step in execution_plan:
-            c, f, r = execute_plan_step(
-                plan_step, mapping_functions, ctx, metrics_cls,
-                fail_fast, job_params, workflow_name,
-                task_info, send_email_fn, format_infa_fn
-            )
-            completed.update(c)
-            failed.update(f)
-            results.update(r)
-            if failed and fail_fast:
-                break
-
-        if failed and task_info and send_email_fn:
-            fail_config = task_info.get("T_MAIL_FAIL")
-            if fail_config and fail_config.get("type") == "email":
-                first_failed = next(iter(failed), "")
-                email_ctx = {
-                    "session_name": ", ".join(sorted(failed)),
+        # Local helper to send T_MAIL_FAIL — shared by normal and exception paths
+        def _send_fail(failed_set, results_dict):
+            if not (failed_set and task_info and send_email_fn):
+                return
+            _fc = task_info.get("T_MAIL_FAIL")
+            if _fc and _fc.get("type") == "email":
+                _first = next(iter(failed_set), "")
+                _ctx = {
+                    "session_name": ", ".join(sorted(failed_set)),
                     "folder_name": workflow_name,
                     "error_code": "FAILED",
                     "session_status": "FAILED",
-                    "error_msg": str(results.get(first_failed, {}).get("error", "")),
+                    "error_msg": str(results_dict.get(_first, {}).get("error", "")),
                     "log_file": "",
                 }
                 send_email_fn(
-                    subject=format_infa_fn(fail_config.get("subject", ""), email_ctx) if format_infa_fn else fail_config.get("subject", ""),
-                    body=format_infa_fn(fail_config.get("text", ""), email_ctx) if format_infa_fn else fail_config.get("text", ""),
-                    to_address=fail_config.get("user"),
+                    subject=format_infa_fn(_fc.get("subject", ""), _ctx) if format_infa_fn else _fc.get("subject", ""),
+                    body=format_infa_fn(_fc.get("text", ""), _ctx) if format_infa_fn else _fc.get("text", ""),
+                    to_address=_fc.get("user"),
                 )
+
+        for plan_step in execution_plan:
+            try:
+                c, f, r = execute_plan_step(
+                    plan_step, mapping_functions, ctx, metrics_cls,
+                    fail_fast, job_params, workflow_name,
+                    task_info, send_email_fn, format_infa_fn
+                )
+                completed.update(c)
+                failed.update(f)
+                results.update(r)
+            except RuntimeError as _wf_err:
+                # fail_fast raised this — capture failure info before propagating
+                _wf_msg = str(_wf_err)
+                if "Step failed:" in _wf_msg:
+                    import re as _re
+                    for _m in _re.finditer(r"'([^']+)'", _wf_msg.split("Step failed:")[1]):
+                        _name = _m.group(1)
+                        if _name:
+                            failed.add(_name)
+                            if _name not in results:
+                                results[_name] = {"status": "FAILED", "error": _wf_msg}
+                if not failed:
+                    failed.add("UNKNOWN")
+                    results["UNKNOWN"] = {"status": "FAILED", "error": _wf_msg}
+                _send_fail(failed, results)
+                raise
+            if failed and fail_fast:
+                break
+
+        _send_fail(failed, results)
 
         workflow_status = "FAILED" if failed else "SUCCESS"
         logger.info("Workflow %s: completed=%d, failed=%d", workflow_status, len(completed), len(failed))
+        logger.info("=" * 60)
+        logger.info("Workflow [%s] END - %s", workflow_name, workflow_status)
+        logger.info("=" * 60)
         return {"workflow_name": workflow_name, "status": workflow_status,
                 "completed": list(completed), "failed": list(failed), "results": results}
     finally:

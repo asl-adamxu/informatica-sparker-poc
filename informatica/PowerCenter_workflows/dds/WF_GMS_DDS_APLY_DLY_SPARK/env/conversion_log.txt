@@ -1,6 +1,6 @@
 ================================================================================
 INFORMATICA-SPARKER CONVERSION LOG
-Generated: 2026-06-23 15:52:51
+Generated: 2026-06-24 16:11:03
 ================================================================================
 
 SUMMARY
@@ -8,7 +8,7 @@ SUMMARY
 Total Mappings: 8
 Successful: 8
 Failed: 0
-Total Warnings: 1
+Total Warnings: 0
 Total Errors: 0
 
 SOURCE DETECTION RESULTS
@@ -477,9 +477,3 @@ MAPPING: M_UTL_PARAM_SETUP
 MAPPING: M_UTL_DPA_TRUNCATE
   Status: SUCCESS
   Generated Files: m_utl_dpa_truncate.py
-  Warnings (1):
-    [WARN] Unsupported transformation type: Stored Procedure (SP_TRUNCATE)
-
-ALL WARNINGS
-----------------------------------------
-  [WARN] Unsupported transformation type: Stored Procedure (SP_TRUNCATE)

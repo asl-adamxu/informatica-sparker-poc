@@ -60,7 +60,7 @@ class MappingMetrics:
     def log_row_count(self, step_name: str, count: int):
         """Log row count for a step."""
         self.row_counts[step_name] = count
-        logger.debug(f"[{self.mapping_name}] {step_name}: {count} rows")
+        logger.info(f"[{self.mapping_name}] {step_name}: {count} rows")
     
     def add_warning(self, message: str):
         """Add a warning message."""
@@ -91,7 +91,7 @@ def log_dataframe_info(df, name: str, show_sample: bool = False, sample_rows: in
     logger.info(f"DataFrame '{name}': {count} rows, {len(df.columns)} columns")
     
     if show_sample and count > 0:
-        logger.debug(f"Sample from '{name}':")
+        logger.info(f"Sample from '{name}':")
         df.show(sample_rows, truncate=False)
 
 

@@ -92,8 +92,8 @@ connections:
     database: "{{ conn_info.database or conn_name }}"
     {% else %}
     database: "{{ conn_info.database }}"
+    schema: "airflow"
     {% endif %}
-    schema: "{{ conn_info.schema }}"
 {% endfor %}
 
 # =============================================================================

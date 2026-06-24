@@ -40,7 +40,9 @@ Conversion pipeline: **XML → Models → IR Plan → Jinja2 Templates → Gener
   - `worklet` — nested sub-plan matching Informatica worklet topology
   - `task` — email notifications with Informatica-style placeholder substitution
   - Sequential execution is achieved via topological DAG levels — sessions at the same level run in parallel, different levels run sequentially
-- **Schema Substitution**: Replaces hardcoded schema names in SQL override queries with values from connection config
+- **Schema Parameterization**: Hardcoded schema prefixes in SQL queries (e.g. `PSOR.`) are replaced with `{_schema}` resolved from the connection's `schema` field in config.yml at runtime
+- **Dynamic Connection Resolution**: READ_SQL and lookup steps dynamically resolve connections by alias (`lib.get_db_config(config, "SOR")`) instead of hardcoding `conn_source`/`conn_target`
+- **Lookup Connection Inference**: Lookup schema prefix is matched to a source definition's `owner_name` to determine the correct database connection for `$Source` lookups in flat-file mappings
 - **Type Casting**: Automatic column type casting to match target schema (Decimal→String with scientific notation prevention)
 - **Spark Connection Profiles**: Supports `spark_local`, `spark3_client` (YARN client), and `spark3_on_yarn` (YARN cluster) modes
 - **Python 3.10+ Compatible**
@@ -173,8 +175,8 @@ Connection details (JDBC URLs, driver JARs, host/port) are automatically extract
 | Router | Multiple `.filter()` branches per output group |
 | Sequence Generator | `monotonically_increasing_id()` |
 | Update Strategy | Insert/Update/Delete flags with `_update_flag` column |
-| Stored Procedure | Inline via Expression `:SP.` pattern — JDBC `execute` per row; standalone component not yet supported |
-| Mapplet | Inlined mini-DAG with topological sort (supports Lookup, Expression, Filter) |
+| Stored Procedure | Inline via Expression `:SP.` pattern — qualified procedure name resolved from `Stored Procedure Name` attribute (e.g. `PKG_CDI_UTIL.SP_TRUNCATE`) |
+| Mapplet | Inlined mini-DAG with topological sort (supports Lookup Procedure, Expression, Input/Output port mapping) |
 | Target | `.write.format("jdbc")` / `.write.format("delta")` with type casting and column mapping |
 
 ## Workflow Execution Plan
@@ -192,12 +194,14 @@ EXECUTION_PLAN = [
 
 Features:
 - **Topological ordering** with cycle detection (back-edge `visiting` set)
-- **fail_fast** mode — stops at first failure
+- **fail_fast** mode — stops at first failure, sends T_MAIL_FAIL before propagating
 - **Parallel execution** via `ThreadPoolExecutor` with thread-safe failure tracking
-- **Email notifications** with Informatica-style `%s`, `%n`, `%e` placeholder substitution
+- **Email notifications** with Informatica-style `%s`, `%n`, `%e` placeholder substitution; `[Workflow Name]` placeholder resolved at codegen time
+- **T_MAIL_FAIL on any failure** — sent from both normal completion path and `RuntimeError` exception handler
 - **Job parameters** loaded once and passed to all mappings
-- **Connection validation** before any mapping runs
+- **Connection validation** before any mapping runs; passwords saved to credential provider only after verification
 - **Mermaid flowchart** generated alongside the workflow file
+- **Workflow run markers** — `===== ... START / END =====` separators in logs for multi-run visibility
 
 ## Runtime Library (`runtime_lib.py`)
 
@@ -217,7 +221,8 @@ The generated `runtime_lib.py` provides:
 | `test_connection()` | Validates all DB connections before execution |
 | `run_workflow()` | Reusable workflow engine (accepts `EXECUTION_PLAN` + `MAPPING_FUNCTIONS`) |
 | `discover_mappings()` | Auto-discovers `m_*.py` modules in output directory |
-| `_resolve_password()` | Hadoop CredentialProvider with interactive fallback |
+| `_resolve_password()` | Hadoop CredentialProvider with interactive fallback; password deferred until connection verified |
+| `_flush_pending_passwords()` | Persists interactively-entered passwords only after successful connection validation |
 | `smart_repartition()` | Adaptive repartitioning based on row count |
 | `send_email()` | SMTP email with Informatica template formatting |
 
@@ -272,7 +277,8 @@ email:
   smtp_host: "${SMTP_HOST:localhost}"
   smtp_port: "${SMTP_PORT:25}"
 
-# Logging configuration
+# Logging configuration (mapping detail logs use DEBUG level;
+# mapping start/completed/errors use INFO and appear in workflow log)
 logging:
   dir: "logs"
   level: INFO

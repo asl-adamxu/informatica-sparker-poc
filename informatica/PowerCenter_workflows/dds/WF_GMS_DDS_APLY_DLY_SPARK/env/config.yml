@@ -88,15 +88,14 @@ connections:
   DDS:
     <<: *oracle
     database: "DDS"
-    schema: "PDDS"
+    schema: "airflow"
   DPA:
     <<: *oracle
     database: "DPA"
-    schema: "PDPA"
+    schema: "airflow"
   UTL:
     <<: *oracle
     database: "UTL"
-    schema: "dbo"
 
 # =============================================================================
 # FILE PATHS

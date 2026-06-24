@@ -318,6 +318,12 @@ class TransformHandlers:
                 if steps:
                     self.logger.log_mapplet(inst_name, f"Mapplet converted ({len(steps)} steps)", LogLevel.SUCCESS)
 
+            elif inst_type == "Stored Procedure":
+                # Stored procedures are handled via `:SP.xxx()` references in expression
+                # transforms; the instance itself is a no-op in the data flow.
+                self.logger.log_transformation(inst_name, "StoredProcedure",
+                    "Handled via expression reference", LogLevel.INFO)
+
             elif inst_type == "UNKNOWN":
                 transform = self.transform_map.get(instance.transformation_name or instance.name)
                 if transform:
@@ -572,6 +578,26 @@ class TransformHandlers:
         )
         step.params["output_columns"] = output_columns
 
+        # Attach stored-procedure call text to step params when applicable
+        if transform:
+            import re as _re
+            for field in transform.fields:
+                if field.expression and ':SP.' in field.expression:
+                    _sp_match = _re.search(r':SP\.(\w+)', field.expression)
+                    if _sp_match:
+                        _sp_trans_name = _sp_match.group(1)
+                        _sp_transform = self.transform_map.get(_sp_trans_name)
+                        if _sp_transform and _sp_transform.table_attributes:
+                            _sp_full = _sp_transform.table_attributes.get("Stored Procedure Name", "")
+                            if _sp_full:
+                                _parts = _sp_full.split('.')
+                                if len(_parts) >= 3:
+                                    _sp_call = '.'.join(_parts[1:])
+                                else:
+                                    _sp_call = _sp_full
+                                step.params["sp_call_text"] = _sp_call
+                                break
+
         return step
 
     def _handle_lookup(self, instance: Instance, plan: IRPlan) -> List[IRStep]:
@@ -592,14 +618,33 @@ class TransformHandlers:
         lookup_conn = self._find_lookup_connection(lookup_table or instance.name)
 
         if lookup_sql:
-            # Extract schema from source definition for this lookup
+            # Extract schema prefix from the SQL (e.g. "PSOR" from "FROM PSOR.SOR_SYS_PRPTY")
+            # so the template can parameterize it with the connection's configured schema.
             lookup_schema = ""
-            for src in self.mapping.sources:
-                if lookup_table and (lookup_table.lower() in src.name.lower() or src.name.lower() in lookup_table.lower()):
-                    lookup_schema = src.owner_name or ""
-                    break
-                if lookup_sql and src.owner_name and src.owner_name.lower() in lookup_sql.lower():
-                    lookup_schema = src.owner_name
+            schema_source_found = None
+            import re as _re
+            _sql_schema_match = _re.search(r'\bFROM\s+(\w+)\.', lookup_sql, _re.IGNORECASE)
+            if _sql_schema_match:
+                _sql_schema = _sql_schema_match.group(1)
+                # Confirm this is a known schema prefix — look for a source definition
+                # with matching owner_name, and update lookup_conn if found.
+                for src in self.mapping.sources:
+                    if src.owner_name and src.owner_name.upper() == _sql_schema.upper():
+                        lookup_schema = src.owner_name
+                        schema_source_found = src
+                        break
+                if not schema_source_found:
+                    # Schema prefix seen in SQL but no source definition matched it.
+                    # Still record it so the template parameterizes the query.
+                    lookup_schema = _sql_schema
+
+            # If we found a source with matching owner_name, use its db_name
+            # as the connection alias (handles $Source lookups in flat-file mappings).
+            if lookup_schema and schema_source_found and schema_source_found.db_name:
+                if lookup_conn.lower() != schema_source_found.db_name.lower():
+                    lookup_conn = schema_source_found.db_name
+
+
                     
             rs = ReadSQLStep(
                 step_name=f"read_{instance.name}",

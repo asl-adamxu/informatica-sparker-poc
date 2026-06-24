@@ -88,15 +88,14 @@ connections:
   DPA:
     <<: *oracle
     database: "DPA"
-    schema: "PDPA"
+    schema: "airflow"
   SOR:
     <<: *oracle
     database: "SOR"
-    schema: "PSOR"
+    schema: "airflow"
   UTL:
     <<: *oracle
     database: "UTL"
-    schema: "dbo"
 
 # =============================================================================
 # FILE PATHS
