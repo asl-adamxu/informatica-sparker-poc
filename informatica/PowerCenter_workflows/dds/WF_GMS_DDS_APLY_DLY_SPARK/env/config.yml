@@ -105,6 +105,7 @@ paths:
   output_base: "${OUTPUT_PATH:/tmp}"
   staging: "${STAGING_PATH:/tmp}"
   archive: "${ARCHIVE_PATH:/tmp}"
+  source_file_dir: "${PMSOURCE_FILE_DIR:/tmp}"  # Maps to Informatica $PMSourceFileDir
 
 # =============================================================================
 # FILE OBJECTS (Only file-type objects; database tables use connections directly)
@@ -113,22 +114,22 @@ objects:
   
   UTL_SESSION_LIST:
     format: "csv"
-    path: "/tmp/UTL_SESSION_LIST.csv"
+    path: "${PMSOURCE_FILE_DIR:/tmp}/PCIS01/scripts/GMS_ETL_SESSION_LIST"
     delimiter: ","
     header: "true"  
   UTL_SSA_TBL_LIST:
     format: "csv"
-    path: "/tmp/UTL_SSA_TBL_LIST.csv"
+    path: "${PMSOURCE_FILE_DIR:/tmp}/PCIS01/scripts/GMS_ETL_DPA_TBL_LIST"
     delimiter: ","
     header: "true"  
   UTL_JOB_PARAM:
     format: "csv"
-    path: "/tmp/UTL_JOB_PARAM"
+    path: "${PMSOURCE_FILE_DIR:/tmp}/PCIS01/gms_job_param.txt"
     delimiter: ","
     header: "true"  
   UTL_DEV_NULL:
     format: "csv"
-    path: "/tmp/UTL_DEV_NULL"
+    path: "/dev/null"
     delimiter: ","
     header: "true"
 # =============================================================================

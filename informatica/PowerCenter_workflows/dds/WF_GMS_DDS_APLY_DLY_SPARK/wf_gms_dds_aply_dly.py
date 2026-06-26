@@ -22,13 +22,13 @@ EXECUTION_PLAN = [
     "steps": [
       {
         "type": "session",
-        "name": "S_GMS_ETL_PARAM_SETUP",
-        "mapping_name": "M_UTL_PARAM_SETUP"
+        "name": "S_GMS_ETL_DPA_TRUNCATE",
+        "mapping_name": "M_UTL_DPA_TRUNCATE"
       },
       {
         "type": "session",
-        "name": "S_GMS_ETL_DPA_TRUNCATE",
-        "mapping_name": "M_UTL_DPA_TRUNCATE"
+        "name": "S_GMS_ETL_PARAM_SETUP",
+        "mapping_name": "M_UTL_PARAM_SETUP"
       }
     ]
   },
@@ -67,11 +67,6 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_DDS_APL_FACT_GMS_DLY_DOG_RGSTR",
-            "mapping_name": "M_DDS_APL_FACT_GMS_DLY_DOG_RGSTR"
-          },
-          {
-            "type": "session",
             "name": "S_DDS_APL_FACT_GMS_DLY_MSD_INCDT",
             "mapping_name": "M_DDS_APL_FACT_GMS_DLY_MSD_INCDT"
           },
@@ -79,6 +74,11 @@ EXECUTION_PLAN = [
             "type": "session",
             "name": "S_DDS_APL_FACT_GMS_DLY_MSD_SMRY",
             "mapping_name": "M_DDS_APL_FACT_GMS_DLY_MSD_SMRY"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APL_FACT_GMS_DLY_DOG_RGSTR",
+            "mapping_name": "M_DDS_APL_FACT_GMS_DLY_DOG_RGSTR"
           }
         ]
       }

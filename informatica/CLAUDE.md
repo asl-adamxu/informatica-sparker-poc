@@ -22,7 +22,7 @@ This file captures conventions, patterns, and rules established during developme
 - Shared helpers also in runtime_lib: `discover_mappings()`, `send_email()`, `format_infa_template()`.
 
 ### DAG Execution Plan (new structure)
-- Execution plan uses a **nested DAG** structure with three step types:
+- Execution plan uses a **nested DAG** structure with four step types:
   - `session` — single mapping execution (has `name`, `mapping_name`)
   - `parallel_group` — concurrent execution (has `steps: [...]`)
   - `worklet` — nested sub-plan matching Informatica worklet topology (has `plan: [...]`)
@@ -67,10 +67,20 @@ This file captures conventions, patterns, and rules established during developme
 ### Debug/DETAIL Logging Isolation
 - Mapping step-level logs (`"Step: ..."`, `"... write completed"`, `"Loaded ... from job_params"`) use `logger.debug()` instead of `logger.info()`.
 - Mapping loggers set `propagate = False` so DETAIL messages only go to the mapping's own log file, not the workflow log.
-- Workflow-relevant messages (start/completed/error) are dual-logged: to the mapping logger AND the root logger via `_wf_logger`.
+- Workflow-level start/completed/error messages are logged by `run_sessions_sequential`/`run_sessions_parallel` in `runtime_lib.py`, using the module-level `logger` which propagates to root (workflow log).
+- Mapping `main()` function calls `lib._flush_pending_passwords()` after successful execution to persist passwords to CredentialProvider.
 
 ### Workflow Run Markers
 - Each `run_workflow()` call prints `===== ... START` / `===== ... END` separators so multiple runs are visually distinguishable in the log.
+
+### Task Command Handling
+- Command tasks (e.g. `T_RM_CMS_CACHE_FACT`) are extracted from XML `<VALUEPAIR>` elements and stored in `TASK_INFO` with `"type": "command"` and the command list.
+- `execute_plan_step` handles both the standalone `"task"` type step AND tasks embedded inside `parallel_group` steps.
+- Tasks now log `"Task X completed: SUCCESS"` and add to the workflow's `completed` set, so they appear in final workflow counts.
+
+### Mapping Logging from Workflow Runtime
+- `run_sessions_sequential` and `run_sessions_parallel` log `"Start to run mapping X"` and `"Mapping X completed: SUCCESS"` for every mapping execution.
+- In `run_sessions_parallel`, `future_map` stores `(session_name, mapping_name)` tuples so each completion correctly reports the right mapping name regardless of completion order.
 
 ## Code Generation Rules
 

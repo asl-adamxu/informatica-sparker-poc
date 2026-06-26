@@ -9,6 +9,9 @@
 
 import env.runtime_lib as lib
 from pyspark.sql import DataFrame
+# Save builtins before pyspark.sql.functions shadows max/min with column versions
+_builtin_max = max
+_builtin_min = min
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 
@@ -31,13 +34,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
     Returns:
         bool: True if successful
     """
-    import logging
     lib.init_logger()
     logger = lib.get_logger()
     logger.propagate = False  # mapping detail stays in mapping log only
-    _wf_logger = logging.getLogger()  # root logger — workflow-level messages go here
     logger.info("Start to run mapping {{ mapping_name }}")
-    _wf_logger.info("Start to run mapping {{ mapping_name }}")
 
     config = lib.load_config('env/config.yml')
     objects = config.get('objects', {})
@@ -70,7 +70,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         try:
             _param_obj = objects.get("UTL_JOB_PARAM", {})
             if isinstance(_param_obj, dict):
-                _param_path = _param_obj.get('path', '/tmp/UTL_JOB_PARAM')
+                _param_path = lib._resolve_path(_param_obj.get('path', '/tmp/UTL_JOB_PARAM'))
             with open(_param_path, "r") as _f:
                 for _line in _f:
                     _line = _line.strip()
@@ -142,6 +142,24 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             format=_file_format,
             options=_file_options
         )
+        {% if step.params.get('source_field_names') %}
+        {% set src_fields = step.params.get('source_field_names') %}
+        _csv_cols = {{ step.df_output }}.columns
+        if _csv_cols:
+            # Rename CSV columns by position to match Informatica source definition field names
+            _src_cols = [{% for f in src_fields %}"{{ f }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+            for _i in range(_builtin_min([len(_csv_cols), len(_src_cols)])):
+                if _csv_cols[_i].lower() != _src_cols[_i].lower():
+                    {{ step.df_output }} = {{ step.df_output }}.withColumnRenamed(_csv_cols[_i], _src_cols[_i])
+        else:
+            logger.warning("Source file '%s' is empty or has no columns", _file_path)
+            {{ step.df_output }} = spark.createDataFrame([], StructType([
+                {% for f in src_fields %}
+                StructField("{{ f }}", StringType(), True)
+                {% if not loop.last %}, {% endif %}
+                {% endfor %}
+            ]))
+        {% endif %}
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
         
         {% elif step.step_type == IRStepType.APPLY_SOURCE_QUALIFIER %}
@@ -274,19 +292,27 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Join condition: {% for jp in join_predicates %}{{ jp.source_col }}={{ jp.lookup_col }}{% if not loop.last %} AND {% endif %}{% endfor %}
         
         {{ step.df_output }} = {{ step.df_input }}.join(
-            {% if step.params.get('broadcast', True) %}broadcast({{ lookup_df_name }}){% else %}{{ lookup_df_name }}{% endif %},
-            {% for jp in join_predicates %}({{ step.df_input }}["{{ jp.source_col }}"] == {{ lookup_df_name }}["{{ jp.lookup_col }}"]){% if not loop.last %} & {% endif %}{% endfor %},
+            {% if step.params.get('broadcast', True) %}
+            broadcast({{ lookup_df_name }}){% else %}{{ lookup_df_name }}
+            {% endif %},
+            {% for jp in join_predicates %}
+            ({{ step.df_input }}["{{ jp.source_col }}"] == {{ lookup_df_name }}["{{ jp.lookup_col }}"]){% if not loop.last %} & {% endif %}
+            {% endfor %},
             "{{ step.params.get('lookup_type', 'left') }}"
         )
         {% elif join_expr %}
         {{ step.df_output }} = {{ step.df_input }}.join(
-            {% if step.params.get('broadcast', True) %}broadcast({{ lookup_df_name }}){% else %}{{ lookup_df_name }}{% endif %},
+            {% if step.params.get('broadcast', True) %}
+            broadcast({{ lookup_df_name }}){% else %}{{ lookup_df_name }}
+            {% endif %},
             expr("{{ join_expr }}"),
             "{{ step.params.get('lookup_type', 'left') }}"
         )
         {% else %}
         {{ step.df_output }} = {{ step.df_input }}.join(
-            {% if step.params.get('broadcast', True) %}broadcast({{ lookup_df_name }}){% else %}{{ lookup_df_name }}{% endif %},
+            {% if step.params.get('broadcast', True) %}
+            broadcast({{ lookup_df_name }}){% else %}{{ lookup_df_name }}
+            {% endif %},
             lit(True),
             "{{ step.params.get('lookup_type', 'left') }}"
         )
@@ -450,14 +476,16 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Write to Target: {{ step.step_name }}
         {% set sink_type = step.params.get('sink_type', 'delta') %}
         {% set table_name = step.params.get('table_name', '') %}
-        {% set path = step.params.get('path', '') %}
         {% set mode = step.params.get('mode', 'append') %}
-        {% set drop_columns = step.params.get('drop_columns', []) %}
         {% set target_columns = step.params.get('target_columns', []) %}
         {% set target_column_types = step.params.get('target_column_types', {}) %}
         {% set unmapped_columns = step.params.get('unmapped_columns', []) %}
         {% set is_delete = step.params.get('is_delete', False) %}
         {% set delete_keys = step.params.get('delete_keys', []) %}
+        {% if table_name.endswith('DEV_NULL') or '/dev/null' in table_name.lower() %}
+        # /dev/null — skip entire write component (no-op target in Informatica)
+        logger.info("Target {{ step.step_name }} is /dev/null, skipping write")
+        {% else %}
         df_write = {{ step.df_input }}
         {% if is_delete and delete_keys %}
         # DD_DELETE: Delete matching rows from target table by key field(s)
@@ -533,10 +561,15 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         if _write_obj and isinstance(_write_obj, dict):
             _write_path = _write_obj.get('path', '/tmp/{{ table_name }}')
             _write_fmt = _write_obj.get('format', '{{ sink_type }}')
-        lib.write_file(df_write, _write_path, format=_write_fmt, mode="overwrite")
+        # Runtime fallback: skip write if path resolves to /dev/null
+        if _write_path and _write_path.strip() in ("/dev/null", "NUL"):
+            logger.info("Target %s resolved to /dev/null, skipping write", "{{ step.step_name }}")
+        else:
+            lib.write_file(df_write, _write_path, format=_write_fmt, mode="overwrite")
         {% else %}
         # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
         lib.write_table(df_write, conn_target, "{{ table_name }}", mode="{{ mode }}")
+        {% endif %}
         {% endif %}
         {% endif %}
 
@@ -555,13 +588,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         
         metrics.complete()
         logger.info("Mapping {{ mapping_name }} completed: SUCCESS")
-        _wf_logger.info("Mapping {{ mapping_name }} completed: SUCCESS")
         return True
         
     except Exception as e:
         metrics.fail(e)
         logger.error(f"Mapping {{ mapping_name }} FAILED: {e}", exc_info=True)
-        _wf_logger.error(f"Mapping {{ mapping_name }} FAILED: {e}")
         return False
 
 
@@ -576,6 +607,8 @@ def main():
     
     try:
         success = run_mapping(ctx, metrics)
+        if success:
+            lib._flush_pending_passwords()
         return 0 if success else 1
     finally:
         spark.stop()

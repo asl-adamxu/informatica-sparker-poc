@@ -458,9 +458,16 @@ class InfaXMLParser:
                     "description": task_elem.get("DESCRIPTION", ""),
                     "pyspark_equivalent": self._get_task_pyspark_equivalent(task_elem.get("TYPE", "")),
                     "attributes": {},
+                    "commands": [],
                 }
                 for attr in task_elem.findall("ATTRIBUTE"):
                     task["attributes"][attr.get("NAME", "")] = attr.get("VALUE", "")
+                for vp in task_elem.findall("VALUEPAIR"):
+                    task["commands"].append({
+                        "name": vp.get("NAME", ""),
+                        "value": vp.get("VALUE", ""),
+                        "exec_order": vp.get("EXECORDER", "1"),
+                    })
                 workflow_analysis["tasks"].append(task)
 
             for link_elem in wf_elem.findall("WORKFLOWLINK"):
@@ -522,6 +529,36 @@ class InfaXMLParser:
                     "pipeline": trans_inst.get("PIPELINE", "")
                 })
 
+            # Collect file source info from SESSIONEXTENSION File Reader/Writer elements
+            file_sources = {}
+            for ext in session_elem.findall("SESSIONEXTENSION"):
+                _subtype = ext.get("SUBTYPE", "")
+                _type = ext.get("TYPE", "")
+                source_inst = ext.get("SINSTANCENAME", "")
+                if not source_inst:
+                    continue
+                # File Reader (flat file source)
+                if _subtype == "File Reader" and _type == "READER":
+                    src_info = {}
+                    for attr in ext.findall("ATTRIBUTE"):
+                        _an = attr.get("NAME", "")
+                        _av = attr.get("VALUE", "")
+                        if _an in ("Source filename", "Source file directory",
+                                   "Input Type", "Source filetype", "Command Type"):
+                            src_info[_an] = _av
+                    if src_info:
+                        file_sources[source_inst] = src_info
+                # File Writer (flat file target)
+                elif _subtype == "File Writer" and _type == "WRITER":
+                    src_info = {}
+                    for attr in ext.findall("ATTRIBUTE"):
+                        _an = attr.get("NAME", "")
+                        _av = attr.get("VALUE", "")
+                        if _an in ("Output filename", "Output file directory"):
+                            src_info[_an] = _av
+                    if src_info:
+                        file_sources[source_inst] = src_info
+
             session = {
                 "name": session_elem.get("NAME", ""),
                 "mapping_name": session_elem.get("MAPPINGNAME", ""),
@@ -533,6 +570,7 @@ class InfaXMLParser:
                 "post_success_components": post_success,
                 "post_failure_components": post_failure,
                 "transformation_count": len(transformations),
+                "file_sources": file_sources,
                 "pyspark_equivalent": "PySpark Script/Notebook task"
             }
             workflow_analysis["sessions"].append(session)

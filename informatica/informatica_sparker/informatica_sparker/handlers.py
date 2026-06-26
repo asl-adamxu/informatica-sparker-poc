@@ -389,7 +389,9 @@ class TransformHandlers:
                     "header": str(source_config.header).lower(),
                     "quote": source_config.quote_char
                 }
-            return ReadFileStep(
+            # Collect source field names for flat files (used to rename CSV columns by position)
+            _src_field_names = [f.name for f in source.fields] if source.fields else []
+            _rf_step = ReadFileStep(
                 step_name=f"read_{instance.name}",
                 df_output=df_name,
                 file_format=file_format,
@@ -397,6 +399,9 @@ class TransformHandlers:
                 options=options,
                 table_name=source.name
             )
+            if _src_field_names:
+                _rf_step.params["source_field_names"] = _src_field_names
+            return _rf_step
 
     def _handle_source_qualifier(self, instance: Instance, plan: IRPlan) -> Optional[IRStep]:
         input_df = self._get_input_df(instance.name)
@@ -635,7 +640,8 @@ class TransformHandlers:
                         break
                 if not schema_source_found:
                     # Schema prefix seen in SQL but no source definition matched it.
-                    # Still record it so the template parameterizes the query.
+                    # Still record it so the template parameterizes the query with the
+                    # connection's configured schema (or falls back to the original).
                     lookup_schema = _sql_schema
 
             # If we found a source with matching owner_name, use its db_name
@@ -1293,9 +1299,19 @@ class TransformHandlers:
             if connector.to_instance == instance_name:
                 upstream_instances.append(connector.from_instance)
 
+        _matched_df = None
+        _matched_values = []
         for from_inst in upstream_instances:
             if from_inst in self.current_df_map:
-                return self.current_df_map[from_inst]
+                _v = self.current_df_map[from_inst]
+                _matched_values.append(_v)
+                _matched_df = _v
+        if _matched_df:
+            if len(_matched_values) > 1:
+                for _v in _matched_values:
+                    if _v.startswith('df_lkp_result') or _v.startswith('df_jnr_result'):
+                        return _v
+            return _matched_df
 
         for from_inst in upstream_instances:
             upstream_instance = self.instance_map.get(from_inst)
@@ -1308,20 +1324,19 @@ class TransformHandlers:
                         return self.current_df_map[key]
 
         for from_inst in upstream_instances:
-            for sep in ['.', '_', ':', '']:
+            for sep in [".", "_", ":", ""]:
                 for key in self.current_df_map:
-                    if key.startswith(from_inst.split('.')[0].split('_')[0].split(':')[0]):
-                        if from_inst.replace('.', sep).replace('_', sep).replace(':', sep) in key.replace('.', sep).replace('_', sep).replace(':', sep):
+                    if key.startswith(from_inst.split(".")[0].split("_")[0].split(":")[0]):
+                        if from_inst.replace(".", sep).replace("_", sep).replace(":", sep) in key.replace(".", sep).replace("_", sep).replace(":", sep):
                             return self.current_df_map[key]
 
             for key in self.current_df_map:
-                from_norm = from_inst.lower().replace('.', '_').replace(':', '_')
-                key_norm = key.lower().replace('.', '_').replace(':', '_')
+                from_norm = from_inst.lower().replace(".", "_").replace(":", "_")
+                key_norm = key.lower().replace(".", "_").replace(":", "_")
                 if from_norm == key_norm:
                     return self.current_df_map[key]
 
         return None
-
     def _get_all_input_dfs(self, instance_name: str) -> List[str]:
         inputs = []
         for connector in self.mapping.connectors:

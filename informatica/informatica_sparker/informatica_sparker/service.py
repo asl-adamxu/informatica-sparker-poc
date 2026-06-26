@@ -109,8 +109,15 @@ class ConversionService:
         if workflow_files:
             all_files.extend(workflow_files)
 
+        # Collect file source info from session configurations (overrides default paths)
+        session_file_sources = {}
+        for sess in workflow_analysis.get("sessions", []):
+            for src_inst, src_info in sess.get("file_sources", {}).items():
+                session_file_sources[src_inst] = src_info
+
         config_file = self._generate_config_file(
-            mapping_names, mappings, all_source_detections, parser.folder_name
+            mapping_names, mappings, all_source_detections, parser.folder_name,
+            session_file_sources=session_file_sources,
         )
         if config_file:
             all_files.append(config_file)
@@ -573,7 +580,6 @@ class ConversionService:
             if ttype == "Email" or "EMAIL" in ttype.upper():
                 _subject = attrs.get("Email Subject", "")
                 _text = attrs.get("Email Text", "")
-                # Replace literal placeholder with actual workflow name at codegen time
                 _subject = _subject.replace("[Workflow Name]", workflow_name)
                 _text = _text.replace("[Workflow Name]", workflow_name)
                 task_info[tname] = {
@@ -581,6 +587,11 @@ class ConversionService:
                     "subject": _subject,
                     "text": _text,
                     "user": attrs.get("Email User Name", ""),
+                }
+            elif "COMMAND" in ttype.upper():
+                task_info[tname] = {
+                    "type": "command",
+                    "commands": t.get("commands", []),
                 }
 
         try:
@@ -800,7 +811,8 @@ class ConversionService:
 
     def _generate_config_file(self, mapping_names: List[str],
                                mappings, source_detections: List[SourceDetectionResult],
-                               folder_name: str) -> Optional[GeneratedFile]:
+                               folder_name: str,
+                               session_file_sources: dict = None) -> Optional[GeneratedFile]:
         try:
             # Collect database connections from source definitions
             db_connections = {}
@@ -810,6 +822,7 @@ class ConversionService:
             paths = {
                 "input_base": "${INPUT_PATH:/tmp}",
                 "output_base": "${OUTPUT_PATH:/tmp}",
+                "source_file_dir": "${PMSOURCE_FILE_DIR:/tmp}",
             }
 
             for mapping in mappings:
@@ -831,13 +844,25 @@ class ConversionService:
                         }
                     
                     is_flat = db_name.lower() in ('utl', 'flatfile')
+                    # Use session file source info to override default path for flat files
+                    _file_path = f"/tmp/{src.name}.csv"
+                    if is_flat and session_file_sources:
+                        _fs_info = session_file_sources.get(src.name)
+                        if _fs_info:
+                            _fname = _fs_info.get("Source filename", "")
+                            _fdir = _fs_info.get("Source file directory", "")
+                            if _fname:
+                                # Map Informatica $PMSourceFileDir to config.yml's paths.source_file_dir
+                                # Use __SOURCE_FILE_DIR__ marker — config.yml.j2 replaces it at render time
+                                _fdir_resolved = _fdir.replace("$PMSourceFileDir", "__SOURCE_FILE_DIR__").replace("\\", "/").strip("/")
+                                _file_path = f"{_fdir_resolved}/{_fname}" if _fdir_resolved else f"__SOURCE_FILE_DIR__/{_fname}"
                     tables[src.name] = {
                         "connection": db_name,
                         "database": db_name,
                         "schema": src.owner_name or "dbo",
                         "type": "source",
                         "format": src.file_format.value if src.file_format else "csv",
-                        "path": f"/tmp/{src.name}.csv",
+                        "path": _file_path,
                     }
 
                 # Collect target tables
@@ -845,12 +870,25 @@ class ConversionService:
                     if tgt.name not in tables:
                         from .models import normalize_db_type
                         is_flat = tgt.database_type and "flat" in tgt.database_type.lower()
+                        _tgt_path = None
+                        if is_flat and session_file_sources:
+                            _fs_info = session_file_sources.get(tgt.name)
+                            if _fs_info:
+                                _fname = _fs_info.get("Output filename", "")
+                                _fdir = _fs_info.get("Output file directory", "")
+                                if _fname and _fname != "/dev/null":
+                                    _fdir_clean = _fdir.replace("$PMSourceFileDir", "__SOURCE_FILE_DIR__").replace("\\", "/").strip("/")
+                                    _tgt_path = f"{_fdir_clean}/{_fname}" if _fdir_clean else f"__SOURCE_FILE_DIR__/{_fname}"
+                                else:
+                                    _tgt_path = _fname  # "/dev/null" or empty
                         tables[tgt.name] = {
                             "connection": "target" if not is_flat else db_name,
                             "database": "",
                             "schema": "dbo",
                             "type": "target",
                             "is_flat_file": is_flat,
+                            "format": "csv" if is_flat else None,
+                            "path": _tgt_path,
                         }
 
                 # Collect mapping variables

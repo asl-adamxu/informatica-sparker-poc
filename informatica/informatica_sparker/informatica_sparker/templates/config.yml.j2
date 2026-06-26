@@ -104,6 +104,7 @@ paths:
   output_base: "${OUTPUT_PATH:/tmp}"
   staging: "${STAGING_PATH:/tmp}"
   archive: "${ARCHIVE_PATH:/tmp}"
+  source_file_dir: "${PMSOURCE_FILE_DIR:/tmp}"  # Maps to Informatica $PMSourceFileDir
 
 # =============================================================================
 # FILE OBJECTS (Only file-type objects; database tables use connections directly)
@@ -115,7 +116,7 @@ objects:
   
   {{ table_name }}:
     format: "csv"
-    path: "{{ table_info.get('path', '/tmp/' + table_name) }}"
+    path: "{{ table_info.get('path', '/tmp/' + table_name) | replace('__SOURCE_FILE_DIR__', paths.source_file_dir) }}"
     delimiter: "{{ table_info.get('delimiter', ',') }}"
     header: "{{ table_info.get('header', 'true') }}"
   {%- endif %}

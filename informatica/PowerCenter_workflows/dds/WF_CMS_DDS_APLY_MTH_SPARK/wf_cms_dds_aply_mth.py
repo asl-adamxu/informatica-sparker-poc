@@ -21,8 +21,9 @@ EXECUTION_PLAN = [
     "type": "parallel_group",
     "steps": [
       {
-        "type": "task",
-        "name": "T_RM_CMS_CACHE_FACT"
+        "type": "session",
+        "name": "S_CMS_ETL_FACT_TRUNCATE",
+        "mapping_name": "M_UTL_DPA_TRUNCATE"
       },
       {
         "type": "session",
@@ -30,78 +31,77 @@ EXECUTION_PLAN = [
         "mapping_name": "M_UTL_PARAM_SETUP"
       },
       {
-        "type": "session",
-        "name": "S_CMS_ETL_FACT_TRUNCATE",
-        "mapping_name": "M_UTL_DPA_TRUNCATE"
+        "type": "task",
+        "name": "T_RM_CMS_CACHE_FACT"
       }
     ]
   },
-  {
-    "type": "worklet",
-    "name": "WL_CMS_DPA_FACT_MTH_SUMMARIZE",
-    "plan": [
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_DPA_SUMMARIZE_FACT_CMS_CASE_SMRY",
-            "mapping_name": "M_DPA_SUMMARIZE_FACT_CMS_CASE_SMRY"
-          },
-          {
-            "type": "session",
-            "name": "S_DPA_SUMMARIZE_FACT_CMS_CASE_PRNT_SMRY",
-            "mapping_name": "M_DPA_SUMMARIZE_FACT_CMS_CASE_PRNT_SMRY"
-          }
-        ]
-      },
-      {
-        "type": "session",
-        "name": "S_DPA_SUMMARIZE_FACT_CMS_CASE_OSTD_SMRY",
-        "mapping_name": "M_DPA_SUMMARIZE_FACT_CMS_CASE_OSTD_SMRY"
-      },
-      {
-        "type": "session",
-        "name": "S_DPA_SUMMARIZE_FACT_CMS_ORD_SMRY",
-        "mapping_name": "M_DPA_SUMMARIZE_FACT_CMS_ORD_SMRY"
-      }
-    ]
-  },
-  {
-    "type": "worklet",
-    "name": "WL_CMS_DDS_FACT_MTH_APLY",
-    "plan": [
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_FACT_CMS_CASE_SMRY",
-            "mapping_name": "M_DDS_APLY_FACT_CMS_CASE_SMRY"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_FACT_CMS_CASE_PRNT_SMRY",
-            "mapping_name": "M_DDS_APLY_FACT_CMS_CASE_PRNT_SMRY"
-          }
-        ]
-      },
-      {
-        "type": "session",
-        "name": "S_DDS_APLY_FACT_CMS_CASE_OSTD_SMRY",
-        "mapping_name": "M_DPA_APLY_FACT_CMS_CASE_OSTD_SMRY"
-      },
-      {
-        "type": "session",
-        "name": "S_DDS_APLY_FACT_CMS_ORD_SMRY",
-        "mapping_name": "M_DDS_APLY_FACT_CMS_ORD_SMRY"
-      }
-    ]
-  },
-  {
-    "type": "task",
-    "name": "T_MAIL_SUCCESS"
-  }
+#   {
+#     "type": "worklet",
+#     "name": "WL_CMS_DPA_FACT_MTH_SUMMARIZE",
+#     "plan": [
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_DPA_SUMMARIZE_FACT_CMS_CASE_PRNT_SMRY",
+#             "mapping_name": "M_DPA_SUMMARIZE_FACT_CMS_CASE_PRNT_SMRY"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_DPA_SUMMARIZE_FACT_CMS_CASE_SMRY",
+#             "mapping_name": "M_DPA_SUMMARIZE_FACT_CMS_CASE_SMRY"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_DPA_SUMMARIZE_FACT_CMS_CASE_OSTD_SMRY",
+#         "mapping_name": "M_DPA_SUMMARIZE_FACT_CMS_CASE_OSTD_SMRY"
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_DPA_SUMMARIZE_FACT_CMS_ORD_SMRY",
+#         "mapping_name": "M_DPA_SUMMARIZE_FACT_CMS_ORD_SMRY"
+#       }
+#     ]
+#   },
+#   {
+#     "type": "worklet",
+#     "name": "WL_CMS_DDS_FACT_MTH_APLY",
+#     "plan": [
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_DDS_APLY_FACT_CMS_CASE_SMRY",
+#             "mapping_name": "M_DDS_APLY_FACT_CMS_CASE_SMRY"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_DDS_APLY_FACT_CMS_CASE_PRNT_SMRY",
+#             "mapping_name": "M_DDS_APLY_FACT_CMS_CASE_PRNT_SMRY"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_DDS_APLY_FACT_CMS_CASE_OSTD_SMRY",
+#         "mapping_name": "M_DPA_APLY_FACT_CMS_CASE_OSTD_SMRY"
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_DDS_APLY_FACT_CMS_ORD_SMRY",
+#         "mapping_name": "M_DDS_APLY_FACT_CMS_ORD_SMRY"
+#       }
+#     ]
+#   },
+#   {
+#     "type": "task",
+#     "name": "T_MAIL_SUCCESS"
+#   }
 ]
 
 TASK_INFO = {
@@ -116,6 +116,16 @@ TASK_INFO = {
     "subject": "CIS - Workflow Success: WF_CMS_DDS_APLY_MTH",
     "text": "The captioned workflow completed sucessfully.",
     "user": "xxx@test.aaa"
+  },
+  "T_RM_CMS_CACHE_FACT": {
+    "type": "command",
+    "commands": [
+      {
+        "name": "Command1",
+        "value": "rm -rf /p01/etl/informatica/Cache/PCIS01/CACHE_LKP_DDS_CMS_*.*",
+        "exec_order": "1"
+      }
+    ]
   }
 }
 

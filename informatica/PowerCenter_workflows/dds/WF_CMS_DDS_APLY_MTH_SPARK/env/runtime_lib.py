@@ -18,6 +18,10 @@ _builtin_min = min
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
+import re as _re
+
+# Pre-compiled regex for ${VAR:default} resolution in _resolve_path
+_RESOLVE_PATH_DEFAULT_RE = _re.compile(r'\$\{(\w+):([^}]*)\}')
 
 
 def load_config(config_path: str = "env/config.yml") -> Dict[str, Any]:
@@ -116,9 +120,15 @@ def get_logger(name: str = None) -> logging.Logger:
 
 
 def _resolve_path(value: str) -> str:
-    """Resolve shell variables ($VAR, ${VAR}) and $(pwd) in config values."""
+    """Resolve shell variables ($VAR, ${VAR}, ${VAR:default}) and $(pwd) in config values."""
     if not isinstance(value, str):
         return value
+    # Handle ${VAR:default} syntax (os.path.expandvars doesn't support defaults)
+    def _replace_default(_m):
+        _var = _m.group(1)
+        _default = _m.group(2)
+        return os.environ.get(_var, _default)
+    value = _RESOLVE_PATH_DEFAULT_RE.sub(_replace_default, value)
     value = os.path.expandvars(value)
     if "$(pwd)" in value:
         value = value.replace("$(pwd)", os.getcwd())
@@ -294,7 +304,9 @@ def read_file(spark: SparkSession, path: str, format: str = "csv", options: Dict
 
     The path is passed through as-is so Spark resolves it via its configured
     default filesystem (e.g. HDFS if fs.defaultFS=hdfs://..., local otherwise).
+    Shell variables ($VAR, ${VAR}) are resolved via _resolve_path.
     """
+    path = _resolve_path(path)
     opts = options or {}
     fmt = (format or "csv").lower()
     if fmt == "csv":
@@ -333,7 +345,9 @@ def write_file(df: DataFrame, path: str, format: str = "csv",
     For CSV format the output is coalesced to a single partition and the
     single part file is renamed to the target path (so the result is a
     single file rather than a Spark-partitioned directory).
+    Shell variables ($VAR, ${VAR}) are resolved via _resolve_path.
     """
+    path = _resolve_path(path)
     opts = options or {}
     fmt = (format or "csv").lower()
     df_out = df.coalesce(1)
@@ -814,9 +828,11 @@ def run_sessions_sequential(sessions_list, mapping_functions, ctx, metrics_cls,
         metrics = metrics_cls(mapping_name) if metrics_cls else NullMetrics()
         try:
             fn = mapping_functions[mapping_name.lower()]
+            logger.info("Start to run mapping %s", mapping_name)
             _ok = fn(ctx, metrics, job_params)
             if not _ok:
                 raise RuntimeError("Mapping returned failure status")
+            logger.info("Mapping %s completed: SUCCESS", mapping_name)
             completed.add(session_name)
             results[session_name] = {"status": "SUCCESS"}
         except Exception as e:
@@ -847,13 +863,14 @@ def run_sessions_parallel(sessions_list, mapping_functions, ctx, metrics_cls,
             mapping_name = session_info.get("mapping_name", session_name)
             metrics = metrics_cls(mapping_name) if metrics_cls else NullMetrics()
             fn = mapping_functions[mapping_name.lower()]
-            future_map[executor.submit(fn, ctx, metrics, job_params)] = session_name
+            logger.info("Start to run mapping %s", mapping_name)
+            future_map[executor.submit(fn, ctx, metrics, job_params)] = (session_name, mapping_name)
 
         for future in as_completed(future_map):
             if should_cancel:
                 future.cancel()
                 continue
-            session_name = future_map[future]
+            session_name, mapping_name = future_map[future]
             try:
                 _ok = future.result()
                 if not _ok:
@@ -861,6 +878,7 @@ def run_sessions_parallel(sessions_list, mapping_functions, ctx, metrics_cls,
                 with lock:
                     completed.add(session_name)
                     results[session_name] = {"status": "SUCCESS"}
+                logger.info("Mapping %s completed: SUCCESS", mapping_name)
             except Exception as e:
                 logger.error("Session '%s' failed: %s", session_name, e)
                 with lock:
@@ -868,10 +886,10 @@ def run_sessions_parallel(sessions_list, mapping_functions, ctx, metrics_cls,
                     results[session_name] = {"status": "FAILED", "error": str(e)}
                 if fail_fast:
                     should_cancel = True
-                    for f, name in future_map.items():
+                    for f, (sname, _) in future_map.items():
                         if f != future and not f.done():
                             f.cancel()
-                            logger.warning("Cancelled session '%s' due to fail_fast", name)
+                            logger.warning("Cancelled session '%s' due to fail_fast", sname)
 
     return completed, failed, results
 
@@ -918,18 +936,25 @@ def execute_plan_step(step, mapping_functions, ctx, metrics_cls,
                 task_name = s.get("name", "")
                 logger.info("Processing task: %s", task_name)
                 try:
-                    if task_info and send_email_fn:
-                        tcfg = task_info.get(task_name, {})
-                        if tcfg.get("type") == "email":
-                            ctx_data = {
-                                "session_name": task_name,
-                                "folder_name": workflow_name,
-                            }
-                            send_email_fn(
-                                subject=format_infa_fn(tcfg.get("subject", ""), ctx_data) if format_infa_fn else tcfg.get("subject", ""),
-                                body=format_infa_fn(tcfg.get("text", ""), ctx_data) if format_infa_fn else tcfg.get("text", ""),
-                                to_address=tcfg.get("user"),
-                            )
+                    tcfg = task_info.get(task_name, {}) if task_info else {}
+                    if tcfg.get("type") == "email" and send_email_fn:
+                        ctx_data = {
+                            "session_name": task_name,
+                            "folder_name": workflow_name,
+                        }
+                        send_email_fn(
+                            subject=format_infa_fn(tcfg.get("subject", ""), ctx_data) if format_infa_fn else tcfg.get("subject", ""),
+                            body=format_infa_fn(tcfg.get("text", ""), ctx_data) if format_infa_fn else tcfg.get("text", ""),
+                            to_address=tcfg.get("user"),
+                        )
+                    elif tcfg.get("type") == "command":
+                        _cmds = tcfg.get("commands", [])
+                        if _cmds:
+                            logger.info("Task '%s' commands: %s", task_name, "; ".join([_c.get("value", "") for _c in _cmds]))
+                        else:
+                            logger.info("Task '%s' has no commands defined", task_name)
+                    logger.info("Task '%s' completed: SUCCESS", task_name)
+                    completed.add(task_name)
                     results[task_name] = {"status": "SUCCESS"}
                 except Exception as e:
                     logger.error("Task '%s' failed: %s", task_name, e)
@@ -974,18 +999,25 @@ def execute_plan_step(step, mapping_functions, ctx, metrics_cls,
         task_name = step.get("name", "")
         logger.info("Processing task: %s", task_name)
         try:
-            if task_info and send_email_fn:
-                tcfg = task_info.get(task_name, {})
-                if tcfg.get("type") == "email":
-                    ctx_data = {
-                        "session_name": task_name,
-                        "folder_name": workflow_name,
-                    }
-                    send_email_fn(
-                        subject=format_infa_fn(tcfg.get("subject", ""), ctx_data) if format_infa_fn else tcfg.get("subject", ""),
-                        body=format_infa_fn(tcfg.get("text", ""), ctx_data) if format_infa_fn else tcfg.get("text", ""),
-                        to_address=tcfg.get("user"),
-                    )
+            tcfg = task_info.get(task_name, {}) if task_info else {}
+            if tcfg.get("type") == "email" and send_email_fn:
+                ctx_data = {
+                    "session_name": task_name,
+                    "folder_name": workflow_name,
+                }
+                send_email_fn(
+                    subject=format_infa_fn(tcfg.get("subject", ""), ctx_data) if format_infa_fn else tcfg.get("subject", ""),
+                    body=format_infa_fn(tcfg.get("text", ""), ctx_data) if format_infa_fn else tcfg.get("text", ""),
+                    to_address=tcfg.get("user"),
+                )
+            elif tcfg.get("type") == "command":
+                _cmds = tcfg.get("commands", [])
+                if _cmds:
+                    logger.info("Task '%s' commands: %s", task_name, "; ".join([_c.get("value", "") for _c in _cmds]))
+                else:
+                    logger.info("Task '%s' has no commands defined (type=%s)", task_name, tcfg.get("type"))
+            logger.info("Task '%s' completed: SUCCESS", task_name)
+            completed.add(task_name)
             results[task_name] = {"status": "SUCCESS"}
         except Exception as e:
             logger.error("Task '%s' failed: %s", task_name, e)
@@ -1048,7 +1080,7 @@ def run_workflow(execution_plan, mapping_functions, workflow_name,
                 _tcfg["user"] = mail_to
 
     job_params = {}
-    param_file = config.get("objects", {}).get("UTL_JOB_PARAM", {}).get("path", "/tmp/UTL_JOB_PARAM")
+    param_file = _resolve_path(config.get("objects", {}).get("UTL_JOB_PARAM", {}).get("path", "/tmp/UTL_JOB_PARAM"))
     if os.path.exists(param_file):
         with open(param_file, "r") as f:
             for line in f:

@@ -1,6 +1,6 @@
 # informatica-sparker
 
-**Version 2.0.0** — A Python framework that converts Informatica PowerCenter workflow/mapping XML exports into PySpark code deployable to Databricks or YARN Spark clusters. **Tested against Informatica output — data results match.**
+**Version 2026.06.26** — A Python framework that converts Informatica PowerCenter workflow/mapping XML exports into PySpark code deployable to Databricks or YARN Spark clusters. **Tested against Informatica output — data results match.**
 
 Conversion pipeline: **XML → Models → IR Plan → Jinja2 Templates → Generated Python Files**
 
@@ -43,6 +43,13 @@ Conversion pipeline: **XML → Models → IR Plan → Jinja2 Templates → Gener
 - **Schema Parameterization**: Hardcoded schema prefixes in SQL queries (e.g. `PSOR.`) are replaced with `{_schema}` resolved from the connection's `schema` field in config.yml at runtime
 - **Dynamic Connection Resolution**: READ_SQL and lookup steps dynamically resolve connections by alias (`lib.get_db_config(config, "SOR")`) instead of hardcoding `conn_source`/`conn_target`
 - **Lookup Connection Inference**: Lookup schema prefix is matched to a source definition's `owner_name` to determine the correct database connection for `$Source` lookups in flat-file mappings
+- **Flat File Column Mapping**: CSV columns renamed by position to match Informatica source definition field names
+- **Empty File Handling**: Empty source files produce a warning instead of crashing; empty DataFrame created with expected schema
+- **Command Task Support**: Workflow Command tasks (shell commands) extracted from XML and logged during execution
+- **Task Completion Tracking**: Tasks counted in workflow completion stats with start/completed logging
+- **Password Credential Deferred Save**: Passwords only persisted to CredentialProvider after successful connection validation
+- **Workflow Run Markers**: START/END separators in logs for multi-run visibility
+- **Logging Isolation**: Mapping DEBUG logs stay in mapping log; workflow log only shows INFO start/completed/error
 - **Type Casting**: Automatic column type casting to match target schema (Decimal→String with scientific notation prevention)
 - **Spark Connection Profiles**: Supports `spark_local`, `spark3_client` (YARN client), and `spark3_on_yarn` (YARN cluster) modes
 - **Python 3.10+ Compatible**
