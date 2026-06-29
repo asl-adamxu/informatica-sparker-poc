@@ -26,6 +26,7 @@ class TransformHandlers:
         self.logger = logger or ConversionLogger()
         self.logger.set_current_mapping(mapping.name)
         self.expr_translator = ExpressionTranslator(mapping_name=mapping.name, logger=self.logger)
+        self._plan = None  # built in build_ir_plan
         self.transform_map: Dict[str, Transformation] = {}
         self.instance_map: Dict[str, Instance] = {}
         self.source_map: Dict[str, SourceDefinition] = {}
@@ -201,6 +202,10 @@ class TransformHandlers:
             mapping_name=self.mapping.name,
             mapping_variables=mvars
         )
+        # Feed mapping variables to the expression translator so $$ placeholders
+        # are resolved in aggregation and other non-template expression contexts.
+        self.expr_translator.pm_variables = mvars
+        self._plan = plan
 
         self.logger.log(LogStage.GRAPH, "Mapping", self.mapping.name, "Building transformation graph", LogLevel.INFO)
 
@@ -241,9 +246,14 @@ class TransformHandlers:
 
             elif inst_type == "Expression":
                 self.logger.log_transformation(inst_name, "Expression", "Processing expression transformation", LogLevel.INFO)
-                step = self._handle_expression(instance, plan)
-                if step:
-                    plan.add_step(step)
+                result = self._handle_expression(instance, plan)
+                if isinstance(result, list):
+                    for s in result:
+                        if s:
+                            plan.add_step(s)
+                elif result:
+                    plan.add_step(result)
+                if result:
                     self.logger.log_transformation(inst_name, "Expression", "Expression converted", LogLevel.SUCCESS)
 
             elif inst_type == "Lookup Procedure":
@@ -550,10 +560,19 @@ class TransformHandlers:
         )
 
     def _handle_expression(self, instance: Instance, plan: IRPlan) -> Optional[IRStep]:
+        import re as _re
+
         input_df = self._get_input_df(instance.name)
         if not input_df:
             plan.add_warning(f"No input DataFrame found for {instance.name}")
             input_df = "df_input"
+
+        # When an expression has multiple upstream DataFrames (e.g. EXPTRANS1
+        # receives columns from 10+ mapplets), return a list with join pre-steps
+        # so the template joins them all before processing expressions.
+        all_inputs = self._get_all_input_dfs(instance.name)
+        extra_inputs = [df for df in all_inputs if df != input_df]
+        _multistep = bool(extra_inputs and input_df != "df_input")
 
         df_output = self._get_df_name("df_exp")
         self._register_df(instance, df_output)
@@ -562,12 +581,127 @@ class TransformHandlers:
         computed_columns = []
         output_columns = []
 
+        # --- Build field remap from main mapping connectors -----------------
+        # When the expression's INPUT ports differ from upstream column names
+        # (e.g. IN_HSHLD_SIZE ← HSHLD_SIZE), remap them in expressions.
+        _expr_field_remap: Dict[str, str] = {}
+        for conn in self.mapping.connectors:
+            if conn.to_instance == instance.name and conn.from_field != conn.to_field:
+                _expr_field_remap[conn.to_field] = conn.from_field
+
+        # --- Pre-process: resolve inline lookup calls (:LKP.xxx()) ---
+        # Scan all fields for :LKP.lkp_name(args) patterns, look up each
+        # referenced lookup transformation, extract its INPUT/LOOKUP/RETURN
+        # ports and condition, then build join predicates so the template
+        # can join the lookup DataFrame into the expression upstream.
+        inline_lkp_info = {}  # lkp_name -> {lookup_name, lookup_df, return_port, join_predicates}
+        _lkp_pattern = _re.compile(r':LKP\.(\w+)\s*\(([^)]+)\)', _re.IGNORECASE)
+
         if transform:
             for field in transform.fields:
+                if not field.expression or ':LKP.' not in field.expression:
+                    continue
+                for match in _lkp_pattern.finditer(field.expression):
+                    lkp_name = match.group(1)
+                    if lkp_name in inline_lkp_info:
+                        continue  # already resolved
+
+                    lkp_args = [a.strip() for a in match.group(2).split(',')]
+                    lkp_transform = self.transform_map.get(lkp_name)
+                    if not lkp_transform:
+                        plan.add_warning(f"Inline lookup '{lkp_name}' not found in transform_map for {instance.name}")
+                        continue
+
+                    # Extract INPUT, LOOKUP, RETURN ports from lookup definition
+                    input_ports = []
+                    return_port = None
+                    for _f in lkp_transform.fields:
+                        pt = _f.port_type.upper()
+                        if pt == 'INPUT':
+                            input_ports.append(_f.name)
+                        elif 'RETURN' in pt:
+                            return_port = _f.name
+
+                    if not return_port:
+                        plan.add_warning(f"Inline lookup '{lkp_name}' has no RETURN port")
+                        continue
+                    if not input_ports:
+                        plan.add_warning(f"Inline lookup '{lkp_name}' has no INPUT ports")
+                        continue
+
+                    # Parse lookup condition to map INPUT ports → LOOKUP columns
+                    condition = lkp_transform.table_attributes.get("Lookup condition", "")
+                    join_predicates = []
+                    for part in _re.split(r'\s+AND\s+', condition, flags=_re.IGNORECASE):
+                        part_match = _re.match(r'(\w+(?:\.\w+)?)\s*=\s*(\w+(?:\.\w+)?)', part.strip())
+                        if part_match:
+                            lookup_col = part_match.group(1)
+                            input_port = part_match.group(2)
+                            # Strip any table prefix (e.g. "T1.COL" → "COL")
+                            input_simple = input_port.rsplit('.', 1)[-1] if '.' in input_port else input_port
+                            lookup_simple = lookup_col.rsplit('.', 1)[-1] if '.' in lookup_col else lookup_col
+                            try:
+                                input_idx = input_ports.index(input_simple)
+                                source_col = lkp_args[input_idx]
+                                join_predicates.append({
+                                    "source_col": source_col,
+                                    "lookup_col": lookup_simple,
+                                })
+                            except (ValueError, IndexError):
+                                pass
+
+                    if not join_predicates:
+                        plan.add_warning(f"Inline lookup '{lkp_name}' condition could not be parsed")
+                        continue
+
+                    # Get lookup DataFrame name (populated by _handle_lookup)
+                    lookup_df = plan.lookup_dfs.get(lkp_name)
+                    if not lookup_df:
+                        plan.add_warning(f"Inline lookup '{lkp_name}' DF not found in plan.lookup_dfs")
+                        continue
+
+                    inline_lkp_info[lkp_name] = {
+                        'lookup_name': lkp_name,
+                        'lookup_df': lookup_df,
+                        'return_port': return_port,
+                        'join_predicates': join_predicates,
+                    }
+
+        if transform:
+            for field in transform.fields:
+                expr_text = field.expression or ""
+
+                # Replace :LKP.xxx() calls with the lookup's RETURN port column
+                if ':LKP.' in expr_text:
+                    for lkp_name, info in inline_lkp_info.items():
+                        expr_text = _re.sub(
+                            r':LKP\.' + _re.escape(lkp_name) + r'\s*\([^)]+\)',
+                            info['return_port'],
+                            expr_text,
+                            flags=_re.IGNORECASE
+                        )
+
+                # Remap INPUT port names to actual upstream column names
+                # (e.g. IN_HSHLD_SIZE → HSHLD_SIZE) based on main mapping connectors.
+                for _port, _col in _expr_field_remap.items():
+                    if _port != _col:
+                        expr_text = expr_text.replace(_port, _col)
+
                 if "OUTPUT" in field.port_type:
                     output_columns.append(field.name)
-                    if field.expression:
-                        translated = self.expr_translator.translate(field.expression, "column", field.name)
+                    if expr_text:
+                        translated = self.expr_translator.translate(expr_text, "column", field.name)
+                        sanitized = sanitize_for_expr(translated)
+                        computed_columns.append(ComputedColumn(
+                            name=field.name,
+                            expression=sanitized,
+                            datatype=field.datatype
+                        ))
+                elif "LOCAL VARIABLE" in field.port_type.upper():
+                    # LOCAL VARIABLE with expression (e.g. :LKP.xxx() call) —
+                    # promote to a computed column so downstream expressions can reference it
+                    if expr_text:
+                        translated = self.expr_translator.translate(expr_text, "column", field.name)
                         sanitized = sanitize_for_expr(translated)
                         computed_columns.append(ComputedColumn(
                             name=field.name,
@@ -583,9 +717,12 @@ class TransformHandlers:
         )
         step.params["output_columns"] = output_columns
 
+        # Attach inline lookup join info so the template generates the join code
+        if inline_lkp_info:
+            step.params["inline_lookup_joins"] = list(inline_lkp_info.values())
+
         # Attach stored-procedure call text to step params when applicable
         if transform:
-            import re as _re
             for field in transform.fields:
                 if field.expression and ':SP.' in field.expression:
                     _sp_match = _re.search(r':SP\.(\w+)', field.expression)
@@ -602,6 +739,30 @@ class TransformHandlers:
                                     _sp_call = _sp_full
                                 step.params["sp_call_text"] = _sp_call
                                 break
+
+        # When an expression has multiple upstream DataFrames (e.g. EXPTRANS1
+        # receives columns from 10+ parallel mapplets), join the extra DFs
+        # before the expression step. All upstream DFs share the source qualifier
+        # columns (e.g. CASE_KEY). Use a runtime common-column join.
+        if _multistep:
+            result_steps: List[IRStep] = []
+            _cur_df = input_df
+            for _i, _extra_df in enumerate(extra_inputs):
+                _join_df = self._get_df_name("df_exp_merge")
+                result_steps.append(ApplyLookupStep(
+                    step_name=f"join_{instance.name}_{_i}",
+                    df_input=_cur_df,
+                    df_output=_join_df,
+                    lookup_df=_extra_df,
+                    join_predicates=[],
+                    join_expr="__common_cols__",
+                    output_columns=[],
+                    lookup_type="left",
+                ))
+                _cur_df = _join_df
+            step.df_input = _cur_df
+            result_steps.append(step)
+            return result_steps
 
         return step
 
@@ -858,6 +1019,12 @@ class TransformHandlers:
         if not input_df:
             input_df = "df_input"
 
+        # Build field remap from main mapping connectors for INPUT port names
+        _agg_field_remap: Dict[str, str] = {}
+        for conn in self.mapping.connectors:
+            if conn.to_instance == instance.name and conn.from_field != conn.to_field:
+                _agg_field_remap[conn.to_field] = conn.from_field
+
         df_output = self._get_df_name("df_agg")
         self._register_df(instance, df_output)
 
@@ -874,50 +1041,76 @@ class TransformHandlers:
                     group_by.append(field.name)
                     self.logger.log_transformation(instance.name, "Aggregator", f"GROUP BY: {field.name}", LogLevel.INFO)
                 elif field.expression and "OUTPUT" in field.port_type.upper():
-                    pyspark_agg = self._translate_aggregation_expr(field.expression, field.name)
+                    # Remap INPUT port names to upstream column names
+                    expr_text = field.expression
+                    # Replace $$ mapping variables with f-string placeholders
+                    # (e.g. $$v_rpt_mth → {v_rpt_mth}) so they resolve at runtime
+                    # from the Python variables loaded via job_params.
+                    has_agg_dollar = False
+                    for _mv_name in plan.mapping_variables:
+                        if _mv_name in expr_text:
+                            _py_name = _mv_name.replace('$', '')
+                            expr_text = expr_text.replace(_mv_name, '{' + _py_name + '}')
+                            has_agg_dollar = True
+                    for _port, _col in _agg_field_remap.items():
+                        if _port != _col:
+                            expr_text = expr_text.replace(_port, _col)
+                    # Signal to _translate_aggregation_expr to use f-string for expr()
+                    pyspark_agg = self._translate_aggregation_expr(expr_text, field.name, use_fstr=has_agg_dollar)
                     if pyspark_agg:
                         aggregations[field.name] = pyspark_agg
                         self.logger.log_transformation(instance.name, "Aggregator", f"Aggregation: {field.name} = {pyspark_agg}", LogLevel.INFO)
 
             self.logger.log_transformation(instance.name, "Aggregator", f"Found {len(group_by)} GROUP BY keys, {len(aggregations)} aggregations", LogLevel.INFO)
 
-        return ApplyAggregatorStep(
+        step = ApplyAggregatorStep(
             step_name=f"apply_{instance.name}",
             df_input=input_df,
             df_output=df_output,
             group_by=group_by,
             aggregations=aggregations
         )
+        # Pass mapping variables so template can do runtime $$ substitution
+        if plan.mapping_variables:
+            step.params["mapping_variables"] = plan.mapping_variables
+        return step
 
-    def _translate_aggregation_expr(self, expr: str, field_name: str) -> str:
+    def _translate_aggregation_expr(self, expr: str, field_name: str, use_fstr: bool = False) -> str:
         expr_upper = expr.upper().strip()
 
-        agg_patterns = [
-            (r'^MIN\s*\(\s*([^)]+)\s*\)$', 'F.min', False),
-            (r'^MAX\s*\(\s*([^)]+)\s*\)$', 'F.max', False),
-            (r'^SUM\s*\(\s*([^)]+)\s*\)$', 'F.sum', False),
-            (r'^COUNT\s*\(\s*([^)]*)\s*\)$', 'F.count', False),
-            (r'^AVG\s*\(\s*([^)]+)\s*\)$', 'F.avg', False),
-            (r'^FIRST\s*\(\s*([^)]+)\s*\)$', 'F.first', False),
-            (r'^LAST\s*\(\s*([^)]+)\s*\)$', 'F.last', False),
-            (r'^MEDIAN\s*\(\s*([^)]+)\s*\)$', 'F.percentile_approx', True),
-            (r'^STDDEV\s*\(\s*([^)]+)\s*\)$', 'F.stddev', False),
-            (r'^VARIANCE\s*\(\s*([^)]+)\s*\)$', 'F.variance', False),
-        ]
-
-        for pattern, pyspark_func, is_median in agg_patterns:
-            match = re.match(pattern, expr_upper, re.IGNORECASE)
-            if match:
-                col_name = match.group(1).strip() if match.group(1) else "*"
-                if col_name == "*":
-                    return f'{pyspark_func}("*")'
-                if is_median:
-                    return f'{pyspark_func}("{col_name}", 0.5)'
-                return f'{pyspark_func}("{col_name}")'
-
+        # Handle simple pass-through (GROUP BY ports)
         if expr_upper == field_name.upper():
             return ""
 
+        # Match outer aggregate function: FUNC_NAME(inner_expr)
+        agg_funcs = {
+            'MIN': 'min', 'MAX': 'max', 'SUM': 'sum',
+            'COUNT': 'count', 'AVG': 'avg',
+            'FIRST': 'first', 'LAST': 'last',
+            'MEDIAN': 'percentile_approx', 'STDDEV': 'stddev',
+            'VARIANCE': 'variance',
+        }
+
+        for func_name, pyspark_func in agg_funcs.items():
+            _pat = r'^' + func_name + r'\s*\(\s*(.+)\s*\)\s*$'
+            match = re.match(_pat, expr, re.IGNORECASE)
+            if match:
+                inner_expr = match.group(1).strip()
+                # Translate the inner expression (e.g. DECODE → CASE WHEN)
+                translated_inner = self.expr_translator.translate(inner_expr, "aggregation", field_name)
+                # Simple column reference → use string arg; complex expression → use expr()
+                if re.match(r'^[A-Za-z_]\w*$', translated_inner):
+                    _inner = f'"{translated_inner}"'
+                else:
+                    if use_fstr:
+                        _inner = f'expr(f"""{translated_inner}""")'
+                    else:
+                        _inner = f'expr("""{translated_inner}""")'
+                if func_name == 'MEDIAN':
+                    return f'{pyspark_func}({_inner}, 0.5)'
+                return f'{pyspark_func}({_inner})'
+
+        # Fallback: try general translation
         translated = self.expr_translator.translate(expr, "aggregation", field_name)
         return translated
 
@@ -1367,6 +1560,29 @@ class TransformHandlers:
             plan.add_warning(f"No input DataFrame found for mapplet {instance.name}")
             input_df = "df_input"
 
+        # When a mapplet has multiple upstream DataFrames (e.g.
+        # MPLT_GET_CMS_BLK_SCD_KEY receives columns from both
+        # MPLT_LKP_EST_CODE and MPLT_LKP_BLK_CODE), merge them
+        # before the entry-point remapping.
+        all_inputs = self._get_all_input_dfs(instance.name)
+        extra_inputs = [df for df in all_inputs if df != input_df]
+        if extra_inputs and input_df != "df_input":
+            _cur_df = input_df
+            for _i, _extra_df in enumerate(extra_inputs):
+                _join_df = self._get_df_name("df_mplt_merge")
+                steps.append(ApplyLookupStep(
+                    step_name=f"join_{instance.name}_{_i}",
+                    df_input=_cur_df,
+                    df_output=_join_df,
+                    lookup_df=_extra_df,
+                    join_predicates=[],
+                    join_expr="__common_cols__",
+                    output_columns=[],
+                    lookup_type="left",
+                ))
+                _cur_df = _join_df
+            input_df = _cur_df
+
         mapplet_name = instance.transformation_name or instance.name
         mapplet_def = self.mapping.mapplets.get(mapplet_name) if hasattr(self.mapping, 'mapplets') else None
         if not mapplet_def:
@@ -1382,10 +1598,15 @@ class TransformHandlers:
 
         # Combine mapplet-local transformations with the mapping-level transform_map
         # so that reusable Lookup / Expression definitions in the folder scope are found.
-        mpl_transforms: Dict[str, Transformation] = dict(self.transform_map)
+        # IMPORTANT: mapplet-local transformations take precedence — they must NOT be
+        # silently overwritten by same-named mapping-level ones (which may have
+        # different LOCAL VARIABLES that don't exist in the mapplet's input).
+        mpl_transforms: Dict[str, Transformation] = {}
         for t in mapplet_def.get("transformations", []):
-            if t.name not in mpl_transforms:
-                mpl_transforms[t.name] = t
+            mpl_transforms[t.name] = t
+        for tname, txf in self.transform_map.items():
+            if tname not in mpl_transforms:
+                mpl_transforms[tname] = txf
 
         mpl_connectors: List[Connector] = mapplet_def.get("connectors", [])
 
@@ -1427,18 +1648,52 @@ class TransformHandlers:
             if conn.to_instance == instance.name:
                 input_field_map[conn.to_field] = conn.from_field
 
-        # --- 5. Track DataFrames within mapplet ----------------------------------------
+        # --- 5. Remap external input columns to mapplet INPUT port names ---------------
+        # The external upstream DataFrame uses its own column names (e.g.
+        # ACTL_CMS_HSE_UNIT_KEY), but the mapplet's internal transformations
+        # reference the mapplet's INPUT port names (e.g. IN_CMS_HSE_UNIT_KEY).
+        # Rename mismatched columns at the entry point so all downstream steps
+        # see the correct names.
+        if input_field_map and input_inst:
+            mismatches = {to_f: from_f for to_f, from_f in input_field_map.items()
+                          if to_f != from_f}
+            if mismatches:
+                remap_cols = []
+                for to_field, from_field in mismatches.items():
+                    remap_cols.append(ComputedColumn(
+                        name=to_field,
+                        expression=from_field,
+                        datatype="string",
+                    ))
+                remap_input_df = self._get_df_name("df_mplt_input")
+                steps.append(ApplyExpressionStep(
+                    step_name=f"input_{instance.name}",
+                    df_input=input_df,
+                    df_output=remap_input_df,
+                    computed_columns=remap_cols,
+                ))
+                input_df = remap_input_df
+
+        # --- 6. Track DataFrames within mapplet ----------------------------------------
         mpl_df_map: Dict[str, str] = {}
         if input_inst:
             mpl_df_map[input_inst.name] = input_df
 
-        # --- 6. Process internal instances in topological order ------------------------
+        # --- 7. Process internal instances in topological order ------------------------
         for mpl_inst_name in mpl_order:
             mpl_inst = mpl_instances.get(mpl_inst_name)
             if not mpl_inst:
                 continue
 
             mpl_inst_type = (mpl_inst.transformation_type or "").strip()
+
+            # Build field remap for this instance from both external and internal
+            # connectors, so that column names fed into this transformation match
+            # what its expressions/lookups expect.
+            inst_field_remap: Dict[str, str] = dict(input_field_map)
+            for conn in mpl_connectors:
+                if conn.to_instance == mpl_inst_name and conn.from_field != conn.to_field:
+                    inst_field_remap[conn.to_field] = conn.from_field
 
             if "Input Transformation" in mpl_inst_type:
                 # Input is already mapped to input_df
@@ -1522,6 +1777,20 @@ class TransformHandlers:
                     join_result_df = self._get_df_name("df_mplt_join")
                     mpl_df_map[mpl_inst_name] = join_result_df
 
+                    # Remap source columns: mapplet port names → actual upstream
+                    # column names from the connectors (internal + external).
+                    join_predicates = parsed.get("join_columns", [])
+                    for jc in join_predicates:
+                        if jc.get("source_col") in inst_field_remap:
+                            jc["source_col"] = inst_field_remap[jc["source_col"]]
+
+                    # Also remap column names in complex join expressions
+                    join_expr = parsed.get("condition_expr") or ""
+                    if join_expr:
+                        for mpl_port, actual_col in inst_field_remap.items():
+                            if mpl_port != actual_col:
+                                join_expr = join_expr.replace(mpl_port, actual_col)
+
                     # Collect output columns from the lookup
                     output_cols = []
                     for field in lookup_transform.fields:
@@ -1536,8 +1805,8 @@ class TransformHandlers:
                         df_input=mpl_input_df,
                         df_output=join_result_df,
                         lookup_df=lookup_df_name,
-                        join_predicates=parsed.get("join_columns", []),
-                        join_expr=parsed.get("condition_expr") or "",
+                        join_predicates=join_predicates,
+                        join_expr=join_expr,
                         output_columns=output_cols,
                         lookup_type="left",
                     ))
@@ -1564,8 +1833,14 @@ class TransformHandlers:
                 computed_cols = []
                 for field in transform.fields:
                     if field.expression and "OUTPUT" in (field.port_type or "").upper():
+                        expr_text = field.expression
+                        # Remap port names to actual column names using both
+                        # external and internal mapplet connector mappings.
+                        for mpl_port, actual_col in inst_field_remap.items():
+                            if mpl_port != actual_col:
+                                expr_text = expr_text.replace(mpl_port, actual_col)
                         translated = self.expr_translator.translate(
-                            field.expression, "column", field.name
+                            expr_text, "column", field.name
                         )
                         computed_cols.append(ComputedColumn(
                             name=field.name,
@@ -1600,17 +1875,38 @@ class TransformHandlers:
 
         # --- 7. Map OUTPUT back to the calling mapping ----------------------------------
         if output_inst:
-            # Find which internal instance feeds the OUTPUT
+            # Find ALL internal instances that feed the OUTPUT
             output_input_df = None
+            output_extra_dfs = []
+            seen_output_dfs = set()
             for conn in mpl_connectors:
                 if conn.to_instance == output_inst.name:
-                    output_input_df = mpl_df_map.get(conn.from_instance)
-                    if output_input_df:
-                        break
+                    _odf = mpl_df_map.get(conn.from_instance)
+                    if _odf and _odf not in seen_output_dfs:
+                        seen_output_dfs.add(_odf)
+                        if output_input_df is None:
+                            output_input_df = _odf
+                        else:
+                            output_extra_dfs.append(_odf)
 
             if not output_input_df:
                 # No internal feed; use the primary input
                 output_input_df = input_df
+
+            # When OUTPUT has multiple upstream internal DataFrames, merge them
+            for _i, _extra_df in enumerate(output_extra_dfs):
+                _join_df = self._get_df_name("df_mplt_merge")
+                steps.append(ApplyLookupStep(
+                    step_name=f"join_output_{instance.name}_{_i}",
+                    df_input=output_input_df,
+                    df_output=_join_df,
+                    lookup_df=_extra_df,
+                    join_predicates=[],
+                    join_expr="__common_cols__",
+                    output_columns=[],
+                    lookup_type="left",
+                ))
+                output_input_df = _join_df
 
             # Collect output port names from the Mapplet-type wrapper transformation
             mapplet_wrapper = mpl_transforms.get(mapplet_name)

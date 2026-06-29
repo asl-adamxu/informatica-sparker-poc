@@ -61,7 +61,7 @@ class ExpressionTranslator:
         'REPLACESTR': 'regexp_replace',
         'REPLACECHR': 'translate',
         'ROUND': 'round',
-        'TRUNC': 'trunc',
+        'TRUNC': 'floor',
         'ABS': 'abs',
         'MOD': 'mod',
         'POWER': 'pow',
@@ -604,6 +604,15 @@ class ExpressionTranslator:
 
     def _translate_functions(self, expr: str) -> str:
         result = expr
+
+        # Handle bare keyword functions that may appear without parentheses
+        # (e.g. bare "SYSDATE" without "SYSDATE()").
+        _bare_funcs = {
+            'SYSDATE': 'current_timestamp()',
+            'SYSTIMESTAMP': 'current_timestamp()',
+        }
+        for _bf_name, _bf_replacement in _bare_funcs.items():
+            result = re.sub(r'\b' + _bf_name + r'\b(?!\s*\()', _bf_replacement, result, flags=re.IGNORECASE)
 
         for infa_func, spark_func in self.FUNCTION_MAP.items():
             if spark_func is None:

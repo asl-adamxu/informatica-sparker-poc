@@ -249,6 +249,24 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% elif step.step_type == IRStepType.APPLY_EXPRESSION %}
         # Expression: {{ step.step_name }}
         {{ step.df_output }} = {{ step.df_input }}
+        {% for lkp_join in step.params.get('inline_lookup_joins', []) %}
+        # Inline lookup join: {{ lkp_join.lookup_name }} (return column: {{ lkp_join.return_port }})
+        # Select only join keys + return column from lookup, renaming
+        # join keys to avoid column name conflicts with the main DataFrame.
+        _lkp_sub = {{ lkp_join.lookup_df }}.select(
+        {% for jp in lkp_join.join_predicates %}
+            col("{{ jp.lookup_col }}").alias("_lkp_jk_{{ jp.lookup_col }}"),
+        {% endfor %}
+            col("{{ lkp_join.return_port }}")
+        )
+        {{ step.df_output }} = {{ step.df_output }}.join(
+            broadcast(_lkp_sub),
+        {% for jp in lkp_join.join_predicates %}
+            ({{ step.df_output }}["{{ jp.source_col }}"] == _lkp_sub["_lkp_jk_{{ jp.lookup_col }}"]){% if not loop.last %} & {% endif %}
+        {% endfor %},
+            "left"
+        ).drop({% for jp in lkp_join.join_predicates %}"_lkp_jk_{{ jp.lookup_col }}"{% if not loop.last %}, {% endif %}{% endfor %})
+        {% endfor %}
         {% for col in step.params.get('computed_columns', []) %}
         {% set expr_str = col.get('expression', 'NULL') %}
         {% if ':SP.' in expr_str or '.SP_' in expr_str %}
@@ -288,7 +306,15 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% set lookup_df_name = step.params.get('lookup_df', 'df_lookup') %}
         {% set join_predicates = step.params.get('join_predicates', []) %}
         {% set join_expr = step.params.get('join_expr') %}
-        {% if join_predicates %}
+        {% if join_expr == '__common_cols__' %}
+        # Merge parallel DataFrames on their common columns
+        _common_cols = [c for c in {{ step.df_input }}.columns if c in {{ lookup_df_name }}.columns]
+        {{ step.df_output }} = {{ step.df_input }}.join(
+            {{ lookup_df_name }},
+            on=_common_cols,
+            how="left"
+        )
+        {% elif join_predicates %}
         # Join condition: {% for jp in join_predicates %}{{ jp.source_col }}={{ jp.lookup_col }}{% if not loop.last %} AND {% endif %}{% endfor %}
         
         {{ step.df_output }} = {{ step.df_input }}.join(

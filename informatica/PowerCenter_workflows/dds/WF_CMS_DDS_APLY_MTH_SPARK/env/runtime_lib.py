@@ -334,6 +334,7 @@ def write_sql(df: DataFrame, conn_config: Dict[str, Any], table: str,
         .option("user", user) \
         .option("password", password) \
         .option("driver", driver) \
+        .option("isolationLevel", "READ_COMMITTED") \
         .mode(mode) \
         .save()
 

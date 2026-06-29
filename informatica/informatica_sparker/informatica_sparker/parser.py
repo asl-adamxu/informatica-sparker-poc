@@ -219,7 +219,9 @@ class InfaXMLParser:
             transform.table_attributes[attr_name] = attr_value
 
         for field_elem in transform_elem.findall("TRANSFORMFIELD"):
-            is_group_by = field_elem.get("GROUPBY", "NO") == "YES" or "GROUP BY" in field_elem.get("PORTTYPE", "").upper()
+            is_group_by = (field_elem.get("GROUPBY", "NO") == "YES"
+                          or "GROUP BY" in field_elem.get("PORTTYPE", "").upper()
+                          or field_elem.get("EXPRESSIONTYPE", "").upper() == "GROUPBY")
             field = TransformField(
                 name=field_elem.get("NAME", ""),
                 datatype=field_elem.get("DATATYPE", ""),

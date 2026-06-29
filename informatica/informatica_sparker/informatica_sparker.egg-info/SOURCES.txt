@@ -22,10 +22,10 @@ informatica_sparker.egg-info/dependency_links.txt
 informatica_sparker.egg-info/entry_points.txt
 informatica_sparker.egg-info/requires.txt
 informatica_sparker.egg-info/top_level.txt
-informatica_sparker/templates/config.yaml.j2
 informatica_sparker/templates/config.yml.j2
 informatica_sparker/templates/job.py.j2
 informatica_sparker/templates/mapping.py.j2
+informatica_sparker/templates/objects.yml.j2
 informatica_sparker/templates/runtime_lib.py.j2
 informatica_sparker/templates/workflow_orchestration.py.j2
 informatica_sparker/templates/lib/__init__.py.j2

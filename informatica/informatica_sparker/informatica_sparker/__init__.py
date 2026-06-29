@@ -22,7 +22,7 @@ from .parser import InfaXMLParser
 from .analyzer import Analyzer
 from .codegen import CodeGenerator
 
-__version__ = "2026.06.26"
+__version__ = "2026.06.29"
 
 __all__ = [
     "ConversionService",

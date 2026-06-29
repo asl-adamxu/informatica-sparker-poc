@@ -82,6 +82,45 @@ This file captures conventions, patterns, and rules established during developme
 - `run_sessions_sequential` and `run_sessions_parallel` log `"Start to run mapping X"` and `"Mapping X completed: SUCCESS"` for every mapping execution.
 - In `run_sessions_parallel`, `future_map` stores `(session_name, mapping_name)` tuples so each completion correctly reports the right mapping name regardless of completion order.
 
+### Inline Lookup (`:LKP.xxx()`) in Expressions
+- When an Expression transform uses `:LKP.lookup_name(args...)` in a LOCAL VARIABLE port, it is an **inline lookup** — the lookup has NO connectors and is called directly from the expression.
+- **Fix in `_handle_expression`** (handlers.py):
+  - Pre-scans all fields for `:LKP.xxx()` patterns.
+  - For each referenced lookup, extracts INPUT/LOOKUP/RETURN ports and the Lookup Condition from the lookup transformation definition.
+  - Builds join predicates by mapping: expression arguments → INPUT ports → Lookup Condition → LOOKUP columns.
+  - Stores the join info in `step.params["inline_lookup_joins"]`.
+  - Replaces `:LKP.xxx(args)` with the RETURN port name in the expression text before calling `translate()`.
+  - Promotes LOCAL VARIABLE ports with expressions to computed columns (previously they were silently dropped).
+- **Template** (mapping.py.j2): Before processing `computed_columns`, generates a left join with the lookup DataFrame for each inline lookup in `inline_lookup_joins`.
+- **`_translate_lkp_references`** (expr_translator.py) is now a fallback — inline lookups are resolved before translate() is called.
+
+### Oracle JDBC Log Suppression
+- Oracle JDBC driver trace messages (e.g. "Closing down clientserver connection") are suppressed by `_SuppressOracleTraceFilter` on the root logger in `init_logger`.
+- `test_connection` also sets `java.util.logging.Logger.getLogger("oracle.jdbc").setLevel(Level.SEVERE)` as a second line of defense.
+- JDBC reads must NOT set `isolationLevel` — Oracle JDBC driver rejects explicit isolation levels. Rely on Oracle's default `READ_COMMITTED`.
+
+### Multi-Input Expression & Mapplet Handling
+- **Problem**: Expressions/mapplets with multiple upstream DataFrames (e.g. EXPTRANS1 with 12 upstream mapplets) only got one input DF; column references like `IN_HSHLD_SIZE` failed.
+- **Fix**: `_handle_expression` and `_handle_mapplet` detect multiple upstreams via `_get_all_input_dfs()` and generate `join_` pre-steps that left-join extra DFs on common columns (`__common_cols__`).
+- **Output merge**: Mapplet OUTPUT with multiple internal feeders generates `join_output_*` merge steps.
+
+### Connector Field Remapping (mapplet internal + main mapping)
+- **Problem**: Mapplet INPUT ports (`IN_CMS_HSE_UNIT_KEY`) differ from upstream column names (`ACTL_CMS_HSE_UNIT_KEY`). Expressions/lookups inside mapplets also reference internal connector port names that differ from the actual upstream column.
+- **Fix for mapplets**: Build `inst_field_remap` from both external connectors (`input_field_map`) and internal mapplet connectors. Apply to join predicates (equality + complex `expr()`) and expression texts.
+- **Fix for main mapping**: Build `_agg_field_remap` / `_expr_field_remap` from main mapping connectors. Apply to aggregator and expression transformations.
+- **Entry-point remapping**: When a mapplet's external input columns differ from its INPUT port names, generate an `input_*` remap step that adds `withColumn("IN_PORT", expr("ACTUAL_COL"))`.
+
+### Aggregator Enhancements
+- **GROUPBY detection**: Parser now detects `EXPRESSIONTYPE="GROUPBY"` (not just `GROUPBY="YES"`).
+- **Complex aggregation**: `_translate_aggregation_expr` now supports complex inner expressions (e.g. `SUM(DECODE(...))`) by translating the inner expression and wrapping with `expr()`. Simple column references use the short form `sum("col")`.
+- **Runtime $$ substitution**: Mapping variables (`$$v_rpt_mth`) in aggregate expressions use Python f-strings (`expr(f"""...{v_rpt_mth}...""")`) for runtime resolution from job_params.
+
+### Expression Translation: Bare function handling
+- `_translate_functions` now handles bare keywords without parentheses (e.g. bare `SYSDATE` → `current_timestamp()`), using a negative lookahead `(?!\s*\()` to avoid double-matching functions with parentheses.
+
+### Fallback Connections in config.yml
+- Added `source_db`, `target_db`, `target`, `source`, `lookup_conn` as fallback connections in config.yml template, pointing to `oracle-defaults` with `DPA` database. Override as needed.
+
 ## Code Generation Rules
 
 use python3.11 to recompile or build informatica-sparker: `cd /var/lib/airflow/dags/adam/informatica/informatica_sparker && python3.11 -m build 2>&1 | tail -5`
@@ -124,7 +163,6 @@ use default python to run pyspark workflow or mapping
 - **Cache resolved passwords** in `_PASSWORD_CACHE` dict (module-level). The first caller enters the password via `getpass` and saves it to Hadoop CredentialProvider; subsequent callers reuse the cached value without prompting.
 - **Connection name resolution** uses prefix matching in `get_db_config()`: if `"DPA_FACT_..."` is the requested name, try `"DPA"` first by checking if any connection key is a prefix of the requested name.
 - **Hardcoded default connection names** (`"source_db"`, `"target_db"`, `"default_conn"`, `"lookup_conn"`) must be filtered out in `codegen.py` so they don't overwrite properly resolved connection aliases.
-- **JDBC ** must set `isolationLevel=READ_COMMITTED` to avoid Oracle fallback warnings.
 
 ### Job Parameters
 

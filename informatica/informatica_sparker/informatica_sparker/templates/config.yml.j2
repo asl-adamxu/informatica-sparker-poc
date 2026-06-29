@@ -96,6 +96,29 @@ connections:
     {% endif %}
 {% endfor %}
 
+  # Fallback connections for mapplet lookups and unresolved connection aliases.
+  # Override host/port/service_name/database as needed for your environment.
+  source_db:
+    <<: *oracle
+    database: "DPA"
+    schema: "airflow"
+  target_db:
+    <<: *oracle
+    database: "DPA"
+    schema: "airflow"
+  target:
+    <<: *oracle
+    database: "DPA"
+    schema: "airflow"
+  source:
+    <<: *oracle
+    database: "DPA"
+    schema: "airflow"
+  lookup_conn:
+    <<: *oracle
+    database: "DPA"
+    schema: "airflow"
+
 # =============================================================================
 # FILE PATHS
 # =============================================================================
