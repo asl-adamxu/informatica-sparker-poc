@@ -84,7 +84,7 @@ This file captures conventions, patterns, and rules established during developme
 
 ## Code Generation Rules
 
-use python3.11 to recompile or build informatica-sparker
+use python3.11 to recompile or build informatica-sparker: `cd /var/lib/airflow/dags/adam/informatica/informatica_sparker && python3.11 -m build 2>&1 | tail -5`
 then use informatica-sparker command to convert like `informatica-sparker convert WF_GMS_DDS_APLY_DLY.XML -o WF_GMS_DDS_APLY_DLY_SPARK`
 use default python to run pyspark workflow or mapping 
 
@@ -124,7 +124,7 @@ use default python to run pyspark workflow or mapping
 - **Cache resolved passwords** in `_PASSWORD_CACHE` dict (module-level). The first caller enters the password via `getpass` and saves it to Hadoop CredentialProvider; subsequent callers reuse the cached value without prompting.
 - **Connection name resolution** uses prefix matching in `get_db_config()`: if `"DPA_FACT_..."` is the requested name, try `"DPA"` first by checking if any connection key is a prefix of the requested name.
 - **Hardcoded default connection names** (`"source_db"`, `"target_db"`, `"default_conn"`, `"lookup_conn"`) must be filtered out in `codegen.py` so they don't overwrite properly resolved connection aliases.
-- **JDBC reads** must set `isolationLevel=READ_COMMITTED` to avoid Oracle fallback warnings.
+- **JDBC ** must set `isolationLevel=READ_COMMITTED` to avoid Oracle fallback warnings.
 
 ### Job Parameters
 

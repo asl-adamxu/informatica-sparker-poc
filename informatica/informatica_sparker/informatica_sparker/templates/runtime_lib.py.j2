@@ -334,6 +334,7 @@ def write_sql(df: DataFrame, conn_config: Dict[str, Any], table: str,
         .option("user", user) \
         .option("password", password) \
         .option("driver", driver) \
+        .option("isolationLevel", "READ_COMMITTED") \
         .mode(mode) \
         .save()
 
@@ -599,6 +600,7 @@ def write_table(df: DataFrame, conn_config: Dict[str, Any], table_name: str,
             .option("password", password) \
             .option("driver", driver) \
             .option("batchsize", 10000) \
+            .option("isolationLevel", "READ_COMMITTED") \
             .mode(mode) \
             .save()
     except Exception as e:
