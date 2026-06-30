@@ -167,7 +167,7 @@ def _find_from_portion(sql: str, from_match: re.Match) -> str:
     return rest
 
 
-def _find_main_select_pos(sql: str, cte_names: set) -> int:
+def _find_main_select_pos(sql: str) -> int:
     """Find the position of the main SELECT outside CTE definitions."""
     depth = 0
     for i, ch in enumerate(sql):
@@ -182,7 +182,7 @@ def _find_main_select_pos(sql: str, cte_names: set) -> int:
             if i+6 < len(sql) and sql[i+6].isalnum():
                 continue
             return i
-    return 0
+    return -1
 
 
 def _extract_cte_names(sql: str) -> Set[str]:
@@ -190,7 +190,7 @@ def _extract_cte_names(sql: str) -> Set[str]:
     cte_names: Set[str] = set()
     if not re.match(r'^\s*WITH\s+', sql, re.I):
         return cte_names
-    main_pos = _find_main_select_pos(sql[4:], set())
+    main_pos = _find_main_select_pos(sql[4:])
     if main_pos < 0:
         return cte_names
     with_portion = sql[4:4 + main_pos]
@@ -206,7 +206,7 @@ def _extract_tables_from_cte_body(sql: str, cte_names: Set[str]) -> List[TableRe
     (parens are not stripped -- the pattern can match inside them).
     CTE names themselves are filtered out.
     """
-    main_pos = _find_main_select_pos(sql[4:], cte_names)
+    main_pos = _find_main_select_pos(sql[4:])
     if main_pos < 0:
         return []
     body = sql[4:4 + main_pos]  # everything between WITH and the main SELECT
@@ -235,7 +235,7 @@ def _remove_cte_block(sql: str) -> str:
     """Remove the entire WITH clause, returning the main SELECT query."""
     if not re.match(r'^\s*WITH\s+', sql, re.I):
         return sql
-    main_pos = _find_main_select_pos(sql[4:], set())
+    main_pos = _find_main_select_pos(sql[4:])
     if main_pos < 0:
         return sql
     return sql[4 + main_pos:]
