@@ -930,6 +930,7 @@ class TestGenerator:
 
         # SQL files
         self._write(sql_dir / "10_dimension_data.sql", self.data_generator.render_inserts())
+        self._write(sql_dir / "20_source_transaction.sql", self._render_placeholder_source_sql())
         self._write(sql_dir / "90_cleanup.sql", self.schema_renderer.render_truncate_all())
 
         # Test scripts (via templates or direct generation)
@@ -1129,15 +1130,24 @@ def setup_database(snsh_date, db_config, output_dir):
     print(f"\\n=== SETUP: Creating tables and reference data ===")
     run_sql_script(os.path.join(output_dir, "tests/schema/create_all_tables.sql"), db_config)
     run_sql_script(os.path.join(output_dir, "tests/sql/10_dimension_data.sql"), db_config)
+    # Source transaction data (sql/20_source_transaction.sql) is generated
+    # and loaded by gen_test_data.py before each test run.
     yield
     print(f"\\n=== TEARDOWN: Cleaning up ===")
     run_sql_script(os.path.join(output_dir, "tests/sql/90_cleanup.sql"), db_config)
 
 
 def query_table_count(table_name: str, db_config: dict = None) -> int:
-    """Query row count from a table. Returns -1 if unavailable."""
+    """Query row count from a table.
+
+    Implement with cx_Oracle or sqlplus for real DB verification.
+    Raises NotImplementedError until a DB connection is configured.
+    """
     print(f"  [VERIFY] SELECT COUNT(*) FROM {table_name}")
-    return -1
+    raise NotImplementedError(
+        "query_table_count requires a database connection. "
+        "Install cx_Oracle and set DB_HOST/DB_PORT/DB_USER/DB_PASSWORD."
+    )
 
 
 def run_pyspark_script(script_path: str, output_dir: str, timeout: int = 600) -> subprocess.CompletedProcess:
@@ -1217,6 +1227,30 @@ def generate_source_data(snsh_date: str, output_dir: str):
     for table in SOR_TABLES:
         lines.append(f"-- INSERT INTO {{table}} (...) VALUES (...);  -- Add transaction data")
         lines.append("")
+
+    # Add SELECT 1 as the last executable statement so the file is valid SQL
+    lines.append("SELECT 1 FROM DUAL;")
+
+    sql_path = os.path.join(sql_dir, "20_source_transaction.sql")
+    with open(sql_path, "w") as f:
+        f.write("\\n".join(lines) + "\\n")
+    print(f"Generated: {{sql_path}}")
+
+    # Execute the generated SQL against the database
+    try:
+        from conftest import run_sql_script
+        db_config = {{
+            "host": os.environ.get("DB_HOST", ""),
+            "port": os.environ.get("DB_PORT", "1521"),
+            "user": os.environ.get("DB_USER", ""),
+            "password": os.environ.get("DB_PASSWORD", ""),
+            "service": os.environ.get("DB_SERVICE", "XE"),
+        }}
+        run_sql_script(sql_path, db_config if db_config["host"] else None)
+    except ImportError:
+        print(f"  [INFO] Run sql/20_source_transaction.sql via your Oracle client")
+    except Exception as e:
+        print(f"  [WARN] Could not execute source SQL: {{e}}")
 
     sql_path = os.path.join(sql_dir, "20_source_transaction.sql")
     with open(sql_path, "w") as f:

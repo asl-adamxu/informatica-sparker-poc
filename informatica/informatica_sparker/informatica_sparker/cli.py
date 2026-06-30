@@ -104,6 +104,9 @@ def _run_convert(args):
         if len(result.warnings) > 20:
             print(f"    ... and {len(result.warnings) - 20} more (see conversion_log.txt)")
 
+    if getattr(args, 'with_tests', False):
+        print(f"\n  E2E Test Artifacts: generated in {args.output}/tests/")
+
     print()
 
 
