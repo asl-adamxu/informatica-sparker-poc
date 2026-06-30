@@ -1,7 +1,7 @@
 # E2E Testing Design for informatica-sparker
 
 **Date**: 2026-06-30
-**Status**: Approved
+**Status**: Approved (updated per design review)
 **Author**: Brainstorming Process
 
 ## Overview
@@ -29,13 +29,13 @@ output_dir/
       ├── conftest.py              # pytest session fixtures (DB connection, setup)
       ├── test_workflow_e2e.py     # Full workflow: setup → run wf_*.py → verify
       ├── test_mapping_e2e.py      # Per-mapping tests: setup → run m_*.py → verify
-      ├── gen_test_data.py         # Generate SOR transaction data + UTL files
+      ├── gen_test_data.py         # Generate transaction data + UTL/param files
       ├── schema/
       │   ├── create_all_tables.sql   # CREATE TABLE for all discovered tables
       │   └── drop_all_tables.sql     # Cleanup DROP statements
       └── sql/
-          ├── 10_reference_data.sql   # INSERT for reference tables (dimensions + codes)
-          ├── 20_source_data.sql      # INSERT for input transaction data (auto-generated)
+          ├── 10_dimension_data.sql   # INSERT for dimension/reference/code tables
+          ├── 20_source_transaction.sql # INSERT for input transaction data (auto-generated)
           └── 90_cleanup.sql          # TRUNCATE in dependency order
 ```
 
@@ -45,13 +45,22 @@ output_dir/
 
 The engine collects all unique tables from the workflow XML:
 
-| # | Source | Extraction Method | Has Field Defs? |
-|---|--------|-------------------|-----------------|
-| 1 | `<SOURCE>` definitions | `SOURCEFIELD` elements | ✅ Full field list |
-| 2 | `<TARGET>` definitions | `TARGETFIELD` elements | ✅ Full field list |
-| 3 | Source Qualifier `Sql Query` | SQL parser: `FROM`, `JOIN` clause extraction | ❌ Inferred from SELECT |
-| 4 | Lookup Procedure `Lookup Sql Override` | SQL parser: `FROM` clause | ❌ Inferred from SELECT |
-| 5 | Lookup Procedure `Lookup table name` | Direct attribute value | ❌ Unknown fields |
+| # | Source | Extraction Method | Has Field Defs? | Priority |
+|---|--------|-------------------|-----------------|----------|
+| 1 | `<SOURCE>` definitions | `SOURCEFIELD` elements | ✅ Full field list | Highest |
+| 2 | `<TARGET>` definitions | `TARGETFIELD` elements | ✅ Full field list | Highest |
+| 3 | Source Qualifier `Sql Query` | SQL parser: `FROM`, `JOIN` clause extraction | ❌ Inferred | Medium |
+| 4 | Lookup Procedure `Lookup Sql Override` | SQL parser: `FROM` clause | ❌ Inferred | Medium |
+| 5 | Lookup Procedure `Lookup table name` | Direct attribute value | ❌ Unknown | Lowest |
+
+### Conflict Resolution
+
+When the same table appears in multiple sources with potentially different field lists:
+
+1. If a table has full field definitions (priority 1-2), those definitions **always win** and override partial definitions from SQL (priority 3-5).
+2. If a table exists in SQL (priority 3-4) but not in SOURCE/TARGET definitions, the engine attempts to extract field names from `SELECT` columns with aliases.
+3. If a table only has a name (priority 5 — e.g. `Lookup table name`), the table is created with a generic `VARCHAR2` column structure and annotated with: `-- ⚠️ Table from Lookup table name — add field DDL manually if needed`.
+4. Deduplication is by uppercase `{OWNER}.{TABLE_NAME}` composite key.
 
 ### Type Mapping: Informatica → Oracle
 
@@ -66,21 +75,32 @@ The engine collects all unique tables from the workflow XML:
 | `integer` | `INTEGER` |
 | `string(n)` (file src) | `VARCHAR2(n)` |
 
-### Field Classification
+### Field Inference from SQL
 
-For tables without explicit field definitions (sources 3-5):
+When a table has no explicit field definition but appears in a SQL query:
 
-1. If the same table name exists in sources 1-2, reuse those field definitions
-2. If only in SQL, parse `SELECT` columns with aliases to extract field names
-3. Fallback: single `VARCHAR2(255)` column with a comment marker
+1. Parse `SELECT` expressions and aliases to extract field names:
+   - `select a.cust_rqs_key, b.case_no` → fields `CUST_RQS_KEY`, `CASE_NO`
+   - Compex expressions like `CASE WHEN ... END` get generic names if unaliased.
+2. Types default to `VARCHAR2(255)` for inferred fields, with a comment noting the source SQL.
+3. Fields from the XML definition (if the same table is found in SOURCE/TARGET) take precedence — SQL-inferred fields are discarded in favor of the explicit definition.
+
+### Foreign Key Inference
+
+Two strategies, used together:
+
+1. **XML-native FK** (preferred): Some `<SOURCEFIELD>` entries have `REFERENCEDFIELD` and `REFERENCEDTABLE` attributes from the Informatica source definition. These are the most authoritative FK relationship source.
+2. **Naming pattern fallback**: When XML FK attributes are absent, use `_KEY` naming pattern: if table A has `EST_SCD_KEY` and table B is named `DDS_HRCHY_GMS_EST` and has `EST_SCD_KEY` as a PK, then table A references table B.
 
 ### Dependency Sorting for CREATE TABLE
 
-Tables are emitted in dependency-safe order:
+Tables are emitted in dependency-safe topological order using the discovered FK graph:
 
-1. Tables with no FK-like columns first (reference-only tables)
-2. Tables referenced by `_KEY` naming pattern match second
-3. Tables containing `_KEY` references to other tables last
+1. Tables with no outgoing FK references first (reference-only tables like `DDS_DMNS_GNDR`).
+2. Tables that are only referenced by other tables second (dimension/hierarchy tables).
+3. Tables that reference other tables last (fact/transaction tables).
+
+Code generation uses cycle detection (a `visiting` set, same pattern as the existing workflow builder) to handle cross-references gracefully.
 
 ## Test Data Generation
 
@@ -89,7 +109,7 @@ Tables are emitted in dependency-safe order:
 | Category | Includes | Strategy |
 |----------|----------|----------|
 | **Reference Tables** | Dimension tables + hierarchy tables + code tables | Pre-filled INSERT statements generated at conversion time |
-| **Data Tables (Input)** | SOR transaction tables | Minimal record INSERTs generated dynamically by `gen_test_data.py` |
+| **Data Tables (Input)** | SOR + source transaction tables | Minimal record INSERTs generated dynamically by `gen_test_data.py` |
 | **Data Tables (Intermediate/Output)** | DPA/DDS fact tables | Left empty — populated by mapping execution |
 
 ### Reference Data Generation Logic
@@ -101,16 +121,32 @@ Field-name pattern matching drives automatic INSERT generation:
 | `*_KEY` (PK) | Sequential integers: 1, 2, 3... |
 | `*_CODE` | Sequential codes: B1, B2, B3... |
 | `*_DESP` / `*_NAME` | Context-aware description from table name |
-| `BGN_DATE` | `TO_DATE('20000101','YYYYMMDD')` |
-| `END_DATE` | `TO_DATE('99991231','YYYYMMDD')` |
+| `BGN_DATE` | `TO_DATE('20000101','YYYYMMDD')` (sufficiently far past) |
+| `END_DATE` | `TO_DATE('99991231','YYYYMMDD')` (sufficiently far future) |
+| `CRE_DATE` / `CREATE_DATE` | Dynamically computed: `TO_DATE('{snsh_date}','YYYYMMDD') - N` |
 | `*_KEY` (FK reference) | Matches the referenced table's PK values |
+
+Date fields that participate in range-filtering conditions (e.g. `between bgn_date and end_date`, `last_day(...) between bgn_date and end_date`) are covered by the broad `BGN_DATE`/`END_DATE` defaults, ensuring Lookup queries with date-range filters return matches.
 
 ### Source Data Generation (`gen_test_data.py`)
 
 This Python script runs at test time and:
-1. Reads the `--snsh-date` parameter for dynamic snapshot date
-2. Generates minimal INSERT SQL for SOR transaction tables
-3. Creates UTL input files (GMS_ETL_SESSION_LIST, GMS_ETL_DPA_TBL_LIST)
+
+1. Reads the `--snsh-date` parameter for dynamic snapshot date.
+2. Reads the `--output-dir` parameter to know where `env/` and UTL files live.
+3. Generates minimal INSERT SQL for SOR/input transaction tables, writing to `tests/sql/20_source_transaction.sql`.
+4. Creates UTL input files (GMS_ETL_SESSION_LIST, GMS_ETL_DPA_TBL_LIST) in the location the workflow expects them (typically `$PMSourceFileDir/PCIS01/scripts/` or a configurable path).
+
+### Workflow Parameter File
+
+The generated `wf_*.py` may require a job parameter file referenced by `$PMSourceFileDir/.../job_param.txt`. `gen_test_data.py` also generates this file at runtime:
+
+```
+$$v_snsh_date={snsh_date}
+$$v_rpt_mth={snsh_date[:6]}
+```
+
+The path is read from the `env/config.yml` objects section or defaults to `env/job_param.txt`.
 
 ## Test Execution Model
 
@@ -120,19 +156,42 @@ This Python script runs at test time and:
 test_workflow_e2e.py
   │
   ├── 1. conftest.setup_database
+  │     ├── Use isolated schema prefix (TEST_{pid}_)
   │     ├── CREATE TABLE (schema/create_all_tables.sql)
-  │     └── INSERT reference data (sql/10_reference_data.sql)
+  │     └── INSERT dimension data (sql/10_dimension_data.sql)
   │
   ├── 2. gen_test_data.py
-  │     ├── Generate SOR transaction INSERT SQL
+  │     ├── Generate source transaction INSERT SQL
   │     ├── Generate UTL file inputs
-  │     └── Execute INSERT (sql/20_source_data.sql)
+  │     ├── Generate job param file
+  │     └── Execute INSERT (sql/20_source_transaction.sql)
   │
   ├── 3. subprocess.run(["python3", "wf_gms_dds_aply_dly.py"])
   │     └── Or: subprocess.run(["python3", "m_*.py"]) for single mapping
   │
   └── 4. Verify target tables have data (COUNT(*) > 0)
 ```
+
+### Test Isolation
+
+Each test session uses an isolated schema prefix to allow concurrent runs:
+
+```python
+# conftest.py
+import os, getpass
+
+@pytest.fixture(scope="session")
+def schema_prefix():
+    """Unique schema prefix per test run to avoid cross-test interference."""
+    pid = os.getpid()
+    return f"T{pid % 10000}_"
+
+# All table references in generated SQL get prefixed:
+# CREATE TABLE T1234_PDDS.DDS_FACT_...
+# This requires the Oracle user to have CREATE ANY TABLE privilege.
+```
+
+When schema prefixing is not feasible, the test falls back to truncate-before-insert with a session-level advisory lock.
 
 ### Test Modes
 
@@ -141,6 +200,7 @@ test_workflow_e2e.py
 | Full workflow | `pytest tests/test_workflow_e2e.py` | `wf_*.py` | Regression / CI |
 | Single mapping | `pytest tests/test_mapping_e2e.py` | `m_*.py` via parametrize | Developer iteration |
 | Custom date | `SNSH_DATE=20260701 pytest ...` | All py files | Time-sensitive testing |
+| Dry-run | `informatica-sparker convert ... --test-only` | Generate artifacts only, no execution | Preview |
 
 ## Converter Integration
 
@@ -159,13 +219,11 @@ class ConversionService:
         return result
 ```
 
-The `TestGenerator` class in a new module `test_generator.py` holds all the logic for:
-- Table discovery across the 5 sources
-- CREATE TABLE generation with type mapping
-- Reference data INSERT generation with pattern matching
-- Cleanup SQL generation
-- `gen_test_data.py` template rendering (with discovered SOR table names)
-- `conftest.py` / `test_*.py` template rendering (with workflow topology)
+A CLI flag `--test-only` generates test artifacts without performing the PySpark conversion:
+
+```bash
+informatica-sparker convert WF_GMS_DDS_APLY_DLY.XML -o output_dir --test-only
+```
 
 ## Implementation in service.py
 
@@ -173,17 +231,38 @@ In `service.py`, the `convert_file()` method is extended to call `TestGenerator`
 
 A new module `informatica_sparker/test_generator.py` is added, containing:
 
-- `TestGenerator` class with methods: `write_all()`, `write_schema()`, `write_reference_data()`, `write_cleanup()`, `write_data_generator()`, `write_test_scripts()`
-- `TableDiscoverer` — collects unique tables from 5 XML sources  
-- `SchemaRenderer` — type mapping + CREATE TABLE generation  
-- `ReferenceDataGenerator` — pattern-based INSERT generation  
-- `SQLTableExtractor` — parses `FROM`/`JOIN` clauses from SQL queries
+- `TestGenerator` — orchestrator class with methods: `write_all()`, `write_schema()`, `write_reference_data()`, `write_cleanup()`, `write_data_generator()`, `write_test_scripts()`
+- `TableDiscoverer` — collects unique tables from 5 XML sources with conflict resolution
+- `SchemaRenderer` — Informatica→Oracle type mapping + CREATE TABLE generation with dependency ordering
+- `ReferenceDataGenerator` — pattern-based INSERT generation with FK-aware ordering
+- `SQLTableExtractor` — parses `FROM`/`JOIN` clauses from SQL queries using sqlparse or regex
+- `TableDependencySorter` — topological sort with cycle detection (reuses pattern from the existing `workflow_builder.py`)
+
+## Phased Implementation
+
+### Phase 1: Core Functionality
+
+- `TableDiscoverer` with 5-source collection + conflict resolution
+- `SchemaRenderer` with full type mapping
+- Basic `ReferenceDataGenerator` with date-aware defaults
+- `TestGenerator.write_schema()` + `write_reference_data()` + `write_cleanup()`
+- `conftest.py`, `test_workflow_e2e.py`, `test_mapping_e2e.py` templates
+- Integration hook in `service.py`
+
+### Phase 2: Enhanced Features
+
+- FK inference via XML `REFERENCEDFIELD` in addition to naming patterns
+- SQL field extraction from `SELECT` columns for priority-3/4 tables
+- `gen_test_data.py` with dynamic SOR transaction generation
+- Workflow parameter file generation
+- Schema prefix isolation for concurrent test runs
+- `--test-only` CLI flag
 
 ## Files to Create
 
 | File | Purpose |
 |------|---------|
-| `informatica_sparker/test_generator.py` | Core test generation logic |
+| `informatica_sparker/test_generator.py` | Core test generation logic (all sub-classes) |
 | `informatica_sparker/templates/test/conftest.py.j2` | Jinja2 template for conftest.py |
 | `informatica_sparker/templates/test/test_workflow_e2e.py.j2` | Jinja2 template for workflow test |
 | `informatica_sparker/templates/test/test_mapping_e2e.py.j2` | Jinja2 template for mapping test |
@@ -197,3 +276,5 @@ A new module `informatica_sparker/test_generator.py` is added, containing:
 - **Sub-second precision**: Informatica `Subsecond Precision` attribute can affect timestamp field generation; current design uses standard `DATE` type.
 - **File-source field inference**: Flat file sources without explicit field definitions get a generic `VARCHAR2(255)` column.
 - **Router/Normalizer**: Mapping-internal routing logic is not reflected in schema generation (schema only cares about table I/O, not routing).
+- **Scale testing**: Future `--scale N` flag for generating large volumes of transaction data for performance testing.
+- **Custom data hooks**: Allow user-provided Python hooks to override default data generation for specific tables.
