@@ -15,6 +15,7 @@ from .handlers import TransformHandlers
 from .codegen import CodeGenerator
 from .ir import IRPlan, IRStepType
 from .logger import ConversionLogger
+from .test_generator import TestGenerator
 
 
 class ConversionService:
@@ -23,6 +24,7 @@ class ConversionService:
         self.user_config = user_config or UserConfig()
         self.logger = ConversionLogger()
         self.codegen = CodeGenerator()
+        self.with_tests = False
 
     def convert_file(self, xml_path: str, output_dir: str = "output") -> GenerationResult:
         xml_path = Path(xml_path)
@@ -144,6 +146,20 @@ class ConversionService:
 
         if output_dir:
             self._write_output(all_files, output_dir)
+
+        # Generate E2E test artifacts when --with-tests flag is set
+        if output_dir and self.with_tests and not result.errors:
+            wf_name = "workflow"
+            workflows = workflow_analysis.get("workflows", [])
+            if workflows:
+                wf_name = workflows[0]["name"]
+            test_gen = TestGenerator(
+                mappings=mappings,
+                workflow_analysis=workflow_analysis,
+                snsh_date=os.environ.get("SNSH_DATE", "20260601"),
+                workflow_name=wf_name,
+            )
+            test_gen.write_all(output_dir)
 
         return result
 

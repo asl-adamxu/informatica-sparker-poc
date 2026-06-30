@@ -20,6 +20,8 @@ def main():
                               help="Override source database type (oracle, sqlserver, postgresql). Default: auto-detect from XML")
     convert_parser.add_argument("--target-db", default="",
                               help="Target database type for SQL translation (spark, oracle, sqlserver). Default: spark")
+    convert_parser.add_argument("--with-tests", action="store_true",
+                              help="Generate E2E test artifacts (schema DDL, reference data, pytest scripts)")
 
     analyze_parser = subparsers.add_parser("analyze", help="Analyze XML and show mapping details")
     analyze_parser.add_argument("xml_file", help="Path to Informatica XML file")
@@ -50,6 +52,7 @@ def _run_convert(args):
         user_config.target_db_type = args.target_db
 
     service = ConversionService(user_config=user_config)
+    service.with_tests = args.with_tests
 
     try:
         result = service.convert_file(args.xml_file, output_dir=args.output)
@@ -100,6 +103,9 @@ def _run_convert(args):
             print(f"    ! {w}")
         if len(result.warnings) > 20:
             print(f"    ... and {len(result.warnings) - 20} more (see conversion_log.txt)")
+
+    if getattr(args, 'with_tests', False):
+        print(f"\n  E2E Test Artifacts: generated in {args.output}/tests/")
 
     print()
 
