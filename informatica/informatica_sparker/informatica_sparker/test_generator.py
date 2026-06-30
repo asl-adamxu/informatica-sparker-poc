@@ -115,3 +115,209 @@ def infa_to_oracle_type(datatype: str, precision: int = 0, scale: int = 0) -> st
     elif base in ("DATE", "TIMESTAMP", "CLOB", "BLOB"):
         return base
     return "VARCHAR2(255)"
+
+
+# ── SQL Table Extractor ─────────────────────────────────────────────────────────
+
+# Simple regex-based Oracle SQL FROM-clause extractor.
+# Handles: FROM table, FROM table alias, JOIN table, JOIN table alias,
+#          FROM schema.table, schema.table alias, comma-separated tables,
+#          subqueries (skipped), CTE with clause (skipped).
+# Limitations: does not fully parse recursive CTEs or PIVOT/UNPIVOT.
+
+_SQL_FROM_PATTERN = re.compile(
+    r'(?:FROM|JOIN)\s+'
+    r'(?:\(?\s*)([A-Za-z_][A-Za-z0-9_$#]*(?:\.[A-Za-z_][A-Za-z0-9_$#]*)?)'
+    r'(?:\s+(?:AS\s+)?[A-Za-z_][A-Za-z0-9_$#]*)?'
+    r'(?:\s*[,)]?\s*)',
+    re.IGNORECASE
+)
+
+# Pattern for comma-separated tables after FROM (no JOIN keyword)
+_SQL_COMMA_TABLE = re.compile(
+    r'(?:^|,\s*)([A-Za-z_][A-Za-z0-9_$#]*(?:\.[A-Za-z_][A-Za-z0-9_$#]*)?)'
+    r'(?:\s+(?:AS\s+)?[A-Za-z_][A-Za-z0-9_$#]*)?',
+    re.MULTILINE
+)
+
+
+def _strip_sql_comments(sql: str) -> str:
+    """Remove SQL comments (single-line and multi-line)."""
+    sql = re.sub(r'--[^\n]*', '', sql)
+    sql = re.sub(r'/\*.*?\*/', '', sql, flags=re.DOTALL)
+    return sql
+
+
+def _normalize_sql(sql: str) -> str:
+    """Normalize SQL for parsing: lowercase, collapse whitespace."""
+    sql = _strip_sql_comments(sql)
+    sql = re.sub(r'\s+', ' ', sql).strip()
+    return sql
+
+
+_FROM_CLAUSE_TERMINATORS = r'\b(?:WHERE|GROUP\s+BY|ORDER\s+BY|HAVING|START\s+WITH|CONNECT\s+BY|UNION|MINUS|INTERSECT|INTO|FOR\s+UPDATE)\b'
+
+
+def _find_from_portion(sql: str, from_match: re.Match) -> str:
+    """Extract the text between FROM keyword and the next clause-terminating keyword."""
+    rest = sql[from_match.end():]
+    end = re.search(_FROM_CLAUSE_TERMINATORS, rest, re.IGNORECASE)
+    if end:
+        return rest[:end.start()]
+    return rest
+
+
+def _find_main_select_pos(sql: str) -> int:
+    """Return the index of the outermost SELECT in the normalized SQL, handling paren-depth."""
+    i = 0
+    depth = 0
+    while i < len(sql):
+        c = sql[i]
+        if c == '(':
+            depth += 1
+        elif c == ')':
+            depth -= 1
+        elif depth == 0 and sql[i:i + 6].upper() == 'SELECT':
+            return i
+        i += 1
+    return -1  # no SELECT found
+
+
+def _extract_cte_names(sql: str) -> Set[str]:
+    """Extract CTE names from a WITH clause using paren-depth tracking."""
+    cte_names: Set[str] = set()
+    if not re.match(r'^\s*WITH\s+', sql, re.I):
+        return cte_names
+    main_pos = _find_main_select_pos(sql[4:])
+    if main_pos < 0:
+        return cte_names
+    with_portion = sql[4:4 + main_pos]
+    for m in re.finditer(r'(\w+)\s+AS\s*\(', with_portion):
+        cte_names.add(m.group(1).upper())
+    return cte_names
+
+
+def _extract_tables_from_cte_body(sql: str, cte_names: Set[str]) -> List[TableRef]:
+    """Extract tables referenced inside WITH clause CTE definitions.
+
+    Applies the FROM/JOIN pattern directly on the CTE body text
+    (parens are not stripped -- the pattern can match inside them).
+    CTE names themselves are filtered out.
+    """
+    main_pos = _find_main_select_pos(sql[4:])
+    if main_pos < 0:
+        return []
+    body = sql[4:4 + main_pos]  # everything between WITH and the main SELECT
+
+    tables: List[TableRef] = []
+    seen: Set[str] = set()
+    for m in _SQL_FROM_PATTERN.finditer(body):
+        raw = m.group(1).strip()
+        if '.' in raw:
+            parts = raw.split('.', 1)
+            schema, table = parts[0].upper(), parts[1].upper()
+        else:
+            schema, table = '', raw.upper()
+        if table in ('DUAL', 'SYSTEM', 'SELECT', 'WHERE', 'AND', 'OR', 'ON', 'AS', 'NULL'):
+            continue
+        if table in cte_names:
+            continue
+        key = f"{schema}.{table}"
+        if key not in seen:
+            seen.add(key)
+            tables.append(TableRef(schema_name=schema, table_name=table))
+    return tables
+
+
+def _remove_cte_block(sql: str) -> str:
+    """Remove the entire WITH clause, returning the main SELECT query."""
+    if not re.match(r'^\s*WITH\s+', sql, re.I):
+        return sql
+    main_pos = _find_main_select_pos(sql[4:])
+    if main_pos < 0:
+        return sql
+    return sql[4 + main_pos:]
+
+
+def extract_tables_from_sql(sql_text: str) -> List[TableRef]:
+    """Extract table references from an Oracle SQL query.
+
+    Returns a list of TableRef (schema.table or just table).
+    Skips subquery aliases and CTE names.
+    """
+    if not sql_text or not sql_text.strip():
+        return []
+
+    sql = _normalize_sql(sql_text)
+
+    # Extract CTE names before removal so we can filter them out later
+    cte_names = _extract_cte_names(sql)
+
+    # Extract tables from WITH clause CTE bodies before removal
+    tables: List[TableRef] = []
+    seen: Set[str] = set()
+    if cte_names:
+        cte_tables = _extract_tables_from_cte_body(sql, cte_names)
+        for t in cte_tables:
+            key = t.key
+            if key not in seen:
+                seen.add(key)
+                tables.append(t)
+
+    # Remove the CTE block to avoid double-counting or mis-parsing
+    sql = _remove_cte_block(sql)
+
+    # Remove parenthesized subqueries first (replace with empty)
+    # This prevents FROM clauses inside subqueries from being matched at outer level
+    while True:
+        simplified = re.sub(r'\([^()]*\)', '()', sql)
+        if simplified == sql:
+            break
+        sql = simplified
+    # Now remove actual parens left
+    sql = sql.replace('()', ' ')
+
+    # Extract FROM table / JOIN table patterns
+    for m in _SQL_FROM_PATTERN.finditer(sql):
+        raw = m.group(1).strip()
+        if '.' in raw:
+            parts = raw.split('.', 1)
+            schema, table = parts[0].upper(), parts[1].upper()
+        else:
+            schema, table = '', raw.upper()
+
+        # Skip common non-table references
+        if table in ('DUAL', 'SYSTEM', 'SELECT', 'WHERE', 'AND', 'OR', 'ON', 'AS', 'NULL'):
+            continue
+        # Skip subquery aliases (single words after FROM that aren't tables)
+        if not schema and table in ('SELECT', 'WITH', 'FROM', 'WHERE'):
+            continue
+
+        key = f"{schema}.{table}"
+        if key not in seen:
+            seen.add(key)
+            tables.append(TableRef(schema_name=schema, table_name=table))
+
+    # Extract comma-separated tables from FROM clauses
+    for m in re.finditer(r'\bFROM\s+', sql, re.I):
+        from_portion = _find_from_portion(sql, m)
+        for cm in _SQL_COMMA_TABLE.finditer(from_portion):
+            raw = cm.group(1).strip()
+            if '.' in raw:
+                parts = raw.split('.', 1)
+                schema, table = parts[0].upper(), parts[1].upper()
+            else:
+                schema, table = '', raw.upper()
+            # Skip common non-table references
+            if table in ('DUAL', 'SYSTEM', 'SELECT', 'WHERE', 'AND', 'OR', 'ON', 'AS', 'NULL'):
+                continue
+            key = f"{schema}.{table}"
+            if key not in seen:
+                seen.add(key)
+                tables.append(TableRef(schema_name=schema, table_name=table))
+
+    # Filter out CTE names — they are not real database tables
+    if cte_names:
+        tables = [t for t in tables if t.table_name not in cte_names]
+
+    return tables
