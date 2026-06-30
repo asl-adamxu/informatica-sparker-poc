@@ -61,3 +61,57 @@ class TableRef:
         if self.schema_name:
             return f"{self.schema_name}.{self.table_name}".upper()
         return self.table_name.upper()
+
+
+# ── Type Mapping ──────────────────────────────────────────────────────────────
+
+INFA_TO_ORACLE_TYPE = {
+    "number":      "NUMBER",
+    "decimal":     "NUMBER",
+    "numeric":     "NUMBER",
+    "float":       "FLOAT",
+    "double":      "FLOAT",
+    "real":        "FLOAT",
+    "integer":     "INTEGER",
+    "smallint":    "SMALLINT",
+    "bigint":      "NUMBER(19,0)",
+    "varchar":     "VARCHAR2",
+    "varchar2":    "VARCHAR2",
+    "char":        "CHAR",
+    "nchar":       "CHAR",
+    "nvarchar2":   "VARCHAR2",
+    "date":        "DATE",
+    "timestamp":   "TIMESTAMP",
+    "datetime":    "DATE",
+    "string":      "VARCHAR2",    # flat file source type
+    "text":        "CLOB",
+    "blob":        "BLOB",
+    "clob":        "CLOB",
+}
+
+
+def infa_to_oracle_type(datatype: str, precision: int = 0, scale: int = 0) -> str:
+    """Convert an Informatica field type to an Oracle SQL column type."""
+    raw_key = datatype.lower().strip()
+    base = INFA_TO_ORACLE_TYPE.get(raw_key, "VARCHAR2")
+
+    # Some dict values are fully-qualified (e.g. "NUMBER(19,0)") -- return as-is
+    if "(" in base:
+        return base
+
+    if base == "NUMBER":
+        if precision > 0 and scale > 0:
+            return f"NUMBER({precision},{scale})"
+        elif precision > 0:
+            return f"NUMBER({precision},0)"
+        return "NUMBER"
+    elif base in ("VARCHAR2", "CHAR"):
+        p = precision if precision > 0 else 255
+        return f"{base}({p})"
+    elif base == "FLOAT":
+        return "FLOAT"
+    elif base in ("INTEGER", "SMALLINT"):
+        return base
+    elif base in ("DATE", "TIMESTAMP", "CLOB", "BLOB"):
+        return base
+    return "VARCHAR2(255)"
