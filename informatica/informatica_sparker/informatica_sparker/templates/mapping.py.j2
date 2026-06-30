@@ -267,6 +267,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             "left"
         ).drop({% for jp in lkp_join.join_predicates %}"_lkp_jk_{{ jp.lookup_col }}"{% if not loop.last %}, {% endif %}{% endfor %})
         {% endfor %}
+        {% set pass_through_cols = [] %}
         {% for col in step.params.get('computed_columns', []) %}
         {% set expr_str = col.get('expression', 'NULL') %}
         {% if ':SP.' in expr_str or '.SP_' in expr_str %}
@@ -292,10 +293,21 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% else %}
         {{ step.df_output }} = {{ step.df_output }}.withColumn("{{ col.get('name', 'col') }}", expr("{{ expr_str }}"))
         {% endif %}
+        {% elif expr_str | trim == col.get('name', 'col') %}
+        {#- Collect pass-through column name for consolidated loop below #}
+        {%- set _ = pass_through_cols.append(col.get('name', 'col')) %}
         {% endif %}
         {% endfor %}
         {% set output_columns = step.params.get('output_columns', []) %}
-        {% if output_columns %}       
+        {% if output_columns %}
+        # Ensure any missing pass-through columns exist (no connector feeding them)
+        {% set computed_names = step.params.get('computed_columns', []) | map(attribute='name') | list %}
+        {% for c in output_columns if c not in computed_names %}{% set _ = pass_through_cols.append(c) %}{% endfor %}
+        {% if pass_through_cols %}
+        for _col in [{% for c in pass_through_cols %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %}]:
+            if _col not in {{ step.df_output }}.columns:
+                {{ step.df_output }} = {{ step.df_output }}.withColumn(_col, lit(None))
+        {% endif %}
         # Select only mapping output ports (prevents column leakage)
         {{ step.df_output }} = {{ step.df_output }}.select({% for c in output_columns %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %})
         {% endif %}
@@ -381,16 +393,17 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% elif step.step_type == IRStepType.APPLY_AGGREGATOR %}
         # Aggregator: {{ step.step_name }}
         {% set group_by = step.params.get('group_by', []) %}
-        {% if group_by %}
-        {{ step.df_output }} = {{ step.df_input }}.groupBy({{ group_by | map('tojson') | join(', ') }})
         {% set aggs = step.params.get('aggregations', {}) %}
-        {% if aggs %}
+        {% if group_by and aggs %}
+        {{ step.df_output }} = {{ step.df_input }}.groupBy({{ group_by | map('tojson') | join(', ') }})
         {{ step.df_output }} = {{ step.df_output }}.agg(
             {% for col_name, agg_expr in aggs.items() %}
             {{ agg_expr }}.alias("{{ col_name }}"){{ "," if not loop.last else "" }}
             {% endfor %}
         )
-        {% endif %}
+        {% elif group_by and not aggs %}
+        {#- GROUP BY with no aggregations → equivalent to DISTINCT #}
+        {{ step.df_output }} = {{ step.df_input }}.select({% for c in group_by %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %}).distinct()
         {% else %}
         {{ step.df_output }} = {{ step.df_input }}
         {% endif %}

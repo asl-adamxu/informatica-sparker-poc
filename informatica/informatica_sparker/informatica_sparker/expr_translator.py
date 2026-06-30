@@ -84,7 +84,7 @@ class ExpressionTranslator:
         'SYSTIMESTAMP': 'current_timestamp()',
         'SESSSTARTTIME': 'current_timestamp()',
         'ADD_TO_DATE': 'date_add',
-        'DATE_DIFF': 'datediff',
+        'DATE_DIFF': None,  # handled by _translate_date_diff
         'GET_DATE_PART': 'date_part',
         'SET_DATE_PART': None,
         'LAST_DAY': 'last_day',
@@ -134,6 +134,7 @@ class ExpressionTranslator:
         result = self._translate_decode(result)
         result = self._translate_get_date_part(result)
         result = self._translate_set_date_part(result)
+        result = self._translate_date_diff(result)
         result = self._translate_add_to_date(result)
         result = self._translate_date_compare(result)
         result = self._translate_error_abort(result)
@@ -143,6 +144,7 @@ class ExpressionTranslator:
         result = self._translate_functions(result)
         result = self._translate_operators(result)
         result = self._translate_string_literals(result)
+        result = self._translate_date_format_patterns(result)
         result = self._clean_up(result)
 
         if self.logger and field_name:
@@ -345,6 +347,27 @@ class ExpressionTranslator:
 
         return expr
 
+    def _translate_date_diff(self, expr: str) -> str:
+        """Translate DATE_DIFF(date1, date2, format) → datediff(date1, date2).
+        Spark's datediff only accepts 2 args (no format specifier).
+        """
+        pattern = re.compile(r'\bDATE_DIFF\s*\(', re.IGNORECASE)
+        while pattern.search(expr):
+            match = pattern.search(expr)
+            if not match:
+                break
+            _all_args = self._extract_function_args(expr, match.end() - 1)
+            if _all_args and len(_all_args) >= 2:
+                if len(_all_args) >= 3:
+                    # Strip the 3rd arg (format specifier like 'D', 'M', 'Y')
+                    _all_args = _all_args[:2]
+                new_call = f"datediff({', '.join(_all_args)})"
+                full_match = expr[match.start():self._find_closing_paren(expr, match.end() - 1) + 1]
+                expr = expr.replace(full_match, new_call, 1)
+            else:
+                break
+        return expr
+
     def _translate_add_to_date(self, expr: str) -> str:
         pattern = re.compile(r'\bADD_TO_DATE\s*\(', re.IGNORECASE)
 
@@ -485,6 +508,34 @@ class ExpressionTranslator:
                 break
 
         return expr
+
+    def _translate_date_format_patterns(self, expr: str) -> str:
+        """Fix Informatica date format patterns in date-related function calls.
+        Spark 3+ uses Java 8 DateTimeFormatter which is stricter:
+          YYYY (week-year) → yyyy (year)
+          DD (day-of-year) → dd (day-of-month)
+          MI (minute)      → mm
+          SS               → ss
+          MON              → MMM
+          MONTH            → MMMM
+        Applies to single-quoted format strings in to_date/to_char/date_format.
+        """
+        result = expr
+        # Match format strings after to_date(..., 'FORMAT') or to_char(..., 'FORMAT')
+        _pat = re.compile(r"(to_date|to_char|date_format)\s*\([^)]*?'([A-ZYMDSHNm/.\-]+)'\s*[,\)]", re.IGNORECASE)
+        for _m in _pat.finditer(result):
+            _old_fmt = _m.group(2)
+            _new_fmt = _old_fmt
+            _new_fmt = _new_fmt.replace('YYYY', 'yyyy')
+            _new_fmt = _new_fmt.replace('YY', 'yy')
+            _new_fmt = _new_fmt.replace('DD', 'dd')
+            _new_fmt = _new_fmt.replace('MI', 'mm')
+            _new_fmt = _new_fmt.replace('SS', 'ss')
+            _new_fmt = _new_fmt.replace('MONTH', 'MMMM')
+            _new_fmt = _new_fmt.replace('MON', 'MMM')
+            if _new_fmt != _old_fmt:
+                result = result[:_m.start(2)] + _new_fmt + result[_m.end(2):]
+        return result
 
     def _translate_string_literals(self, expr: str) -> str:
         return expr

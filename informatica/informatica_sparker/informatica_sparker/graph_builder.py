@@ -22,7 +22,7 @@ class GraphBuilder:
             from_inst = connector.from_instance
             to_inst = connector.to_instance
 
-            if from_inst and to_inst:
+            if from_inst and to_inst and from_inst != to_inst:
                 self.graph.add_edge(from_inst, to_inst)
                 self.connected_instances.add(from_inst)
                 self.connected_instances.add(to_inst)

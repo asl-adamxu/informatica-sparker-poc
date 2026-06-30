@@ -298,7 +298,7 @@ class TransformHandlers:
                     plan.add_step(step)
                 self.logger.log_transformation(inst_name, "Router", f"Router converted ({len(steps)} steps)", LogLevel.SUCCESS)
 
-            elif inst_type == "Sequence Generator":
+            elif inst_type in ("Sequence Generator", "Sequence"):
                 self.logger.log_transformation(inst_name, "Sequence", "Processing sequence generator", LogLevel.INFO)
                 step = self._handle_sequence(instance, plan)
                 if step:
@@ -416,7 +416,15 @@ class TransformHandlers:
     def _handle_source_qualifier(self, instance: Instance, plan: IRPlan) -> Optional[IRStep]:
         input_df = self._get_input_df(instance.name)
         if not input_df:
-            plan.add_warning(f"No input DataFrame found for {instance.name}")
+            # Check if this SQ has any upstream connectors — if not, it's a file-based
+            # or standalone source qualifier (no warning needed, reads from file directly).
+            _has_upstream = any(
+                c.to_instance == instance.name
+                and c.from_instance != c.to_instance  # skip self-loops (Source Def → same-name SQ)
+                for c in self.mapping.connectors
+            )
+            if _has_upstream:
+                plan.add_warning(f"No input DataFrame found for {instance.name}")
             input_df = "df_source"
 
         df_output = self._get_df_name("df_sq")
@@ -708,6 +716,24 @@ class TransformHandlers:
                             expression=sanitized,
                             datatype=field.datatype
                         ))
+
+        # Sort computed columns by dependency order — if column A's expression
+        # references column B, B must be computed first (topological order).
+        if len(computed_columns) > 1:
+            _dep_graph = nx.DiGraph()
+            _all_names = {c.name for c in computed_columns}
+            for _cc in computed_columns:
+                _dep_graph.add_node(_cc.name)
+                for _dep_name in _all_names:
+                    if _dep_name != _cc.name and _dep_name in (_cc.expression or ""):
+                        _dep_graph.add_edge(_dep_name, _cc.name)
+            try:
+                _sorted = list(nx.topological_sort(_dep_graph))
+                _col_map = {c.name: c for c in computed_columns}
+                computed_columns = [_col_map[n] for n in _sorted if n in _col_map]
+            except nx.NetworkXUnfeasible:
+                # Cycle detected — keep original order
+                pass
 
         step = ApplyExpressionStep(
             step_name=f"apply_{instance.name}",
@@ -1334,6 +1360,24 @@ class TransformHandlers:
         if not input_df:
             plan.add_warning(f"No input DataFrame found for target {instance.name}")
             input_df = "df_final"
+        else:
+            # When a target has multiple upstream DataFrames, merge them
+            # so all mapped columns are available for the write.
+            _tgt_all_inputs = self._get_all_input_dfs(instance.name)
+            _tgt_extra = [df for df in _tgt_all_inputs if df != input_df]
+            for _i, _extra_df in enumerate(_tgt_extra):
+                _join_df = self._get_df_name("df_tgt_merge")
+                steps.append(ApplyLookupStep(
+                    step_name=f"join_target_{instance.name}_{_i}",
+                    df_input=input_df,
+                    df_output=_join_df,
+                    lookup_df=_extra_df,
+                    join_predicates=[],
+                    join_expr="__common_cols__",
+                    output_columns=[],
+                    lookup_type="left",
+                ))
+                input_df = _join_df
 
         target_name = instance.transformation_name or self._normalize_instance_to_object_name(instance.name)
         target = None
@@ -1868,10 +1912,33 @@ class TransformHandlers:
                 if transform:
                     filter_cond = transform.table_attributes.get("Filter Condition", "")
                     if filter_cond:
-                        plan.add_warning(
-                            f"Mapplet {mapplet_name} contains Filter: "
-                            f"{filter_cond[:120]}"
-                        )
+                        # Find input DataFrame and translate filter condition
+                        _mpl_filt_input = None
+                        for conn in mpl_connectors:
+                            if conn.to_instance == mpl_inst_name:
+                                _mpl_filt_input = mpl_df_map.get(conn.from_instance)
+                                if _mpl_filt_input:
+                                    break
+                        if not _mpl_filt_input:
+                            _mpl_filt_input = input_df
+                        # Remap port names in filter condition using inst_field_remap
+                        _filter_expr = filter_cond
+                        for _mpl_port, _actual_col in inst_field_remap.items():
+                            if _mpl_port != _actual_col:
+                                _filter_expr = _filter_expr.replace(_mpl_port, _actual_col)
+                        # Translate the filter condition (handles Informatica SQL syntax)
+                        _filter_expr = self.expr_translator.translate_for_filter(_filter_expr)
+                        _mpl_filt_df = self._get_df_name("df_mplt_fil")
+                        mpl_df_map[mpl_inst_name] = _mpl_filt_df
+                        steps.append(ApplyFilterStep(
+                            step_name=f"apply_mplt_{mpl_inst.name}",
+                            df_input=_mpl_filt_input,
+                            df_output=_mpl_filt_df,
+                            condition=_filter_expr,
+                        ))
+                    else:
+                        # Filter with no condition — pass-through
+                        mpl_df_map[mpl_inst_name] = mpl_input_df or input_df
 
         # --- 7. Map OUTPUT back to the calling mapping ----------------------------------
         if output_inst:

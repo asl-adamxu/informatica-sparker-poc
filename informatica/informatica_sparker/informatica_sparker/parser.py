@@ -113,6 +113,15 @@ class InfaXMLParser:
             transform = self._parse_transformation(transform_elem)
             mapping.transformations.append(transform)
 
+        # Include folder-level reusable transformations (e.g. shared Lookups defined at FOLDER level)
+        if folder is not None:
+            _existing_tnames = {t.name for t in mapping.transformations}
+            for transform_elem in folder.findall("TRANSFORMATION"):
+                transform = self._parse_transformation(transform_elem)
+                if transform.name not in _existing_tnames:
+                    mapping.transformations.append(transform)
+                    _existing_tnames.add(transform.name)
+
         for instance_elem in mapping_elem.findall("INSTANCE"):
             instance = self._parse_instance(instance_elem)
             mapping.instances.append(instance)

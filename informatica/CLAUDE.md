@@ -214,3 +214,51 @@ use default python to run pyspark workflow or mapping
   from pyspark.sql.functions import *
   ```
 - Use `_builtin_max([a, b])` and `_builtin_min([a, b])` where the Python builtin is intended.
+
+## Conversion Progress
+
+As of **2026-06-30** (version **2026.06.30**), 10 workflows (~1,130 mappings) have been converted from Informatica PowerCenter XML to PySpark.
+
+### ✅ Runtime Verified
+| Workflow | Mappings | XML Size | Status |
+|----------|----------|----------|--------|
+| WF_GMS_DDS_APLY_DLY | 8 | 340K | **Data-validated**, zero warnings |
+| WF_CMS_DDS_APLY_MTH | 10 | 1.2M | **3/3 mappings SUCCESS**, 16 mapplets inlined |
+| WF_HOMES_DDS_APLY_DMNS | 67 | 2.4M | **Zero warnings**, Sequence Generator tested |
+| WF_EMS_PRHE_DDS_APLY_RVN_MTH | 25 | 3.1M | **Zero warnings** (fixed 8) |
+| WF_EMS_PRHE_DDS_APLY_HSE_STCK_MTH | 28 | 3.9M | **Zero warnings** (fixed 2) |
+
+### ⚠️ Converted (Not Yet Runtime Tested)
+| Workflow | Mappings | XML Size | Notes |
+|----------|----------|----------|-------|
+| WF_EMS_DDS_APLY_MTH | 49 | 4.0M | dds/ layer |
+| WF_EMS_EX | 142 | 9.6M | Source system extract (SSAL1) |
+| WF_NHS_EX | 46 | 2.2M | Source system extract (SSAL1) |
+| WF_EMS_TL | 581 | 36M | Transform & load (largest) |
+| WF_NHS_TL | 174 | 11M | Transform & load |
+
+### Layer Architecture
+- **`dds/`** — Data Delivery Service (subject-area marts). Current testing focus.
+- **`extract/`** — Source system extraction (SSAL1). Simple Source Qualifier → Target.
+- **`transform and load/`** — Complex transformation and dimensional load.
+
+### Feature Coverage
+| Feature | Tested In | Status |
+|---------|-----------|--------|
+| Source Qualifier (DB) | All | ✅ |
+| Source Qualifier (File) | WF_EMS_TL | ✅ (basic) |
+| Expression / Filter | All | ✅ |
+| Aggregator (complex expr) | WF_CMS_DDS_APLY_MTH | ✅ |
+| Lookup Procedure | WF_CMS_DDS_APLY_MTH, WF_GMS_DDS_APLY_DLY | ✅ |
+| Joiner | WF_CMS_DDS_APLY_MTH | ✅ |
+| Sequence Generator | WF_HOMES_DDS_APLY_DMNS | ✅ |
+| Mapplet (inline mini-DAG) | WF_CMS_DDS_APLY_MTH | ✅ |
+| Stored Procedure | WF_CMS_DDS_APLY_MTH | ✅ |
+| Update Strategy / Sorter | WF_CMS_DDS_APLY_MTH | ✅ |
+| Inline Lookup (`:LKP.xxx()`) | WF_CMS_DDS_APLY_MTH | ✅ |
+| Multi-input merge | WF_CMS_DDS_APLY_MTH | ✅ |
+| Mapping Variables ($$) | WF_CMS_DDS_APLY_MTH | ✅ |
+| Folder-level shared transforms | WF_CMS_DDS_APLY_MTH | ✅ |
+| Worklet / Parallel Sessions | WF_GMS_DDS_APLY_DLY | ✅ |
+| Email / Command Tasks | WF_GMS_DDS_APLY_DLY | ✅ |
+| Router / Normalizer | — | ⏳ Pending |

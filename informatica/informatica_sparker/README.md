@@ -1,6 +1,6 @@
 # informatica-sparker
 
-**Version 2026.06.29** — A Python framework that converts Informatica PowerCenter workflow/mapping XML exports into PySpark code deployable to Databricks or YARN Spark clusters. **Tested against Informatica output — data results match.**
+**Version 2026.06.30** — A Python framework that converts Informatica PowerCenter workflow/mapping XML exports into PySpark code deployable to Databricks or YARN Spark clusters. **Tested against Informatica output — data results match.**
 
 Conversion pipeline: **XML → Models → IR Plan → Jinja2 Templates → Generated Python Files**
 
