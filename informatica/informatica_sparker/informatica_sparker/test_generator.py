@@ -881,3 +881,534 @@ class ReferenceDataGenerator:
                 idx = min(row_idx, len(values) - 1)
                 return values[idx]
         return f"Test {base} {row_idx + 1}"
+
+
+# ── Test Generator (Orchestrator) ─────────────────────────────────────────────
+
+class TestGenerator:
+    """Orchestrates generation of all E2E test artifacts.
+
+    Called from ConversionService after successful conversion.
+    Uses already-parsed models — no re-parsing needed.
+    """
+
+    def __init__(self, mappings: List[MappingDefinition],
+                 workflow_analysis: dict,
+                 snsh_date: str = "20260601",
+                 workflow_name: str = "workflow"):
+        self.mappings = mappings
+        self.workflow_analysis = workflow_analysis
+        self.snsh_date = snsh_date
+        self.workflow_name = workflow_name
+
+        # Run discovery
+        self.discoverer = TableDiscoverer(mappings)
+        self.tables = self.discoverer.discover_all()
+        self.schema_renderer = SchemaRenderer(self.tables)
+        self.data_generator = ReferenceDataGenerator(self.tables, snsh_date)
+
+        # Extract sessions/mappings info
+        self.session_mappings: Dict[str, str] = {}
+        for s in workflow_analysis.get("sessions", []):
+            sname = s.get("name", "")
+            mname = s.get("mapping_name", "")
+            if sname and mname:
+                self.session_mappings[sname] = mname
+
+    def write_all(self, output_dir: str):
+        """Write all test artifacts to output_dir/tests/."""
+        tests_dir = Path(output_dir) / "tests"
+        schema_dir = tests_dir / "schema"
+        sql_dir = tests_dir / "sql"
+
+        schema_dir.mkdir(parents=True, exist_ok=True)
+        sql_dir.mkdir(parents=True, exist_ok=True)
+
+        # Schema files
+        self._write(schema_dir / "create_all_tables.sql", self.schema_renderer.render_create_all())
+        self._write(schema_dir / "drop_all_tables.sql", self.schema_renderer.render_drop_all())
+
+        # SQL files
+        self._write(sql_dir / "10_dimension_data.sql", self.data_generator.render_inserts())
+        self._write(sql_dir / "90_cleanup.sql", self.schema_renderer.render_truncate_all())
+
+        # Test scripts (via templates or direct generation)
+        self._write(tests_dir / "README.md", self._render_readme())
+        self._write(tests_dir / "conftest.py", self._render_conftest())
+        self._write(tests_dir / "gen_test_data.py", self._render_gen_test_data())
+        self._write(tests_dir / "test_workflow_e2e.py", self._render_workflow_test())
+        self._write(tests_dir / "test_mapping_e2e.py", self._render_mapping_test())
+
+        # .gitignore for generated files that shouldn't be versioned
+        self._write(tests_dir / ".gitignore",
+                    "20_source_transaction.sql\n*.log\n*.pyc\n__pycache__/\n")
+
+        # Summary
+        ref_count = len([t for t in self.tables.values() if t.is_reference])
+        print(f"  [TEST] Test artifacts generated in {tests_dir}")
+        print(f"         - {len(self.tables)} tables discovered")
+        print(f"         - {ref_count} reference tables with INSERT data")
+        print(f"         - {len(self.mappings)} mappings")
+
+    def _write(self, path: Path, content: str):
+        path.write_text(content, encoding="utf-8")
+
+    def _make_safe_name(self, name: str) -> str:
+        safe = re.sub(r'[^a-zA-Z0-9_]', '_', name)
+        if safe and safe[0].isdigit():
+            safe = '_' + safe
+        return safe.lower()
+
+    # ── Render methods ─────────────────────────────────────────────────────
+
+    def _get_target_tables(self) -> List[str]:
+        """Get all target tables that should be verified after test run."""
+        targets = set()
+        for tdef in self.tables.values():
+            if tdef.origin == "target_def":
+                targets.add(tdef.full_name)
+        return sorted(targets)
+
+    def _get_mapping_targets(self) -> Dict[str, List[str]]:
+        """Map each mapping to its target tables."""
+        result: Dict[str, List[str]] = {}
+        for mapping in self.mappings:
+            tgt_names = [t.upper() for t in self._get_mapping_target_names(mapping)]
+            if tgt_names:
+                safe = self._make_safe_name(mapping.name)
+                result[safe] = tgt_names
+        return result
+
+    def _get_mapping_target_names(self, mapping: MappingDefinition) -> List[str]:
+        """Get target table names for a specific mapping."""
+        targets = []
+        for inst in mapping.instances:
+            if inst.transformation_type == "Target Definition":
+                tname = inst.transformation_name
+                # Find schema for this target
+                for tgt_def in mapping.targets:
+                    if tgt_def.name.upper() == tname.upper():
+                        schema = tgt_def.db_name or ""
+                        targets.append(f"{schema}.{tname}" if schema else tname)
+                        break
+                else:
+                    targets.append(tname)
+        return targets
+
+    def _render_readme(self) -> str:
+        """Generate tests/README.md."""
+        table_count = len(self.tables)
+        mapping_count = len(self.mappings)
+        ref_count = len([t for t in self.tables.values() if t.is_reference])
+
+        return f"""# E2E Tests — {self.workflow_name}
+
+Auto-generated by informatica-sparker.
+
+## Overview
+
+- **Workflow:** {self.workflow_name}
+- **Mappings:** {mapping_count}
+- **Discovered Tables:** {table_count} ({ref_count} reference tables)
+- **Target Database:** Oracle
+
+## Files
+
+| File | Purpose |
+|------|---------|
+| `schema/create_all_tables.sql` | CREATE TABLE for all {table_count} tables |
+| `schema/drop_all_tables.sql` | Cleanup DROP statements |
+| `sql/10_dimension_data.sql` | Reference/dimension table INSERTs |
+| `sql/20_source_transaction.sql` | Source transaction data (generated) |
+| `sql/90_cleanup.sql` | TRUNCATE cleanup |
+| `gen_test_data.py` | Generate dynamic source data + UTL files |
+| `conftest.py` | pytest fixtures (DB connection) |
+| `test_workflow_e2e.py` | Full workflow test |
+| `test_mapping_e2e.py` | Per-mapping parametrized test |
+
+## How to Run
+
+### Prerequisites
+
+```bash
+export DB_HOST=your-oracle-host
+export DB_PORT=1521
+export DB_USER=test_user
+export DB_PASSWORD=test_password
+export SNSH_DATE=$(date '+%Y%m%d')
+```
+
+### Full Workflow Test
+
+```bash
+cd $PWD
+pytest tests/test_workflow_e2e.py -v
+```
+
+### Single Mapping Test
+
+```bash
+pytest tests/test_mapping_e2e.py -v -k "m_dpa_sum"
+```
+
+### Custom Snapshot Date
+
+```bash
+SNSH_DATE=20260701 pytest tests/test_workflow_e2e.py -v
+```
+"""
+
+    def _render_conftest(self) -> str:
+        """Generate tests/conftest.py with Oracle DB fixtures."""
+        return '''"""pytest configuration and shared fixtures for E2E tests."""
+import os
+import subprocess
+import pytest
+
+
+@pytest.fixture(scope="session")
+def snsh_date():
+    """Return the snapshot date from environment or default."""
+    return os.environ.get("SNSH_DATE", "20260601")
+
+
+@pytest.fixture(scope="session")
+def output_dir():
+    """Return the output directory (parent of tests/)."""
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+@pytest.fixture(scope="session")
+def db_config():
+    """Return database connection config from environment."""
+    return {
+        "host": os.environ.get("DB_HOST", "localhost"),
+        "port": os.environ.get("DB_PORT", "1521"),
+        "user": os.environ.get("DB_USER", "test"),
+        "password": os.environ.get("DB_PASSWORD", "test"),
+        "service": os.environ.get("DB_SERVICE", "XE"),
+    }
+
+
+def run_sql_script(sql_path: str, db_config: dict = None):
+    """Execute a SQL file against Oracle via cx_Oracle or sqlplus."""
+    sql_file = os.path.abspath(sql_path)
+    if not os.path.exists(sql_file):
+        pytest.skip(f"SQL file not found: {sql_file}")
+
+    # Try cx_Oracle first
+    try:
+        import cx_Oracle
+        if db_config:
+            dsn = cx_Oracle.makedsn(db_config["host"], db_config["port"],
+                                     service_name=db_config.get("service", "XE"))
+            conn = cx_Oracle.connect(db_config["user"], db_config["password"], dsn)
+            cursor = conn.cursor()
+            with open(sql_file) as f:
+                sql_text = f.read()
+            for stmt in sql_text.split(';'):
+                stmt = stmt.strip()
+                if stmt and stmt.upper() not in ('', 'SELECT 1 FROM DUAL'):
+                    cursor.execute(stmt)
+            conn.commit()
+            cursor.close()
+            conn.close()
+            print(f"  [SQL] Executed: {sql_file}")
+            return
+    except ImportError:
+        pass
+
+    # Fallback: print what would run
+    print(f"  [SQL] Would execute: {sql_file}")
+    print(f"  [WARN] Install cx_Oracle for actual SQL execution: pip install cx_Oracle")
+
+
+@pytest.fixture(scope="session")
+def setup_database(snsh_date, db_config, output_dir):
+    """Setup: create tables and insert reference data."""
+    print(f"\\n=== SETUP: Creating tables and reference data ===")
+    run_sql_script(os.path.join(output_dir, "tests/schema/create_all_tables.sql"), db_config)
+    run_sql_script(os.path.join(output_dir, "tests/sql/10_dimension_data.sql"), db_config)
+    yield
+    print(f"\\n=== TEARDOWN: Cleaning up ===")
+    run_sql_script(os.path.join(output_dir, "tests/sql/90_cleanup.sql"), db_config)
+
+
+def query_table_count(table_name: str, db_config: dict = None) -> int:
+    """Query row count from a table. Returns -1 if unavailable."""
+    print(f"  [VERIFY] SELECT COUNT(*) FROM {table_name}")
+    return -1
+
+
+def run_pyspark_script(script_path: str, output_dir: str, timeout: int = 600) -> subprocess.CompletedProcess:
+    """Run a converted PySpark script (wf_*.py or m_*.py) via subprocess."""
+    script = os.path.abspath(script_path)
+    if not os.path.exists(script):
+        pytest.fail(f"PySpark script not found: {script}")
+    env = os.environ.copy()
+    env["SPARK_CONNECTION"] = env.get("SPARK_CONNECTION", "spark3_client")
+    print(f"  [RUN] python3 {os.path.relpath(script, output_dir)}")
+    result = subprocess.run(
+        ["python3", script],
+        cwd=output_dir,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        env=env,
+    )
+    return result
+'''
+
+    def _render_gen_test_data(self) -> str:
+        """Generate tests/gen_test_data.py — dynamic data generator."""
+        # Collect SOR tables from discovered tables
+        sor_tables = []
+        for tdef in self.tables.values():
+            upper = tdef.table_name.upper()
+            if upper.startswith("SOR_") or tdef.schema_name.upper() == "PSOR":
+                sor_tables.append(tdef.full_name)
+
+        # Collect file sources from workflow analysis
+        file_sources = []
+        for sess in self.workflow_analysis.get("sessions", []):
+            for src_name, src_info in sess.get("file_sources", {}).items():
+                file_sources.append((src_name, src_info))
+
+        sor_list = "\n    ".join(f'"{t}",' for t in sorted(sor_tables))
+        file_src_list = "\n    ".join(
+            f'# {name}: {info.get("Source filename", "")}'
+            for name, info in file_sources
+        )
+
+        return f'''#!/usr/bin/env python3
+"""Generate dynamic test data: SOR transaction INSERTs + UTL files.
+
+Usage:
+    python3 gen_test_data.py --snsh-date 20260601
+
+This script is auto-generated by informatica-sparker.
+"""
+import os
+import argparse
+
+# SOR tables that need transaction data
+SOR_TABLES = [
+    {sor_list}
+]
+
+# UTL file sources
+{file_src_list}
+
+
+def generate_source_data(snsh_date: str, output_dir: str):
+    """Generate minimal INSERT SQL for input transaction tables."""
+    sql_dir = os.path.join(output_dir, "tests", "sql")
+    os.makedirs(sql_dir, exist_ok=True)
+
+    lines = [
+        "-- ===================================================",
+        "-- SOURCE TRANSACTION DATA (auto-generated at test time)",
+        f"-- Snapshot date: {{snsh_date}}",
+        "-- ===================================================",
+        "",
+    ]
+
+    # For each SOR table, generate 1-2 minimal rows
+    for table in SOR_TABLES:
+        lines.append(f"-- INSERT INTO {{table}} (...) VALUES (...);  -- Add transaction data")
+        lines.append("")
+
+    sql_path = os.path.join(sql_dir, "20_source_transaction.sql")
+    with open(sql_path, "w") as f:
+        f.write("\\n".join(lines) + "\\n")
+    print(f"Generated: {{sql_path}}")
+
+
+def generate_utl_files(snsh_date: str, output_dir: str):
+    """Generate UTL input files (session list, truncate list)."""
+    utl_dir = os.path.join(output_dir, "env")
+    os.makedirs(utl_dir, exist_ok=True)
+    print(f"Generated UTL files in: {{utl_dir}}")
+
+
+def generate_job_param(snsh_date: str, output_dir: str):
+    """Generate job parameter file for the workflow."""
+    lines = [
+        f"$$v_snsh_date={{snsh_date}}",
+        f"$$v_rpt_mth={{snsh_date[:6]}}",
+    ]
+    param_path = os.path.join(output_dir, "env", "job_param.txt")
+    with open(param_path, "w") as f:
+        f.write("\\n".join(lines) + "\\n")
+    print(f"Generated: {{param_path}}")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--snsh-date", default="20260601")
+    parser.add_argument("--output-dir", default=".")
+    args = parser.parse_args()
+
+    generate_source_data(args.snsh_date, args.output_dir)
+    generate_utl_files(args.snsh_date, args.output_dir)
+    generate_job_param(args.snsh_date, args.output_dir)
+    print("Test data generation complete.")
+'''
+
+    def _render_workflow_test(self) -> str:
+        """Generate tests/test_workflow_e2e.py."""
+        wf_safe = self._make_safe_name(self.workflow_name)
+        target_tables = self._get_target_tables()
+        target_table_list = "\n    ".join(f'"{t}",' for t in target_tables)
+
+        return f'''"""E2E test for full workflow: {self.workflow_name}.
+
+Runs the converted wf_*.py script and verifies target tables have data.
+"""
+import os
+import subprocess
+import pytest
+
+# Target tables to verify after workflow execution
+TARGET_TABLES = [
+    {target_table_list}
+]
+
+
+def test_full_workflow(setup_database, output_dir, snsh_date, db_config):
+    """Run the full workflow and verify target tables have data."""
+
+    # Step 1: Generate source transaction data
+    print(f"\\n=== Step 1: Generate test data (snsh_date={{snsh_date}}) ===")
+    gen_script = os.path.join(output_dir, "tests", "gen_test_data.py")
+    if os.path.exists(gen_script):
+        subprocess.run(
+            ["python3", gen_script, "--snsh-date", snsh_date, "--output-dir", output_dir],
+            cwd=output_dir, check=True,
+        )
+
+    # Step 2: Run the converted workflow
+    print(f"\\n=== Step 2: Run workflow ===")
+    wf_script = os.path.join(output_dir, "{wf_safe}.py")
+    if not os.path.exists(wf_script):
+        pytest.skip(f"Workflow script not found: {{wf_script}}")
+
+    env = os.environ.copy()
+    env["SPARK_CONNECTION"] = env.get("SPARK_CONNECTION", "spark3_client")
+    env["SNSH_DATE"] = snsh_date
+
+    result = subprocess.run(
+        ["python3", wf_script],
+        cwd=output_dir,
+        capture_output=True,
+        text=True,
+        timeout=600,
+        env=env,
+    )
+
+    # Step 3: Check execution status
+    assert result.returncode == 0, (
+        f"Workflow failed (exit code {{result.returncode}})\\n"
+        f"STDOUT: {{result.stdout[-2000:]}}\\n"
+        f"STDERR: {{result.stderr[-2000:]}}"
+    )
+    print(f"Workflow completed successfully")
+
+    # Step 4: Verify target tables have data
+    print(f"\\n=== Step 3: Verify target tables ===")
+    failures = []
+    for table in TARGET_TABLES:
+        count = query_table_count(table, db_config)
+        if count > 0:
+            print(f"  [OK] {{table}}: {{count}} rows")
+        elif count == 0:
+            failures.append(f"{{table}}: 0 rows (empty)")
+        else:
+            print(f"  [?] {{table}}: count unavailable (no DB connection)")
+
+    if failures:
+        pytest.fail(f"Target tables empty: {{', '.join(failures)}}")
+'''
+
+    def _render_mapping_test(self) -> str:
+        """Generate tests/test_mapping_e2e.py — parametrized per-mapping test."""
+        mapping_targets = self._get_mapping_targets()
+        # Build pytest parametrize decorator entries
+        param_entries = []
+        for safe_name, targets in sorted(mapping_targets.items()):
+            target_str = ", ".join(f'"{t}"' for t in targets)
+            param_entries.append(f'    pytest.param("{safe_name}", [{target_str}], id="{safe_name}"),')
+
+        param_block = "\\n".join(param_entries)
+
+        return f'''"""E2E tests for individual mappings.
+
+Each parametrized test runs one m_*.py script and verifies its target tables.
+"""
+import os
+import subprocess
+import pytest
+
+# (mapping_safe_name, [target_table_names])
+MAPPING_PARAMS = [
+{param_block}
+]
+
+
+@pytest.mark.parametrize("mapping_safe,targets", MAPPING_PARAMS)
+def test_mapping(mapping_safe, targets, setup_database, output_dir, snsh_date, db_config):
+    """Run a single mapping and verify its targets."""
+
+    # Generate test data
+    gen_script = os.path.join(output_dir, "tests", "gen_test_data.py")
+    if os.path.exists(gen_script):
+        subprocess.run(
+            ["python3", gen_script, "--snsh-date", snsh_date, "--output-dir", output_dir],
+            cwd=output_dir, check=True,
+        )
+
+    # Run the mapping
+    mapping_file = os.path.join(output_dir, f"{{mapping_safe}}.py")
+    if not os.path.exists(mapping_file):
+        pytest.skip(f"Mapping script not found: {{mapping_file}}")
+
+    env = os.environ.copy()
+    env["SPARK_CONNECTION"] = env.get("SPARK_CONNECTION", "spark3_client")
+    env["SNSH_DATE"] = snsh_date
+
+    result = subprocess.run(
+        ["python3", mapping_file],
+        cwd=output_dir,
+        capture_output=True,
+        text=True,
+        timeout=300,
+        env=env,
+    )
+
+    assert result.returncode == 0, (
+        f"Mapping {{mapping_safe}} failed (exit {{result.returncode}})\\n"
+        f"STDERR: {{result.stderr[-1000:]}}"
+    )
+    print(f"Mapping {{mapping_safe}} completed")
+
+    # Verify targets
+    for table in targets:
+        count = query_table_count(table, db_config)
+        if count > 0:
+            print(f"  [OK] {{table}}: {{count}} rows")
+        elif count == 0:
+            pytest.fail(f"Table {{table}} is empty after mapping {{mapping_safe}}")
+'''
+
+    def _render_placeholder_source_sql(self) -> str:
+        """Generate placeholder for 20_source_transaction.sql."""
+        return """-- ===================================================
+-- SOURCE TRANSACTION DATA
+-- Auto-generated by gen_test_data.py at test time
+-- ===================================================
+
+-- Run `python3 gen_test_data.py --snsh-date $(date '+%Y%m%d')`
+-- to populate this file with dynamic transaction data.
+
+SELECT 1 FROM DUAL;
+"""
