@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: informatica-sparker
-Version: 2026.6.26
+Version: 2026.6.30
 Summary: Framework to convert Informatica PowerCenter XML exports to PySpark code for Databricks. Auto-detects sources (SQL, CSV, Parquet, XML, JSON, text, DAT, files without extensions) and generates complete deployment packages.
 License: MIT
 Project-URL: Homepage, https://pypi.org/project/informatica-sparker/
@@ -27,7 +27,7 @@ Requires-Dist: pytest>=7.0; extra == "dev"
 
 # informatica-sparker
 
-**Version 2026.06.26** — A Python framework that converts Informatica PowerCenter workflow/mapping XML exports into PySpark code deployable to Databricks or YARN Spark clusters. **Tested against Informatica output — data results match.**
+**Version 2026.06.30** — A Python framework that converts Informatica PowerCenter workflow/mapping XML exports into PySpark code deployable to Databricks or YARN Spark clusters. **Tested against Informatica output — data results match.**
 
 Conversion pipeline: **XML → Models → IR Plan → Jinja2 Templates → Generated Python Files**
 

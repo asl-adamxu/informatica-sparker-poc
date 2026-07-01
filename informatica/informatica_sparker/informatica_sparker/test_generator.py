@@ -372,6 +372,9 @@ class TableDiscoverer:
         """Collect all unique tables from all 5 sources.
 
         Returns dict keyed by TableDef.key (uppercase SCHEMA.TABLE).
+
+        Source 6 is also discovered: Lookup table references inside mapplets
+        (mapplet-internal transformations).
         """
         tables: Dict[str, TableDef] = {}
 
@@ -379,6 +382,7 @@ class TableDiscoverer:
             self._collect_from_sources(mapping, tables)
             self._collect_from_targets(mapping, tables)
             self._collect_from_transformations(mapping, tables)
+            self._collect_from_mapplets(mapping, tables)
 
         # Mark reference tables
         for key, tdef in tables.items():
@@ -453,6 +457,48 @@ class TableDiscoverer:
                     table_name = attrs.get("Lookup table name", "")
                     if table_name.strip():
                         # Determine schema from connection info
+                        conn_info = attrs.get("Connection Information", "")
+                        schema = self._resolve_lookup_schema(conn_info, tables)
+                        key = self._make_table_key(schema, table_name)
+                        if self._should_override(tables.get(key), "lookup_name"):
+                            tables[key] = TableDef(
+                                schema_name=schema,
+                                table_name=table_name.upper(),
+                                origin="lookup_name",
+                            )
+
+    def _collect_from_mapplets(self, mapping: MappingDefinition,
+                                tables: Dict[str, TableDef]):
+        """Source 6: Mapplet-internal Lookup Procedure table names.
+
+        Mapplets contain inline Lookup Procedure transformations that
+        reference tables not visible at the mapping level. Iterate over
+        all mapplet transformations to discover these tables.
+        """
+        for mapplet_name, mapplet in mapping.mapplets.items():
+            mapplet_transforms = mapplet.get("transformations", [])
+            for transform in mapplet_transforms:
+                if not hasattr(transform, 'type') or transform.type != "Lookup Procedure":
+                    continue
+                attrs = transform.table_attributes
+
+                # Lookup Sql Override
+                sql_override = attrs.get("Lookup Sql Override", "")
+                if sql_override.strip():
+                    refs = extract_tables_from_sql(sql_override)
+                    for ref in refs:
+                        key = ref.key
+                        if self._should_override(tables.get(key), "sql_inferred"):
+                            tables[key] = TableDef(
+                                schema_name=ref.schema_name,
+                                table_name=ref.table_name,
+                                origin="sql_inferred",
+                            )
+
+                # Lookup table name (when no SQL Override)
+                if not sql_override.strip():
+                    table_name = attrs.get("Lookup table name", "")
+                    if table_name.strip():
                         conn_info = attrs.get("Connection Information", "")
                         schema = self._resolve_lookup_schema(conn_info, tables)
                         key = self._make_table_key(schema, table_name)
@@ -541,7 +587,7 @@ class SchemaRenderer:
         ]
         for tdef in reversed(ordered):
             if tdef.schema_name:
-                lines.append(f"DROP TABLE {tdef.full_name} PURGE;")
+                lines.append(f"DROP TABLE {tdef.table_name} PURGE;")
             else:
                 lines.append(f"DROP TABLE {tdef.table_name} PURGE;")
             lines.append("")
@@ -557,7 +603,7 @@ class SchemaRenderer:
             "",
         ]
         for tdef in reversed(ordered):
-            lines.append(f"TRUNCATE TABLE {tdef.full_name};")
+            lines.append(f"TRUNCATE TABLE {tdef.table_name};")
         lines.append("")
         return "\n".join(lines)
 
@@ -565,9 +611,9 @@ class SchemaRenderer:
         """Generate a single CREATE TABLE statement."""
         if not tdef.fields:
             return (
-                f"-- ⚠️ Table {tdef.full_name} has no field definitions.\n"
+                f"-- ⚠️ Table {tdef.table_name} has no field definitions.\n"
                 f"-- Origin: {tdef.origin}. Add DDL manually.\n"
-                f"-- CREATE TABLE {tdef.full_name} ( ... );"
+                f"-- CREATE TABLE {tdef.table_name} ( ... );"
             )
 
         col_lines = []
@@ -586,7 +632,7 @@ class SchemaRenderer:
             col_lines.append(f"    CONSTRAINT PK_{tdef.table_name} PRIMARY KEY ({pk_str})")
 
         cols_sql = ",\n".join(col_lines)
-        return f"CREATE TABLE {tdef.full_name} (\n{cols_sql}\n);"
+        return f"CREATE TABLE {tdef.table_name} (\n{cols_sql}\n);"
 
     def _classify_layer(self, tdef: TableDef) -> str:
         """Classify table into a layer for section headers."""
@@ -703,7 +749,7 @@ class ReferenceDataGenerator:
         for tdef in ref_ordered:
             inserts = self._generate_table_inserts(tdef)
             if inserts:
-                lines.append(f"-- {tdef.full_name}")
+                lines.append(f"-- {tdef.table_name}")
                 lines.append("")
                 lines.extend(inserts)
                 lines.append("")
@@ -741,7 +787,7 @@ class ReferenceDataGenerator:
                         values.append(f"'{val}'")
 
             result.append(
-                f"INSERT INTO {tdef.full_name} ({col_list})\n"
+                f"INSERT INTO {tdef.table_name} ({col_list})\n"
                 f"VALUES ({', '.join(values)});"
             )
 
@@ -967,7 +1013,7 @@ class TestGenerator:
         targets = set()
         for tdef in self.tables.values():
             if tdef.origin == "target_def":
-                targets.add(tdef.full_name)
+                targets.add(tdef.table_name)
         return sorted(targets)
 
     def _get_mapping_targets(self) -> Dict[str, List[str]]:
@@ -1176,7 +1222,7 @@ def run_pyspark_script(script_path: str, output_dir: str, timeout: int = 600) ->
         for tdef in self.tables.values():
             upper = tdef.table_name.upper()
             if upper.startswith("SOR_") or tdef.schema_name.upper() == "PSOR":
-                sor_tables.append(tdef.full_name)
+                sor_tables.append(tdef.table_name)
 
         # Collect file sources from workflow analysis
         file_sources = []

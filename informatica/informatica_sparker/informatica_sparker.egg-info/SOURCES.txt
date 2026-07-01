@@ -15,6 +15,7 @@ informatica_sparker/models.py
 informatica_sparker/parser.py
 informatica_sparker/report.py
 informatica_sparker/service.py
+informatica_sparker/test_generator.py
 informatica_sparker/workflow_builder.py
 informatica_sparker.egg-info/PKG-INFO
 informatica_sparker.egg-info/SOURCES.txt
