@@ -354,6 +354,61 @@ def _build_field_def(field, is_target: bool = False) -> FieldDef:
     )
 
 
+def _extract_lookup_fields(transform) -> List[FieldDef]:
+    """Extract field definitions from a Lookup Procedure's TRANSFORMFIELD ports.
+
+    LOOKUP/OUTPUT and LOOKUP ports represent actual table columns.
+    INPUT-only ports are parameters from the calling expression — excluded.
+
+    Works with both Transformation objects (mapping-level) and dicts
+    (mapplet-internal transforms parsed as plain dicts).
+    """
+    fields: List[FieldDef] = []
+
+    # Get the fields list from either object or dict
+    if hasattr(transform, 'fields'):
+        raw_fields = transform.fields
+    elif isinstance(transform, dict):
+        raw_fields = transform.get("fields", [])
+    else:
+        return fields
+
+    for f in raw_fields:
+        # Get port_type from either pydantic model attribute or dict key
+        if hasattr(f, 'port_type'):
+            port_type = f.port_type or ""
+        elif isinstance(f, dict):
+            port_type = f.get("PORTTYPE", "")
+        else:
+            port_type = ""
+        pt_upper = port_type.upper() if port_type else ""
+
+        # Skip INPUT-only ports (parameters from calling expression)
+        if pt_upper == "INPUT":
+            continue
+
+        if hasattr(f, 'name'):
+            fields.append(FieldDef(
+                name=f.name,
+                datatype=f.datatype if hasattr(f, 'datatype') else 'varchar2',
+                precision=int(f.precision if hasattr(f, 'precision') else 0),
+                scale=int(f.scale if hasattr(f, 'scale') else 0),
+                nullable=True,
+                is_pk=False,
+            ))
+        elif isinstance(f, dict):
+            fields.append(FieldDef(
+                name=f.get("NAME", ""),
+                datatype=f.get("DATATYPE", "varchar2"),
+                precision=int(f.get("PRECISION", 0)),
+                scale=int(f.get("SCALE", 0)),
+                nullable=True,
+                is_pk=False,
+            ))
+
+    return fields
+
+
 class TableDiscoverer:
     """Discovers all unique tables from 5 XML sources with priority resolution."""
 
@@ -461,9 +516,11 @@ class TableDiscoverer:
                         schema = self._resolve_lookup_schema(conn_info, tables)
                         key = self._make_table_key(schema, table_name)
                         if self._should_override(tables.get(key), "lookup_name"):
+                            lookup_fields = _extract_lookup_fields(transform)
                             tables[key] = TableDef(
                                 schema_name=schema,
                                 table_name=table_name.upper(),
+                                fields=lookup_fields,
                                 origin="lookup_name",
                             )
 
@@ -503,9 +560,11 @@ class TableDiscoverer:
                         schema = self._resolve_lookup_schema(conn_info, tables)
                         key = self._make_table_key(schema, table_name)
                         if self._should_override(tables.get(key), "lookup_name"):
+                            lookup_fields = _extract_lookup_fields(transform)
                             tables[key] = TableDef(
                                 schema_name=schema,
                                 table_name=table_name.upper(),
+                                fields=lookup_fields,
                                 origin="lookup_name",
                             )
 
