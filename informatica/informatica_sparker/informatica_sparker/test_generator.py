@@ -278,6 +278,10 @@ def extract_tables_from_sql(sql_text: str) -> List[TableRef]:
         sql = simplified
     # Now remove actual parens left
     sql = sql.replace('()', ' ')
+    # Remove orphaned subquery aliases: single-letter words preceded by space and
+    # followed by space/comma/end (but NOT part of a larger word like "from")
+    sql = re.sub(r'(?<=\s)[a-zA-Z](?=[\s,)]|$)', '', sql)
+    sql = re.sub(r'\s+', ' ', sql).strip()
 
     # Extract FROM table / JOIN table patterns
     for m in _SQL_FROM_PATTERN.finditer(sql):
@@ -540,7 +544,10 @@ def _extract_all_column_refs(sql: str, alias_map: Dict[str, str]) -> Dict[str, L
                      'DECODE', 'ROUND', 'COUNT', 'SUM', 'AVG', 'MIN', 'MAX'):
             continue
 
-        table_name = alias_map.get(alias, alias)
+        # Skip if this alias doesn't resolve to a known table (likely column leak)
+        if alias not in alias_map:
+            continue
+        table_name = alias_map[alias]
         if table_name not in seen:
             seen[table_name] = set()
         if col not in seen[table_name]:
@@ -670,6 +677,12 @@ class TableDiscoverer:
             if _is_reference_table(tdef.table_name):
                 tdef.is_reference = True
 
+        # Remove SQL-inferred entries that are likely column names
+        to_remove = [k for k, v in tables.items()
+                     if v.origin == "sql_inferred" and not self._is_valid_table_candidate(v)]
+        for k in to_remove:
+            del tables[k]
+
         return tables
 
     def _collect_from_sources(self, mapping: MappingDefinition,
@@ -728,6 +741,11 @@ class TableDiscoverer:
                     sql_fields = extract_fields_from_sql(sql)
                     for ref in refs:
                         key = ref.key
+                        # Check for duplicate under a schema-qualified key
+                        existing_key = self._find_existing_key(ref.table_name, tables)
+                        if existing_key:
+                            # Table already registered (e.g. source_def with schema prefix)
+                            continue
                         if self._should_override(tables.get(key), "sql_inferred"):
                             fields = sql_fields.get(ref.table_name, [])
                             tables[key] = TableDef(
@@ -745,6 +763,11 @@ class TableDiscoverer:
                     sql_fields = extract_fields_from_sql(sql_override)
                     for ref in refs:
                         key = ref.key
+                        # Check for duplicate under a schema-qualified key
+                        existing_key = self._find_existing_key(ref.table_name, tables)
+                        if existing_key:
+                            # Table already registered (e.g. source_def with schema prefix)
+                            continue
                         if self._should_override(tables.get(key), "sql_inferred"):
                             fields = sql_fields.get(ref.table_name, [])
                             tables[key] = TableDef(
@@ -793,6 +816,11 @@ class TableDiscoverer:
                     sql_fields = extract_fields_from_sql(sql_override)
                     for ref in refs:
                         key = ref.key
+                        # Check for duplicate under a schema-qualified key
+                        existing_key = self._find_existing_key(ref.table_name, tables)
+                        if existing_key:
+                            # Table already registered (e.g. source_def with schema prefix)
+                            continue
                         if self._should_override(tables.get(key), "sql_inferred"):
                             fields = sql_fields.get(ref.table_name, [])
                             tables[key] = TableDef(
@@ -842,10 +870,45 @@ class TableDiscoverer:
         return ''
 
     @staticmethod
+    def _is_valid_table_candidate(tdef: TableDef) -> bool:
+        """Skip SQL-inferred references that are column names, not tables.
+
+        Column names can be leaked from subquery remnants (e.g., CASE_ITEM_KEY,
+        or Z.CASE_ITEM_KEY where Z is a subquery alias, not a real schema).
+        Keep only tables with a known schema, or matching known ETL prefixes.
+        """
+        name = tdef.table_name
+        # Schema/alias filter: known real schemas vs subquery aliases
+        if tdef.schema_name:
+            known_schemas = {'PSOR', 'PDDS', 'PDPA', 'SOR', 'DDS', 'DPA', 'CDM'}
+            if tdef.schema_name in known_schemas or len(tdef.schema_name) > 3:
+                return True
+            # 1-3 char "schema" names are subquery aliases (Z, A, ES, RR, GG, etc.)
+            return False
+        # Must start with a known table prefix to be a real table reference
+        if not name.startswith(('SOR_', 'DDS_', 'DPA_', 'UTL_', 'DWH_', 'TMP_', 'STG_')):
+            return False
+        return True
+
+    @staticmethod
     def _make_table_key(schema: str, table_name: str) -> str:
         s = schema.upper().strip() if schema else ''
         t = table_name.upper().strip() if table_name else ''
         return f"{s}.{t}" if s else t
+
+    @staticmethod
+    def _find_existing_key(table_name: str, tables: Dict[str, TableDef]) -> Optional[str]:
+        """Check if a table already exists under any schema-qualified key.
+
+        SQL inference may find 'SOR_CMS_CASE_ITEM_STS' (bare) while SOURCE
+        definition registered it as 'PSOR.SOR_CMS_CASE_ITEM_STS'. Returns the
+        existing key if found, None otherwise.
+        """
+        upper_name = table_name.upper().strip()
+        for key in tables:
+            if key.upper() == upper_name or key.upper().endswith(f'.{upper_name}'):
+                return key
+        return None
 
 
 # ── Schema Renderer ───────────────────────────────────────────────────────────
