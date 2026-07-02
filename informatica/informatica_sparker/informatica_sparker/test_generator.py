@@ -357,30 +357,15 @@ def _split_select_columns(select_clause: str) -> List[str]:
     return cols
 
 
-def _build_alias_map(sql_text: str) -> Dict[str, str]:
-    """Build a mapping from alias → table_name from FROM/JOIN clauses.
+def _extract_aliases_from_sql(sql: str, alias_map: Dict[str, str]) -> None:
+    """Extract alias→table_name mappings from a (possibly subquery) SQL string.
 
-    Handles both 'FROM table alias' and comma-separated 'FROM t1 a, t2 b'.
-    E.g. 'FROM SOR_CMS_CUST_RQS_STS a' → {'A': 'SOR_CMS_CUST_RQS_STS'}
+    Mutates alias_map in-place. Handles comma-separated and JOIN tables.
     """
-    sql = _normalize_sql(sql_text)
-    # Remove subqueries
-    while True:
-        simplified = re.sub(r'\([^()]*\)', '()', sql)
-        if simplified == sql:
-            break
-        sql = simplified
-    sql = sql.replace('()', ' ')
-
-    alias_map: Dict[str, str] = {}
-
-    # Strategy: find the FROM clause, then extract every (table [,] [schema.]table [alias])
-    # from the portion between FROM and the next clause keyword.
     from_match = re.search(r'\bFROM\b', sql, re.I)
     if not from_match:
-        return alias_map
+        return
 
-    # Extract the FROM clause body (up to WHERE/GROUP BY/ORDER BY/etc.)
     clause_body = sql[from_match.end():]
     end_match = re.search(
         r'\b(?:WHERE|GROUP\s+BY|ORDER\s+BY|HAVING|START\s+WITH|CONNECT\s+BY|UNION|MINUS|INTERSECT)\b',
@@ -389,12 +374,9 @@ def _build_alias_map(sql_text: str) -> Dict[str, str]:
     if end_match:
         clause_body = clause_body[:end_match.start()]
 
-    # Now split by top-level commas to get individual table references
-    table_refs = _split_select_columns(clause_body)  # Reuses the paren-aware splitter
-
+    table_refs = _split_select_columns(clause_body)
     for ref in table_refs:
         ref = ref.strip()
-        # Also handle tables introduced by JOIN (if JOIN appears inside FROM clause)
         for sub_ref in re.split(r'\b(?:JOIN|CROSS\s+JOIN|INNER\s+JOIN|LEFT\s+JOIN|RIGHT\s+JOIN|FULL\s+JOIN)\b', ref, flags=re.I):
             sub_ref = sub_ref.strip()
             if not sub_ref:
@@ -404,9 +386,51 @@ def _build_alias_map(sql_text: str) -> Dict[str, str]:
                 table_name = parts[0].split('.')[-1].upper()
                 alias = parts[-1].upper()
                 alias_map[alias] = table_name
-            elif len(parts) == 1 and '.' in parts[0]:
-                # schema.table with no alias — extract table name only
-                pass
+
+
+def _build_alias_map(sql_text: str) -> Dict[str, str]:
+    """Build a mapping from alias → table_name from FROM/JOIN clauses.
+
+    Handles both 'FROM table alias' and comma-separated 'FROM t1 a, t2 b'.
+    Also extracts aliases from subqueries for inner-table references.
+
+    E.g. 'FROM SOR_CMS_CUST_RQS_STS a' → {'A': 'SOR_CMS_CUST_RQS_STS'}
+         subquery '(select z.case_key from sor_cms_case_item_sts z)' → {'Z': 'SOR_CMS_CASE_ITEM_STS'}
+    """
+    sql = _normalize_sql(sql_text)
+    alias_map: Dict[str, str] = {}
+
+    # Pass 1: extract aliases from subquery bodies (depth > 0 parens)
+    # Find parenthesized blocks and treat each as a mini-SQL
+    depth = 0
+    current_paren = []
+    for ch in sql_text:  # Use original SQL to preserve parens
+        if ch == '(':
+            if depth > 0:
+                current_paren.append(ch)
+            depth += 1
+        elif ch == ')':
+            depth -= 1
+            if depth > 0:
+                current_paren.append(ch)
+            elif current_paren:
+                sub_sql = ''.join(current_paren)
+                sub_sql_norm = _normalize_sql(sub_sql)
+                _extract_aliases_from_sql(sub_sql_norm, alias_map)
+                current_paren = []
+        elif depth > 0:
+            current_paren.append(ch)
+
+    # Pass 2: extract aliases from main query (subqueries removed)
+    sql_clean = sql
+    while True:
+        simplified = re.sub(r'\([^()]*\)', '()', sql_clean)
+        if simplified == sql_clean:
+            break
+        sql_clean = simplified
+    sql_clean = sql_clean.replace('()', ' ')
+    _extract_aliases_from_sql(sql_clean, alias_map)
+
     return alias_map
 
 
