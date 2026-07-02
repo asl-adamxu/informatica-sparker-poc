@@ -1,0 +1,78 @@
+[2026-07-02 17:45:52] [CONVERT] dds/WF_CMS_DDS_APLY_MTH.XML
+[2026-07-02 17:45:53] Total Mappings: 10
+[2026-07-02 17:45:53] Successful: 10
+[2026-07-02 17:45:53] Failed: 0
+[2026-07-02 17:45:53] Total Warnings: 0
+[2026-07-02 17:45:53] Total Errors: 0
+[2026-07-02 17:45:53] [COMPLETED] ----------------------------------------
+[2026-07-02 17:45:53] [CONVERT] dds/WF_EMS_DDS_APLY_MTH.XML
+[2026-07-02 17:45:56] Total Mappings: 49
+[2026-07-02 17:45:56] Successful: 49
+[2026-07-02 17:45:56] Failed: 0
+[2026-07-02 17:45:56] Total Warnings: 0
+[2026-07-02 17:45:56] Total Errors: 0
+[2026-07-02 17:45:56] [COMPLETED] ----------------------------------------
+[2026-07-02 17:45:56] [CONVERT] dds/WF_EMS_PRHE_DDS_APLY_HSE_STCK_MTH.XML
+[2026-07-02 17:45:58] Total Mappings: 28
+[2026-07-02 17:45:58] Successful: 28
+[2026-07-02 17:45:58] Failed: 0
+[2026-07-02 17:45:58] Total Warnings: 0
+[2026-07-02 17:45:58] Total Errors: 0
+[2026-07-02 17:45:58] [COMPLETED] ----------------------------------------
+[2026-07-02 17:45:58] [CONVERT] dds/WF_EMS_PRHE_DDS_APLY_RVN_MTH.XML
+[2026-07-02 17:46:00] Total Mappings: 25
+[2026-07-02 17:46:00] Successful: 25
+[2026-07-02 17:46:00] Failed: 0
+[2026-07-02 17:46:00] Total Warnings: 0
+[2026-07-02 17:46:00] Total Errors: 0
+[2026-07-02 17:46:00] [COMPLETED] ----------------------------------------
+[2026-07-02 17:46:00] [CONVERT] dds/WF_GMS_DDS_APLY_DLY.XML
+[2026-07-02 17:46:01] Total Mappings: 8
+[2026-07-02 17:46:01] Successful: 8
+[2026-07-02 17:46:01] Failed: 0
+[2026-07-02 17:46:01] Total Warnings: 0
+[2026-07-02 17:46:01] Total Errors: 0
+[2026-07-02 17:46:01] [COMPLETED] ----------------------------------------
+[2026-07-02 17:46:01] [CONVERT] dds/WF_HOMES_DDS_APLY_DMNS.XML
+[2026-07-02 17:46:04] Total Mappings: 67
+[2026-07-02 17:46:04] Successful: 67
+[2026-07-02 17:46:04] Failed: 0
+[2026-07-02 17:46:04] Total Warnings: 0
+[2026-07-02 17:46:04] Total Errors: 0
+[2026-07-02 17:46:04] [COMPLETED] ----------------------------------------
+[2026-07-02 17:46:04] [CONVERT] extract/WF_EMS_EX.XML
+[2026-07-02 17:46:25] Total Mappings: 142
+[2026-07-02 17:46:25] Successful: 142
+[2026-07-02 17:46:25] Failed: 0
+[2026-07-02 17:46:25] Total Warnings: 0
+[2026-07-02 17:46:25] Total Errors: 0
+[2026-07-02 17:46:25] [COMPLETED] ----------------------------------------
+[2026-07-02 17:46:25] [CONVERT] extract/WF_NHS_EX.XML
+[2026-07-02 17:46:27] Total Mappings: 46
+[2026-07-02 17:46:27] Successful: 46
+[2026-07-02 17:46:27] Failed: 0
+[2026-07-02 17:46:27] Total Warnings: 0
+[2026-07-02 17:46:27] Total Errors: 0
+[2026-07-02 17:46:27] [COMPLETED] ----------------------------------------
+[2026-07-02 17:46:27] [CONVERT] transform_and_load/WF_EMS_TL.XML
+[2026-07-02 17:50:20] Total Mappings: 581
+[2026-07-02 17:50:20] Successful: 580
+[2026-07-02 17:50:20] Failed: 1
+[2026-07-02 17:50:20] Total Warnings: 3
+[2026-07-02 17:50:20] Total Errors: 0
+[2026-07-02 17:50:20] [COMPLETED] ----------------------------------------
+[2026-07-02 17:50:20] [CONVERT] transform_and_load/WF_NHS_TL.XML
+[2026-07-02 17:50:38] Total Mappings: 174
+[2026-07-02 17:50:38] Successful: 174
+[2026-07-02 17:50:38] Failed: 0
+[2026-07-02 17:50:38] Total Warnings: 0
+[2026-07-02 17:50:38] Total Errors: 0
+[2026-07-02 17:50:38] [COMPLETED] ----------------------------------------
+
+[2026-07-02 17:50:38] ==========================================
+[2026-07-02 17:50:38]  Conversion complete
+[2026-07-02 17:50:38]    Source: /var/lib/airflow/dags/adam/informatica/PowerCenter_workflows
+[2026-07-02 17:50:38]    Target: /var/lib/airflow/dags/adam/informatica/PySpark_workflows
+[2026-07-02 17:50:38]    Succeeded: 10
+[2026-07-02 17:50:38]    Failed:    0
+[2026-07-02 17:50:38] ==========================================
