@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Set
 from .models import (
     MappingDefinition, SourceDefinition, TargetDefinition,
-    SourceField, TargetField, Transformation,
+    SourceField, TargetField, Transformation, SourceType,
 )
 
 
@@ -448,8 +448,15 @@ class TableDiscoverer:
 
     def _collect_from_sources(self, mapping: MappingDefinition,
                                tables: Dict[str, TableDef]):
-        """Source 1: SOURCE definitions with full field list."""
+        """Source 1: SOURCE definitions with full field list.
+
+        Flat file sources (UTL_*, source_type=FILE) are skipped —
+        they are not database tables and don't need CREATE TABLE.
+        """
         for src in mapping.sources:
+            # Skip flat file sources — not database tables
+            if src.source_type == SourceType.FILE:
+                continue
             key = self._make_table_key(src.owner_name, src.name)
             if self._should_override(tables.get(key), "source_def"):
                 fields = [_build_field_def(f) for f in src.fields]
@@ -462,8 +469,16 @@ class TableDiscoverer:
 
     def _collect_from_targets(self, mapping: MappingDefinition,
                                tables: Dict[str, TableDef]):
-        """Source 2: TARGET definitions with full field list."""
+        """Source 2: TARGET definitions with full field list.
+
+        Flat file targets (database_type contains 'Flat File') are skipped —
+        they are not database tables and don't need CREATE TABLE.
+        """
         for tgt in mapping.targets:
+            # Skip flat file targets — not database tables
+            db_type = (tgt.database_type or "").lower()
+            if "flat" in db_type:
+                continue
             key = self._make_table_key('', tgt.name)
             if self._should_override(tables.get(key), "target_def"):
                 fields = [_build_field_def(f, is_target=True) for f in tgt.fields]
