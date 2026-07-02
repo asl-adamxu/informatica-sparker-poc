@@ -113,54 +113,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         lib.write_table(df_write, conn_target, "DDS_FACT_CMS_CASE_SMRY", mode="append")
 
         logger.info("write_DDS_FACT_CMS_CASE_SMRY write completed")
-        logger.info("Step: write_DDS_FACT_CMS_CASE_SMRY")
-        # Write to Target: write_DDS_FACT_CMS_CASE_SMRY
-        df_write = df_sq_2
-        # Cast columns to match target schema data types
-        if "hshld_aem_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "hshld_aem_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "hshld_eldr_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "hshld_eldr_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "hshld_dsbl_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "hshld_dsbl_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "last_rec_txn_date" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "last_rec_txn_date":
-                    df_write = df_write.withColumn(c, col(c).cast(TimestampType()))
-        if "last_rec_txn_type_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "last_rec_txn_type_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        # Map source columns to target columns using connector field map (handles name mismatches)
-        _field_map = {"BLK_AGE_DMNS_KEY": "BLK_AGE_DMNS_KEY", "BLK_SCD_KEY": "BLK_SCD_KEY", "CASE_CATG_SCD_KEY": "CASE_CATG_SCD_KEY", "CASE_TYPE_SCD_KEY": "CASE_TYPE_SCD_KEY", "CMS_BLK_SCD_KEY": "CMS_BLK_SCD_KEY", "CMS_CASE_CMPLT_CNT": "CMS_CASE_CMPLT_CNT", "CMS_CASE_CNT": "CMS_CASE_CNT", "CMS_CASE_ITEM_CMPLT_CNT": "CMS_CASE_ITEM_CMPLT_CNT", "CMS_CASE_ITEM_CNT": "CMS_CASE_ITEM_CNT", "CMS_CASE_ITEM_NEW_CNT": "CMS_CASE_ITEM_NEW_CNT", "CMS_CASE_ITEM_RPET_CNT": "CMS_CASE_ITEM_RPET_CNT", "CMS_CASE_NEW_CNT": "CMS_CASE_NEW_CNT", "CMS_CASE_RPET_CNT": "CMS_CASE_RPET_CNT", "CMS_EST_SCD_KEY": "CMS_EST_SCD_KEY", "CMS_RCPT_PRN_CNT": "CMS_RCPT_PRN_CNT", "EST_OFFC_SCD_KEY": "EST_OFFC_SCD_KEY", "EST_SCD_KEY": "EST_SCD_KEY", "HSHLD_AEM_IND": "HSHLD_AEM_IND", "HSHLD_DSBL_IND": "HSHLD_DSBL_IND", "HSHLD_ELDR_IND": "HSHLD_ELDR_IND", "HSHLD_SIZE_DMNS_KEY": "HSHLD_SIZE_DMNS_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "RQS_CHNL_DMNS_KEY": "RQS_CHNL_DMNS_KEY", "RSDN_LNG_DMNS_KEY": "RSDN_LNG_DMNS_KEY", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "UNIT_SIZE_DMNS_KEY": "UNIT_SIZE_DMNS_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['TIME_DMNS_KEY', 'RQS_CHNL_DMNS_KEY', 'CASE_TYPE_SCD_KEY', 'BLK_AGE_DMNS_KEY', 'EST_OFFC_SCD_KEY', 'HSHLD_SIZE_DMNS_KEY', 'UNIT_SIZE_DMNS_KEY', 'CASE_CATG_SCD_KEY', 'RSDN_LNG_DMNS_KEY', 'BLK_SCD_KEY', 'HSHLD_AEM_IND', 'HSHLD_ELDR_IND', 'HSHLD_DSBL_IND', 'CMS_CASE_CNT', 'CMS_CASE_CMPLT_CNT', 'CMS_CASE_RPET_CNT', 'CMS_CASE_NEW_CNT', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'CMS_BLK_SCD_KEY', 'EST_SCD_KEY', 'CMS_EST_SCD_KEY', 'CMS_RCPT_PRN_CNT', 'CMS_CASE_ITEM_CNT', 'CMS_CASE_ITEM_CMPLT_CNT', 'CMS_CASE_ITEM_RPET_CNT', 'CMS_CASE_ITEM_NEW_CNT']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DDS_FACT_CMS_CASE_SMRY", mode="append")
-
-        logger.info("write_DDS_FACT_CMS_CASE_SMRY write completed")
         
         metrics.complete()
         logger.info("Mapping M_DDS_APLY_FACT_CMS_CASE_SMRY completed: SUCCESS")

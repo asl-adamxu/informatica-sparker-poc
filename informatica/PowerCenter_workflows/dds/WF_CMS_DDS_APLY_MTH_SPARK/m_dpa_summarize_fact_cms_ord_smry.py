@@ -1091,33 +1091,6 @@ or a.UNIT_SIZE_DMNS_KEY = 0"""
         lib.write_table(df_write, conn_target, "DPA_FACT_CMS_ORD_SMRY", mode="append")
 
         logger.info("write_DPA_FACT_CMS_ORD_SMRY write completed")
-        logger.info("Step: write_DPA_FACT_CMS_ORD_SMRY")
-        # Write to Target: write_DPA_FACT_CMS_ORD_SMRY
-        df_write = df_exp_84
-        # Cast columns to match target schema data types
-        if "last_rec_txn_date" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "last_rec_txn_date":
-                    df_write = df_write.withColumn(c, col(c).cast(TimestampType()))
-        if "last_rec_txn_type_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "last_rec_txn_type_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        # Map source columns to target columns using connector field map (handles name mismatches)
-        _field_map = {"ARTSN_ORD_CMPLT_CNT": "ARTSN_ORD_CMPLT_CNT", "ARTSN_ORD_CNT": "ARTSN_ORD_CNT", "BLK_AGE_DMNS_KEY": "BLK_AGE_DMNS_KEY", "BLK_SCD_KEY": "BLK_SCD_KEY", "CMS_BLK_SCD_KEY": "CMS_BLK_SCD_KEY", "CMS_EST_SCD_KEY": "CMS_EST_SCD_KEY", "ERP_WO_CMPLT_CNT": "ERP_WO_CMPLT_CNT", "ERP_WO_CNT": "ERP_WO_CNT", "ERP_WO_ITEM_CMPLT_CNT": "ERP_WO_ITEM_CMPLT_CNT", "ERP_WO_ITEM_CNT": "ERP_WO_ITEM_CNT", "EST_OFFC_SCD_KEY": "EST_OFFC_SCD_KEY", "EST_SCD_KEY": "EST_SCD_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "UNIT_SIZE_DMNS_KEY": "UNIT_SIZE_DMNS_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['TIME_DMNS_KEY', 'EST_OFFC_SCD_KEY', 'UNIT_SIZE_DMNS_KEY', 'BLK_SCD_KEY', 'BLK_AGE_DMNS_KEY', 'ERP_WO_CNT', 'ERP_WO_CMPLT_CNT', 'ARTSN_ORD_CNT', 'ARTSN_ORD_CMPLT_CNT', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'CMS_BLK_SCD_KEY', 'EST_SCD_KEY', 'CMS_EST_SCD_KEY', 'ERP_WO_ITEM_CNT', 'ERP_WO_ITEM_CMPLT_CNT']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DPA_FACT_CMS_ORD_SMRY", mode="append")
-
-        logger.info("write_DPA_FACT_CMS_ORD_SMRY write completed")
         
         metrics.complete()
         logger.info("Mapping M_DPA_SUMMARIZE_FACT_CMS_ORD_SMRY completed: SUCCESS")

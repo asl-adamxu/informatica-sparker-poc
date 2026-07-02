@@ -123,12 +123,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Target write_UTL_DEV_NULL is /dev/null, skipping write")
 
         logger.info("write_UTL_DEV_NULL write completed")
-        logger.info("Step: write_UTL_DEV_NULL")
-        # Write to Target: write_UTL_DEV_NULL
-        # /dev/null — skip entire write component (no-op target in Informatica)
-        logger.info("Target write_UTL_DEV_NULL is /dev/null, skipping write")
-
-        logger.info("write_UTL_DEV_NULL write completed")
         
         metrics.complete()
         logger.info("Mapping M_UTL_DPA_TRUNCATE completed: SUCCESS")

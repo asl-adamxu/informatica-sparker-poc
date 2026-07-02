@@ -1,6 +1,6 @@
 ================================================================================
 INFORMATICA-SPARKER CONVERSION LOG
-Generated: 2026-07-02 11:00:42
+Generated: 2026-07-02 16:26:45
 ================================================================================
 
 SUMMARY
@@ -913,6 +913,26 @@ SOURCE DETECTION RESULTS
   UTL_SESSION_LIST: FILE [no_ext] (confidence: high)
     - File format: no_ext
     - Location: local
+
+GENERATED FILES
+----------------------------------------
+  Mapping Scripts:
+    - m_dds_aply_fact_cms_case_prnt_smry.py
+    - m_dds_aply_fact_cms_case_smry.py
+    - m_dds_aply_fact_cms_ord_smry.py
+    - m_dpa_aply_fact_cms_case_ostd_smry.py
+    - m_dpa_summarize_fact_cms_case_ostd_smry.py
+    - m_dpa_summarize_fact_cms_case_prnt_smry.py
+    - m_dpa_summarize_fact_cms_case_smry.py
+    - m_dpa_summarize_fact_cms_ord_smry.py
+    - m_utl_dpa_truncate.py
+    - m_utl_param_setup.py
+    - runtime_lib.py
+    - wf_cms_dds_aply_mth.py
+  Supporting Files:
+    - all_sql_queries.sql (sql)
+    - config.yml (yaml)
+    - wf_cms_dds_aply_mth.md (markdown)
 
 MAPPING: M_DPA_APLY_FACT_CMS_CASE_OSTD_SMRY
   Status: SUCCESS

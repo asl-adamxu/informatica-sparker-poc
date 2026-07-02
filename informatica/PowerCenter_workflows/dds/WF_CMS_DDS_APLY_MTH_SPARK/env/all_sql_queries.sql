@@ -18,11 +18,6 @@ SELECT * FROM DPA_FACT_CMS_CASE_OSTD_SMRY;
 -- Connection: target
 -- Write to target table: DDS_FACT_CMS_CASE_OSTD_SMRY;
 
--- [INSERT_TARGET] Step: write_DDS_FACT_CMS_CASE_OSTD_SMRY
--- Table: DDS_FACT_CMS_CASE_OSTD_SMRY
--- Connection: target
--- Write to target table: DDS_FACT_CMS_CASE_OSTD_SMRY;
-
 -- =============================================================================
 -- Mapping: M_DDS_APLY_FACT_CMS_CASE_SMRY
 -- =============================================================================
@@ -31,11 +26,6 @@ SELECT * FROM DPA_FACT_CMS_CASE_OSTD_SMRY;
 -- Table: DPA_FACT_CMS_CASE_SMRY
 -- Connection: DPA
 SELECT * FROM DPA_FACT_CMS_CASE_SMRY;
-
--- [INSERT_TARGET] Step: write_DDS_FACT_CMS_CASE_SMRY
--- Table: DDS_FACT_CMS_CASE_SMRY
--- Connection: target
--- Write to target table: DDS_FACT_CMS_CASE_SMRY;
 
 -- [INSERT_TARGET] Step: write_DDS_FACT_CMS_CASE_SMRY
 -- Table: DDS_FACT_CMS_CASE_SMRY
@@ -56,11 +46,6 @@ SELECT * FROM DPA_FACT_CMS_ORD_SMRY;
 -- Connection: target
 -- Write to target table: DDS_FACT_CMS_ORD_SMRY;
 
--- [INSERT_TARGET] Step: write_DDS_FACT_CMS_ORD_SMRY
--- Table: DDS_FACT_CMS_ORD_SMRY
--- Connection: target
--- Write to target table: DDS_FACT_CMS_ORD_SMRY;
-
 -- =============================================================================
 -- Mapping: M_DDS_APLY_FACT_CMS_CASE_PRNT_SMRY
 -- =============================================================================
@@ -69,11 +54,6 @@ SELECT * FROM DPA_FACT_CMS_ORD_SMRY;
 -- Table: DPA_FACT_CMS_CASE_PRNT_SMRY
 -- Connection: DPA
 SELECT * FROM DPA_FACT_CMS_CASE_PRNT_SMRY;
-
--- [INSERT_TARGET] Step: write_DDS_FACT_CMS_CASE_PRNT_SMRY
--- Table: DDS_FACT_CMS_CASE_PRNT_SMRY
--- Connection: target
--- Write to target table: DDS_FACT_CMS_CASE_PRNT_SMRY;
 
 -- [INSERT_TARGET] Step: write_DDS_FACT_CMS_CASE_PRNT_SMRY
 -- Table: DDS_FACT_CMS_CASE_PRNT_SMRY
@@ -377,11 +357,6 @@ SELECT * FROM DDS_DMNS_EMS_RSDN_LNG;
 -- Connection: DPA
 -- Write to target table: DPA_FACT_CMS_CASE_SMRY;
 
--- [INSERT_TARGET] Step: write_DPA_FACT_CMS_CASE_SMRY
--- Table: DPA_FACT_CMS_CASE_SMRY
--- Connection: DPA
--- Write to target table: DPA_FACT_CMS_CASE_SMRY;
-
 -- =============================================================================
 -- Mapping: M_DPA_SUMMARIZE_FACT_CMS_CASE_OSTD_SMRY
 -- =============================================================================
@@ -567,11 +542,6 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
 -- Table: DDS_DMNS_EMS_BLK_AGE
 -- Connection: source_db
 SELECT * FROM DDS_DMNS_EMS_BLK_AGE;
-
--- [INSERT_TARGET] Step: write_DPA_FACT_CMS_CASE_OSTD_SMRY
--- Table: DPA_FACT_CMS_CASE_OSTD_SMRY
--- Connection: DPA
--- Write to target table: DPA_FACT_CMS_CASE_OSTD_SMRY;
 
 -- [INSERT_TARGET] Step: write_DPA_FACT_CMS_CASE_OSTD_SMRY
 -- Table: DPA_FACT_CMS_CASE_OSTD_SMRY
@@ -846,11 +816,6 @@ or a.UNIT_SIZE_DMNS_KEY = 0;
 -- Connection: DPA
 -- Write to target table: DPA_FACT_CMS_ORD_SMRY;
 
--- [INSERT_TARGET] Step: write_DPA_FACT_CMS_ORD_SMRY
--- Table: DPA_FACT_CMS_ORD_SMRY
--- Connection: DPA
--- Write to target table: DPA_FACT_CMS_ORD_SMRY;
-
 -- =============================================================================
 -- Mapping: M_DPA_SUMMARIZE_FACT_CMS_CASE_PRNT_SMRY
 -- =============================================================================
@@ -900,19 +865,9 @@ group by rqs_chnl_dmns_key, case_catg_scd_key, est_scd_key;
 -- Connection: DPA
 -- Write to target table: DPA_FACT_CMS_CASE_PRNT_SMRY;
 
--- [INSERT_TARGET] Step: write_DPA_FACT_CMS_CASE_PRNT_SMRY1
--- Table: DPA_FACT_CMS_CASE_PRNT_SMRY
--- Connection: DPA
--- Write to target table: DPA_FACT_CMS_CASE_PRNT_SMRY;
-
 -- =============================================================================
 -- Mapping: M_UTL_DPA_TRUNCATE
 -- =============================================================================
-
--- [INSERT_TARGET] Step: write_UTL_DEV_NULL
--- Table: UTL_DEV_NULL
--- Connection: target
--- Write to target table: UTL_DEV_NULL;
 
 -- [INSERT_TARGET] Step: write_UTL_DEV_NULL
 -- Table: UTL_DEV_NULL
@@ -926,11 +881,6 @@ group by rqs_chnl_dmns_key, case_catg_scd_key, est_scd_key;
 -- [SELECT] Step: read_LKPTRANS
 -- Connection: SOR
 SELECT SOR_SYS_PRPTY.VAL as VAL, SOR_SYS_PRPTY.PRPTY_DESP as PRPTY_DESP, SOR_SYS_PRPTY.PRPTY as PRPTY FROM PSOR.SOR_SYS_PRPTY;
-
--- [INSERT_TARGET] Step: write_UTL_JOB_PARAM
--- Table: UTL_JOB_PARAM
--- Connection: target
--- Write to target table: UTL_JOB_PARAM;
 
 -- [INSERT_TARGET] Step: write_UTL_JOB_PARAM
 -- Table: UTL_JOB_PARAM

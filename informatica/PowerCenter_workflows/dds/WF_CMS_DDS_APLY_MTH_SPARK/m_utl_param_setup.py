@@ -179,37 +179,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             lib.write_file(df_write, _write_path, format=_write_fmt, mode="overwrite")
 
         logger.info("write_UTL_JOB_PARAM write completed")
-        logger.info("Step: write_UTL_JOB_PARAM")
-        # Write to Target: write_UTL_JOB_PARAM
-        df_write = df_exp_6
-        # Cast columns to match target schema data types
-        if "line" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "line":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        # Map source columns to target columns using connector field map (handles name mismatches)
-        _field_map = {"LINE": "LINE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['LINE']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
-        # Write to flat file — prefer config.yml objects metadata, then derived default path
-        _write_obj = objects.get("UTL_JOB_PARAM")
-        if _write_obj and isinstance(_write_obj, dict):
-            _write_path = _write_obj.get('path', '/tmp/UTL_JOB_PARAM')
-            _write_fmt = _write_obj.get('format', 'csv')
-        # Runtime fallback: skip write if path resolves to /dev/null
-        if _write_path and _write_path.strip() in ("/dev/null", "NUL"):
-            logger.info("Target %s resolved to /dev/null, skipping write", "write_UTL_JOB_PARAM")
-        else:
-            lib.write_file(df_write, _write_path, format=_write_fmt, mode="overwrite")
-
-        logger.info("write_UTL_JOB_PARAM write completed")
         
         metrics.complete()
         logger.info("Mapping M_UTL_PARAM_SETUP completed: SUCCESS")

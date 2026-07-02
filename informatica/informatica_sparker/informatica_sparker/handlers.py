@@ -1,6 +1,6 @@
 import re
 import networkx as nx
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any, Set, Tuple
 from .models import (
     MappingDefinition, Transformation, Instance, Connector,
     SourceDefinition, TargetDefinition, UserConfig, SourceConfig, TargetConfig,
@@ -220,6 +220,7 @@ class TransformHandlers:
         # The fallback order is wrong, so instances that can't find their input
         # are deferred and processed at the end when all upstream DFs are ready.
         _deferred_insts: List[Instance] = []
+        _processed_inst_names: Set[str] = set()
 
         for inst_name in ordered_instances:
             instance = self.instance_map.get(inst_name)
@@ -237,6 +238,10 @@ class TransformHandlers:
                 if not _input_ok:
                     _deferred_insts.append(instance)
                     continue
+
+            # Track this instance as processed so Phase 3 (post-cycle-resolution)
+            # does not re-process it and create duplicate steps.
+            _processed_inst_names.add(inst_name)
 
             if inst_type in ("SOURCE", "Source Definition"):
                 self.logger.log_transformation(inst_name, "Source", "Processing source definition", LogLevel.INFO)
@@ -371,8 +376,9 @@ class TransformHandlers:
         # Process deferred instances. By now all upstream transforms have been
         # processed so _get_input_df should succeed.
         import logging as _logging
-        _logging.warning(f"DEFERRED instances: {[(d.name, type(d).__name__) for d in _deferred_insts]}")
-        _logging.warning(f"current_df_map keys: {list(self.current_df_map.keys())}")
+        if _deferred_insts:
+            _logging.warning(f"DEFERRED instances: {[(d.name, type(d).__name__) for d in _deferred_insts]}")
+            _logging.warning(f"current_df_map keys: {list(self.current_df_map.keys())}")
         for _d_inst in _deferred_insts:
             _d_type = self._resolve_transformation_type(_d_inst)
             _input_df = self._get_input_df(_d_inst.name)
@@ -425,7 +431,7 @@ class TransformHandlers:
         _handled_names = {_d.name for _d in _deferred_insts}
         for _extra_inst in self.mapping.instances:
             _extra_type = self._resolve_transformation_type(_extra_inst)
-            if _extra_inst.name not in _handled_names:
+            if _extra_inst.name not in _handled_names and _extra_inst.name not in _processed_inst_names:
                 if _extra_type in ("TARGET", "Target Definition"):
                     self.logger.log_transformation(_extra_inst.name, "Target",
                         "Processing target (post-cycle-resolution)", LogLevel.INFO)

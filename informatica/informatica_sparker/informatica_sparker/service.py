@@ -132,7 +132,7 @@ class ConversionService:
             all_files.append(sql_file)
 
         conversion_log = self._generate_conversion_log(
-            all_warnings, all_errors, all_reports, all_source_detections
+            all_warnings, all_errors, all_reports, all_source_detections, all_files
         )
         all_files.append(conversion_log)
 
@@ -1111,7 +1111,8 @@ class ConversionService:
 
     def _generate_conversion_log(self, warnings: List[str], errors: List[str],
                              reports: List[ConversionReport],
-                             source_detections: List[SourceDetectionResult]) -> GeneratedFile:
+                             source_detections: List[SourceDetectionResult],
+                             all_files: List[GeneratedFile] = None) -> GeneratedFile:
         lines = [
             "=" * 80,
             "INFORMATICA-SPARKER CONVERSION LOG",
@@ -1141,6 +1142,21 @@ class ConversionService:
                 lines.append(f"  {sd.source_name}: {sd.detected_type.value}{fmt_str}{conf}")
                 for note in sd.detection_notes:
                     lines.append(f"    - {note}")
+            lines.append("")
+
+        if all_files:
+            lines.append("GENERATED FILES")
+            lines.append("-" * 40)
+            py_files = sorted([f.filename for f in all_files if f.file_type == "python"])
+            other_files = sorted([(f.filename, f.file_type) for f in all_files if f.file_type != "python"])
+            if py_files:
+                lines.append("  Mapping Scripts:")
+                for fname in py_files:
+                    lines.append(f"    - {fname}")
+            if other_files:
+                lines.append("  Supporting Files:")
+                for fname, ftype in other_files:
+                    lines.append(f"    - {fname} ({ftype})")
             lines.append("")
 
         for report in reports:

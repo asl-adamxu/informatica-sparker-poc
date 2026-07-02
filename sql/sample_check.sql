@@ -37,4 +37,4 @@ select * from DDS_FACT_CMS_CASE_OSTD_SMRY;
 -- M_DDS_APLY_FACT_CMS_ORD_SMRY              
 select * from DDS_FACT_CMS_ORD_SMRY;
 -- M_DDS_APLY_FACT_CMS_CASE_PRNT_SMRY        
-select * from DDS_FACT_CMS_CASE_PRNT_SMRY;
+select * from DDS_FACT_CMS_CASE_PRNT_SMRY order by LAST_REC_TXN_DATE DESC;
