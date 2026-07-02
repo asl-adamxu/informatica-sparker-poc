@@ -325,6 +325,129 @@ def extract_tables_from_sql(sql_text: str) -> List[TableRef]:
     return tables
 
 
+# ── SQL Field Extractor ─────────────────────────────────────────────────────────
+
+_ALIAS_FROM_PATTERN = re.compile(
+    r'(?:FROM|JOIN)\s+'
+    r'(?:[A-Za-z_][A-Za-z0-9_$#]*(?:\.[A-Za-z_][A-Za-z0-9_$#]*)?)'
+    r'(?:\s+(?:AS\s+)?([A-Za-z_][A-Za-z0-9_$#]*))?',
+    re.IGNORECASE
+)
+
+
+def _split_select_columns(select_clause: str) -> List[str]:
+    """Split a SELECT clause into individual column expressions, respecting parens."""
+    cols = []
+    depth = 0
+    current = []
+    for ch in select_clause:
+        if ch in '({[':
+            depth += 1
+            current.append(ch)
+        elif ch in ')}]':
+            depth -= 1
+            current.append(ch)
+        elif ch == ',' and depth == 0:
+            cols.append(''.join(current).strip())
+            current = []
+        else:
+            current.append(ch)
+    if current:
+        cols.append(''.join(current).strip())
+    return cols
+
+
+def _build_alias_map(sql_text: str) -> Dict[str, str]:
+    """Build a mapping from alias → table_name from FROM/JOIN clauses.
+
+    E.g. 'FROM SOR_CMS_CUST_RQS_STS a' → {'A': 'SOR_CMS_CUST_RQS_STS'}
+    """
+    sql = _normalize_sql(sql_text)
+    # Remove subqueries
+    while True:
+        simplified = re.sub(r'\([^()]*\)', '()', sql)
+        if simplified == sql:
+            break
+        sql = simplified
+    sql = sql.replace('()', ' ')
+
+    alias_map: Dict[str, str] = {}
+    for m in _ALIAS_FROM_PATTERN.finditer(sql):
+        table_raw = m.group(0).lstrip()
+        # Remove FROM/JOIN keyword
+        table_part = re.sub(r'^(?:FROM|JOIN)\s+', '', table_raw, flags=re.I).strip()
+        parts = table_part.split()
+        if len(parts) >= 2:
+            table_name = parts[0].split('.')[-1].upper()
+            alias = parts[-1].upper()
+            alias_map[alias] = table_name
+    return alias_map
+
+
+def extract_fields_from_sql(sql_text: str) -> Dict[str, List[FieldDef]]:
+    """Extract field definitions per table from a SQL SELECT query.
+
+    Returns dict: table_name_upper -> [FieldDef]
+    Parses the SELECT clause and matches column references to table aliases.
+    """
+    if not sql_text or not sql_text.strip():
+        return {}
+
+    sql = _normalize_sql(sql_text)
+    # Remove CTE
+    sql = _remove_cte_block(sql)
+
+    # Extract SELECT clause
+    select_match = re.match(r'\s*SELECT\s+(.*?)\s+FROM\b', sql, re.I | re.DOTALL)
+    if not select_match:
+        return {}
+    select_clause = select_match.group(1).strip()
+    #
+    columns = _split_select_columns(select_clause)
+    alias_map = _build_alias_map(sql_text)
+
+    # Build table→fields map
+    result: Dict[str, List[FieldDef]] = {}
+    # Also track 'no_alias' columns for tables with no explicit column prefix
+    no_alias_cols: List[FieldDef] = []
+
+    for col_expr in columns:
+        # Try to match: alias.COLUMN [AS alias]
+        m = re.match(
+            r'(?:(\w+)\.)?(\w+)'         # [alias.]column
+            r'(?:\s+AS\s+(\w+))?',        # [AS alias]
+            col_expr.strip(), re.I
+        )
+        if not m:
+            continue
+
+        prefix = m.group(1)          # alias or table name or None
+        col_name = m.group(2)
+        col_alias = m.group(3)       # explicit column alias
+
+        field_name = (col_alias or col_name).upper()
+        field = FieldDef(name=field_name, datatype='varchar2', precision=255)
+
+        if prefix:
+            alias_upper = prefix.upper()
+            # Resolve alias to table name
+            table_name = alias_map.get(alias_upper, alias_upper)
+            result.setdefault(table_name, []).append(field)
+        else:
+            # No alias — might be a bare column reference
+            no_alias_cols.append(field)
+
+    # If no_alias columns exist and we have exactly one table, assign them
+    if no_alias_cols and len(result) == 1:
+        only_table = list(result.keys())[0]
+        result[only_table].extend(no_alias_cols)
+    elif no_alias_cols and not result:
+        # Fallback: columns go to a generic entry
+        result['__UNRESOLVED__'] = no_alias_cols
+
+    return result
+
+
 # ── Table Discoverer ──────────────────────────────────────────────────────────
 
 REFERENCE_TABLE_PATTERNS = [
@@ -499,12 +622,15 @@ class TableDiscoverer:
                 sql = attrs.get("Sql Query", "") or attrs.get("sql_query", "")
                 if sql.strip():
                     refs = extract_tables_from_sql(sql)
+                    sql_fields = extract_fields_from_sql(sql)
                     for ref in refs:
                         key = ref.key
                         if self._should_override(tables.get(key), "sql_inferred"):
+                            fields = sql_fields.get(ref.table_name, [])
                             tables[key] = TableDef(
                                 schema_name=ref.schema_name,
                                 table_name=ref.table_name,
+                                fields=fields,
                                 origin="sql_inferred",
                             )
 
@@ -513,12 +639,15 @@ class TableDiscoverer:
                 sql_override = attrs.get("Lookup Sql Override", "")
                 if sql_override.strip():
                     refs = extract_tables_from_sql(sql_override)
+                    sql_fields = extract_fields_from_sql(sql_override)
                     for ref in refs:
                         key = ref.key
                         if self._should_override(tables.get(key), "sql_inferred"):
+                            fields = sql_fields.get(ref.table_name, [])
                             tables[key] = TableDef(
                                 schema_name=ref.schema_name,
                                 table_name=ref.table_name,
+                                fields=fields,
                                 origin="sql_inferred",
                             )
 
@@ -558,12 +687,15 @@ class TableDiscoverer:
                 sql_override = attrs.get("Lookup Sql Override", "")
                 if sql_override.strip():
                     refs = extract_tables_from_sql(sql_override)
+                    sql_fields = extract_fields_from_sql(sql_override)
                     for ref in refs:
                         key = ref.key
                         if self._should_override(tables.get(key), "sql_inferred"):
+                            fields = sql_fields.get(ref.table_name, [])
                             tables[key] = TableDef(
                                 schema_name=ref.schema_name,
                                 table_name=ref.table_name,
+                                fields=fields,
                                 origin="sql_inferred",
                             )
 
