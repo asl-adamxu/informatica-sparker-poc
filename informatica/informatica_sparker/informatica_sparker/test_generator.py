@@ -544,10 +544,15 @@ def _extract_all_column_refs(sql: str, alias_map: Dict[str, str]) -> Dict[str, L
                      'DECODE', 'ROUND', 'COUNT', 'SUM', 'AVG', 'MIN', 'MAX'):
             continue
 
-        # Skip if this alias doesn't resolve to a known table (likely column leak)
-        if alias not in alias_map:
+        # Resolve prefix to table name: could be an alias (Z) or the table name itself
+        if alias in alias_map:
+            table_name = alias_map[alias]
+        elif alias.startswith(('SOR_', 'DDS_', 'DPA_', 'DWH_', 'UTL_', 'TMP_', 'STG_', 'CDM_')):
+            # Prefix is the table name itself (no alias used)
+            table_name = alias
+        else:
+            # Unresolvable — likely a column from paren-strip remnant or function
             continue
-        table_name = alias_map[alias]
         if table_name not in seen:
             seen[table_name] = set()
         if col not in seen[table_name]:
