@@ -16,7 +16,8 @@ pip3.11 install informatica-sparker
 
 3. use the package to convert the workflow to pyspark code
 ```sh
-informatica-sparker convert WF_GMS_DDS_APLY_DLY.XML -o WF_GMS_DDS_APLY_DLY_SPARK
+OUT_ROOT=/var/lib/airflow/dags/adam/informatica/PySpark_workflows
+informatica-sparker convert WF_CMS_DDS_APLY_MTH.XML -o $OUT_ROOT/WF_CMS_DDS_APLY_MTH
 ```
 
 4. test the generated mapping (example for the truncate step)
