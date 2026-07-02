@@ -1340,8 +1340,8 @@ class TestGenerator:
     def write_all(self, output_dir: str):
         """Write all test artifacts to output_dir/tests/."""
         tests_dir = Path(output_dir) / "tests"
+        sql_dir = Path(output_dir) / "sql"
         schema_dir = tests_dir / "schema"
-        sql_dir = tests_dir / "sql"
 
         schema_dir.mkdir(parents=True, exist_ok=True)
         sql_dir.mkdir(parents=True, exist_ok=True)
@@ -1551,12 +1551,12 @@ def setup_database(snsh_date, db_config, output_dir):
     """Setup: create tables and insert reference data."""
     print(f"\\n=== SETUP: Creating tables and reference data ===")
     run_sql_script(os.path.join(output_dir, "tests/schema/create_all_tables.sql"), db_config)
-    run_sql_script(os.path.join(output_dir, "tests/sql/10_dimension_data.sql"), db_config)
+    run_sql_script(os.path.join(output_dir, "sql/10_dimension_data.sql"), db_config)
     # Source transaction data (sql/20_source_transaction.sql) is generated
     # and loaded by gen_test_data.py before each test run.
     yield
     print(f"\\n=== TEARDOWN: Cleaning up ===")
-    run_sql_script(os.path.join(output_dir, "tests/sql/90_cleanup.sql"), db_config)
+    run_sql_script(os.path.join(output_dir, "sql/90_cleanup.sql"), db_config)
 
 
 def query_table_count(table_name: str, db_config: dict = None) -> int:
@@ -1666,7 +1666,7 @@ def _generate_value(col_name: str, snsh_date: str) -> str:
 
 def generate_source_data(snsh_date: str, output_dir: str):
     """Generate minimal INSERT SQL for input transaction tables."""
-    sql_dir = os.path.join(output_dir, "tests", "sql")
+    sql_dir = os.path.join(output_dir, "sql")
     os.makedirs(sql_dir, exist_ok=True)
 
     lines = [

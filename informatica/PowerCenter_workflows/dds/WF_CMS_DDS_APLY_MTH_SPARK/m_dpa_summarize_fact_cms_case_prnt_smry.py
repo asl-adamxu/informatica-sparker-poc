@@ -169,6 +169,33 @@ group by rqs_chnl_dmns_key, case_catg_scd_key, est_scd_key"""
         lib.write_table(df_write, conn_target, "DPA_FACT_CMS_CASE_PRNT_SMRY", mode="append")
 
         logger.info("write_DPA_FACT_CMS_CASE_PRNT_SMRY1 write completed")
+        logger.info("Step: write_DPA_FACT_CMS_CASE_PRNT_SMRY1")
+        # Write to Target: write_DPA_FACT_CMS_CASE_PRNT_SMRY1
+        df_write = df_sq_2
+        # Cast columns to match target schema data types
+        if "last_rec_txn_date" in [c.lower() for c in df_write.columns]:
+            for c in df_write.columns:
+                if c.lower() == "last_rec_txn_date":
+                    df_write = df_write.withColumn(c, col(c).cast(TimestampType()))
+        if "last_rec_txn_type_code" in [c.lower() for c in df_write.columns]:
+            for c in df_write.columns:
+                if c.lower() == "last_rec_txn_type_code":
+                    df_write = df_write.withColumn(c,
+                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
+                             col(c).cast(DecimalType(38,0)).cast(StringType()))
+                        .otherwise(col(c).cast(StringType())))
+        # Map source columns to target columns using connector field map (handles name mismatches)
+        _field_map = {"CASE_CATG_SCD_KEY": "CASE_CATG_SCD_KEY", "CMS_CASE_CNT": "CMS_CASE_CNT", "CMS_RCPT_PRN_CNT": "CMS_RCPT_PRN_CNT", "EST_SCD_KEY": "EST_SCD_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "RQS_CHNL_DMNS_KEY": "RQS_CHNL_DMNS_KEY", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
+        for _tgt_col, _src_col in _field_map.items():
+            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
+        # Select only target-defined columns (field_map already handled name alignment)
+        _target_cols = ['TIME_DMNS_KEY', 'RQS_CHNL_DMNS_KEY', 'CASE_CATG_SCD_KEY', 'EST_SCD_KEY', 'CMS_CASE_CNT', 'CMS_RCPT_PRN_CNT', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE']
+        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
+        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
+        lib.write_table(df_write, conn_target, "DPA_FACT_CMS_CASE_PRNT_SMRY", mode="append")
+
+        logger.info("write_DPA_FACT_CMS_CASE_PRNT_SMRY1 write completed")
         
         metrics.complete()
         logger.info("Mapping M_DPA_SUMMARIZE_FACT_CMS_CASE_PRNT_SMRY completed: SUCCESS")
