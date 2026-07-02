@@ -82,9 +82,12 @@ class ConversionService:
                 sql_queries = self._extract_sql_queries(ir_plan)
                 all_sql_queries.extend(sql_queries)
 
+                # A mapping with warnings is considered failed — every warning
+                # represents an unresolved feature or data loss that must be fixed.
+                _has_warnings = len(ir_plan.warnings) > 0
                 report = ConversionReport(
                     mapping_name=mapping_name,
-                    status="success",
+                    status="failed" if _has_warnings else "success",
                     generated_files=[f.filename for f in generated],
                     warnings=[ReportItem(severity="warning", message=w) for w in ir_plan.warnings]
                 )

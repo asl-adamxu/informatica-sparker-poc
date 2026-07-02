@@ -1,6 +1,6 @@
 import re
 import networkx as nx
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 from .models import (
     MappingDefinition, Transformation, Instance, Connector,
     SourceDefinition, TargetDefinition, UserConfig, SourceConfig, TargetConfig,
@@ -215,6 +215,12 @@ class TransformHandlers:
 
         self.logger.log(LogStage.GRAPH, "Mapping", self.mapping.name, f"Graph built with {len(ordered_instances)} nodes", LogLevel.SUCCESS)
 
+        # Deferred instances buffer — SSAL1 extract mappings have SOURCE+TARGET
+        # sharing a name, creating a graph cycle that breaks topological sort.
+        # The fallback order is wrong, so instances that can't find their input
+        # are deferred and processed at the end when all upstream DFs are ready.
+        _deferred_insts: List[Instance] = []
+
         for inst_name in ordered_instances:
             instance = self.instance_map.get(inst_name)
             if not instance:
@@ -222,6 +228,14 @@ class TransformHandlers:
                 continue
 
             inst_type = self._resolve_transformation_type(instance)
+
+            # Defer if the upstream DataFrame isn't available yet (handles both
+            # duplicate-name collision and wrong-fallback-order cases).
+            if inst_type in ("TARGET", "Target Definition", "Filter", "Expression"):
+                _input_ok = self._get_input_df(instance.name)
+                if not _input_ok:
+                    _deferred_insts.append(instance)
+                    continue
 
             if inst_type in ("SOURCE", "Source Definition"):
                 self.logger.log_transformation(inst_name, "Source", "Processing source definition", LogLevel.INFO)
@@ -352,6 +366,60 @@ class TransformHandlers:
             else:
                 self.logger.log_transformation(inst_name, inst_type, f"Unsupported transformation type: {inst_type}", LogLevel.WARNING)
                 plan.add_warning(f"Unsupported transformation type: {inst_type} ({inst_name})")
+
+        # Process deferred instances. By now all upstream transforms have been
+        # processed so _get_input_df should succeed.
+        for _d_inst in _deferred_insts:
+            _d_type = self._resolve_transformation_type(_d_inst)
+            _input_df = self._get_input_df(_d_inst.name)
+            if not _input_df:
+                # Still can't find input — let handler warn with fallback
+                pass
+            if _d_type in ("TARGET", "Target Definition"):
+                self.logger.log_transformation(_d_inst.name, "Target",
+                    "Processing target", LogLevel.INFO)
+                _steps = self._handle_target(_d_inst, plan)
+                for _s in _steps:
+                    plan.add_step(_s)
+                if _steps:
+                    self.logger.log_transformation(_d_inst.name, "Target",
+                        f"Target converted ({len(_steps)} steps)", LogLevel.SUCCESS)
+            elif _d_type == "Expression":
+                self.logger.log_transformation(_d_inst.name, "Expression",
+                    "Processing expression", LogLevel.INFO)
+                _result = self._handle_expression(_d_inst, plan)
+                if isinstance(_result, list):
+                    for _s in _result:
+                        if _s:
+                            plan.add_step(_s)
+                elif _result:
+                    plan.add_step(_result)
+                if _result:
+                    self.logger.log_transformation(_d_inst.name, "Expression",
+                        "Expression converted", LogLevel.SUCCESS)
+            elif _d_type == "Filter":
+                self.logger.log_transformation(_d_inst.name, "Filter",
+                    "Processing filter", LogLevel.INFO)
+                _step = self._handle_filter(_d_inst, plan)
+                if _step:
+                    plan.add_step(_step)
+
+        # Also catch any instances that were overwritten in instance_map by a
+        # SOURCE with the same name (SSAL1 pattern). These weren't found by
+        # _get_input_df above because the map returned the SOURCE, not them.
+        _handled_names = {_d.name for _d in _deferred_insts}
+        for _extra_inst in self.mapping.instances:
+            _extra_type = self._resolve_transformation_type(_extra_inst)
+            if _extra_type in ("TARGET", "Target Definition"):
+                if _extra_inst.name not in _handled_names:
+                    self.logger.log_transformation(_extra_inst.name, "Target",
+                        "Processing target (post-cycle-resolution)", LogLevel.INFO)
+                    _steps = self._handle_target(_extra_inst, plan)
+                    for _s in _steps:
+                        plan.add_step(_s)
+                    if _steps:
+                        self.logger.log_transformation(_extra_inst.name, "Target",
+                            f"Target converted ({len(_steps)} steps)", LogLevel.SUCCESS)
 
         return plan
 

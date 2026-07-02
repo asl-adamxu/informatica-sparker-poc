@@ -1593,12 +1593,20 @@ def run_pyspark_script(script_path: str, output_dir: str, timeout: int = 600) ->
 
     def _render_gen_test_data(self) -> str:
         """Generate tests/gen_test_data.py — dynamic data generator."""
-        # Collect SOR tables from discovered tables
-        sor_tables = []
+        # Collect SOR tables from discovered tables with their fields
+        sor_table_defs: Dict[str, List[FieldDef]] = {}
         for tdef in self.tables.values():
             upper = tdef.table_name.upper()
-            if upper.startswith("SOR_") or tdef.schema_name.upper() == "PSOR":
-                sor_tables.append(tdef.table_name)
+            if (upper.startswith("SOR_") or tdef.schema_name.upper() == "PSOR") and tdef.fields:
+                sor_table_defs[tdef.table_name] = tdef.fields
+
+        # Build TABLE_COLUMNS dict for the template: table_name -> [col_name, ...]
+        table_columns_lines = []
+        for tname in sorted(sor_table_defs.keys()):
+            cols = sor_table_defs[tname]
+            col_names = [f.name.upper() for f in cols]
+            col_str = ", ".join(f'"{c}"' for c in col_names)
+            table_columns_lines.append(f'    "{tname}": [{col_str}],')
 
         # Collect file sources from workflow analysis
         file_sources = []
@@ -1606,7 +1614,8 @@ def run_pyspark_script(script_path: str, output_dir: str, timeout: int = 600) ->
             for src_name, src_info in sess.get("file_sources", {}).items():
                 file_sources.append((src_name, src_info))
 
-        sor_list = "\n    ".join(f'"{t}",' for t in sorted(sor_tables))
+        sor_list = "\n    ".join(f'"{t}",' for t in sorted(sor_table_defs.keys()))
+        table_cols_block = "\n".join(table_columns_lines)
         file_src_list = "\n    ".join(
             f'# {name}: {info.get("Source filename", "")}'
             for name, info in file_sources
@@ -1631,6 +1640,29 @@ SOR_TABLES = [
 # UTL file sources
 {file_src_list}
 
+# Column definitions for each SOR table: table_name -> [column, ...]
+TABLE_COLUMNS = {{
+{table_cols_block}
+}}
+
+
+def _generate_value(col_name: str, snsh_date: str) -> str:
+    """Generate a default value for a column based on its name pattern."""
+    name = col_name.upper()
+    if name.endswith('_KEY'):
+        return '0'
+    if name.endswith('_CODE'):
+        return "'N/A'"
+    if name.endswith('_NAME') or name.endswith('_DESP'):
+        return "'Test'"
+    if 'DATE' in name:
+        return f"TO_DATE('{{snsh_date}}','YYYYMMDD')"
+    if name in ('BGN_DATE', 'EFF_DATE', 'VALID_FROM'):
+        return "TO_DATE('20000101','YYYYMMDD')"
+    if name in ('END_DATE', 'EXPIR_DATE', 'VALID_TO'):
+        return "TO_DATE('99991231','YYYYMMDD')"
+    return 'NULL'
+
 
 def generate_source_data(snsh_date: str, output_dir: str):
     """Generate minimal INSERT SQL for input transaction tables."""
@@ -1645,13 +1677,15 @@ def generate_source_data(snsh_date: str, output_dir: str):
         "",
     ]
 
-    # For each SOR table, generate 1-2 minimal rows
+    # For each SOR table, generate a minimal INSERT with default values
     for table in SOR_TABLES:
-        lines.append(f"-- INSERT INTO {{table}} (...) VALUES (...);  -- Add transaction data")
-        lines.append("")
-
-    # Add SELECT 1 as the last executable statement so the file is valid SQL
-    lines.append("SELECT 1 FROM DUAL;")
+        cols = TABLE_COLUMNS.get(table, [])
+        if cols:
+            col_names = ", ".join(cols)
+            values = ", ".join(_generate_value(c, snsh_date) for c in cols)
+            lines.append(f"INSERT INTO {{table}} ({{col_names}})")
+            lines.append(f"VALUES ({{values}});")
+            lines.append("")
 
     sql_path = os.path.join(sql_dir, "20_source_transaction.sql")
     with open(sql_path, "w") as f:
@@ -1673,11 +1707,6 @@ def generate_source_data(snsh_date: str, output_dir: str):
         print(f"  [INFO] Run sql/20_source_transaction.sql via your Oracle client")
     except Exception as e:
         print(f"  [WARN] Could not execute source SQL: {{e}}")
-
-    sql_path = os.path.join(sql_dir, "20_source_transaction.sql")
-    with open(sql_path, "w") as f:
-        f.write("\\n".join(lines) + "\\n")
-    print(f"Generated: {{sql_path}}")
 
 
 def generate_utl_files(snsh_date: str, output_dir: str):
