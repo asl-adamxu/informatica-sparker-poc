@@ -405,25 +405,24 @@ def _build_alias_map(sql_text: str) -> Dict[str, str]:
     alias_map: Dict[str, str] = {}
 
     # Pass 1: extract aliases from subquery bodies (depth > 0 parens)
-    # Find parenthesized blocks and treat each as a mini-SQL
-    depth = 0
-    current_paren = []
-    for ch in sql_text:  # Use original SQL to preserve parens
+    # Use a stack to track paren positions for correct nesting extraction
+    paren_stack: List[int] = []  # positions of '(' at each depth level
+    paren_contents: List[tuple] = []  # (depth_start, content) for each subquery
+    for i, ch in enumerate(sql_text):
         if ch == '(':
-            if depth > 0:
-                current_paren.append(ch)
-            depth += 1
+            paren_stack.append(i)
         elif ch == ')':
-            depth -= 1
-            if depth > 0:
-                current_paren.append(ch)
-            elif current_paren:
-                sub_sql = ''.join(current_paren)
-                sub_sql_norm = _normalize_sql(sub_sql)
-                _extract_aliases_from_sql(sub_sql_norm, alias_map)
-                current_paren = []
-        elif depth > 0:
-            current_paren.append(ch)
+            if paren_stack:
+                start = paren_stack.pop()
+                # Extract content between ( and ), excluding the parens themselves
+                content = sql_text[start + 1:i]
+                paren_contents.append((len(paren_stack) + 1, content))
+
+    # Process subqueries from inner to outer (already ordered by depth)
+    for subq_depth, subq_content in paren_contents:
+        if subq_content.strip():
+            sub_sql_norm = _normalize_sql(subq_content)
+            _extract_aliases_from_sql(sub_sql_norm, alias_map)
 
     # Pass 2: extract aliases from main query (subqueries removed)
     sql_clean = sql
