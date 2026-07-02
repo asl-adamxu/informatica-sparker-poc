@@ -360,6 +360,7 @@ def _split_select_columns(select_clause: str) -> List[str]:
 def _build_alias_map(sql_text: str) -> Dict[str, str]:
     """Build a mapping from alias → table_name from FROM/JOIN clauses.
 
+    Handles both 'FROM table alias' and comma-separated 'FROM t1 a, t2 b'.
     E.g. 'FROM SOR_CMS_CUST_RQS_STS a' → {'A': 'SOR_CMS_CUST_RQS_STS'}
     """
     sql = _normalize_sql(sql_text)
@@ -372,15 +373,40 @@ def _build_alias_map(sql_text: str) -> Dict[str, str]:
     sql = sql.replace('()', ' ')
 
     alias_map: Dict[str, str] = {}
-    for m in _ALIAS_FROM_PATTERN.finditer(sql):
-        table_raw = m.group(0).lstrip()
-        # Remove FROM/JOIN keyword
-        table_part = re.sub(r'^(?:FROM|JOIN)\s+', '', table_raw, flags=re.I).strip()
-        parts = table_part.split()
-        if len(parts) >= 2:
-            table_name = parts[0].split('.')[-1].upper()
-            alias = parts[-1].upper()
-            alias_map[alias] = table_name
+
+    # Strategy: find the FROM clause, then extract every (table [,] [schema.]table [alias])
+    # from the portion between FROM and the next clause keyword.
+    from_match = re.search(r'\bFROM\b', sql, re.I)
+    if not from_match:
+        return alias_map
+
+    # Extract the FROM clause body (up to WHERE/GROUP BY/ORDER BY/etc.)
+    clause_body = sql[from_match.end():]
+    end_match = re.search(
+        r'\b(?:WHERE|GROUP\s+BY|ORDER\s+BY|HAVING|START\s+WITH|CONNECT\s+BY|UNION|MINUS|INTERSECT)\b',
+        clause_body, re.I
+    )
+    if end_match:
+        clause_body = clause_body[:end_match.start()]
+
+    # Now split by top-level commas to get individual table references
+    table_refs = _split_select_columns(clause_body)  # Reuses the paren-aware splitter
+
+    for ref in table_refs:
+        ref = ref.strip()
+        # Also handle tables introduced by JOIN (if JOIN appears inside FROM clause)
+        for sub_ref in re.split(r'\b(?:JOIN|CROSS\s+JOIN|INNER\s+JOIN|LEFT\s+JOIN|RIGHT\s+JOIN|FULL\s+JOIN)\b', ref, flags=re.I):
+            sub_ref = sub_ref.strip()
+            if not sub_ref:
+                continue
+            parts = sub_ref.split()
+            if len(parts) >= 2:
+                table_name = parts[0].split('.')[-1].upper()
+                alias = parts[-1].upper()
+                alias_map[alias] = table_name
+            elif len(parts) == 1 and '.' in parts[0]:
+                # schema.table with no alias — extract table name only
+                pass
     return alias_map
 
 
@@ -412,30 +438,43 @@ def extract_fields_from_sql(sql_text: str) -> Dict[str, List[FieldDef]]:
     no_alias_cols: List[FieldDef] = []
 
     for col_expr in columns:
-        # Try to match: alias.COLUMN [AS alias]
+        col_stripped = col_expr.strip()
+
+        # Pattern 1: simple alias.COLUMN [AS col_alias]
         m = re.match(
-            r'(?:(\w+)\.)?(\w+)'         # [alias.]column
+            r'(\w+)\.(\w+)'               # alias.column (prefix required for table attribution)
             r'(?:\s+AS\s+(\w+))?',        # [AS alias]
-            col_expr.strip(), re.I
+            col_stripped, re.I
         )
-        if not m:
+        if m:
+            prefix = m.group(1)
+            col_name = m.group(2)
+            col_alias = m.group(3)
+            field_name = (col_alias or col_name).upper()
+            alias_upper = prefix.upper()
+            table_name = alias_map.get(alias_upper, alias_upper)
+            result.setdefault(table_name, []).append(
+                FieldDef(name=field_name, datatype='varchar2', precision=255)
+            )
             continue
 
-        prefix = m.group(1)          # alias or table name or None
-        col_name = m.group(2)
-        col_alias = m.group(3)       # explicit column alias
+        # Pattern 2: complex expression AS col_alias (e.g. to_char(...) as RSDN_LNG)
+        # Also catches bare column names with AS alias
+        m2 = re.search(r'\s+AS\s+(\w+)$', col_stripped, re.I)
+        if m2:
+            field_name = m2.group(1).upper()
+            result.setdefault('__UNRESOLVED__', []).append(
+                FieldDef(name=field_name, datatype='varchar2', precision=255)
+            )
+            continue
 
-        field_name = (col_alias or col_name).upper()
-        field = FieldDef(name=field_name, datatype='varchar2', precision=255)
-
-        if prefix:
-            alias_upper = prefix.upper()
-            # Resolve alias to table name
-            table_name = alias_map.get(alias_upper, alias_upper)
-            result.setdefault(table_name, []).append(field)
-        else:
-            # No alias — might be a bare column reference
-            no_alias_cols.append(field)
+        # Pattern 3: bare column (no alias, no prefix) — only usable if we
+        # resolve the table later, so store as unresolved for now
+        m3 = re.match(r'(\w+)$', col_stripped, re.I)
+        if m3:
+            no_alias_cols.append(
+                FieldDef(name=m3.group(1).upper(), datatype='varchar2', precision=255)
+            )
 
     # If no_alias columns exist and we have exactly one table, assign them
     if no_alias_cols and len(result) == 1:
@@ -445,6 +484,46 @@ def extract_fields_from_sql(sql_text: str) -> Dict[str, List[FieldDef]]:
         # Fallback: columns go to a generic entry
         result['__UNRESOLVED__'] = no_alias_cols
 
+    # Supplement: scan the entire SQL for alias.COLUMN references (WHERE, JOIN, functions)
+    # to catch fields not in SELECT (e.g. b.bgn_date, b.TNCY_AGRMT_KEY)
+    seen_cols: Dict[str, Set[str]] = {t: {f.name for f in fields}
+                                       for t, fields in result.items()}
+    for table_name, ref_list in _extract_all_column_refs(sql, alias_map).items():
+        for ref in ref_list:
+            if ref.name not in seen_cols.setdefault(table_name, set()):
+                seen_cols[table_name].add(ref.name)
+                result.setdefault(table_name, []).append(ref)
+
+    return result
+
+
+def _extract_all_column_refs(sql: str, alias_map: Dict[str, str]) -> Dict[str, List[FieldDef]]:
+    """Extract ALL alias.COLUMN references from full SQL (SELECT, WHERE, JOIN, functions).
+
+    Supplements SELECT-only extraction by catching columns referenced
+    only in WHERE clauses, JOIN conditions, or inside function args.
+    """
+    # Find all alias.COLUMN patterns in the full SQL
+    result: Dict[str, List[FieldDef]] = {}
+    seen: Dict[str, Set[str]] = {}
+    for m in re.finditer(r'(\w+)\.(\w+)', sql):
+        alias = m.group(1).upper()
+        col = m.group(2).upper()
+
+        # Skip common non-table prefixes
+        if alias in ('TO', 'TO_DATE', 'TO_CHAR', 'TO_NUMBER', 'SUBSTR',
+                     'ADD_MONTHS', 'LAST_DAY', 'TRUNC', 'NVL', 'NVL2',
+                     'DECODE', 'ROUND', 'COUNT', 'SUM', 'AVG', 'MIN', 'MAX'):
+            continue
+
+        table_name = alias_map.get(alias, alias)
+        if table_name not in seen:
+            seen[table_name] = set()
+        if col not in seen[table_name]:
+            seen[table_name].add(col)
+            result.setdefault(table_name, []).append(
+                FieldDef(name=col, datatype='varchar2', precision=255)
+            )
     return result
 
 
