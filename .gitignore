@@ -3,3 +3,5 @@ __pycache__
 *.xml
 informatica_python-1.10.2
 logs
+*.log
+*.txt
