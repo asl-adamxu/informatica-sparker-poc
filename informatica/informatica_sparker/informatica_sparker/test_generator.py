@@ -1340,7 +1340,7 @@ class TestGenerator:
     def write_all(self, output_dir: str):
         """Write all test artifacts to output_dir/tests/."""
         tests_dir = Path(output_dir) / "tests"
-        sql_dir = Path(output_dir) / "sql"
+        sql_dir = tests_dir / "sql"
         schema_dir = tests_dir / "schema"
 
         schema_dir.mkdir(parents=True, exist_ok=True)
@@ -1551,12 +1551,12 @@ def setup_database(snsh_date, db_config, output_dir):
     """Setup: create tables and insert reference data."""
     print(f"\\n=== SETUP: Creating tables and reference data ===")
     run_sql_script(os.path.join(output_dir, "tests/schema/create_all_tables.sql"), db_config)
-    run_sql_script(os.path.join(output_dir, "sql/10_dimension_data.sql"), db_config)
+    run_sql_script(os.path.join(output_dir, "tests/sql/10_dimension_data.sql"), db_config)
     # Source transaction data (sql/20_source_transaction.sql) is generated
     # and loaded by gen_test_data.py before each test run.
     yield
     print(f"\\n=== TEARDOWN: Cleaning up ===")
-    run_sql_script(os.path.join(output_dir, "sql/90_cleanup.sql"), db_config)
+    run_sql_script(os.path.join(output_dir, "tests/sql/90_cleanup.sql"), db_config)
 
 
 def query_table_count(table_name: str, db_config: dict = None) -> int:
@@ -1600,12 +1600,16 @@ def run_pyspark_script(script_path: str, output_dir: str, timeout: int = 600) ->
             if (upper.startswith("SOR_") or tdef.schema_name.upper() == "PSOR") and tdef.fields:
                 sor_table_defs[tdef.table_name] = tdef.fields
 
-        # Build TABLE_COLUMNS dict for the template: table_name -> [col_name, ...]
+        # Build TABLE_COLUMNS dict: table_name -> [(name, type, prec, scale), ...]
         table_columns_lines = []
         for tname in sorted(sor_table_defs.keys()):
             cols = sor_table_defs[tname]
-            col_names = [f.name.upper() for f in cols]
-            col_str = ", ".join(f'"{c}"' for c in col_names)
+            col_tuples = []
+            for f in cols:
+                infa_type = f.datatype.lower().strip()
+                oracle_type = infa_to_oracle_type(infa_type, f.precision, f.scale)
+                col_tuples.append(f'("{f.name.upper()}", "{oracle_type}", {f.precision}, {f.scale})')
+            col_str = ", ".join(col_tuples)
             table_columns_lines.append(f'    "{tname}": [{col_str}],')
 
         # Collect file sources from workflow analysis
@@ -1646,27 +1650,45 @@ TABLE_COLUMNS = {{
 }}
 
 
-def _generate_value(col_name: str, snsh_date: str) -> str:
-    """Generate a default value for a column based on its name pattern."""
+def _generate_value(col_name: str, col_type: str, precision: int, scale: int, snsh_date: str) -> str:
+    """Generate a column-appropriate default value respecting type and precision."""
     name = col_name.upper()
+    t = col_type.upper()
+
+    # DATE type → TO_DATE
+    if t == 'DATE':
+        if name in ('BGN_DATE', 'EFF_DATE', 'VALID_FROM'):
+            return "TO_DATE('20000101','YYYYMMDD')"
+        if name in ('END_DATE', 'EXPIR_DATE', 'VALID_TO'):
+            return "TO_DATE('99991231','YYYYMMDD')"
+        return f"TO_DATE('{{snsh_date}}','YYYYMMDD')"
+
+    # TIMESTAMP → TO_DATE
+    if t == 'TIMESTAMP':
+        return f"TO_DATE('{{snsh_date}}','YYYYMMDD')"
+
+    # NUMBER type → 0
+    if t.startswith('NUMBER'):
+        return '0'
+
+    # VARCHAR2(n) or CHAR(n) — respect max length
+    max_len = precision if precision > 0 else 255
     if name.endswith('_KEY'):
         return '0'
-    if name.endswith('_CODE'):
-        return "'N/A'"
+    if name.endswith('_CODE') or name.endswith('_IND'):
+        val = 'N'
+        return f"'{{val[:max_len]}}'"
     if name.endswith('_NAME') or name.endswith('_DESP'):
-        return "'Test'"
-    if 'DATE' in name:
-        return f"TO_DATE('{{snsh_date}}','YYYYMMDD')"
-    if name in ('BGN_DATE', 'EFF_DATE', 'VALID_FROM'):
-        return "TO_DATE('20000101','YYYYMMDD')"
-    if name in ('END_DATE', 'EXPIR_DATE', 'VALID_TO'):
-        return "TO_DATE('99991231','YYYYMMDD')"
-    return 'NULL'
+        val = 'Test'
+        return f"'{{val[:max_len]}}'"
+    # Default string value: fit within max_len
+    val = 'N/A'
+    return f"'{{val[:max_len]}}'"
 
 
 def generate_source_data(snsh_date: str, output_dir: str):
     """Generate minimal INSERT SQL for input transaction tables."""
-    sql_dir = os.path.join(output_dir, "sql")
+    sql_dir = os.path.join(output_dir, "tests", "sql")
     os.makedirs(sql_dir, exist_ok=True)
 
     lines = [
@@ -1679,10 +1701,10 @@ def generate_source_data(snsh_date: str, output_dir: str):
 
     # For each SOR table, generate a minimal INSERT with default values
     for table in SOR_TABLES:
-        cols = TABLE_COLUMNS.get(table, [])
-        if cols:
-            col_names = ", ".join(cols)
-            values = ", ".join(_generate_value(c, snsh_date) for c in cols)
+        col_tuples = TABLE_COLUMNS.get(table, [])
+        if col_tuples:
+            col_names = ", ".join(c[0] for c in col_tuples)
+            values = ", ".join(_generate_value(c[0], c[1], c[2], c[3], snsh_date) for c in col_tuples)
             lines.append(f"INSERT INTO {{table}} ({{col_names}})")
             lines.append(f"VALUES ({{values}});")
             lines.append("")

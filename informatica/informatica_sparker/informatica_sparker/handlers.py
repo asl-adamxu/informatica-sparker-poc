@@ -231,7 +231,8 @@ class TransformHandlers:
 
             # Defer if the upstream DataFrame isn't available yet (handles both
             # duplicate-name collision and wrong-fallback-order cases).
-            if inst_type in ("TARGET", "Target Definition", "Filter", "Expression"):
+            if inst_type in ("TARGET", "Target Definition", "Filter", "Expression",
+                             "Union", "Custom Transformation"):
                 _input_ok = self._get_input_df(instance.name)
                 if not _input_ok:
                     _deferred_insts.append(instance)
@@ -369,6 +370,9 @@ class TransformHandlers:
 
         # Process deferred instances. By now all upstream transforms have been
         # processed so _get_input_df should succeed.
+        import logging as _logging
+        _logging.warning(f"DEFERRED instances: {[(d.name, type(d).__name__) for d in _deferred_insts]}")
+        _logging.warning(f"current_df_map keys: {list(self.current_df_map.keys())}")
         for _d_inst in _deferred_insts:
             _d_type = self._resolve_transformation_type(_d_inst)
             _input_df = self._get_input_df(_d_inst.name)
@@ -403,6 +407,17 @@ class TransformHandlers:
                 _step = self._handle_filter(_d_inst, plan)
                 if _step:
                     plan.add_step(_step)
+            elif _d_type in ("Union", "Custom Transformation"):
+                _logging.warning(f"Processing deferred Union: {_d_inst.name}, input_df={_input_df}")
+                self.logger.log_transformation(_d_inst.name, "Union",
+                    "Processing union", LogLevel.INFO)
+                _result = self._handle_union(_d_inst, plan)
+                if _result:
+                    plan.add_step(_result)
+                    self.logger.log_transformation(_d_inst.name, "Union",
+                        "Union converted", LogLevel.SUCCESS)
+                else:
+                    _logging.warning(f"Union {_d_inst.name} returned None! inputs={self._get_all_input_dfs(_d_inst.name)}")
 
         # Also catch any instances that were overwritten in instance_map by a
         # SOURCE with the same name (SSAL1 pattern). These weren't found by
@@ -410,8 +425,8 @@ class TransformHandlers:
         _handled_names = {_d.name for _d in _deferred_insts}
         for _extra_inst in self.mapping.instances:
             _extra_type = self._resolve_transformation_type(_extra_inst)
-            if _extra_type in ("TARGET", "Target Definition"):
-                if _extra_inst.name not in _handled_names:
+            if _extra_inst.name not in _handled_names:
+                if _extra_type in ("TARGET", "Target Definition"):
                     self.logger.log_transformation(_extra_inst.name, "Target",
                         "Processing target (post-cycle-resolution)", LogLevel.INFO)
                     _steps = self._handle_target(_extra_inst, plan)
@@ -420,6 +435,22 @@ class TransformHandlers:
                     if _steps:
                         self.logger.log_transformation(_extra_inst.name, "Target",
                             f"Target converted ({len(_steps)} steps)", LogLevel.SUCCESS)
+                elif _extra_type in ("Union", "Custom Transformation"):
+                    self.logger.log_transformation(_extra_inst.name, "Union",
+                        "Processing union (post-cycle-resolution)", LogLevel.INFO)
+                    _result = self._handle_union(_extra_inst, plan)
+                    if _result:
+                        plan.add_step(_result)
+                elif _extra_type == "Expression":
+                    self.logger.log_transformation(_extra_inst.name, "Expression",
+                        "Processing expression (post-cycle-resolution)", LogLevel.INFO)
+                    _result = self._handle_expression(_extra_inst, plan)
+                    if isinstance(_result, list):
+                        for _s in _result:
+                            if _s:
+                                plan.add_step(_s)
+                    elif _result:
+                        plan.add_step(_result)
 
         return plan
 
