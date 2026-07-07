@@ -22,6 +22,9 @@ class IRStepType(str, Enum):
     WRITE_TARGET = "WriteTarget"
     WRITE_DELTA = "WriteDelta"
     MERGE_DELTA = "MergeDelta"
+    APPLY_NORMALIZER = "ApplyNormalizer"
+    APPLY_RANK = "ApplyRank"
+    APPLY_TRANSACTION_CONTROL = "ApplyTransactionControl"
     ASSIGN_VARIABLE = "AssignVariable"
 
 
@@ -337,6 +340,67 @@ class ApplySequenceStep(IRStep):
             params={
                 "sequence_name": sequence_name,
                 "start_value": start_value
+            },
+            **kwargs
+        )
+
+
+class ApplyNormalizerStep(IRStep):
+    step_type: IRStepType = IRStepType.APPLY_NORMALIZER
+
+    def __init__(self, step_name: str, df_input: str, df_output: str,
+                 key_name: str = "GENERATED_KEY",
+                 normalizer_fields: List[Dict[str, Any]] = None, **kwargs):
+        super().__init__(
+            step_name=step_name,
+            df_input=df_input,
+            df_output=df_output,
+            params={
+                "key_name": key_name,
+                "normalizer_fields": normalizer_fields or [],
+            },
+            **kwargs
+        )
+
+
+class ApplyRankStep(IRStep):
+    step_type: IRStepType = IRStepType.APPLY_RANK
+
+    def __init__(self, step_name: str, df_input: str, df_output: str,
+                 group_by: List[str] = None,
+                 rank_expression: str = "",
+                 rank_port_name: str = "RANKINDEX",
+                 top_n: int = 1,
+                 sort_direction: str = "DESC",
+                 rank_function: str = "row_number",
+                 **kwargs):
+        super().__init__(
+            step_name=step_name,
+            df_input=df_input,
+            df_output=df_output,
+            params={
+                "group_by": group_by or [],
+                "rank_expression": rank_expression,
+                "rank_port_name": rank_port_name,
+                "top_n": top_n,
+                "sort_direction": sort_direction,
+                "rank_function": rank_function,
+            },
+            **kwargs
+        )
+
+
+class ApplyTransactionControlStep(IRStep):
+    step_type: IRStepType = IRStepType.APPLY_TRANSACTION_CONTROL
+
+    def __init__(self, step_name: str, df_input: str, df_output: str,
+                 control_expression: str = "", **kwargs):
+        super().__init__(
+            step_name=step_name,
+            df_input=df_input,
+            df_output=df_output,
+            params={
+                "control_expression": control_expression,
             },
             **kwargs
         )

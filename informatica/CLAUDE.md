@@ -124,7 +124,8 @@ This file captures conventions, patterns, and rules established during developme
 ## Code Generation Rules
 
 use python3.11 to recompile or build informatica-sparker: `cd /var/lib/airflow/dags/adam/informatica/informatica_sparker && python3.11 -m build 2>&1 | tail -5`
-then use informatica-sparker command to convert like `informatica-sparker convert WF_GMS_DDS_APLY_DLY.XML -o WF_GMS_DDS_APLY_DLY_SPARK`
+then use informatica-sparker command to convert like 
+`OUT_ROOT=/var/lib/airflow/dags/adam/informatica/PySpark_workflows; informatica-sparker convert WF_GMS_DDS_APLY_DLY.XML -o $OUT_ROOT/WF_GMS_DDS_APLY_DLY`
 use default python to run pyspark workflow or mapping 
 
 ### Output Quality
@@ -217,7 +218,7 @@ use default python to run pyspark workflow or mapping
 
 ## Conversion Progress
 
-As of **2026-07-02** (version **v2026.07.02**), 10 workflows (~1,130 mappings) have been converted from Informatica PowerCenter XML to PySpark.
+As of **2026-07-02** (version **v2026.07.02**), 10 workflows (~1,130 mappings) have been converted from Informatica PowerCenter XML to PySpark. All standard Informatica transformation types are supported except SAP R/3 source connections and Java/C-based Custom Transformations.
 
 ### ✅ Runtime Verified
 | Workflow | Mappings | XML Size | Status |
@@ -261,4 +262,11 @@ As of **2026-07-02** (version **v2026.07.02**), 10 workflows (~1,130 mappings) h
 | Folder-level shared transforms | WF_CMS_DDS_APLY_MTH | ✅ |
 | Worklet / Parallel Sessions | WF_GMS_DDS_APLY_DLY | ✅ |
 | Email / Command Tasks | WF_GMS_DDS_APLY_DLY | ✅ |
-| Router / Normalizer | — | ⏳ Pending |
+| Router | — | ✅ |
+| Normalizer | — | ✅ (posexplode with GENERATED_KEY) |
+| Rank | — | ✅ (Window with row_number) |
+| Transaction Control | — | ✅ (no-op, Spark batch-managed) |
+| Application Source Qualifier | — | ✅ (delegates to Source Qualifier) |
+| ODBC Source (→ JDBC) | — | ✅ (auto-resolve underlying DB) |
+| Custom Transformation | — | ⚠️ (routed to Union handler; Java/C sub-types need review) |
+| SAP R/3 Source | — | ❌ (SAP-specific connector not implemented) |

@@ -15,7 +15,7 @@ class InfaXMLParser:
     SQL_DB_TYPES = {
         "microsoft sql server", "oracle", "db2", "sybase",
         "teradata", "netezza", "postgresql", "mysql", "informix",
-        "sql server"
+        "sql server", "odbc"
     }
 
     FILE_INDICATORS = {
@@ -292,6 +292,7 @@ class InfaXMLParser:
         "netezza": ("org.netezza.Driver", "nzjdbc"),
         "informix": ("com.informix.jdbc.IfxDriver", "ifxjdbc"),
         "sybase": ("com.sybase.jdbc4.jdbc.SybDriver", "jconn4"),
+        "odbc": (None, None),  # resolved at build time from ODBC connection attributes
     }
 
     def _detect_source_type(self, source_elem) -> SourceType:
@@ -405,6 +406,7 @@ class InfaXMLParser:
         db_type = source_elem.get("DATABASETYPE", "").lower()
         db_name = source_elem.get("DBDNAME", "")
         owner = source_elem.get("OWNERNAME", "")
+        is_odbc = "odbc" in db_type
 
         conn = SourceConnectionInfo(
             database_type=db_type,
@@ -412,18 +414,33 @@ class InfaXMLParser:
             schema_name=owner,
         )
 
-        for sql_key, (driver_class, jar_hint) in self.JDBC_DRIVER_MAP.items():
-            if sql_key in db_type:
-                conn.connection_type = ConnectorType.JDBC
-                conn.driver_class = driver_class
-                conn.driver_jar = f"{jar_hint}.jar"
-                break
-
+        # Scan table attributes first to detect underlying DB type for ODBC
+        resolved_db_type = db_type
         for attr_elem in source_elem.findall("TABLEATTRIBUTE"):
             attr_name = attr_elem.get("NAME", "").lower()
             attr_value = attr_elem.get("VALUE", "")
             if not attr_value:
                 continue
+            # For ODBC sources, look for sub-type or connection attributes
+            if is_odbc:
+                if "connection" in attr_name and "string" in attr_name:
+                    conn.connection_name = attr_value
+                    # Try to infer real DB type from connection string
+                    conn_str = attr_value.lower()
+                    if "oracle" in conn_str:
+                        resolved_db_type = "oracle"
+                    elif "sql server" in conn_str or "sqlserver" in conn_str or "sspi" in conn_str:
+                        resolved_db_type = "sqlserver"
+                    elif "mysql" in conn_str:
+                        resolved_db_type = "mysql"
+                    elif "db2" in conn_str:
+                        resolved_db_type = "db2"
+                    elif "postgresql" in conn_str or "pgsql" in conn_str:
+                        resolved_db_type = "postgresql"
+                if "sub" in attr_name and "type" in attr_name:
+                    sub = attr_value.lower()
+                    if sub in ("oracle", "sqlserver", "mysql", "db2", "postgresql", "sybase", "teradata"):
+                        resolved_db_type = sub
             if "connection" in attr_name and "name" in attr_name:
                 conn.connection_name = attr_value
             elif "jdbc" in attr_name and "url" in attr_name:
@@ -437,6 +454,23 @@ class InfaXMLParser:
                     conn.port = int(attr_value)
                 except ValueError:
                     pass
+
+        # Map resolved DB type to JDBC driver
+        mapped = False
+        for sql_key, (driver_class, jar_hint) in self.JDBC_DRIVER_MAP.items():
+            if sql_key in resolved_db_type:
+                conn.connection_type = ConnectorType.JDBC
+                if driver_class:
+                    conn.driver_class = driver_class
+                    conn.driver_jar = f"{jar_hint}.jar"
+                mapped = True
+                break
+
+        if is_odbc and not mapped:
+            # Fallback: mark as generic JDBC requiring user config
+            conn.connection_type = ConnectorType.JDBC
+            conn.driver_class = None
+            conn.driver_jar = None
 
         return conn
 

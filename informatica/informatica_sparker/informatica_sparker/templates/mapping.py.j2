@@ -14,6 +14,7 @@ _builtin_max = max
 _builtin_min = min
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
+from pyspark.sql import Window
 
 # =============================================================================
 # MAPPING LOGIC
@@ -475,7 +476,91 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             monotonically_increasing_id() + {{ step.params.get('start_value', 1) }}
         )
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
-        
+
+        {% elif step.step_type == IRStepType.APPLY_NORMALIZER %}
+        # Normalizer: {{ step.step_name }}
+        # Expands repeating fields into multiple rows with a 1-based sequence key
+        {% set pass_cols = step.params.get('passthrough_cols', []) %}
+        {% set nrm_groups = step.params.get('normalizer_fields', []) %}
+        {% set key_name = step.params.get('key_name', 'GENERATED_KEY') %}
+        {% if nrm_groups | length == 1 %}
+        {#- Single repeating group: use posexplode #}
+        {% set g = nrm_groups[0] %}
+        {{ step.df_output }} = {{ step.df_input }}.select(
+            {% for c in pass_cols %}"{{ c.name }}"{% if not loop.last or true %}, {% endif %}{% endfor %}
+            posexplode(array({{ g.members | map('tojson') | join(', ') }})).alias("{{ key_name }}", "{{ g.base_name }}")
+        )
+        # Make GENERATED_KEY 1-based and drop NULL rows
+        {{ step.df_output }} = {{ step.df_output }}.withColumn(
+            "{{ key_name }}", col("{{ key_name }}") + 1
+        ).filter(
+            col("{{ g.base_name }}").isNotNull()
+        )
+        {% elif nrm_groups | length > 1 %}
+        {#- Multiple groups: use arrays_zip to align indices across groups #}
+        {{ step.df_output }} = {{ step.df_input }}.select(
+            {% for c in pass_cols %}"{{ c.name }}"{% if not loop.last %}, {% endif %}{% endfor %}
+            {% if pass_cols %}, {% endif %}
+            posexplode(arrays_zip(
+            {%- for g in nrm_groups %}
+                array({{ g.members | map('tojson') | join(', ') }}){{ "," if not loop.last else "" }}
+            {%- endfor %}
+            )).alias("{{ key_name }}", "_nrm_zip")
+        )
+        # Make GENERATED_KEY 1-based and drop NULL rows
+        {% set last_idx = (nrm_groups | length) - 1 %}
+        {% for g in nrm_groups %}
+        {{ step.df_output }} = {{ step.df_output }}.withColumn("{{ g.base_name }}", col("_nrm_zip")["{{ loop.index0 }}"])
+        {% endfor %}
+        {{ step.df_output }} = {{ step.df_output }}.withColumn(
+            "{{ key_name }}", col("{{ key_name }}") + 1
+        ).filter(
+            col("_nrm_zip").isNotNull()
+        ).drop("_nrm_zip")
+        {% else %}
+        {{ step.df_output }} = {{ step.df_input }}
+        {% endif %}
+        ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
+
+        {% elif step.step_type == IRStepType.APPLY_RANK %}
+        # Rank: {{ step.step_name }}
+        {% set group_by = step.params.get('group_by', []) %}
+        {% set rank_expr = step.params.get('rank_expression', '') %}
+        {% set rank_port = step.params.get('rank_port_name', 'RANKINDEX') %}
+        {% set top_n = step.params.get('top_n', 1) %}
+        {% set sort_dir = step.params.get('sort_direction', 'DESC') %}
+        {% set rank_func = step.params.get('rank_function', 'dense_rank') %}
+        {% set mvars = step.params.get('mapping_variables', {}) %}
+        {% if rank_expr %}
+        {{ step.df_output }} = {{ step.df_input }}.withColumn("_rank_val", expr({{ rank_expr | tojson }}))
+        {% else %}
+        {{ step.df_output }} = {{ step.df_input }}
+        {% endif %}
+        {% if group_by %}
+        _window_{{ step.df_output }} = Window.partitionBy({% for c in group_by %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %})
+        {% if sort_dir == "DESC" %}
+        _window_{{ step.df_output }} = _window_{{ step.df_output }}.orderBy(desc("{{ rank_port if not rank_expr else '_rank_val' }}"))
+        {% else %}
+        _window_{{ step.df_output }} = _window_{{ step.df_output }}.orderBy(asc("{{ rank_port if not rank_expr else '_rank_val' }}"))
+        {% endif %}
+        {{ step.df_output }} = {{ step.df_output }}.withColumn("{{ rank_port }}",
+            {{ rank_func }}().over(_window_{{ step.df_output }})
+        )
+        {{ step.df_output }} = {{ step.df_output }}.filter(col("{{ rank_port }}") <= {{ top_n }})
+        {% endif %}
+        {% if rank_expr %}
+        {#- Drop the temporary _rank_val column #}
+        {{ step.df_output }} = {{ step.df_output }}.drop("_rank_val")
+        {% endif %}
+        ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
+
+        {% elif step.step_type == IRStepType.APPLY_TRANSACTION_CONTROL %}
+        # Transaction Control: {{ step.step_name }}
+        # No-op in PySpark — Spark manages transactions at the batch level.
+        # Original control expression: {{ step.params.get('control_expression', '(none)') }}
+        {{ step.df_output }} = {{ step.df_input }}
+        ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
+
         {% elif step.step_type == IRStepType.APPLY_UPDATE_STRATEGY %}
         # Update Strategy: {{ step.step_name }}
         # Strategy: {{ step.params.get('strategy_expression', 'DD_INSERT') }}

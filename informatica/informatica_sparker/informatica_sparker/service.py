@@ -218,6 +218,14 @@ class ConversionService:
             notes = []
             if source.source_type == SourceType.SQL:
                 db_type = source.database_type or "unknown"
+                is_odbc = "odbc" in db_type.lower()
+                if is_odbc:
+                    notes.append("ODBC source — converted to JDBC equivalent")
+                    if source.connection_info:
+                        resolved = source.connection_info.database_type or db_type
+                        notes.append(f"Resolved database type: {resolved}")
+                        if source.connection_info.connection_name:
+                            notes.append(f"Connection name: {source.connection_info.connection_name}")
                 notes.append(f"Database type: {db_type}")
                 if source.db_name:
                     notes.append(f"Database name: {source.db_name}")
@@ -228,8 +236,10 @@ class ConversionService:
                         notes.append(f"JDBC driver: {source.connection_info.driver_class}")
                     if source.connection_info.driver_jar:
                         notes.append(f"Driver JAR: {source.connection_info.driver_jar}")
-                    if source.connection_info.connection_name:
+                    if source.connection_info.connection_name and not is_odbc:
                         notes.append(f"Connection name: {source.connection_info.connection_name}")
+                    if is_odbc and not source.connection_info.driver_class:
+                        notes.append("ODBC→JDBC: Configure the correct JDBC driver in config.yml")
                 detection.confidence = "high"
             elif source.source_type == SourceType.FILE:
                 fmt = source.file_format.value if source.file_format else "unknown"

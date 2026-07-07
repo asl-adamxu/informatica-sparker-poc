@@ -11,7 +11,7 @@ Conversion pipeline: **XML → Models → IR Plan → Jinja2 Templates → Gener
   - SQL databases (SQL Server, Oracle, MySQL, PostgreSQL, DB2, Teradata, Netezza, Sybase, Informix)
   - File formats: CSV, Parquet, DAT, XML, JSON, Text, Fixed-Width, Avro, ORC, Excel
   - Files without extensions
-  - JDBC/ODBC connections with driver JAR detection
+  - JDBC/ODBC connections with driver JAR detection (ODBC → JDBC auto-conversion)
   - File location detection: Local, S3, ADLS, GCS, DBFS
 - **Expression Translation**: Comprehensive Informatica-to-PySpark function mapping (60+ functions):
   - String: `SUBSTR`, `INSTR`, `CONCAT`, `REPLACE`, `REG_REPLACE`, `LPAD`, `RPAD`, `TRIM`, `UPPER`, `LOWER`, `INITCAP`, `REVERSE`, `SOUNDEX`, `REPLACESTR`, `REPLACECHR`
@@ -33,7 +33,7 @@ Conversion pipeline: **XML → Models → IR Plan → Jinja2 Templates → Gener
   - `env/runtime_lib.py` — Shared runtime library (Spark session, JDBC helpers, metrics, workflow runner)
   - `env/all_sql_queries.sql` — All extracted SQL queries organized by mapping
   - `env/conversion_log.txt` — Detailed conversion log with warnings, errors, and source detection results
-- **Transformation Coverage**: Source Qualifier, Expression, Filter, Lookup, Joiner, Aggregator, Sorter, Union, Router, Sequence Generator, Update Strategy (DD_INSERT/UPDATE/DELETE), Stored Procedure (inline via `:SP.` pattern in Expression), Mapplet (with mini-DAG inlining)
+- **Transformation Coverage**: Source Qualifier, Expression, Filter, Lookup, Joiner, Aggregator, Sorter, Union, Router, Sequence Generator, Update Strategy (DD_INSERT/UPDATE/DELETE), Stored Procedure (inline via `:SP.` pattern in Expression), Mapplet (with mini-DAG inlining), Normalizer (posexplode with GENERATED_KEY), Rank (Window row_number)
 - **Workflow DAG Orchestration**: Supports nested execution plans with:
   - `session` — single mapping execution
   - `parallel_group` — concurrent execution using `ThreadPoolExecutor`
@@ -164,6 +164,7 @@ The framework automatically identifies what each source in the XML is:
 | Avro | `.avro` extension |
 | ORC | `.orc` extension |
 | Excel | `.xls`/`.xlsx` extension |
+| ODBC | `DATABASETYPE=ODBC`, auto-resolved to underlying DB (Oracle/SQL Server/MySQL/DB2/PostgreSQL) via connection string or sub-type attribute → JDBC |
 
 Connection details (JDBC URLs, driver JARs, host/port) are automatically extracted and included in the generated `config.yml`.
 
@@ -171,7 +172,7 @@ Connection details (JDBC URLs, driver JARs, host/port) are automatically extract
 
 | Informatica Transform | PySpark Equivalent |
 |----------------------|-------------------|
-| Source Qualifier | `spark.read.format("jdbc")` / `spark.read.csv()` etc. (with SQL override support) |
+| Source Qualifier / Application Source Qualifier | `spark.read.format("jdbc")` / `spark.read.csv()` etc. (with SQL override support) |
 | Expression | `.withColumn()` / `.select()` with `expr()` for translated expressions |
 | Filter | `.filter()` / `.where()` |
 | Lookup | `.join()` with `broadcast()` hint (equi-join or complex expression) |
@@ -180,8 +181,11 @@ Connection details (JDBC URLs, driver JARs, host/port) are automatically extract
 | Sorter | `.orderBy()` (asc/desc per column) |
 | Union | `.unionByName()` with optional flag column normalization |
 | Router | Multiple `.filter()` branches per output group |
+| Normalizer | `.select(posexplode(array(...))).alias("GENERATED_KEY", ...)` — flatten repeating fields into rows |
+| Rank | Window `row_number().over(partitionBy(...).orderBy(...))` with `filter(col <= N)` — top/bottom N per group |
 | Sequence Generator | `monotonically_increasing_id()` |
 | Update Strategy | Insert/Update/Delete flags with `_update_flag` column |
+| Transaction Control | No-op (pass-through) — Spark manages transactions at batch level |
 | Stored Procedure | Inline via Expression `:SP.` pattern — qualified procedure name resolved from `Stored Procedure Name` attribute (e.g. `PKG_CDI_UTIL.SP_TRUNCATE`) |
 | Mapplet | Inlined mini-DAG with topological sort (supports Lookup Procedure, Expression, Input/Output port mapping) |
 | Target | `.write.format("jdbc")` / `.write.format("delta")` with type casting and column mapping |

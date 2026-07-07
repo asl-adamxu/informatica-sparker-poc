@@ -11,7 +11,8 @@ from .ir import (
     ApplyFilterStep, ApplyExpressionStep, ApplyLookupStep, ApplyJoinerStep,
     ApplyAggregatorStep, ApplySorterStep, ApplyUnionStep, ApplyRouterStep,
     ApplyUpdateStrategyStep, WriteTargetStep, MergeDeltaStep, ExecuteSQLStep,
-    ApplySequenceStep, ComputedColumn
+    ApplySequenceStep, ApplyNormalizerStep, ApplyRankStep,
+    ApplyTransactionControlStep, ComputedColumn
 )
 from .expr_translator import ExpressionTranslator, sanitize_for_expr
 from .graph_builder import GraphBuilder
@@ -78,6 +79,7 @@ class TransformHandlers:
 
         prefix_mapping = {
             "SQ_": "Source Qualifier",
+            "ASQ_": "Source Qualifier",
             "EXPTRANS": "Expression",
             "EXP_": "Expression",
             "FILTRANS": "Filter",
@@ -100,6 +102,12 @@ class TransformHandlers:
             "UPDTRANS": "Update Strategy",
             "UPD_": "Update Strategy",
             "MPLT_": "MAPPLET",
+            "NRM_": "Normalizer",
+            "NRMTRANS": "Normalizer",
+            "RANK": "Rank",
+            "RKT": "Rank",
+            "TCRTRANS": "Transaction Control",
+            "TCTRANS": "Transaction Control",
         }
 
         suffix_mapping = {
@@ -112,6 +120,9 @@ class TransformHandlers:
             "_SRT": "Sorter",
             "_RTR": "Router",
             "_UPD": "Update Strategy",
+            "_NRM": "Normalizer",
+            "_RANK": "Rank",
+            "_TCR": "Transaction Control",
         }
 
         for prefix, trans_type in prefix_mapping.items():
@@ -142,6 +153,12 @@ class TransformHandlers:
             return "Sequence Generator"
         if "UPDATE" in name_upper:
             return "Update Strategy"
+        if "NORMALIZ" in name_upper:
+            return "Normalizer"
+        if "RANK" in name_upper:
+            return "Rank"
+        if "TRANSACTION" in name_upper:
+            return "Transaction Control"
 
         return "UNKNOWN"
 
@@ -250,12 +267,20 @@ class TransformHandlers:
                     plan.add_step(step)
                     self.logger.log_transformation(inst_name, "Source", "Source converted", LogLevel.SUCCESS)
 
-            elif inst_type == "Source Qualifier":
-                self.logger.log_transformation(inst_name, "SourceQualifier", "Processing source qualifier", LogLevel.INFO)
+            elif inst_type in ("Source Qualifier", "Application Source Qualifier"):
+                is_app = "Application" in inst_type
+                self.logger.log_transformation(inst_name, "SourceQualifier",
+                    f"{'Application ' if is_app else ''}Source qualifier", LogLevel.INFO)
                 step = self._handle_source_qualifier(instance, plan)
                 if step:
+                    if is_app:
+                        step.comments.append(
+                            "Application Source Qualifier — source-specific connection parameters "
+                            "may be needed in config.yml"
+                        )
                     plan.add_step(step)
-                    self.logger.log_transformation(inst_name, "SourceQualifier", "Source qualifier converted", LogLevel.SUCCESS)
+                    self.logger.log_transformation(inst_name, "SourceQualifier",
+                        f"{'Application ' if is_app else ''}Source qualifier converted", LogLevel.SUCCESS)
 
             elif inst_type == "Filter":
                 self.logger.log_transformation(inst_name, "Filter", "Processing filter transformation", LogLevel.INFO)
@@ -303,6 +328,20 @@ class TransformHandlers:
                 if step:
                     plan.add_step(step)
                     self.logger.log_transformation(inst_name, "Sorter", "Sorter converted", LogLevel.SUCCESS)
+
+            elif inst_type == "Normalizer":
+                self.logger.log_transformation(inst_name, "Normalizer", "Processing normalizer transformation", LogLevel.INFO)
+                step = self._handle_normalizer(instance, plan)
+                if step:
+                    plan.add_step(step)
+                    self.logger.log_transformation(inst_name, "Normalizer", "Normalizer converted", LogLevel.SUCCESS)
+
+            elif inst_type == "Rank":
+                self.logger.log_transformation(inst_name, "Rank", "Processing rank transformation", LogLevel.INFO)
+                step = self._handle_rank(instance, plan)
+                if step:
+                    plan.add_step(step)
+                    self.logger.log_transformation(inst_name, "Rank", "Rank converted", LogLevel.SUCCESS)
 
             elif inst_type in ("Union", "Custom Transformation"):
                 self.logger.log_transformation(inst_name, "Union", "Processing union transformation", LogLevel.INFO)
@@ -353,6 +392,15 @@ class TransformHandlers:
                 # transforms; the instance itself is a no-op in the data flow.
                 self.logger.log_transformation(inst_name, "StoredProcedure",
                     "Handled via expression reference", LogLevel.INFO)
+
+            elif inst_type == "Transaction Control":
+                self.logger.log_transformation(inst_name, "TransactionControl",
+                    "Processing transaction control", LogLevel.INFO)
+                step = self._handle_transaction_control(instance, plan)
+                if step:
+                    plan.add_step(step)
+                    self.logger.log_transformation(inst_name, "TransactionControl",
+                        "Transaction control converted (no-op in PySpark)", LogLevel.SUCCESS)
 
             elif inst_type == "UNKNOWN":
                 transform = self.transform_map.get(instance.transformation_name or instance.name)
@@ -486,6 +534,11 @@ class TransformHandlers:
             conn_alias = (source_config.connection_alias if source_config and source_config.connection_alias
                          else source.db_name or "default_conn")
             db_type = normalize_db_type(source.database_type)
+            is_odbc = "odbc" in (source.database_type or "").lower()
+            if is_odbc:
+                self.logger.log_transformation(instance.name, "Source",
+                    "ODBC source — converted to JDBC (configure JDBC driver in config.yml)",
+                    LogLevel.INFO)
             return ReadSQLStep(
                 step_name=f"read_{instance.name}",
                 df_output=df_name,
@@ -1385,6 +1438,139 @@ class TransformHandlers:
 
         return steps
 
+    def _handle_normalizer(self, instance: Instance, plan: IRPlan) -> Optional[IRStep]:
+        input_df = self._get_input_df(instance.name)
+        if not input_df:
+            input_df = "df_input"
+
+        df_output = self._get_df_name("df_nrm")
+        self._register_df(instance, df_output)
+
+        transform = self.transform_map.get(instance.transformation_name or instance.name)
+
+        # Normalizer: identify GENERATED_KEY, non-repeating passthrough
+        # columns, and repeating field groups (e.g. DIAG_1, DIAG_2, DIAG_3).
+        key_name = "GENERATED_KEY"
+        passthrough_cols = []
+        repeating_groups = {}  # base_name -> [field1_name, field2_name, ...]
+
+        if transform:
+            self.logger.log_transformation(instance.name, "Normalizer",
+                f"Processing normalizer with {len(transform.fields)} fields", LogLevel.INFO)
+
+            for field in transform.fields:
+                name = field.name
+                # GENERATED_KEY is the sequence counter
+                if name.upper() == "GENERATED_KEY":
+                    key_name = name
+                    continue
+                # GCID_ fields are group occurrence IDs — pass through
+                if name.upper().startswith("GCID_"):
+                    passthrough_cols.append({"name": name, "datatype": field.datatype})
+                    continue
+                # Check if this is a repeating field (_N suffix)
+                match = re.search(r'^(.+)_(\d+)$', name)
+                if match:
+                    base = match.group(1)
+                    if base not in repeating_groups:
+                        repeating_groups[base] = []
+                    repeating_groups[base].append(name)
+                else:
+                    passthrough_cols.append({"name": name, "datatype": field.datatype})
+
+            # Build the grouped structure: for each repeating group,
+            # create an entry with base_name and the ordered variant names.
+            grouped = []
+            for base_name in sorted(repeating_groups.keys()):
+                members = sorted(repeating_groups[base_name],
+                                 key=lambda x: int(re.search(r'_(\d+)$', x).group(1)))
+                grouped.append({
+                    "base_name": base_name,
+                    "members": members,
+                })
+        else:
+            grouped = []
+
+        step = ApplyNormalizerStep(
+            step_name=f"apply_{instance.name}",
+            df_input=input_df,
+            df_output=df_output,
+            key_name=key_name,
+            normalizer_fields=grouped,
+        )
+        step.params["passthrough_cols"] = passthrough_cols
+        return step
+
+    def _handle_rank(self, instance: Instance, plan: IRPlan) -> Optional[IRStep]:
+        input_df = self._get_input_df(instance.name)
+        if not input_df:
+            input_df = "df_input"
+
+        df_output = self._get_df_name("df_rank")
+        self._register_df(instance, df_output)
+
+        transform = self.transform_map.get(instance.transformation_name or instance.name)
+
+        group_by = []
+        rank_expression = ""
+        rank_port_name = "RANKINDEX"
+        top_n = 1
+        sort_direction = "DESC"
+        rank_function = "dense_rank"  # Informatica default: tied values share rank
+
+        if transform:
+            self.logger.log_transformation(instance.name, "Rank",
+                f"Processing rank with {len(transform.fields)} fields", LogLevel.INFO)
+
+            for field in transform.fields:
+                # GROUP BY ports determine partition columns
+                if field.is_group_by or "GROUP BY" in field.port_type.upper():
+                    group_by.append(field.name)
+                # The Rank port holds the ranking expression/value
+                elif field.name.upper() in ("RANK", "RANKINDEX", "RANKINDEX_1"):
+                    rank_port_name = field.name
+                    if field.expression:
+                        rank_expression = field.expression
+                        # Translate the expression
+                        translated = self.expr_translator.translate(
+                            rank_expression, "rank", field.name
+                        )
+                        if translated:
+                            rank_expression = translated
+
+            # Read NumberOfRanks / TopN from table attributes
+            n_attr = transform.table_attributes.get("Number of Ranks", "")
+            if n_attr and n_attr.isdigit():
+                top_n = int(n_attr)
+
+            # Determine sort direction — Informatica Rank is typically
+            # TOP (DESC) or BOTTOM (ASC)
+            rank_dir = transform.table_attributes.get("Rank Direction", "").upper()
+            if rank_dir in ("ASC", "ASCENDING", "BOTTOM"):
+                sort_direction = "ASC"
+
+            # Detect tie handling — Informatica Rank assigns tied values
+            # the same rank by default. When "Ties" is absent or "Yes",
+            # use dense_rank. When "No", use row_number.
+            ties = transform.table_attributes.get("Ties", "").upper()
+            if ties in ("NO", "FALSE", "NONE"):
+                rank_function = "row_number"
+
+        step = ApplyRankStep(
+            step_name=f"apply_{instance.name}",
+            df_input=input_df,
+            df_output=df_output,
+            group_by=group_by,
+            rank_expression=rank_expression,
+            rank_port_name=rank_port_name,
+            top_n=top_n,
+            sort_direction=sort_direction,
+            rank_function=rank_function,
+        )
+        if plan.mapping_variables:
+            step.params["mapping_variables"] = plan.mapping_variables
+        return step
+
     def _handle_sequence(self, instance: Instance, plan: IRPlan) -> Optional[IRStep]:
         input_df = self._get_input_df(instance.name)
         if not input_df:
@@ -1456,6 +1642,40 @@ class TransformHandlers:
             step.params["delete_condition"] = "lit(False)"
             step.comments.append("DD_INSERT: All incoming rows marked for insert")
 
+        return step
+
+    def _handle_transaction_control(self, instance: Instance, plan: IRPlan) -> Optional[IRStep]:
+        input_df = self._get_input_df(instance.name)
+        if not input_df:
+            input_df = "df_input"
+
+        df_output = self._get_df_name("df_tc")
+        self._register_df(instance, df_output)
+
+        transform = self.transform_map.get(instance.transformation_name or instance.name)
+        control_expr = ""
+
+        if transform:
+            control_expr = transform.table_attributes.get("Transaction Control", "")
+            if not control_expr:
+                # Fallback: look for expression in field definitions
+                for field in transform.fields:
+                    if field.expression and "OUTPUT" in field.port_type.upper():
+                        control_expr = field.expression
+                        break
+
+        step = ApplyTransactionControlStep(
+            step_name=f"apply_{instance.name}",
+            df_input=input_df,
+            df_output=df_output,
+            control_expression=control_expr,
+        )
+        step.comments.append(
+            "Transaction Control is a no-op in PySpark — Spark manages "
+            "transactions at the batch level"
+        )
+        if control_expr:
+            step.comments.append(f"Original control expression: {control_expr}")
         return step
 
     def _handle_target(self, instance: Instance, plan: IRPlan) -> List[IRStep]:
@@ -2174,6 +2394,12 @@ class TransformHandlers:
 
         if any("GROUP BY" in f.port_type.upper() for f in transform.fields):
             return "Aggregator"
+
+        if "Number of Ranks" in attrs or "Rank" in transform.type:
+            return "Rank"
+
+        if transform.type == "Normalizer":
+            return "Normalizer"
 
         has_expr_outputs = any(
             f.expression and "OUTPUT" in f.port_type

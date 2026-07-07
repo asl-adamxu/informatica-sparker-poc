@@ -53,7 +53,11 @@ def get_default_port(db_type: str) -> int:
 
 
 def get_jdbc_driver(db_type: str) -> str:
-    """Get JDBC driver class for a database type."""
+    """Get JDBC driver class for a database type.
+
+    For ODBC sources, returns a placeholder since the JDBC driver
+    depends on the underlying database (resolved at config time).
+    """
     drivers = {
         "sqlserver": "com.microsoft.sqlserver.jdbc.SQLServerDriver",
         "oracle": "oracle.jdbc.driver.OracleDriver",
@@ -64,7 +68,10 @@ def get_jdbc_driver(db_type: str) -> str:
         "informix": "com.informix.jdbc.IfxDriver",
         "sybase": "com.sybase.jdbc4.jdbc.SybDriver",
     }
-    return drivers.get(std_type := normalize_db_type(db_type), "com.microsoft.sqlserver.jdbc.SQLServerDriver")
+    std_type = normalize_db_type(db_type)
+    if std_type == "odbc":
+        return "ODBC_TO_JDBC — configure in config.yml"
+    return drivers.get(std_type, "com.microsoft.sqlserver.jdbc.SQLServerDriver")
 
 
 class SourceType(str, Enum):
