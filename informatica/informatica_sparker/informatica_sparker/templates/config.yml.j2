@@ -81,7 +81,7 @@ connections:
     host: 192.168.55.107
     port: 1521
     service_name: "CDCUATPDB"
-    username: "airflow"
+    username: "pyspark"
     password: "credential:connections.oracle.password"
     driver: "oracle.jdbc.driver.OracleDriver"
 
@@ -92,7 +92,7 @@ connections:
     database: "{{ conn_info.database or conn_name }}"
     {% else %}
     database: "{{ conn_info.database }}"
-    schema: "airflow"
+    schema: "pyspark"
     {% endif %}
 {% endfor %}
 
@@ -101,23 +101,23 @@ connections:
   source_db:
     <<: *oracle
     database: "DPA"
-    schema: "airflow"
+    schema: "pyspark"
   target_db:
     <<: *oracle
     database: "DPA"
-    schema: "airflow"
+    schema: "pyspark"
   target:
     <<: *oracle
     database: "DPA"
-    schema: "airflow"
+    schema: "pyspark"
   source:
     <<: *oracle
     database: "DPA"
-    schema: "airflow"
+    schema: "pyspark"
   lookup_conn:
     <<: *oracle
     database: "DPA"
-    schema: "airflow"
+    schema: "pyspark"
 
 # =============================================================================
 # FILE PATHS
