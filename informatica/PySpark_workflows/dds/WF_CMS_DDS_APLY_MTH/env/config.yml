@@ -81,18 +81,17 @@ connections:
     host: 192.168.55.107
     port: 1521
     service_name: "CDCUATPDB"
-    username: "airflow"
-    password: "credential:connections.oracle.password"
+    username: "pyspark"
+    schema: "pyspark"
+    password: "credential:connections.oracle-pyspark.password"
     driver: "oracle.jdbc.driver.OracleDriver"
 
   DPA:
     <<: *oracle
     database: "DPA"
-    schema: "airflow"
   SOR:
     <<: *oracle
     database: "SOR"
-    schema: "airflow"
   UTL:
     <<: *oracle
     database: "UTL"
@@ -101,34 +100,30 @@ connections:
   # Override host/port/service_name/database as needed for your environment.
   source_db:
     <<: *oracle
-    database: "DPA"
-    schema: "airflow"
   target_db:
     <<: *oracle
-    database: "DPA"
-    schema: "airflow"
   target:
     <<: *oracle
-    database: "DPA"
-    schema: "airflow"
   source:
     <<: *oracle
-    database: "DPA"
-    schema: "airflow"
   lookup_conn:
     <<: *oracle
-    database: "DPA"
-    schema: "airflow"
 
 # =============================================================================
-# FILE PATHS
+# VALIDATION PROFILE (Optional — for source-vs-target comparison)
 # =============================================================================
-paths:
-  input_base: "${INPUT_PATH:/tmp}"
-  output_base: "${OUTPUT_PATH:/tmp}"
-  staging: "${STAGING_PATH:/tmp}"
-  archive: "${ARCHIVE_PATH:/tmp}"
-  source_file_dir: "${PMSOURCE_FILE_DIR:/tmp}"  # Maps to Informatica $PMSourceFileDir
+# The validation framework compares:
+#   source = base connections + validation.connections overrides
+#   target = base connections (unchanged)
+# These fields override the base connection when querying the Informatica source database.  
+# The base connection is used as-is for PySpark queries.
+validation:
+  connections:
+    host: 192.168.55.107
+    port: 1521
+    username: "informatica"
+    schema: "informatica"
+    password: "credential:connections.oracle-informatica.password"
 
 # =============================================================================
 # FILE OBJECTS (Only file-type objects; database tables use connections directly)
@@ -170,15 +165,6 @@ logging:
   dir: "logs"
   level: INFO
   backup_count: 7
-
-# =============================================================================
-# CONVERSION OPTIONS
-# =============================================================================
-options:
-  use_delta_format: true
-  broadcast_lookups: true
-  enable_schema_evolution: true
-  enable_metrics: true
 
 # =============================================================================
 # MAPPING-SPECIFIC RULES

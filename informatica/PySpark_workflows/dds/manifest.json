@@ -1,0 +1,30 @@
+{
+  "metadata_version": "1.0",
+  "workflow_count": 6,
+  "workflows": [
+    {
+      "workflow": "WF_CMS_DDS_APLY_MTH",
+      "metadata": "WF_CMS_DDS_APLY_MTH/metadata.json"
+    },
+    {
+      "workflow": "WF_EMS_DDS_APLY_MTH",
+      "metadata": "WF_EMS_DDS_APLY_MTH/metadata.json"
+    },
+    {
+      "workflow": "WF_EMS_PRHE_DDS_APLY_HSE_STCK_MTH",
+      "metadata": "WF_EMS_PRHE_DDS_APLY_HSE_STCK_MTH/metadata.json"
+    },
+    {
+      "workflow": "WF_EMS_PRHE_DDS_APLY_RVN_MTH",
+      "metadata": "WF_EMS_PRHE_DDS_APLY_RVN_MTH/metadata.json"
+    },
+    {
+      "workflow": "WF_GMS_DDS_APLY_DLY",
+      "metadata": "WF_GMS_DDS_APLY_DLY/metadata.json"
+    },
+    {
+      "workflow": "WF_HOMES_DDS_APLY_DMNS",
+      "metadata": "WF_HOMES_DDS_APLY_DMNS/metadata.json"
+    }
+  ]
+}

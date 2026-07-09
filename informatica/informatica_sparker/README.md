@@ -33,7 +33,7 @@ Conversion pipeline: **XML → Models → IR Plan → Jinja2 Templates → Gener
   - `env/runtime_lib.py` — Shared runtime library (Spark session, JDBC helpers, metrics, workflow runner)
   - `env/all_sql_queries.sql` — All extracted SQL queries organized by mapping
   - `env/conversion_log.txt` — Detailed conversion log with warnings, errors, and source detection results
-- **Transformation Coverage**: Source Qualifier, Expression, Filter, Lookup, Joiner, Aggregator, Sorter, Union, Router, Sequence Generator, Update Strategy (DD_INSERT/UPDATE/DELETE), Stored Procedure (inline via `:SP.` pattern in Expression), Mapplet (with mini-DAG inlining)
+- **Transformation Coverage**: Source Qualifier, Application Source Qualifier, Expression, Filter, Lookup Procedure, Joiner, Aggregator, Sorter, Union, Router, Sequence Generator, Update Strategy (DD_INSERT/UPDATE/DELETE), Normalizer (posexplode with GENERATED_KEY), Rank (Window row_number/dense_rank), Stored Procedure (inline via `:SP.` pattern in Expression), Transaction Control (no-op), Mapplet (with mini-DAG inlining), ODBC→JDBC auto-conversion
 - **Workflow DAG Orchestration**: Supports nested execution plans with:
   - `session` — single mapping execution
   - `parallel_group` — concurrent execution using `ThreadPoolExecutor`

@@ -1,0 +1,756 @@
+{
+  "metadata_version": "1.0",
+  "workflow": "WF_HOMES_DDS_APLY_DMNS",
+  "mappings": [
+    {
+      "mapping": "M_DDS_APLY_DMNS_PROJ_NTR",
+      "targets": [
+        {
+          "table": "DDS_DMNS_PROJ_NTR",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_PROJ_NTR",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_DMNS_SNSH_PROJ",
+      "targets": [
+        {
+          "table": "DDS_DMNS_SNSH_PROJ",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_SNSH_PROJ",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_DMNS_VDR",
+      "targets": [
+        {
+          "table": "DDS_DMNS_VDR",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_VDR",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_DMNS_ORG",
+      "targets": [
+        {
+          "table": "DDS_DMNS_ORG",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_ORG",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_DMNS_DSTR",
+      "targets": [
+        {
+          "table": "DDS_DMNS_DSTR",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_DSTR",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_DMNS_SNSH",
+      "targets": [
+        {
+          "table": "DDS_DMNS_SNSH",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_SNSH",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_DMNS_RPT_CATG",
+      "targets": [
+        {
+          "table": "DDS_DMNS_RPT_CATG",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_RPT_CATG",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_DMNS_KPI_TYPE",
+      "targets": [
+        {
+          "table": "DDS_DMNS_KPI_TYPE",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_KPI_TYPE",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_DMNS_PRCS_YEAR",
+      "targets": [
+        {
+          "table": "DDS_DMNS_PRCS_YEAR",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_PRCS_YEAR",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_DMNS_PROJ_BLK_TYPE",
+      "targets": [
+        {
+          "table": "DDS_DMNS_PROJ_BLK_TYPE",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_PROJ_BLK_TYPE",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_DMNS_PROJ",
+      "targets": [
+        {
+          "table": "DDS_DMNS_PROJ",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_PROJ",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_DMNS_CNTR_STG",
+      "targets": [
+        {
+          "table": "DDS_DMNS_CNTR_STG",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_CNTR_STG",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_DMNS_CNTR_MGR",
+      "targets": [
+        {
+          "table": "DDS_DMNS_CNTR_MGR",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_CNTR_MGR",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_DMNS_FLATMIX",
+      "targets": [
+        {
+          "table": "DDS_DMNS_FLATMIX",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_FLATMIX",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_DMNS_KPI_SNSH_MTH",
+      "targets": [
+        {
+          "table": "DDS_DMNS_KPI_SNSH_MTH",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_KPI_SNSH_MTH",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_DMNS_DSTR_GRP",
+      "targets": [
+        {
+          "table": "DDS_DMNS_DSTR_GRP",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_DSTR_GRP",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_DMNS_FUND_NTR",
+      "targets": [
+        {
+          "table": "DDS_DMNS_FUND_NTR",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_FUND_NTR",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_DMNS_CNTR_TYPE",
+      "targets": [
+        {
+          "table": "DDS_DMNS_CNTR_TYPE",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_CNTR_TYPE",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_DMNS_PMC_DSTR",
+      "targets": [
+        {
+          "table": "DDS_DMNS_PMS_DSTR",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_PMS_DSTR",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_DMNS_KPI_SNSH_YEAR",
+      "targets": [
+        {
+          "table": "DDS_DMNS_KPI_SNSH_YEAR",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_KPI_SNSH_YEAR",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_DMNS_CNTR",
+      "targets": [
+        {
+          "table": "DDS_DMNS_CNTR",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_CNTR",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_DMNS_PROJ_STG",
+      "targets": [
+        {
+          "table": "DDS_DMNS_PROJ_STG",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_PROJ_STG",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_DMNS_MTH",
+      "targets": [
+        {
+          "table": "DDS_DMNS_MTH",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_MTH",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_DMNS_FIN_NTR",
+      "targets": [
+        {
+          "table": "DDS_DMNS_FIN_NTR",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_FIN_NTR",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_DMNS_BDGT_PROJ_MGR",
+      "targets": [
+        {
+          "table": "DDS_DMNS_BDGT_PROJ_MGR",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_BDGT_PROJ_MGR",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_DMNS_BDGT_PRCS_YEAR",
+      "targets": [
+        {
+          "table": "DDS_DMNS_BDGT_PRCS_YEAR",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_BDGT_PRCS_YEAR",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_DMNS_PHCP",
+      "targets": [
+        {
+          "table": "DDS_DMNS_PHCP",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_PHCP",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_DMNS_BDGT_PROJ_STS",
+      "targets": [
+        {
+          "table": "DDS_DMNS_BDGT_PROJ_STS",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_BDGT_PROJ_STS",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_DMNS_BDGT_COPY",
+      "targets": [
+        {
+          "table": "DDS_DMNS_BDGT_COPY",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_BDGT_COPY",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_DMNS_SNSH_CNTR",
+      "targets": [
+        {
+          "table": "DDS_DMNS_SNSH_CNTR",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_DMNS_SNSH_CNTR",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_CNTR_MGR",
+      "targets": [
+        {
+          "table": "DPA_DMNS_CNTR_MGR",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_PHCP",
+      "targets": [
+        {
+          "table": "DPA_DMNS_PHCP",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_KPI_TYPE",
+      "targets": [
+        {
+          "table": "DPA_DMNS_KPI_TYPE",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_DSTR_GRP",
+      "targets": [
+        {
+          "table": "DPA_DMNS_DSTR_GRP",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_MTH",
+      "targets": [
+        {
+          "table": "DPA_DMNS_MTH",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_FIN_NTR",
+      "targets": [
+        {
+          "table": "DPA_DMNS_FIN_NTR",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_KPI_SNSH_YEAR",
+      "targets": [
+        {
+          "table": "DPA_DMNS_KPI_SNSH_YEAR",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_BDGT_PRCS_YEAR",
+      "targets": [
+        {
+          "table": "DPA_DMNS_BDGT_PRCS_YEAR",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_SNSH",
+      "targets": [
+        {
+          "table": "DPA_DMNS_SNSH",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_PRCS_YEAR",
+      "targets": [
+        {
+          "table": "DPA_DMNS_PRCS_YEAR",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_CNTR_STG",
+      "targets": [
+        {
+          "table": "DPA_DMNS_CNTR_STG",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_DSTR",
+      "targets": [
+        {
+          "table": "DPA_DMNS_DSTR",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_RPT_CATG",
+      "targets": [
+        {
+          "table": "DPA_DMNS_RPT_CATG",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_SNSH_CNTR",
+      "targets": [
+        {
+          "table": "DPA_DMNS_SNSH_CNTR",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_KPI_SNSH_MTH",
+      "targets": [
+        {
+          "table": "DPA_DMNS_KPI_SNSH_MTH",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_BDGT_PROJ_STS",
+      "targets": [
+        {
+          "table": "DPA_DMNS_BDGT_PROJ_STS",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_CNTR",
+      "targets": [
+        {
+          "table": "DPA_DMNS_CNTR",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_BDGT_COPY",
+      "targets": [
+        {
+          "table": "DPA_DMNS_BDGT_COPY",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_BDGT_PROJ_MGR",
+      "targets": [
+        {
+          "table": "DPA_DMNS_BDGT_PROJ_MGR",
+          "connection": "DPA"
+        },
+        {
+          "table": "DDS_DMNS_BDGT_PROJ_MGR",
+          "connection": "DDS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_PMC_DSTR",
+      "targets": [
+        {
+          "table": "DPA_DMNS_PMS_DSTR",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_FLATMIX",
+      "targets": [
+        {
+          "table": "DPA_DMNS_FLATMIX",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_PROJ",
+      "targets": [
+        {
+          "table": "DPA_DMNS_PROJ",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_PROJ_NTR",
+      "targets": [
+        {
+          "table": "DPA_DMNS_PROJ_NTR",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_ORG",
+      "targets": [
+        {
+          "table": "DPA_DMNS_ORG",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_CNTR_TYPE",
+      "targets": [
+        {
+          "table": "DPA_DMNS_CNTR_TYPE",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_PROJ_BLK_TYPE",
+      "targets": [
+        {
+          "table": "DPA_DMNS_PROJ_BLK_TYPE",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_FUND_NTR",
+      "targets": [
+        {
+          "table": "DPA_DMNS_FUND_NTR",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_PROJ_STG",
+      "targets": [
+        {
+          "table": "DPA_DMNS_PROJ_STG",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_VDR",
+      "targets": [
+        {
+          "table": "DPA_DMNS_VDR",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_DMNS_SNSH_PROJ",
+      "targets": [
+        {
+          "table": "DPA_DMNS_SNSH_PROJ",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_HOM_ETL_DDS_BKP_DELETE",
+      "targets": [
+        {
+          "table": "DUAL",
+          "connection": "target_db"
+        },
+        {
+          "table": "DUAL",
+          "connection": "target_db"
+        }
+      ]
+    },
+    {
+      "mapping": "M_HOM_ETL_DDS_BKP_INSERT",
+      "targets": [
+        {
+          "table": "DUAL",
+          "connection": "target_db"
+        },
+        {
+          "table": "DUAL",
+          "connection": "target_db"
+        }
+      ]
+    },
+    {
+      "mapping": "M_UTL_PARAM_SETUP",
+      "targets": [
+        {
+          "table": "UTL_JOB_PARAM",
+          "connection": "$PMSourceFileDir/PCIS01/homes_job_param.txt"
+        }
+      ]
+    },
+    {
+      "mapping": "M_HOM_ETL_DDS_DMNS_DELETE",
+      "targets": [
+        {
+          "table": "DUAL",
+          "connection": "target_db"
+        },
+        {
+          "table": "DUAL",
+          "connection": "target_db"
+        }
+      ]
+    },
+    {
+      "mapping": "M_HOM_ETL_DDS_FACT_DELETE",
+      "targets": [
+        {
+          "table": "DUAL",
+          "connection": "target_db"
+        },
+        {
+          "table": "DUAL",
+          "connection": "target_db"
+        }
+      ]
+    },
+    {
+      "mapping": "M_UTL_DPA_TRUNCATE",
+      "targets": [
+        {
+          "table": "UTL_DEV_NULL",
+          "connection": "/dev/null"
+        }
+      ]
+    },
+    {
+      "mapping": "M_HOM_ETL_DDS_RECOVERY",
+      "targets": [
+        {
+          "table": "DUAL",
+          "connection": "target_db"
+        },
+        {
+          "table": "DUAL",
+          "connection": "target_db"
+        }
+      ]
+    }
+  ],
+  "output": {
+    "script": "wf_homes_dds_aply_dmns.py"
+  }
+}
