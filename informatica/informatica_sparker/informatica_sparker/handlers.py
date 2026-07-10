@@ -1959,6 +1959,10 @@ class TransformHandlers:
                         output_columns=output_cols,
                         lookup_type="left",
                     ))
+                elif lookup_df_name:
+                    # Standalone lookup read (no join) — still register in mpl_df_map
+                    # so downstream expressions can reference its columns.
+                    mpl_df_map[mpl_inst_name] = lookup_df_name
 
             elif "Expression" in mpl_inst_type:
                 transform = mpl_transforms.get(
@@ -1967,17 +1971,50 @@ class TransformHandlers:
                 if not transform:
                     continue
 
-                # Find input DataFrame for this expression
+                # Find ALL input DataFrames for this expression
                 mpl_input_df = None
+                mpl_extra_inputs = []
                 for conn in mpl_connectors:
                     if conn.to_instance == mpl_inst_name:
-                        mpl_input_df = mpl_df_map.get(conn.from_instance)
-                        if mpl_input_df:
-                            break
+                        _df = mpl_df_map.get(conn.from_instance)
+                        if _df:
+                            if not mpl_input_df:
+                                mpl_input_df = _df
+                            elif _df != mpl_input_df:
+                                mpl_extra_inputs.append(_df)
 
                 if not mpl_input_df:
                     # Fall back to the mapplet's primary input
                     mpl_input_df = input_df
+
+                # If the expression has extra inputs, or if its input differs from the
+                # mapplet's primary input, merge them so all referenced columns exist.
+                if mpl_input_df and input_df and mpl_input_df != input_df:
+                    if input_df not in mpl_extra_inputs:
+                        mpl_extra_inputs.append(input_df)
+
+                # If the expression has extra inputs (e.g. from an internal lookup),
+                # merge them via left join on common columns before the expression.
+                if mpl_extra_inputs:
+                    _cur_df = mpl_input_df
+                    for _i, _extra_df in enumerate(mpl_extra_inputs):
+                        _join_df = self._get_df_name("df_mplt_merge")
+                        steps.append(ApplyLookupStep(
+                            step_name=f"join_mplt_{mpl_inst.name}_{_i}",
+                            df_input=_cur_df,
+                            df_output=_join_df,
+                            lookup_df=_extra_df,
+                            join_predicates=[],
+                            join_expr="__common_cols__",
+                            output_columns=[],
+                            lookup_type="left",
+                        ))
+                        self.logger.log_transformation(
+                            mpl_inst.name, "Mapplet",
+                            f"Merged extra input {_extra_df} for expression {mpl_inst.name}",
+                            LogLevel.INFO)
+                        _cur_df = _join_df
+                    mpl_input_df = _cur_df
 
                 computed_cols = []
                 for field in transform.fields:
