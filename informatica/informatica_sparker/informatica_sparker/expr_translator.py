@@ -142,6 +142,7 @@ class ExpressionTranslator:
         result = self._translate_movingsum(result)
         result = self._translate_movingavg(result)
         result = self._translate_functions(result)
+        result = self._translate_date_trunc(result)
         result = self._translate_operators(result)
         result = self._translate_string_literals(result)
         result = self._translate_date_format_patterns(result)
@@ -688,6 +689,49 @@ class ExpressionTranslator:
                 result = pattern.sub(f'{spark_func}(', result)
 
         return result
+
+    def _translate_date_trunc(self, expr: str) -> str:
+        """Translate Informatica TRUNC(date, 'format') and FLOOR(date, 'format')
+        to Spark date_trunc('format', date).  Only fires when the second argument
+        is a quoted date-part string (e.g. 'MONTH', 'YEAR'); single-argument
+        TRUNC/FLOOR calls are left for the generic _translate_functions pass.
+
+        Uses parenthesis-depth tracking to ensure the comma we split on is at
+        the top level of the TRUNC/FLOOR call, not inside a nested function.
+        """
+        _date_parts = {
+            'YEAR': 'YEAR', 'YYYY': 'YEAR', 'YY': 'YEAR',
+            'MONTH': 'MONTH', 'MM': 'MONTH', 'MON': 'MONTH',
+            'DAY': 'DAY', 'DD': 'DAY', 'D': 'DAY',
+            'HOUR': 'HOUR', 'HH': 'HOUR', 'HH24': 'HOUR',
+            'MINUTE': 'MINUTE', 'MI': 'MINUTE',
+            'SECOND': 'SECOND', 'SS': 'SECOND',
+            'QUARTER': 'QUARTER', 'Q': 'QUARTER',
+            'WEEK': 'WEEK', 'W': 'WEEK',
+        }
+
+        # Find TRUNC( or FLOOR( positions
+        _func_pat = re.compile(r'\b(TRUNC|FLOOR)\s*\(', re.IGNORECASE)
+        _result = expr
+        # Process from end to start so positions stay valid
+        for _m in reversed(list(_func_pat.finditer(_result))):
+            _func_name = _m.group(1).upper()
+            _args_start = _m.end() - 1  # position of '('
+            _args = self._extract_function_args(_result, _args_start)
+
+            # Only convert 2-argument calls where arg 2 is a quoted date-part
+            if len(_args) == 2:
+                _arg2 = _args[1].strip()
+                _part_match = re.match(r"['\"]([A-Za-z0-9]+)['\"]", _arg2)
+                if _part_match:
+                    _date_expr = _args[0].strip()
+                    _part = _part_match.group(1).upper()
+                    _spark_part = _date_parts.get(_part, _part)
+                    _replacement = f"date_trunc('{_spark_part}', {_date_expr})"
+                    _full_match_end = self._find_closing_paren(_result, _args_start) + 1
+                    _result = _result[:_m.start()] + _replacement + _result[_full_match_end:]
+
+        return _result
 
     def _translate_operators(self, expr: str) -> str:
         result = expr

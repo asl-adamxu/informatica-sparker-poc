@@ -76,33 +76,33 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Reading Data From Source - read_SOR_VOP_ADT_TRL
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "SOR")
-        df_src_1 = lib.read_sql(spark, _conn, table="SOR_VOP_ADT_TRL")
+        df_SOR_VOP_ADT_TRL = lib.read_sql(spark, _conn, table="SOR_VOP_ADT_TRL")
         
         logger.info("Step: apply_SQ_SOR_VOP_ADT_TRL")
         # Source Qualifier: apply_SQ_SOR_VOP_ADT_TRL
-        df_sq_2 = df_src_1
+        df_SQ_SOR_VOP_ADT_TRL = df_SOR_VOP_ADT_TRL
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_2 = df_sq_2.select("CALL_CNCT_BGN_DATE", "CUST_TNT_CODE_LIST", "SYS_RPT_YEAR", "SYS_RPT_MTH", "CALL_ID", "CALL_CNCT_END_DATE", "CALL_CNCT_LNG", "MNT_PRD_CALL_IND", "LANG_SLCT_LIST", "INPT_MTHD_SLCT_LIST", "HSE_UNIT_FLAT_NUM_LIST", "CUST_TNT_CODE_VCE_INPT_CNT", "ROOM_NUM_VCE_INPT_CNT", "CUST_TNT_CODE_VRFY_RSLT_LIST", "RENT_STS_RQS_CNT", "RENT_PYMT_REC_MTH_LIST", "MTH_RENT_AMT_LIST", "RENT_PYB_AMT_LIST", "RENT_PYMT_REC_LIST", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE")
-        ctx.register_df("df_sq_2", df_sq_2)
+        df_SQ_SOR_VOP_ADT_TRL = df_SQ_SOR_VOP_ADT_TRL.select("CALL_CNCT_BGN_DATE", "CUST_TNT_CODE_LIST", "SYS_RPT_YEAR", "SYS_RPT_MTH", "CALL_ID", "CALL_CNCT_END_DATE", "CALL_CNCT_LNG", "MNT_PRD_CALL_IND", "LANG_SLCT_LIST", "INPT_MTHD_SLCT_LIST", "HSE_UNIT_FLAT_NUM_LIST", "CUST_TNT_CODE_VCE_INPT_CNT", "ROOM_NUM_VCE_INPT_CNT", "CUST_TNT_CODE_VRFY_RSLT_LIST", "RENT_STS_RQS_CNT", "RENT_PYMT_REC_MTH_LIST", "MTH_RENT_AMT_LIST", "RENT_PYB_AMT_LIST", "RENT_PYMT_REC_LIST", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE")
+        ctx.register_df("df_SQ_SOR_VOP_ADT_TRL", df_SQ_SOR_VOP_ADT_TRL)
         
         logger.info("Step: apply_FILTRANS")
         # Filter: apply_FILTRANS
-        df_fil_3 = df_sq_2.filter(expr("SYS_RPT_YEAR = cast(substring('$$v_rpt_mth',1,4) as decimal) AND SYS_RPT_MTH = cast(substring('$$v_rpt_mth',5,2) as decimal)"))
-        ctx.register_df("df_fil_3", df_fil_3)
+        df_FILTRANS = df_SQ_SOR_VOP_ADT_TRL.filter(expr("SYS_RPT_YEAR = cast(substring('$$v_rpt_mth',1,4) as decimal) AND SYS_RPT_MTH = cast(substring('$$v_rpt_mth',5,2) as decimal)"))
+        ctx.register_df("df_FILTRANS", df_FILTRANS)
         
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
-        df_exp_4 = df_fil_3
-        df_exp_4 = df_exp_4.withColumn("CUST_TNT_CODE", expr("CASE WHEN instr(CUST_TNT_CODE_LIST, ';') = 0 THEN CUST_TNT_CODE_LIST ELSE substring(CUST_TNT_CODE_LIST,1,instr(CUST_TNT_CODE_LIST,';')-1) END"))
-        df_exp_4 = df_exp_4.withColumn("LANG_SLCT", expr("CASE WHEN instr(LANG_SLCT_LIST, ';') = 0 THEN LANG_SLCT_LIST ELSE substring(LANG_SLCT_LIST,1,instr(LANG_SLCT_LIST,';')-1) END"))
-        df_exp_4 = df_exp_4.withColumn("INPT_MTHD_SLCT", expr("CASE WHEN instr(INPT_MTHD_SLCT_LIST, ';') = 0 THEN INPT_MTHD_SLCT_LIST ELSE substring(INPT_MTHD_SLCT_LIST,1,instr(INPT_MTHD_SLCT_LIST,';')-1) END"))
+        df_EXPTRANS1 = df_FILTRANS
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("CUST_TNT_CODE", expr("CASE WHEN instr(CUST_TNT_CODE_LIST, ';') = 0 THEN CUST_TNT_CODE_LIST ELSE substring(CUST_TNT_CODE_LIST,1,instr(CUST_TNT_CODE_LIST,';')-1) END"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("LANG_SLCT", expr("CASE WHEN instr(LANG_SLCT_LIST, ';') = 0 THEN LANG_SLCT_LIST ELSE substring(LANG_SLCT_LIST,1,instr(LANG_SLCT_LIST,';')-1) END"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("INPT_MTHD_SLCT", expr("CASE WHEN instr(INPT_MTHD_SLCT_LIST, ';') = 0 THEN INPT_MTHD_SLCT_LIST ELSE substring(INPT_MTHD_SLCT_LIST,1,instr(INPT_MTHD_SLCT_LIST,';')-1) END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["CUST_TNT_CODE_LIST", "SYS_RPT_YEAR", "SYS_RPT_MTH", "LANG_SLCT_LIST", "INPT_MTHD_SLCT_LIST", "RENT_STS_RQS_CNT", "RENT_PYMT_REC_MTH_LIST"]:
-            if _col not in df_exp_4.columns:
-                df_exp_4 = df_exp_4.withColumn(_col, lit(None))
+            if _col not in df_EXPTRANS1.columns:
+                df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
         # Select only mapping output ports (prevents column leakage)
-        df_exp_4 = df_exp_4.select("CUST_TNT_CODE_LIST", "SYS_RPT_YEAR", "SYS_RPT_MTH", "LANG_SLCT_LIST", "INPT_MTHD_SLCT_LIST", "RENT_STS_RQS_CNT", "RENT_PYMT_REC_MTH_LIST", "CUST_TNT_CODE", "LANG_SLCT", "INPT_MTHD_SLCT")
-        ctx.register_df("df_exp_4", df_exp_4)
+        df_EXPTRANS1 = df_EXPTRANS1.select("CUST_TNT_CODE_LIST", "SYS_RPT_YEAR", "SYS_RPT_MTH", "LANG_SLCT_LIST", "INPT_MTHD_SLCT_LIST", "RENT_STS_RQS_CNT", "RENT_PYMT_REC_MTH_LIST", "CUST_TNT_CODE", "LANG_SLCT", "INPT_MTHD_SLCT")
+        ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
         
         logger.info("Step: read_LKP_SOR_EMS_ELP_CUST_RGSTR")
         # Reading Data From Source - read_LKP_SOR_EMS_ELP_CUST_RGSTR
@@ -133,17 +133,18 @@ AND SOR_EMS_ELP_CUST_RGSTR.CUST_TNT_CODE = max_cust_tnt_code.CUST_TNT_CODE
 AND  SOR_EMS_ELP_CUST_RGSTR_STS.CUST_TNT_CODE_BGN_DATE = max_cust_tnt_code.CUST_TNT_CODE_BGN_DATE"""
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         query = query.replace("$$v_snsh_date", v_snsh_date)
-        df_lkp_5 = lib.read_sql(spark, _conn, query=query)
+        df_LKP_SOR_EMS_ELP_CUST_RGSTR = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_LKP_SOR_EMS_ELP_CUST_RGSTR")
         # Lookup: apply_LKP_SOR_EMS_ELP_CUST_RGSTR
-        # Join condition: CUST_TNT_CODE_IN=CUST_TNT_CODE        
-        df_lkp_result_6 = df_exp_4.join(
-            broadcast(df_lkp_5),
-            (df_exp_4["CUST_TNT_CODE_IN"] == df_lkp_5["CUST_TNT_CODE"]),
-            "left"
+        # Join on common column: CUST_TNT_CODE
+
+        df_LKP_SOR_EMS_ELP_CUST_RGSTR = df_EXPTRANS1.join(
+            broadcast(df_LKP_SOR_EMS_ELP_CUST_RGSTR),
+            on="CUST_TNT_CODE",
+            how="left"
         )
-        ctx.register_df("df_lkp_result_6", df_lkp_result_6)
+        ctx.register_df("df_LKP_SOR_EMS_ELP_CUST_RGSTR", df_LKP_SOR_EMS_ELP_CUST_RGSTR)
         
         logger.info("Step: read_LKP_EST_KEY_BY_TNCY_AGRMT_BK")
         # Reading Data From Source - read_LKP_EST_KEY_BY_TNCY_AGRMT_BK
@@ -165,179 +166,201 @@ SOR_EMS_TAM_TNCY_AGRMT_STS.UNIT_KEY = SOR_HSM_UNIT.UNIT_KEY AND
 SOR_HSM_UNIT.BLK_KEY = SOR_HSM_BLK.BLK_KEY"""
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         query = query.replace("$$v_snsh_date", v_snsh_date)
-        df_lkp_7 = lib.read_sql(spark, _conn, query=query)
+        df_LKP_EST_KEY_BY_TNCY_AGRMT_BK = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_LKP_EST_KEY_BY_TNCY_AGRMT_BK")
         # Lookup: apply_LKP_EST_KEY_BY_TNCY_AGRMT_BK
-        # Join condition: CUST_KEY_IN=CUST_KEY AND HSE_SRVC_APLY_KEY_IN=HSE_SRVC_APLY_KEY        
-        df_lkp_result_8 = df_lkp_result_6.join(
-            broadcast(df_lkp_7),
-            (df_lkp_result_6["CUST_KEY_IN"] == df_lkp_7["CUST_KEY"]) &             (df_lkp_result_6["HSE_SRVC_APLY_KEY_IN"] == df_lkp_7["HSE_SRVC_APLY_KEY"]),
-            "left"
+        # Join on common columns: CUST_KEY, HSE_SRVC_APLY_KEY
+        df_LKP_EST_KEY_BY_TNCY_AGRMT_BK = df_LKP_SOR_EMS_ELP_CUST_RGSTR.join(
+            broadcast(df_LKP_EST_KEY_BY_TNCY_AGRMT_BK),
+            on=["CUST_KEY", "HSE_SRVC_APLY_KEY"],
+            how="left"
         )
-        ctx.register_df("df_lkp_result_8", df_lkp_result_8)
+        ctx.register_df("df_LKP_EST_KEY_BY_TNCY_AGRMT_BK", df_LKP_EST_KEY_BY_TNCY_AGRMT_BK)
         
         logger.info("Step: apply_RTRTRANS")
         # Router: apply_RTRTRANS - splits into multiple output groups
-        df_rtr_all_9 = df_lkp_result_8  # Default group
-        ctx.register_df("df_rtr_all_9", df_rtr_all_9)
-        df_rtr_cantc_cnt_10 = df_lkp_result_8  # Default group
-        ctx.register_df("df_rtr_cantc_cnt_10", df_rtr_cantc_cnt_10)
-        df_rtr_ptg_cnt_11 = df_lkp_result_8  # Default group
-        ctx.register_df("df_rtr_ptg_cnt_11", df_rtr_ptg_cnt_11)
-        df_rtr_eng_cnt_12 = df_lkp_result_8  # Default group
-        ctx.register_df("df_rtr_eng_cnt_12", df_rtr_eng_cnt_12)
-        df_rtr_key_in_cnt_13 = df_lkp_result_8  # Default group
-        ctx.register_df("df_rtr_key_in_cnt_13", df_rtr_key_in_cnt_13)
-        df_rtr_voice_cnt_14 = df_lkp_result_8  # Default group
-        ctx.register_df("df_rtr_voice_cnt_14", df_rtr_voice_cnt_14)
-        df_rtr_sts_enq_cnt_15 = df_lkp_result_8  # Default group
-        ctx.register_df("df_rtr_sts_enq_cnt_15", df_rtr_sts_enq_cnt_15)
-        df_rtr_txn_enq_cnt_16 = df_lkp_result_8  # Default group
-        ctx.register_df("df_rtr_txn_enq_cnt_16", df_rtr_txn_enq_cnt_16)
-        df_rtr_default_17 = df_lkp_result_8  # Default group
-        ctx.register_df("df_rtr_default_17", df_rtr_default_17)
+        df_rtr_all_1 = df_EXPTRANS1  # Default group
+        ctx.register_df("df_rtr_all_1", df_rtr_all_1)
+        df_rtr_cantc_cnt_2 = df_EXPTRANS1  # Default group
+        ctx.register_df("df_rtr_cantc_cnt_2", df_rtr_cantc_cnt_2)
+        df_rtr_ptg_cnt_3 = df_EXPTRANS1  # Default group
+        ctx.register_df("df_rtr_ptg_cnt_3", df_rtr_ptg_cnt_3)
+        df_rtr_eng_cnt_4 = df_EXPTRANS1  # Default group
+        ctx.register_df("df_rtr_eng_cnt_4", df_rtr_eng_cnt_4)
+        df_rtr_key_in_cnt_5 = df_EXPTRANS1  # Default group
+        ctx.register_df("df_rtr_key_in_cnt_5", df_rtr_key_in_cnt_5)
+        df_rtr_voice_cnt_6 = df_EXPTRANS1  # Default group
+        ctx.register_df("df_rtr_voice_cnt_6", df_rtr_voice_cnt_6)
+        df_rtr_sts_enq_cnt_7 = df_EXPTRANS1  # Default group
+        ctx.register_df("df_rtr_sts_enq_cnt_7", df_rtr_sts_enq_cnt_7)
+        df_rtr_txn_enq_cnt_8 = df_EXPTRANS1  # Default group
+        ctx.register_df("df_rtr_txn_enq_cnt_8", df_rtr_txn_enq_cnt_8)
+        df_rtr_default_9 = df_EXPTRANS1  # Default group
+        ctx.register_df("df_rtr_default_9", df_rtr_default_9)
         
         logger.info("Step: apply_EXP_VOP_RENT_STS_ENQ")
         # Expression: apply_EXP_VOP_RENT_STS_ENQ
-        df_exp_18 = df_rtr_all_9
-        df_exp_18 = df_exp_18.withColumn("EST_KEY1", expr("EST_KEY8"))
-        df_exp_18 = df_exp_18.withColumn("SYS_RPT_YEAR", expr("SYS_RPT_YEAR8"))
-        df_exp_18 = df_exp_18.withColumn("SYS_RPT_MTH", expr("SYS_RPT_MTH8"))
-        df_exp_18 = df_exp_18.withColumn("ENQ_CHNL_TYPE_CODE", expr("'VOP'"))
-        df_exp_18 = df_exp_18.withColumn("RENT_ENQ_RMDR_DTL_CODE", expr("'VOP_RENT_STS_ENQ_CNT'"))
+        df_EXP_VOP_RENT_STS_ENQ = df_rtr_all_1
+        df_EXP_VOP_RENT_STS_ENQ = df_EXP_VOP_RENT_STS_ENQ.withColumn("EST_KEY1", expr("EST_KEY8"))
+        df_EXP_VOP_RENT_STS_ENQ = df_EXP_VOP_RENT_STS_ENQ.withColumn("SYS_RPT_YEAR", expr("SYS_RPT_YEAR8"))
+        df_EXP_VOP_RENT_STS_ENQ = df_EXP_VOP_RENT_STS_ENQ.withColumn("SYS_RPT_MTH", expr("SYS_RPT_MTH8"))
+        df_EXP_VOP_RENT_STS_ENQ = df_EXP_VOP_RENT_STS_ENQ.withColumn("ENQ_CHNL_TYPE_CODE", expr("'VOP'"))
+        df_EXP_VOP_RENT_STS_ENQ = df_EXP_VOP_RENT_STS_ENQ.withColumn("RENT_ENQ_RMDR_DTL_CODE", expr("'VOP_RENT_STS_ENQ_CNT'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         # Select only mapping output ports (prevents column leakage)
-        df_exp_18 = df_exp_18.select("EST_KEY1", "SYS_RPT_YEAR", "SYS_RPT_MTH", "ENQ_CHNL_TYPE_CODE", "RENT_ENQ_RMDR_DTL_CODE")
-        ctx.register_df("df_exp_18", df_exp_18)
+        df_EXP_VOP_RENT_STS_ENQ = df_EXP_VOP_RENT_STS_ENQ.select("EST_KEY1", "SYS_RPT_YEAR", "SYS_RPT_MTH", "ENQ_CHNL_TYPE_CODE", "RENT_ENQ_RMDR_DTL_CODE")
+        ctx.register_df("df_EXP_VOP_RENT_STS_ENQ", df_EXP_VOP_RENT_STS_ENQ)
         
         logger.info("Step: apply_EXP_VOP_RENT_TXN_ENQ")
         # Expression: apply_EXP_VOP_RENT_TXN_ENQ
-        df_exp_19 = df_rtr_all_9
-        df_exp_19 = df_exp_19.withColumn("EST_KEY3", expr("EST_KEY9"))
-        df_exp_19 = df_exp_19.withColumn("SYS_RPT_YEAR", expr("SYS_RPT_YEAR9"))
-        df_exp_19 = df_exp_19.withColumn("SYS_RPT_MTH", expr("SYS_RPT_MTH9"))
-        df_exp_19 = df_exp_19.withColumn("ENQ_CHNL_TYPE_CODE", expr("'VOP'"))
-        df_exp_19 = df_exp_19.withColumn("RENT_ENQ_RMDR_DTL_CODE", expr("'VOP_RENT_TXN_ENQ_CNT'"))
+        df_EXP_VOP_RENT_TXN_ENQ = df_rtr_all_1
+        df_EXP_VOP_RENT_TXN_ENQ = df_EXP_VOP_RENT_TXN_ENQ.withColumn("EST_KEY3", expr("EST_KEY9"))
+        df_EXP_VOP_RENT_TXN_ENQ = df_EXP_VOP_RENT_TXN_ENQ.withColumn("SYS_RPT_YEAR", expr("SYS_RPT_YEAR9"))
+        df_EXP_VOP_RENT_TXN_ENQ = df_EXP_VOP_RENT_TXN_ENQ.withColumn("SYS_RPT_MTH", expr("SYS_RPT_MTH9"))
+        df_EXP_VOP_RENT_TXN_ENQ = df_EXP_VOP_RENT_TXN_ENQ.withColumn("ENQ_CHNL_TYPE_CODE", expr("'VOP'"))
+        df_EXP_VOP_RENT_TXN_ENQ = df_EXP_VOP_RENT_TXN_ENQ.withColumn("RENT_ENQ_RMDR_DTL_CODE", expr("'VOP_RENT_TXN_ENQ_CNT'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         # Select only mapping output ports (prevents column leakage)
-        df_exp_19 = df_exp_19.select("EST_KEY3", "SYS_RPT_YEAR", "SYS_RPT_MTH", "ENQ_CHNL_TYPE_CODE", "RENT_ENQ_RMDR_DTL_CODE")
-        ctx.register_df("df_exp_19", df_exp_19)
+        df_EXP_VOP_RENT_TXN_ENQ = df_EXP_VOP_RENT_TXN_ENQ.select("EST_KEY3", "SYS_RPT_YEAR", "SYS_RPT_MTH", "ENQ_CHNL_TYPE_CODE", "RENT_ENQ_RMDR_DTL_CODE")
+        ctx.register_df("df_EXP_VOP_RENT_TXN_ENQ", df_EXP_VOP_RENT_TXN_ENQ)
         
         logger.info("Step: apply_EXP_VOP_ENG_CALL")
         # Expression: apply_EXP_VOP_ENG_CALL
-        df_exp_20 = df_rtr_all_9
-        df_exp_20 = df_exp_20.withColumn("EST_KEY4", expr("EST_KEY5"))
-        df_exp_20 = df_exp_20.withColumn("SYS_RPT_YEAR", expr("SYS_RPT_YEAR5"))
-        df_exp_20 = df_exp_20.withColumn("SYS_RPT_MTH", expr("SYS_RPT_MTH5"))
-        df_exp_20 = df_exp_20.withColumn("ENQ_CHNL_TYPE_CODE", expr("'VOP'"))
-        df_exp_20 = df_exp_20.withColumn("RENT_ENQ_RMDR_DTL_CODE", expr("'VOP_ENG_CALL_CNT'"))
+        df_EXP_VOP_ENG_CALL = df_rtr_all_1
+        df_EXP_VOP_ENG_CALL = df_EXP_VOP_ENG_CALL.withColumn("EST_KEY4", expr("EST_KEY5"))
+        df_EXP_VOP_ENG_CALL = df_EXP_VOP_ENG_CALL.withColumn("SYS_RPT_YEAR", expr("SYS_RPT_YEAR5"))
+        df_EXP_VOP_ENG_CALL = df_EXP_VOP_ENG_CALL.withColumn("SYS_RPT_MTH", expr("SYS_RPT_MTH5"))
+        df_EXP_VOP_ENG_CALL = df_EXP_VOP_ENG_CALL.withColumn("ENQ_CHNL_TYPE_CODE", expr("'VOP'"))
+        df_EXP_VOP_ENG_CALL = df_EXP_VOP_ENG_CALL.withColumn("RENT_ENQ_RMDR_DTL_CODE", expr("'VOP_ENG_CALL_CNT'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         # Select only mapping output ports (prevents column leakage)
-        df_exp_20 = df_exp_20.select("EST_KEY4", "SYS_RPT_YEAR", "SYS_RPT_MTH", "ENQ_CHNL_TYPE_CODE", "RENT_ENQ_RMDR_DTL_CODE")
-        ctx.register_df("df_exp_20", df_exp_20)
+        df_EXP_VOP_ENG_CALL = df_EXP_VOP_ENG_CALL.select("EST_KEY4", "SYS_RPT_YEAR", "SYS_RPT_MTH", "ENQ_CHNL_TYPE_CODE", "RENT_ENQ_RMDR_DTL_CODE")
+        ctx.register_df("df_EXP_VOP_ENG_CALL", df_EXP_VOP_ENG_CALL)
         
         logger.info("Step: apply_EXP_VOP_VOC_RCGN_CALL")
         # Expression: apply_EXP_VOP_VOC_RCGN_CALL
-        df_exp_21 = df_rtr_all_9
-        df_exp_21 = df_exp_21.withColumn("EST_KEY3", expr("EST_KEY7"))
-        df_exp_21 = df_exp_21.withColumn("SYS_RPT_YEAR", expr("SYS_RPT_YEAR7"))
-        df_exp_21 = df_exp_21.withColumn("SYS_RPT_MTH", expr("SYS_RPT_MTH7"))
-        df_exp_21 = df_exp_21.withColumn("ENQ_CHNL_TYPE_CODE", expr("'VOP'"))
-        df_exp_21 = df_exp_21.withColumn("RENT_ENQ_RMDR_DTL_CODE", expr("'VOP_VOC_RCGN_CALL_CNT'"))
+        df_EXP_VOP_VOC_RCGN_CALL = df_rtr_all_1
+        df_EXP_VOP_VOC_RCGN_CALL = df_EXP_VOP_VOC_RCGN_CALL.withColumn("EST_KEY3", expr("EST_KEY7"))
+        df_EXP_VOP_VOC_RCGN_CALL = df_EXP_VOP_VOC_RCGN_CALL.withColumn("SYS_RPT_YEAR", expr("SYS_RPT_YEAR7"))
+        df_EXP_VOP_VOC_RCGN_CALL = df_EXP_VOP_VOC_RCGN_CALL.withColumn("SYS_RPT_MTH", expr("SYS_RPT_MTH7"))
+        df_EXP_VOP_VOC_RCGN_CALL = df_EXP_VOP_VOC_RCGN_CALL.withColumn("ENQ_CHNL_TYPE_CODE", expr("'VOP'"))
+        df_EXP_VOP_VOC_RCGN_CALL = df_EXP_VOP_VOC_RCGN_CALL.withColumn("RENT_ENQ_RMDR_DTL_CODE", expr("'VOP_VOC_RCGN_CALL_CNT'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         # Select only mapping output ports (prevents column leakage)
-        df_exp_21 = df_exp_21.select("EST_KEY3", "SYS_RPT_YEAR", "SYS_RPT_MTH", "ENQ_CHNL_TYPE_CODE", "RENT_ENQ_RMDR_DTL_CODE")
-        ctx.register_df("df_exp_21", df_exp_21)
+        df_EXP_VOP_VOC_RCGN_CALL = df_EXP_VOP_VOC_RCGN_CALL.select("EST_KEY3", "SYS_RPT_YEAR", "SYS_RPT_MTH", "ENQ_CHNL_TYPE_CODE", "RENT_ENQ_RMDR_DTL_CODE")
+        ctx.register_df("df_EXP_VOP_VOC_RCGN_CALL", df_EXP_VOP_VOC_RCGN_CALL)
         
         logger.info("Step: apply_EXP_VOP_KEYIN_CALL")
         # Expression: apply_EXP_VOP_KEYIN_CALL
-        df_exp_22 = df_rtr_all_9
-        df_exp_22 = df_exp_22.withColumn("EST_KEY1", expr("EST_KEY6"))
-        df_exp_22 = df_exp_22.withColumn("SYS_RPT_YEAR", expr("SYS_RPT_YEAR6"))
-        df_exp_22 = df_exp_22.withColumn("SYS_RPT_MTH", expr("SYS_RPT_MTH6"))
-        df_exp_22 = df_exp_22.withColumn("ENQ_CHNL_TYPE_CODE", expr("'VOP'"))
-        df_exp_22 = df_exp_22.withColumn("RENT_ENQ_RMDR_DTL_CODE", expr("'VOP_KEYIN_CALL_CNT'"))
+        df_EXP_VOP_KEYIN_CALL = df_rtr_all_1
+        df_EXP_VOP_KEYIN_CALL = df_EXP_VOP_KEYIN_CALL.withColumn("EST_KEY1", expr("EST_KEY6"))
+        df_EXP_VOP_KEYIN_CALL = df_EXP_VOP_KEYIN_CALL.withColumn("SYS_RPT_YEAR", expr("SYS_RPT_YEAR6"))
+        df_EXP_VOP_KEYIN_CALL = df_EXP_VOP_KEYIN_CALL.withColumn("SYS_RPT_MTH", expr("SYS_RPT_MTH6"))
+        df_EXP_VOP_KEYIN_CALL = df_EXP_VOP_KEYIN_CALL.withColumn("ENQ_CHNL_TYPE_CODE", expr("'VOP'"))
+        df_EXP_VOP_KEYIN_CALL = df_EXP_VOP_KEYIN_CALL.withColumn("RENT_ENQ_RMDR_DTL_CODE", expr("'VOP_KEYIN_CALL_CNT'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         # Select only mapping output ports (prevents column leakage)
-        df_exp_22 = df_exp_22.select("EST_KEY1", "SYS_RPT_YEAR", "SYS_RPT_MTH", "ENQ_CHNL_TYPE_CODE", "RENT_ENQ_RMDR_DTL_CODE")
-        ctx.register_df("df_exp_22", df_exp_22)
+        df_EXP_VOP_KEYIN_CALL = df_EXP_VOP_KEYIN_CALL.select("EST_KEY1", "SYS_RPT_YEAR", "SYS_RPT_MTH", "ENQ_CHNL_TYPE_CODE", "RENT_ENQ_RMDR_DTL_CODE")
+        ctx.register_df("df_EXP_VOP_KEYIN_CALL", df_EXP_VOP_KEYIN_CALL)
         
         logger.info("Step: apply_EXP_VOP_CALL_RVC")
         # Expression: apply_EXP_VOP_CALL_RVC
-        df_exp_23 = df_rtr_all_9
-        df_exp_23 = df_exp_23.withColumn("SYS_RPT_YEAR", expr("SYS_RPT_YEAR1"))
-        df_exp_23 = df_exp_23.withColumn("SYS_RPT_MTH", expr("SYS_RPT_MTH1"))
-        df_exp_23 = df_exp_23.withColumn("ENQ_CHNL_TYPE_CODE", expr("'VOP'"))
-        df_exp_23 = df_exp_23.withColumn("RENT_ENQ_RMDR_DTL_CODE", expr("'VOP_CALL_RVC_CNT'"))
+        df_EXP_VOP_CALL_RVC = df_rtr_all_1
+        df_EXP_VOP_CALL_RVC = df_EXP_VOP_CALL_RVC.withColumn("SYS_RPT_YEAR", expr("SYS_RPT_YEAR1"))
+        df_EXP_VOP_CALL_RVC = df_EXP_VOP_CALL_RVC.withColumn("SYS_RPT_MTH", expr("SYS_RPT_MTH1"))
+        df_EXP_VOP_CALL_RVC = df_EXP_VOP_CALL_RVC.withColumn("ENQ_CHNL_TYPE_CODE", expr("'VOP'"))
+        df_EXP_VOP_CALL_RVC = df_EXP_VOP_CALL_RVC.withColumn("RENT_ENQ_RMDR_DTL_CODE", expr("'VOP_CALL_RVC_CNT'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["EST_KEY1"]:
-            if _col not in df_exp_23.columns:
-                df_exp_23 = df_exp_23.withColumn(_col, lit(None))
+            if _col not in df_EXP_VOP_CALL_RVC.columns:
+                df_EXP_VOP_CALL_RVC = df_EXP_VOP_CALL_RVC.withColumn(_col, lit(None))
         # Select only mapping output ports (prevents column leakage)
-        df_exp_23 = df_exp_23.select("EST_KEY1", "SYS_RPT_YEAR", "SYS_RPT_MTH", "ENQ_CHNL_TYPE_CODE", "RENT_ENQ_RMDR_DTL_CODE")
-        ctx.register_df("df_exp_23", df_exp_23)
+        df_EXP_VOP_CALL_RVC = df_EXP_VOP_CALL_RVC.select("EST_KEY1", "SYS_RPT_YEAR", "SYS_RPT_MTH", "ENQ_CHNL_TYPE_CODE", "RENT_ENQ_RMDR_DTL_CODE")
+        ctx.register_df("df_EXP_VOP_CALL_RVC", df_EXP_VOP_CALL_RVC)
         
         logger.info("Step: apply_EXP_VOP_CTE_CALL")
         # Expression: apply_EXP_VOP_CTE_CALL
-        df_exp_24 = df_rtr_all_9
-        df_exp_24 = df_exp_24.withColumn("SYS_RPT_YEAR", expr("SYS_RPT_YEAR3"))
-        df_exp_24 = df_exp_24.withColumn("SYS_RPT_MTH", expr("SYS_RPT_MTH3"))
-        df_exp_24 = df_exp_24.withColumn("ENQ_CHNL_TYPE_CODE", expr("'VOP'"))
-        df_exp_24 = df_exp_24.withColumn("RENT_ENQ_RMDR_DTL_CODE", expr("'VOP_CTE_CALL_CNT'"))
+        df_EXP_VOP_CTE_CALL = df_rtr_all_1
+        df_EXP_VOP_CTE_CALL = df_EXP_VOP_CTE_CALL.withColumn("SYS_RPT_YEAR", expr("SYS_RPT_YEAR3"))
+        df_EXP_VOP_CTE_CALL = df_EXP_VOP_CTE_CALL.withColumn("SYS_RPT_MTH", expr("SYS_RPT_MTH3"))
+        df_EXP_VOP_CTE_CALL = df_EXP_VOP_CTE_CALL.withColumn("ENQ_CHNL_TYPE_CODE", expr("'VOP'"))
+        df_EXP_VOP_CTE_CALL = df_EXP_VOP_CTE_CALL.withColumn("RENT_ENQ_RMDR_DTL_CODE", expr("'VOP_CTE_CALL_CNT'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["EST_KEY3"]:
-            if _col not in df_exp_24.columns:
-                df_exp_24 = df_exp_24.withColumn(_col, lit(None))
+            if _col not in df_EXP_VOP_CTE_CALL.columns:
+                df_EXP_VOP_CTE_CALL = df_EXP_VOP_CTE_CALL.withColumn(_col, lit(None))
         # Select only mapping output ports (prevents column leakage)
-        df_exp_24 = df_exp_24.select("EST_KEY3", "SYS_RPT_YEAR", "SYS_RPT_MTH", "ENQ_CHNL_TYPE_CODE", "RENT_ENQ_RMDR_DTL_CODE")
-        ctx.register_df("df_exp_24", df_exp_24)
+        df_EXP_VOP_CTE_CALL = df_EXP_VOP_CTE_CALL.select("EST_KEY3", "SYS_RPT_YEAR", "SYS_RPT_MTH", "ENQ_CHNL_TYPE_CODE", "RENT_ENQ_RMDR_DTL_CODE")
+        ctx.register_df("df_EXP_VOP_CTE_CALL", df_EXP_VOP_CTE_CALL)
         
         logger.info("Step: apply_EXP_VOP_PTG_CALL")
         # Expression: apply_EXP_VOP_PTG_CALL
-        df_exp_25 = df_rtr_all_9
-        df_exp_25 = df_exp_25.withColumn("SYS_RPT_YEAR", expr("SYS_RPT_YEAR4"))
-        df_exp_25 = df_exp_25.withColumn("SYS_RPT_MTH", expr("SYS_RPT_MTH4"))
-        df_exp_25 = df_exp_25.withColumn("ENQ_CHNL_TYPE_CODE", expr("'VOP'"))
-        df_exp_25 = df_exp_25.withColumn("RENT_ENQ_RMDR_DTL_CODE", expr("'VOP_PTG_CALL_CNT'"))
+        df_EXP_VOP_PTG_CALL = df_rtr_all_1
+        df_EXP_VOP_PTG_CALL = df_EXP_VOP_PTG_CALL.withColumn("SYS_RPT_YEAR", expr("SYS_RPT_YEAR4"))
+        df_EXP_VOP_PTG_CALL = df_EXP_VOP_PTG_CALL.withColumn("SYS_RPT_MTH", expr("SYS_RPT_MTH4"))
+        df_EXP_VOP_PTG_CALL = df_EXP_VOP_PTG_CALL.withColumn("ENQ_CHNL_TYPE_CODE", expr("'VOP'"))
+        df_EXP_VOP_PTG_CALL = df_EXP_VOP_PTG_CALL.withColumn("RENT_ENQ_RMDR_DTL_CODE", expr("'VOP_PTG_CALL_CNT'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["EST_KEY4"]:
-            if _col not in df_exp_25.columns:
-                df_exp_25 = df_exp_25.withColumn(_col, lit(None))
+            if _col not in df_EXP_VOP_PTG_CALL.columns:
+                df_EXP_VOP_PTG_CALL = df_EXP_VOP_PTG_CALL.withColumn(_col, lit(None))
         # Select only mapping output ports (prevents column leakage)
-        df_exp_25 = df_exp_25.select("EST_KEY4", "SYS_RPT_YEAR", "SYS_RPT_MTH", "ENQ_CHNL_TYPE_CODE", "RENT_ENQ_RMDR_DTL_CODE")
-        ctx.register_df("df_exp_25", df_exp_25)
+        df_EXP_VOP_PTG_CALL = df_EXP_VOP_PTG_CALL.select("EST_KEY4", "SYS_RPT_YEAR", "SYS_RPT_MTH", "ENQ_CHNL_TYPE_CODE", "RENT_ENQ_RMDR_DTL_CODE")
+        ctx.register_df("df_EXP_VOP_PTG_CALL", df_EXP_VOP_PTG_CALL)
         
         logger.info("Step: apply_Union_Transformation")
         # Union: apply_Union_Transformation
-        df_un_26 = df_exp_18
-        df_un_26 = df_un_26.unionByName(df_exp_19, allowMissingColumns=True)
-        df_un_26 = df_un_26.unionByName(df_exp_20, allowMissingColumns=True)
-        df_un_26 = df_un_26.unionByName(df_exp_21, allowMissingColumns=True)
-        df_un_26 = df_un_26.unionByName(df_exp_22, allowMissingColumns=True)
-        df_un_26 = df_un_26.unionByName(df_exp_23, allowMissingColumns=True)
-        df_un_26 = df_un_26.unionByName(df_exp_24, allowMissingColumns=True)
-        df_un_26 = df_un_26.unionByName(df_exp_25, allowMissingColumns=True)
+        # Rename upstream columns to match union output port names
+        df_EXP_VOP_RENT_STS_ENQ = df_EXP_VOP_RENT_STS_ENQ.withColumnRenamed("SYS_RPT_MTH", "SYS_RPT_MTH1")
+        df_EXP_VOP_RENT_STS_ENQ = df_EXP_VOP_RENT_STS_ENQ.withColumnRenamed("SYS_RPT_YEAR", "SYS_RPT_YEAR1")
+        df_EXP_VOP_RENT_TXN_ENQ = df_EXP_VOP_RENT_TXN_ENQ.withColumnRenamed("EST_KEY3", "EST_KEY1")
+        df_EXP_VOP_RENT_TXN_ENQ = df_EXP_VOP_RENT_TXN_ENQ.withColumnRenamed("SYS_RPT_YEAR", "SYS_RPT_YEAR1")
+        df_EXP_VOP_RENT_TXN_ENQ = df_EXP_VOP_RENT_TXN_ENQ.withColumnRenamed("SYS_RPT_MTH", "SYS_RPT_MTH1")
+        df_EXP_VOP_ENG_CALL = df_EXP_VOP_ENG_CALL.withColumnRenamed("EST_KEY4", "EST_KEY1")
+        df_EXP_VOP_ENG_CALL = df_EXP_VOP_ENG_CALL.withColumnRenamed("SYS_RPT_YEAR", "SYS_RPT_YEAR1")
+        df_EXP_VOP_ENG_CALL = df_EXP_VOP_ENG_CALL.withColumnRenamed("SYS_RPT_MTH", "SYS_RPT_MTH1")
+        df_EXP_VOP_VOC_RCGN_CALL = df_EXP_VOP_VOC_RCGN_CALL.withColumnRenamed("EST_KEY3", "EST_KEY1")
+        df_EXP_VOP_VOC_RCGN_CALL = df_EXP_VOP_VOC_RCGN_CALL.withColumnRenamed("SYS_RPT_YEAR", "SYS_RPT_YEAR1")
+        df_EXP_VOP_VOC_RCGN_CALL = df_EXP_VOP_VOC_RCGN_CALL.withColumnRenamed("SYS_RPT_MTH", "SYS_RPT_MTH1")
+        df_EXP_VOP_KEYIN_CALL = df_EXP_VOP_KEYIN_CALL.withColumnRenamed("SYS_RPT_YEAR", "SYS_RPT_YEAR1")
+        df_EXP_VOP_KEYIN_CALL = df_EXP_VOP_KEYIN_CALL.withColumnRenamed("SYS_RPT_MTH", "SYS_RPT_MTH1")
+        df_EXP_VOP_CALL_RVC = df_EXP_VOP_CALL_RVC.withColumnRenamed("SYS_RPT_YEAR", "SYS_RPT_YEAR1")
+        df_EXP_VOP_CALL_RVC = df_EXP_VOP_CALL_RVC.withColumnRenamed("SYS_RPT_MTH", "SYS_RPT_MTH1")
+        df_EXP_VOP_CTE_CALL = df_EXP_VOP_CTE_CALL.withColumnRenamed("EST_KEY3", "EST_KEY1")
+        df_EXP_VOP_CTE_CALL = df_EXP_VOP_CTE_CALL.withColumnRenamed("SYS_RPT_YEAR", "SYS_RPT_YEAR1")
+        df_EXP_VOP_CTE_CALL = df_EXP_VOP_CTE_CALL.withColumnRenamed("SYS_RPT_MTH", "SYS_RPT_MTH1")
+        df_EXP_VOP_PTG_CALL = df_EXP_VOP_PTG_CALL.withColumnRenamed("EST_KEY4", "EST_KEY1")
+        df_EXP_VOP_PTG_CALL = df_EXP_VOP_PTG_CALL.withColumnRenamed("SYS_RPT_YEAR", "SYS_RPT_YEAR1")
+        df_EXP_VOP_PTG_CALL = df_EXP_VOP_PTG_CALL.withColumnRenamed("SYS_RPT_MTH", "SYS_RPT_MTH1")
+        df_Union_Transformation = df_EXP_VOP_RENT_STS_ENQ
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_EXP_VOP_RENT_TXN_ENQ, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_EXP_VOP_ENG_CALL, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_EXP_VOP_VOC_RCGN_CALL, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_EXP_VOP_KEYIN_CALL, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_EXP_VOP_CALL_RVC, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_EXP_VOP_CTE_CALL, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_EXP_VOP_PTG_CALL, allowMissingColumns=True)
         # Select only union output columns
-        df_un_26 = df_un_26.select("EST_KEY1", "SYS_RPT_YEAR1", "SYS_RPT_MTH1", "ENQ_CHNL_TYPE_CODE", "RENT_ENQ_RMDR_DTL_CODE")
-        ctx.register_df("df_un_26", df_un_26)
+        df_Union_Transformation = df_Union_Transformation.select("EST_KEY1", "SYS_RPT_YEAR1", "SYS_RPT_MTH1", "ENQ_CHNL_TYPE_CODE", "RENT_ENQ_RMDR_DTL_CODE")
+        ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
         logger.info("Step: input_MPLT_LKP_RENT_ENQ_RMDR_SMRY")
         # Expression: input_MPLT_LKP_RENT_ENQ_RMDR_SMRY
-        df_mplt_input_27 = df_un_26
-        df_mplt_input_27 = df_mplt_input_27.withColumn("EST_KEY", expr("EST_KEY1"))
-        df_mplt_input_27 = df_mplt_input_27.withColumn("SYS_RPT_YEAR", expr("SYS_RPT_YEAR1"))
-        df_mplt_input_27 = df_mplt_input_27.withColumn("SYS_RPT_MTH", expr("SYS_RPT_MTH1"))
-        ctx.register_df("df_mplt_input_27", df_mplt_input_27)
+        df_mplt_input_10 = df_Union_Transformation
+        df_mplt_input_10 = df_mplt_input_10.withColumn("EST_KEY", expr("EST_KEY1"))
+        df_mplt_input_10 = df_mplt_input_10.withColumn("SYS_RPT_YEAR", expr("SYS_RPT_YEAR1"))
+        df_mplt_input_10 = df_mplt_input_10.withColumn("SYS_RPT_MTH", expr("SYS_RPT_MTH1"))
+        ctx.register_df("df_mplt_input_10", df_mplt_input_10)
         
         logger.info("Step: apply_mplt_EXPTRANS1")
         # Expression: apply_mplt_EXPTRANS1
-        df_mplt_expr_28 = df_mplt_input_27
-        df_mplt_expr_28 = df_mplt_expr_28.withColumn("SYS_RPT_YEAR", expr("SYS_RPT_YEAR1"))
-        df_mplt_expr_28 = df_mplt_expr_28.withColumn("SYS_RPT_MTH", expr("SYS_RPT_MTH1"))
-        df_mplt_expr_28 = df_mplt_expr_28.withColumn("TIME_DMNS_KEY", expr("200000000+SYS_RPT_YEAR1*10000+SYS_RPT_MTH1*100"))
-        df_mplt_expr_28 = df_mplt_expr_28.withColumn("EST_KEY", expr("EST_KEY1"))
-        ctx.register_df("df_mplt_expr_28", df_mplt_expr_28)
+        df_mplt_expr_11 = df_mplt_input_10
+        df_mplt_expr_11 = df_mplt_expr_11.withColumn("SYS_RPT_YEAR", expr("SYS_RPT_YEAR1"))
+        df_mplt_expr_11 = df_mplt_expr_11.withColumn("SYS_RPT_MTH", expr("SYS_RPT_MTH1"))
+        df_mplt_expr_11 = df_mplt_expr_11.withColumn("TIME_DMNS_KEY", expr("200000000+SYS_RPT_YEAR1*10000+SYS_RPT_MTH1*100"))
+        df_mplt_expr_11 = df_mplt_expr_11.withColumn("EST_KEY", expr("EST_KEY1"))
+        ctx.register_df("df_mplt_expr_11", df_mplt_expr_11)
         
         logger.info("Step: read_mplt_LKP_DDS_HRCHY_EMS_EST")
         # Reading Data From Source - read_mplt_LKP_DDS_HRCHY_EMS_EST
@@ -364,75 +387,122 @@ FROM DDS_HRCHY_EMS_EST
 WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY_EMS_EST.BGN_DATE AND DDS_HRCHY_EMS_EST.END_DATE"""
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         query = query.replace("$$v_snsh_date", v_snsh_date)
-        df_mplt_lkp_29 = lib.read_sql(spark, _conn, query=query)
+        df_mplt_lkp_12 = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_mplt_LKP_DDS_HRCHY_EMS_EST")
         # Lookup: apply_mplt_LKP_DDS_HRCHY_EMS_EST
-        # Join condition: EST_KEY=EST_KEY        
-        df_mplt_join_30 = df_mplt_expr_28.join(
-            broadcast(df_mplt_lkp_29),
-            (df_mplt_expr_28["EST_KEY"] == df_mplt_lkp_29["EST_KEY"]),
-            "left"
+        # Join on common column: EST_KEY
+
+        df_mplt_join_13 = df_mplt_expr_11.join(
+            broadcast(df_mplt_lkp_12),
+            on="EST_KEY",
+            how="left"
         )
-        ctx.register_df("df_mplt_join_30", df_mplt_join_30)
+        ctx.register_df("df_mplt_join_13", df_mplt_join_13)
         
         logger.info("Step: read_mplt_LKP_DDS_DMNS_RENT_ENQ_RMDR_DTL")
         # Reading Data From Source - read_mplt_LKP_DDS_DMNS_RENT_ENQ_RMDR_DTL
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "target")
-        df_mplt_lkp_31 = lib.read_sql(spark, _conn, table="DDS_DMNS_RENT_ENQ_RMDR_DTL")
+        df_mplt_lkp_14 = lib.read_sql(spark, _conn, table="DDS_DMNS_RENT_ENQ_RMDR_DTL")
         
         logger.info("Step: apply_mplt_LKP_DDS_DMNS_RENT_ENQ_RMDR_DTL")
         # Lookup: apply_mplt_LKP_DDS_DMNS_RENT_ENQ_RMDR_DTL
-        # Join condition: RENT_ENQ_RMDR_DTL_CODE=RENT_ENQ_RMDR_DTL_CODE        
-        df_mplt_join_32 = df_mplt_expr_28.join(
-            broadcast(df_mplt_lkp_31),
-            (df_mplt_expr_28["RENT_ENQ_RMDR_DTL_CODE"] == df_mplt_lkp_31["RENT_ENQ_RMDR_DTL_CODE"]),
-            "left"
+        # Join on common column: RENT_ENQ_RMDR_DTL_CODE
+
+        df_mplt_join_15 = df_mplt_expr_11.join(
+            broadcast(df_mplt_lkp_14),
+            on="RENT_ENQ_RMDR_DTL_CODE",
+            how="left"
         )
-        ctx.register_df("df_mplt_join_32", df_mplt_join_32)
+        ctx.register_df("df_mplt_join_15", df_mplt_join_15)
         
         logger.info("Step: read_mplt_LKP_DDS_DMNS_ENQ_CHNL_TYPE")
         # Reading Data From Source - read_mplt_LKP_DDS_DMNS_ENQ_CHNL_TYPE
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DDS")
-        df_mplt_lkp_33 = lib.read_sql(spark, _conn, table="DDS_DMNS_ENQ_CHNL_TYPE")
+        df_mplt_lkp_16 = lib.read_sql(spark, _conn, table="DDS_DMNS_ENQ_CHNL_TYPE")
         
         logger.info("Step: apply_mplt_LKP_DDS_DMNS_ENQ_CHNL_TYPE")
         # Lookup: apply_mplt_LKP_DDS_DMNS_ENQ_CHNL_TYPE
-        # Join condition: ENQ_CHNL_TYPE_CODE=ENQ_CHNL_TYPE_CODE        
-        df_mplt_join_34 = df_mplt_expr_28.join(
-            broadcast(df_mplt_lkp_33),
-            (df_mplt_expr_28["ENQ_CHNL_TYPE_CODE"] == df_mplt_lkp_33["ENQ_CHNL_TYPE_CODE"]),
-            "left"
+        # Join on common column: ENQ_CHNL_TYPE_CODE
+
+        df_mplt_join_17 = df_mplt_expr_11.join(
+            broadcast(df_mplt_lkp_16),
+            on="ENQ_CHNL_TYPE_CODE",
+            how="left"
         )
-        ctx.register_df("df_mplt_join_34", df_mplt_join_34)
+        ctx.register_df("df_mplt_join_17", df_mplt_join_17)
+        
+        logger.info("Step: join_mplt_EXPTRANS2_0")
+        # Lookup: join_mplt_EXPTRANS2_0
+        # Merge parallel DataFrames on their common columns
+        _common_cols = [c for c in df_mplt_join_13.columns if c in df_mplt_expr_11.columns]
+        df_mplt_merge_18 = df_mplt_join_13.join(
+            df_mplt_expr_11,
+            on=_common_cols,
+            how="left"
+        )
+        ctx.register_df("df_mplt_merge_18", df_mplt_merge_18)
+        
+        logger.info("Step: join_mplt_EXPTRANS2_1")
+        # Lookup: join_mplt_EXPTRANS2_1
+        # Merge parallel DataFrames on their common columns
+        _common_cols = [c for c in df_mplt_merge_18.columns if c in df_mplt_join_17.columns]
+        df_mplt_merge_19 = df_mplt_merge_18.join(
+            df_mplt_join_17,
+            on=_common_cols,
+            how="left"
+        )
+        ctx.register_df("df_mplt_merge_19", df_mplt_merge_19)
+        
+        logger.info("Step: join_mplt_EXPTRANS2_2")
+        # Lookup: join_mplt_EXPTRANS2_2
+        # Merge parallel DataFrames on their common columns
+        _common_cols = [c for c in df_mplt_merge_19.columns if c in df_mplt_join_15.columns]
+        df_mplt_merge_20 = df_mplt_merge_19.join(
+            df_mplt_join_15,
+            on=_common_cols,
+            how="left"
+        )
+        ctx.register_df("df_mplt_merge_20", df_mplt_merge_20)
+        
+        logger.info("Step: join_mplt_EXPTRANS2_3")
+        # Lookup: join_mplt_EXPTRANS2_3
+        # Merge parallel DataFrames on their common columns
+        _common_cols = [c for c in df_mplt_merge_20.columns if c in df_mplt_input_10.columns]
+        df_mplt_merge_21 = df_mplt_merge_20.join(
+            df_mplt_input_10,
+            on=_common_cols,
+            how="left"
+        )
+        ctx.register_df("df_mplt_merge_21", df_mplt_merge_21)
         
         logger.info("Step: apply_mplt_EXPTRANS2")
         # Expression: apply_mplt_EXPTRANS2
-        df_mplt_expr_35 = df_mplt_join_30
-        df_mplt_expr_35 = df_mplt_expr_35.withColumn("TIME_DMNS_KEY1", expr("CASE WHEN (TIME_DMNS_KEY IS NULL) THEN 0 ELSE TIME_DMNS_KEY END"))
-        df_mplt_expr_35 = df_mplt_expr_35.withColumn("EST_SCD_KEY1", expr("CASE WHEN (EST_SCD_KEY IS NULL) THEN 0 ELSE EST_SCD_KEY END"))
-        df_mplt_expr_35 = df_mplt_expr_35.withColumn("ENQ_CHNL_TYPE_KEY1", expr("CASE WHEN (ENQ_CHNL_TYPE_KEY IS NULL) THEN 0 ELSE ENQ_CHNL_TYPE_KEY END"))
-        df_mplt_expr_35 = df_mplt_expr_35.withColumn("RENT_ENQ_RMDR_DTL_KEY1", expr("CASE WHEN (RENT_ENQ_RMDR_DTL_KEY IS NULL) THEN 0 ELSE RENT_ENQ_RMDR_DTL_KEY END"))
-        ctx.register_df("df_mplt_expr_35", df_mplt_expr_35)
+        df_mplt_expr_22 = df_mplt_merge_21
+        df_mplt_expr_22 = df_mplt_expr_22.withColumn("TIME_DMNS_KEY1", expr("CASE WHEN (TIME_DMNS_KEY IS NULL) THEN 0 ELSE TIME_DMNS_KEY END"))
+        df_mplt_expr_22 = df_mplt_expr_22.withColumn("EST_SCD_KEY1", expr("CASE WHEN (EST_SCD_KEY IS NULL) THEN 0 ELSE EST_SCD_KEY END"))
+        df_mplt_expr_22 = df_mplt_expr_22.withColumn("ENQ_CHNL_TYPE_KEY1", expr("CASE WHEN (ENQ_CHNL_TYPE_KEY IS NULL) THEN 0 ELSE ENQ_CHNL_TYPE_KEY END"))
+        df_mplt_expr_22 = df_mplt_expr_22.withColumn("RENT_ENQ_RMDR_DTL_KEY1", expr("CASE WHEN (RENT_ENQ_RMDR_DTL_KEY IS NULL) THEN 0 ELSE RENT_ENQ_RMDR_DTL_KEY END"))
+        ctx.register_df("df_mplt_expr_22", df_mplt_expr_22)
         
         logger.info("Step: apply_MPLT_LKP_RENT_ENQ_RMDR_SMRY")
         # Expression: apply_MPLT_LKP_RENT_ENQ_RMDR_SMRY
-        df_mplt_36 = df_mplt_expr_35
-        ctx.register_df("df_mplt_36", df_mplt_36)
+        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY = df_mplt_expr_22
+        ctx.register_df("df_MPLT_LKP_RENT_ENQ_RMDR_SMRY", df_MPLT_LKP_RENT_ENQ_RMDR_SMRY)
         
         logger.info("Step: apply_AGG_COUNT")
         # Aggregator: apply_AGG_COUNT
-        df_agg_37 = df_mplt_36.groupBy("TIME_DMNS_KEY", "EST_SCD_KEY", "ENQ_CHNL_TYPE_KEY", "RENT_ENQ_RMDR_DTL_KEY")
-        df_agg_37 = df_agg_37.agg(
+        df_AGG_COUNT = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY.groupBy("TIME_DMNS_KEY", "EST_SCD_KEY", "ENQ_CHNL_TYPE_KEY", "RENT_ENQ_RMDR_DTL_KEY")
+        df_AGG_COUNT = df_AGG_COUNT.agg(
             count(expr("""cast(TIME_DMNS_KEY as string) || cast(EST_SCD_KEY as string) || cast(ENQ_CHNL_TYPE_KEY as string)""")).alias("VALUE")
         )
-        ctx.register_df("df_agg_37", df_agg_37)
+        ctx.register_df("df_AGG_COUNT", df_AGG_COUNT)
         
         logger.info("Step: write_DPA_FACT_RENT_ENQ_RMDR_SMRY")
         # Write to Target: write_DPA_FACT_RENT_ENQ_RMDR_SMRY
-        df_write = df_agg_37
+        df_write = df_AGG_COUNT
         # Cast columns to match target schema data types
         # Map source columns to target columns using connector field map (handles name mismatches)
         _field_map = {"ENQ_CHNL_TYPE_KEY": "ENQ_CHNL_TYPE_KEY", "EST_SCD_KEY": "EST_SCD_KEY", "RENT_ENQ_RMDR_DTL_KEY": "RENT_ENQ_RMDR_DTL_KEY", "RENT_ENQ_RMDR_VAL_NUM": "VALUE", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}

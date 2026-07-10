@@ -1,14 +1,14 @@
 ================================================================================
 INFORMATICA-SPARKER CONVERSION LOG
-Generated: 2026-07-09 11:47:42
+Generated: 2026-07-10 16:39:48
 ================================================================================
 
 SUMMARY
 ----------------------------------------
 Total Mappings: 25
-Successful: 25
-Failed: 0
-Total Warnings: 0
+Successful: 14
+Failed: 11
+Total Warnings: 18
 Total Errors: 0
 
 SOURCE DETECTION RESULTS
@@ -8204,28 +8204,41 @@ MAPPING: M_EMS_SOR_LOAD_CSA_DRP_SWD_PRLM_PYMT_RAW_FOR_DELETE
   Generated Files: m_ems_sor_load_csa_drp_swd_prlm_pymt_raw_for_delete.py
 
 MAPPING: M_EMS_DPA_SUMMARIZE_FACT_TNCY_AND_HSHLD_SMRY
-  Status: SUCCESS
+  Status: FAILED
   Generated Files: m_ems_dpa_summarize_fact_tncy_and_hshld_smry.py
+  Warnings (2):
+    [WARN] No input DataFrame found for SQ_SOR_EMS_TAM_TNCY_AGRMT_STS
+    [WARN] No input DataFrame found for SQ_SOR_EMS_CPM_PTCL
 
 MAPPING: M_EMS_DPA_SUMMARIZE_FACT_MTH_DRP_SWD_CLCT_SMRY_A
-  Status: SUCCESS
+  Status: FAILED
   Generated Files: m_ems_dpa_summarize_fact_mth_drp_swd_clct_smry_a.py
+  Warnings (1):
+    [WARN] No input DataFrame found for ACTUAL_DRP
 
 MAPPING: M_UTL_DPA_TRUNCATE
   Status: SUCCESS
   Generated Files: m_utl_dpa_truncate.py
 
 MAPPING: M_EMS_DDS_APLY_MTH_DRP_SWD_STAT
-  Status: SUCCESS
+  Status: FAILED
   Generated Files: m_ems_dds_aply_mth_drp_swd_stat.py
+  Warnings (1):
+    [WARN] No input DataFrame found for SQTRANS
 
 MAPPING: M_EMS_DPA_SUMMARIZE_FACT_MTH_RENT_AND_ARR_SMRY_A
-  Status: SUCCESS
+  Status: FAILED
   Generated Files: m_ems_dpa_summarize_fact_mth_rent_and_arr_smry_a.py
+  Warnings (3):
+    [WARN] No input DataFrame found for SQ_SOR_EMS_SRP_MRRS_RENT_ARR_CF
+    [WARN] No input DataFrame found for SQ_SOR_EMS_MRRS_UAO_FEE_ARR_CF
+    [WARN] No input DataFrame found for SQ_SOR_EMS_MRRS_MSN_PRFT_ARR_CF
 
 MAPPING: M_EMS_DPA_SUMMARIZE_FACT_RENT_ENQ_RMDR_SMRY_A
-  Status: SUCCESS
+  Status: FAILED
   Generated Files: m_ems_dpa_summarize_fact_rent_enq_rmdr_smry_a.py
+  Warnings (1):
+    [WARN] No input DataFrame found for SQ_SOR_ISP_EXTL_ADT_TRL
 
 MAPPING: M_EMS_DDS_APLY_FACT_MTH_DRP_SWD_CLCT_SMRY
   Status: SUCCESS
@@ -8248,12 +8261,16 @@ MAPPING: M_EMS_SOR_LOAD_CSA_DRP_SWD_PRLM_PYMT_RAW_FOR_INSERT
   Generated Files: m_ems_sor_load_csa_drp_swd_prlm_pymt_raw_for_insert.py
 
 MAPPING: M_EMS_DPA_SUMMARIZE_FACT_MTH_RENT_AND_ARR_SMRY_C
-  Status: SUCCESS
+  Status: FAILED
   Generated Files: m_ems_dpa_summarize_fact_mth_rent_and_arr_smry_c.py
+  Warnings (1):
+    [WARN] No input DataFrame found for SQ_SOR_EMS_TAM_TNCY_AGRMT
 
 MAPPING: M_EMS_DPA_SUMMARIZE_FACT_RENT_ENQ_RMDR_SMRY_E
-  Status: SUCCESS
+  Status: FAILED
   Generated Files: m_ems_dpa_summarize_fact_rent_enq_rmdr_smry_e.py
+  Warnings (1):
+    [WARN] No input DataFrame found for SQ_DDS_FACT_MTH_RENT_AND_ARR_SMRY
 
 MAPPING: M_EMS_DDS_APLY_FACT_MTH_RENT_AND_ARR_SMRY
   Status: SUCCESS
@@ -8276,20 +8293,32 @@ MAPPING: M_EMS_DDS_APLY_FACT_RENT_ENQ_RMDR_SMRY
   Generated Files: m_ems_dds_aply_fact_rent_enq_rmdr_smry.py
 
 MAPPING: M_EMS_DPA_SUMMARIZE_FACT_MTH_RENT_AND_ARR_SMRY_D
-  Status: SUCCESS
+  Status: FAILED
   Generated Files: m_ems_dpa_summarize_fact_mth_rent_and_arr_smry_d.py
+  Warnings (1):
+    [WARN] No input DataFrame found for SQ_LRS_MTH_LTNG_RTN_STAT
 
 MAPPING: M_EMS_DPA_SUMMARIZE_FACT_MTH_RENT_AND_ARR_SMRY_B
-  Status: SUCCESS
+  Status: FAILED
   Generated Files: m_ems_dpa_summarize_fact_mth_rent_and_arr_smry_b.py
+  Warnings (1):
+    [WARN] No input DataFrame found for SQ_SOR_EMS_MRRS_EXTNT_OSTD_DEBT
 
 MAPPING: M_EMS_DPA_SUMMARIZE_FACT_TNCY_AND_PLT_SMRY
-  Status: SUCCESS
+  Status: FAILED
   Generated Files: m_ems_dpa_summarize_fact_tncy_and_plt_smry.py
+  Warnings (2):
+    [WARN] No input DataFrame found for SQ_SOR_EMS_TAM_TNCY_AGRMT_STS
+    [WARN] No input DataFrame found for SQ_SOR_EMS_TAM_TNCY_AGRMT_SMRY
 
 MAPPING: M_EMS_DPA_SUMMARIZE_FACT_MTH_DRP_SWD_CLCT_SMRY_B
-  Status: SUCCESS
+  Status: FAILED
   Generated Files: m_ems_dpa_summarize_fact_mth_drp_swd_clct_smry_b.py
+  Warnings (4):
+    [WARN] No input DataFrame found for DRP_EXCP
+    [WARN] No input DataFrame found for DRP
+    [WARN] No input DataFrame found for DIR_EXCP
+    [WARN] No input DataFrame found for DIR
 
 MAPPING: M_EMS_DPA_SUMMARIZE_FACT_RENT_ENQ_RMDR_SMRY_D
   Status: SUCCESS
@@ -8298,3 +8327,24 @@ MAPPING: M_EMS_DPA_SUMMARIZE_FACT_RENT_ENQ_RMDR_SMRY_D
 MAPPING: M_EMS_SSAL1_EXTR_CSA_DRP_SWD_PRLM_PYMT_RAW
   Status: SUCCESS
   Generated Files: m_ems_ssal1_extr_csa_drp_swd_prlm_pymt_raw.py
+
+ALL WARNINGS
+----------------------------------------
+  [WARN] No input DataFrame found for SQ_SOR_EMS_TAM_TNCY_AGRMT_STS
+  [WARN] No input DataFrame found for SQ_SOR_EMS_CPM_PTCL
+  [WARN] No input DataFrame found for ACTUAL_DRP
+  [WARN] No input DataFrame found for SQTRANS
+  [WARN] No input DataFrame found for SQ_SOR_EMS_SRP_MRRS_RENT_ARR_CF
+  [WARN] No input DataFrame found for SQ_SOR_EMS_MRRS_UAO_FEE_ARR_CF
+  [WARN] No input DataFrame found for SQ_SOR_EMS_MRRS_MSN_PRFT_ARR_CF
+  [WARN] No input DataFrame found for SQ_SOR_ISP_EXTL_ADT_TRL
+  [WARN] No input DataFrame found for SQ_SOR_EMS_TAM_TNCY_AGRMT
+  [WARN] No input DataFrame found for SQ_DDS_FACT_MTH_RENT_AND_ARR_SMRY
+  [WARN] No input DataFrame found for SQ_LRS_MTH_LTNG_RTN_STAT
+  [WARN] No input DataFrame found for SQ_SOR_EMS_MRRS_EXTNT_OSTD_DEBT
+  [WARN] No input DataFrame found for SQ_SOR_EMS_TAM_TNCY_AGRMT_STS
+  [WARN] No input DataFrame found for SQ_SOR_EMS_TAM_TNCY_AGRMT_SMRY
+  [WARN] No input DataFrame found for DRP_EXCP
+  [WARN] No input DataFrame found for DRP
+  [WARN] No input DataFrame found for DIR_EXCP
+  [WARN] No input DataFrame found for DIR

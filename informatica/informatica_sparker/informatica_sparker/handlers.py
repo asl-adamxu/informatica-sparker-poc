@@ -145,7 +145,15 @@ class TransformHandlers:
 
         return "UNKNOWN"
 
-    def _get_df_name(self, prefix: str = "df") -> str:
+    def _get_df_name(self, prefix: str = "df", instance: Optional[Instance] = None) -> str:
+        if instance and instance.name:
+            _safe = re.sub(r'[^a-zA-Z0-9_]', '_', instance.name)
+            _name = f"df_{_safe}"
+            # Avoid collisions: if name already used, append counter
+            if _name in self.current_df_map.values():
+                self.df_counter += 1
+                return f"{_name}_{self.df_counter}"
+            return _name
         self.df_counter += 1
         return f"{prefix}_{self.df_counter}"
 
@@ -244,11 +252,34 @@ class TransformHandlers:
             _processed_inst_names.add(inst_name)
 
             if inst_type in ("SOURCE", "Source Definition"):
-                self.logger.log_transformation(inst_name, "Source", "Processing source definition", LogLevel.INFO)
-                step = self._handle_source(instance, plan)
-                if step:
-                    plan.add_step(step)
-                    self.logger.log_transformation(inst_name, "Source", "Source converted", LogLevel.SUCCESS)
+                # Skip source read when downstream SQ uses SQL pushdown (reads DB directly).
+                # The Source Qualifier will handle the entire read.
+                _sq_pushdown = False
+                for _conn in self.mapping.connectors:
+                    if _conn.from_instance == inst_name:
+                        _to_inst = self.instance_map.get(_conn.to_instance)
+                        if _to_inst:
+                            _to_type = self._resolve_transformation_type(_to_inst)
+                            if _to_type == "Source Qualifier":
+                                _sq_trans = self.transform_map.get(
+                                    _to_inst.transformation_name or _to_inst.name
+                                )
+                                if _sq_trans:
+                                    _udj = _sq_trans.table_attributes.get("User Defined Join", "")
+                                    _sqo = _sq_trans.table_attributes.get("Sql Query", "")
+                                    if _udj.strip() or _sqo.strip():
+                                        _sq_pushdown = True
+                                        break
+                if _sq_pushdown:
+                    self.logger.log_transformation(inst_name, "Source",
+                        "Skipped (SQ uses SQL pushdown — read handled by SQ)",
+                        LogLevel.INFO)
+                else:
+                    self.logger.log_transformation(inst_name, "Source", "Processing source definition", LogLevel.INFO)
+                    step = self._handle_source(instance, plan)
+                    if step:
+                        plan.add_step(step)
+                        self.logger.log_transformation(inst_name, "Source", "Source converted", LogLevel.SUCCESS)
 
             elif inst_type == "Source Qualifier":
                 self.logger.log_transformation(inst_name, "SourceQualifier", "Processing source qualifier", LogLevel.INFO)
@@ -292,9 +323,14 @@ class TransformHandlers:
 
             elif inst_type == "Aggregator":
                 self.logger.log_transformation(inst_name, "Aggregator", "Processing aggregator transformation", LogLevel.INFO)
-                step = self._handle_aggregator(instance, plan)
-                if step:
-                    plan.add_step(step)
+                result = self._handle_aggregator(instance, plan)
+                if isinstance(result, list):
+                    for s in result:
+                        if s:
+                            plan.add_step(s)
+                elif result:
+                    plan.add_step(result)
+                if result:
                     self.logger.log_transformation(inst_name, "Aggregator", "Aggregator converted", LogLevel.SUCCESS)
 
             elif inst_type == "Sorter":
@@ -476,7 +512,7 @@ class TransformHandlers:
             plan.add_warning(f"Source definition not found: {source_name}")
             return None
 
-        df_name = self._get_df_name("df_src")
+        df_name = self._get_df_name("df_src", instance)
         self._register_df(instance, df_name)
 
         source_config = self._get_source_config(source.name)
@@ -532,7 +568,7 @@ class TransformHandlers:
                 plan.add_warning(f"No input DataFrame found for {instance.name}")
             input_df = "df_source"
 
-        df_output = self._get_df_name("df_sq")
+        df_output = self._get_df_name("df_sq", instance)
         self._register_df(instance, df_output)
 
         transform = self.transform_map.get(instance.transformation_name or instance.name)
@@ -565,6 +601,27 @@ class TransformHandlers:
             translated_filter = self.expr_translator.translate_for_filter(filter_cond, "source_filter")
 
         source_inputs = self._get_source_inputs_for_sq(instance.name)
+
+        # If the SQL override is just a User Defined Join (not a complete SELECT),
+        # construct a full SQL query: SELECT <cols> FROM <tables> WHERE <join> [AND <filter>]
+        if final_sql and not re.match(r'\s*SELECT\b', final_sql, re.IGNORECASE):
+            # Extract unique table names from the join condition and source filter
+            _all_sql_text = final_sql
+            if filter_cond:
+                _all_sql_text += " " + filter_cond
+            _tables = set()
+            for _m in re.finditer(r'\b(\w+)\.\w+\b', _all_sql_text):
+                _tables.add(_m.group(1))
+            _from_clause = ', '.join(sorted(_tables)) if _tables else (
+                source_inputs[0].get("name", "DUAL") if source_inputs else "DUAL"
+            )
+            _select_cols = ', '.join(output_columns) if output_columns else '*'
+            _where_parts = [final_sql]
+            if filter_cond:
+                _where_parts.append(filter_cond)
+            _where_clause = ' AND '.join(_where_parts)
+            final_sql = f"SELECT {_select_cols} FROM {_from_clause} WHERE {_where_clause}"
+
         source_name = source_inputs[0].get("name", "") if source_inputs else ""
         conn_alias = self._resolve_connection_alias(
             instance_name=instance.name,
@@ -579,11 +636,11 @@ class TransformHandlers:
             if raw_type:
                 from .models import normalize_db_type
                 source_db_type = normalize_db_type(raw_type)
-        
+
         if use_sql_pushdown:
             # SQL Pushdown: execute native SQL on source database — no dialect translation
             # (Oracle (+) outer-join syntax, DECODE, etc. must be preserved as-is)
-            
+
             step = ApplySourceQualifierStep(
                 step_name=f"apply_{instance.name}",
                 df_input=input_df,
@@ -644,7 +701,7 @@ class TransformHandlers:
             plan.add_warning(f"No input DataFrame found for {instance.name}")
             input_df = "df_input"
 
-        df_output = self._get_df_name("df_fil")
+        df_output = self._get_df_name("df_fil", instance)
         self._register_df(instance, df_output)
 
         transform = self.transform_map.get(instance.transformation_name or instance.name)
@@ -687,7 +744,7 @@ class TransformHandlers:
         extra_inputs = [df for df in all_inputs if df != input_df]
         _multistep = bool(extra_inputs and input_df != "df_input")
 
-        df_output = self._get_df_name("df_exp")
+        df_output = self._get_df_name("df_exp", instance)
         self._register_df(instance, df_output)
 
         transform = self.transform_map.get(instance.transformation_name or instance.name)
@@ -907,7 +964,7 @@ class TransformHandlers:
             plan.add_warning(f"Lookup transformation not found: {instance.name}")
             return steps
 
-        lookup_df = self._get_df_name("df_lkp")
+        lookup_df = self._get_df_name("df_lkp", instance)
 
         lookup_sql = transform.table_attributes.get("Lookup Sql Override", "")
         lookup_table = transform.table_attributes.get("Lookup table name", "")
@@ -974,14 +1031,34 @@ class TransformHandlers:
         plan.lookup_return_ports[instance.name] = output_columns
 
         if input_df:
-            df_output = self._get_df_name("df_lkp_result")
+            df_output = self._get_df_name("df_lkp_result", instance)
             self._register_df(instance, df_output)
+
+            # Build field remap from connectors: lookup INPUT port → upstream column
+            # (Informatica adds numeric suffixes like TNCY_AGRMT_BK1 when multiple
+            # connectors feed the same lookup port name; the actual column has no suffix.)
+            _lkp_field_remap: Dict[str, str] = {}
+            for conn in self.mapping.connectors:
+                if conn.to_instance == instance.name and conn.from_field != conn.to_field:
+                    _lkp_field_remap[conn.to_field] = conn.from_field
 
             lookup_cond = transform.table_attributes.get("Lookup condition", "")
             parsed_condition = self._parse_lookup_condition(lookup_cond, lookup_df)
 
             join_predicates = parsed_condition.get("join_columns", [])
             join_expr = parsed_condition.get("condition_expr") or ""
+
+            # Remap source_col in join predicates to actual upstream column names
+            for jp in join_predicates:
+                _src = jp.get("source_col", "")
+                if _src in _lkp_field_remap:
+                    jp["source_col"] = _lkp_field_remap[_src]
+
+            # Also remap column references in complex join expressions
+            if join_expr:
+                for _port, _col in _lkp_field_remap.items():
+                    if _port != _col:
+                        join_expr = join_expr.replace(_port, _col)
 
             steps.append(ApplyLookupStep(
                 step_name=f"apply_{instance.name}",
@@ -1112,7 +1189,7 @@ class TransformHandlers:
             plan.add_warning(f"Joiner {instance.name} needs 2 inputs, found {len(inputs)}")
             return None
 
-        df_output = self._get_df_name("df_jnr")
+        df_output = self._get_df_name("df_jnr", instance)
         self._register_df(instance, df_output)
 
         join_condition = ""
@@ -1156,7 +1233,45 @@ class TransformHandlers:
             if conn.to_instance == instance.name and conn.from_field != conn.to_field:
                 _agg_field_remap[conn.to_field] = conn.from_field
 
-        df_output = self._get_df_name("df_agg")
+        # When the aggregator references columns produced by expression chains
+        # that are not directly connected, merge the latest relevant DataFrame
+        # into the primary input so all needed columns are available.
+        _all_inputs = self._get_all_input_dfs(instance.name)
+        _extra_dfs = [df for df in _all_inputs if df != input_df]
+        if not _extra_dfs:
+            # No extra directly-connected inputs, but the aggregator may still
+            # need columns from expression/lookup outputs that flow through the
+            # Informatica pipeline implicitly.  Find the most recently registered
+            # DataFrame that shares common columns with the primary input.
+            _registered = list(self.current_df_map.values())
+            # Walk backwards to find a later DF that shares common columns
+            for _df_name in reversed(_registered):
+                if _df_name == input_df:
+                    break
+                if _df_name in _all_inputs or _df_name.startswith('df_lkp_result') or _df_name.startswith('df_exp_'):
+                    if _df_name != input_df and _df_name not in _extra_dfs:
+                        _extra_dfs.append(_df_name)
+                        break  # only take the most recent one
+
+        _pre_steps: List[IRStep] = []
+        if _extra_dfs:
+            _cur_df = input_df
+            for _i, _extra_df in enumerate(_extra_dfs):
+                _join_df_name = self._get_df_name("df_agg_merge")
+                _pre_steps.append(ApplyLookupStep(
+                    step_name=f"join_{instance.name}_{_i}",
+                    df_input=_cur_df,
+                    df_output=_join_df_name,
+                    lookup_df=_extra_df,
+                    join_predicates=[],
+                    join_expr="__common_cols__",
+                    output_columns=[],
+                    lookup_type="left",
+                ))
+                _cur_df = _join_df_name
+            input_df = _cur_df
+
+        df_output = self._get_df_name("df_agg", instance)
         self._register_df(instance, df_output)
 
         transform = self.transform_map.get(instance.transformation_name or instance.name)
@@ -1169,8 +1284,14 @@ class TransformHandlers:
 
             for field in transform.fields:
                 if field.is_group_by or "GROUP BY" in field.port_type.upper():
-                    group_by.append(field.name)
-                    self.logger.log_transformation(instance.name, "Aggregator", f"GROUP BY: {field.name}", LogLevel.INFO)
+                    # Remap port name to upstream column name via connector field map
+                    # (e.g. TXN_DATE → TXN_DATE1 when connector maps TXN_DATE1→TXN_DATE)
+                    _remapped = _agg_field_remap.get(field.name, field.name)
+                    group_by.append(_remapped)
+                    if _remapped != field.name:
+                        self.logger.log_transformation(instance.name, "Aggregator", f"GROUP BY: {field.name} (remapped to {_remapped})", LogLevel.INFO)
+                    else:
+                        self.logger.log_transformation(instance.name, "Aggregator", f"GROUP BY: {field.name}", LogLevel.INFO)
                 elif field.expression and "OUTPUT" in field.port_type.upper():
                     # Remap INPUT port names to upstream column names
                     expr_text = field.expression
@@ -1204,6 +1325,9 @@ class TransformHandlers:
         # Pass mapping variables so template can do runtime $$ substitution
         if plan.mapping_variables:
             step.params["mapping_variables"] = plan.mapping_variables
+        if _pre_steps:
+            _pre_steps.append(step)
+            return _pre_steps
         return step
 
     def _translate_aggregation_expr(self, expr: str, field_name: str, use_fstr: bool = False) -> str:
@@ -1227,6 +1351,41 @@ class TransformHandlers:
             match = re.match(_pat, expr, re.IGNORECASE)
             if match:
                 inner_expr = match.group(1).strip()
+
+                # Detect Informatica conditional-aggregate syntax:
+                #   COUNT(column, condition) / SUM(column, condition)
+                # Split at the first top-level comma (not inside parentheses).
+                _col_expr = inner_expr
+                _cond_expr = ""
+                _depth = 0
+                for _i, _ch in enumerate(inner_expr):
+                    if _ch == '(':
+                        _depth += 1
+                    elif _ch == ')':
+                        _depth -= 1
+                    elif _ch == ',' and _depth == 0:
+                        _col_expr = inner_expr[:_i].strip()
+                        _cond_expr = inner_expr[_i + 1:].strip()
+                        break
+
+                if _cond_expr and func_name in ('COUNT', 'SUM'):
+                    # Translate the condition part separately
+                    _translated_cond = self.expr_translator.translate(
+                        _cond_expr, "aggregation", field_name
+                    )
+                    # Translate the column part
+                    _translated_col = self.expr_translator.translate(
+                        _col_expr, "aggregation", field_name
+                    )
+                    if re.match(r'^[A-Za-z_]\w*$', _translated_col):
+                        _col_ref = f'col("{_translated_col}")'
+                    else:
+                        _col_ref = f'col("{_col_expr}")'
+                    if use_fstr:
+                        return f'{pyspark_func}(when(expr(f"""{_translated_cond}"""), {_col_ref}))'
+                    else:
+                        return f'{pyspark_func}(when(expr("""{_translated_cond}"""), {_col_ref}))'
+
                 # Translate the inner expression (e.g. DECODE → CASE WHEN)
                 translated_inner = self.expr_translator.translate(inner_expr, "aggregation", field_name)
                 # Simple column reference → use string arg; complex expression → use expr()
@@ -1250,7 +1409,7 @@ class TransformHandlers:
         if not input_df:
             input_df = "df_input"
 
-        df_output = self._get_df_name("df_srt")
+        df_output = self._get_df_name("df_srt", instance)
         self._register_df(instance, df_output)
 
         transform = self.transform_map.get(instance.transformation_name or instance.name)
@@ -1278,7 +1437,7 @@ class TransformHandlers:
             plan.add_warning(f"No inputs found for Union {instance.name}")
             return None
 
-        df_output = self._get_df_name("df_un")
+        df_output = self._get_df_name("df_un", instance)
         self._register_df(instance, df_output)
 
         transform = self.transform_map.get(instance.transformation_name or instance.name)
@@ -1293,6 +1452,53 @@ class TransformHandlers:
                     if 'del' in lower_name and ('ins' in lower_name or 'upd' in lower_name) and 'flag' in lower_name:
                         flag_column = field.name
 
+        # Build position-based input→output port mapping for union groups.
+        # Informatica Union maps input group ports to output group ports by
+        # position within each group.  Connectors map upstream columns to input
+        # group ports.  We chain: upstream_col → input_port → output_port.
+        _union_rename_map: Dict[str, Dict[str, str]] = {}  # df_name → {from_col: to_col}
+        if transform:
+            # Collect output ports (ordered by definition order = position)
+            _output_ports = [f.name for f in transform.fields
+                           if f.group_name and f.group_name.upper() == 'OUTPUT']
+            # Collect input ports per group, preserving position order
+            _group_ports: Dict[str, List[str]] = {}  # group_name → [port_names...]
+            for f in transform.fields:
+                if f.group_name and f.group_name.upper() != 'OUTPUT' and 'INPUT' in (f.port_type or '').upper():
+                    _grp = f.group_name.upper()
+                    if _grp not in _group_ports:
+                        _group_ports[_grp] = []
+                    _group_ports[_grp].append(f.name)
+            # Build input_port → output_port map per group (by position)
+            _grp_port_map: Dict[str, Dict[str, str]] = {}  # group → {input_port: output_port}
+            for _grp, _ports in _group_ports.items():
+                _mapping = {}
+                for _i, _in_port in enumerate(_ports):
+                    if _i < len(_output_ports):
+                        _mapping[_in_port] = _output_ports[_i]
+                if _mapping:
+                    _grp_port_map[_grp] = _mapping
+
+            # Now chain: connector.from_field → connector.to_field (input port)
+            # → output port.  We need to know which input group a connector feeds.
+            # Match connector.to_field against each group's input port names.
+            for conn in self.mapping.connectors:
+                if conn.to_instance == instance.name:
+                    _upstream_df = self.current_df_map.get(conn.from_instance)
+                    if not _upstream_df or _upstream_df not in inputs:
+                        continue
+                    # Find which group this connector's to_field belongs to
+                    _input_port = conn.to_field
+                    _output_port = None
+                    for _grp, _port_map in _grp_port_map.items():
+                        if _input_port in _port_map:
+                            _output_port = _port_map[_input_port]
+                            break
+                    if _output_port and conn.from_field != _output_port:
+                        if _upstream_df not in _union_rename_map:
+                            _union_rename_map[_upstream_df] = {}
+                        _union_rename_map[_upstream_df][conn.from_field] = _output_port
+
         step = ApplyUnionStep(
             step_name=f"apply_{instance.name}",
             df_inputs=inputs,
@@ -1302,6 +1508,8 @@ class TransformHandlers:
 
         step.params["output_columns"] = output_columns
         step.params["flag_column"] = flag_column
+        if _union_rename_map:
+            step.params["union_rename_map"] = _union_rename_map
 
         if flag_column:
             step.comments.append(f"Normalizing flag column to: {flag_column}")
@@ -1390,7 +1598,7 @@ class TransformHandlers:
         if not input_df:
             input_df = "df_input"
 
-        df_output = self._get_df_name("df_seq")
+        df_output = self._get_df_name("df_seq", instance)
         self._register_df(instance, df_output)
 
         transform = self.transform_map.get(instance.transformation_name or instance.name)
@@ -1417,7 +1625,7 @@ class TransformHandlers:
         if not input_df:
             input_df = "df_input"
 
-        df_output = self._get_df_name("df_upd")
+        df_output = self._get_df_name("df_upd", instance)
         self._register_df(instance, df_output)
 
         transform = self.transform_map.get(instance.transformation_name or instance.name)
@@ -2126,7 +2334,7 @@ class TransformHandlers:
                     if "OUTPUT" in port_type:
                         output_ports.append(field.name)
 
-            df_output = self._get_df_name("df_mplt")
+            df_output = self._get_df_name("df_mplt", instance)
             self._register_df(instance, df_output)
 
             if steps:

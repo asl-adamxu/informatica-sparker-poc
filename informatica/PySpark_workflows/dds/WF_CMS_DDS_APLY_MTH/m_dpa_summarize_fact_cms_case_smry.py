@@ -72,12 +72,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.warning("UTL_JOB_PARAM not found, using default values")
     
     try:
-        logger.info("Step: read_SOR_CMS_CASE_ITEM_STS")
-        # Reading Data From Source - read_SOR_CMS_CASE_ITEM_STS
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_1 = lib.read_sql(spark, _conn, table="SOR_CMS_CASE_ITEM_STS")
-        
         logger.info("Step: read_LKPTRANS_SOR_CASE")
         # Reading Data From Source - read_LKPTRANS_SOR_CASE
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -97,19 +91,7 @@ and a.case_cre_date >= trunc(add_months(last_day(to_date( '$$v_rpt_mth' || '01',
 group by a.actl_cms_hse_unit_key, b.actl_case_type_key"""
         query = query.replace("$$v_rpt_date", v_rpt_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_lkp_2 = lib.read_sql(spark, _conn, query=query)
-        
-        logger.info("Step: read_SOR_CMS_CASE_STS")
-        # Reading Data From Source - read_SOR_CMS_CASE_STS
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_3 = lib.read_sql(spark, _conn, table="SOR_CMS_CASE_STS")
-        
-        logger.info("Step: read_SOR_CMS_CASE")
-        # Reading Data From Source - read_SOR_CMS_CASE
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_4 = lib.read_sql(spark, _conn, table="SOR_CMS_CASE")
+        df_LKPTRANS_SOR_CASE = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_SQ_SOR_CMS_CASE")
         # Source Qualifier: apply_SQ_SOR_CMS_CASE
@@ -174,49 +156,49 @@ and to_date('$$v_rpt_date', 'yyyymmdd') between b.bgn_date and b.end_date
  ORDER BY a.case_key"""
         query = query.replace("$$v_rpt_date", v_rpt_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_sq_5 = lib.read_sql(spark, _conn, query=query)
+        df_SQ_SOR_CMS_CASE = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_5.columns
+        _sql_cols = df_SQ_SOR_CMS_CASE.columns
         _port_cols = ["CASE_KEY", "CMS_CASE_KEY", "BGN_DATE", "END_DATE", "CUST_RQS_KEY", "CASE_NUM", "RPT_CMS_HSE_EST_KEY", "RPT_CMS_HSE_BLK_KEY", "RPT_CMS_HSE_UNIT_KEY", "RPT_CASE_LOC_RMK_TEXT", "ACTL_CMS_HSE_EST_KEY", "ACTL_CMS_HSE_BLK_KEY", "ACTL_CMS_HSE_UNIT_KEY", "ACTL_CASE_LOC_RMK_TEXT", "CASE_CRE_DATE", "LAST_CASE_ACT_DATE", "CASE_CMPLT_DATE", "CASE_RMK_TEXT", "CASE_CRE_CMS_HSE_EST_KEY", "CASE_CRE_USER_ID", "CASE_CRE_USER_TYPE_CODE", "CASE_CRE_OFFC_TYPE_CODE", "CASE_ACT_CMS_HSE_EST_KEY", "CASE_ACT_USER_ID", "CASE_ACT_USER_TYPE_CODE", "CASE_ACT_OFFC_TYPE_CODE", "RLT_CASE_KEY", "CASE_PRIOR_CODE", "RESP_OFCR_USER_ID", "CASE_STS_CODE", "CASE_CNFRM_DATE", "CASE_RPLY_CNT", "LAST_CASE_RPLY_DATE", "DVC_REC_TXN_ID", "CUST_RQS_TXN_ID", "RLT_CASE_TXN_ID", "CLS_CASE_IND", "CASE_ITEM_KEY", "RPT_CASE_TYPE_KEY", "ACTL_CASE_TYPE_KEY", "CASE_CRE_HSE_EST_OFFC_KEY", "CASE_ACT_HSE_EST_OFFC_KEY"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_5 = df_sq_5.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_SQ_SOR_CMS_CASE = df_SQ_SOR_CMS_CASE.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_5 = df_sq_5.select("CASE_KEY", "CMS_CASE_KEY", "BGN_DATE", "END_DATE", "CUST_RQS_KEY", "CASE_NUM", "RPT_CMS_HSE_EST_KEY", "RPT_CMS_HSE_BLK_KEY", "RPT_CMS_HSE_UNIT_KEY", "RPT_CASE_LOC_RMK_TEXT", "ACTL_CMS_HSE_EST_KEY", "ACTL_CMS_HSE_BLK_KEY", "ACTL_CMS_HSE_UNIT_KEY", "ACTL_CASE_LOC_RMK_TEXT", "CASE_CRE_DATE", "LAST_CASE_ACT_DATE", "CASE_CMPLT_DATE", "CASE_RMK_TEXT", "CASE_CRE_CMS_HSE_EST_KEY", "CASE_CRE_USER_ID", "CASE_CRE_USER_TYPE_CODE", "CASE_CRE_OFFC_TYPE_CODE", "CASE_ACT_CMS_HSE_EST_KEY", "CASE_ACT_USER_ID", "CASE_ACT_USER_TYPE_CODE", "CASE_ACT_OFFC_TYPE_CODE", "RLT_CASE_KEY", "CASE_PRIOR_CODE", "RESP_OFCR_USER_ID", "CASE_STS_CODE", "CASE_CNFRM_DATE", "CASE_RPLY_CNT", "LAST_CASE_RPLY_DATE", "DVC_REC_TXN_ID", "CUST_RQS_TXN_ID", "RLT_CASE_TXN_ID", "CLS_CASE_IND", "CASE_ITEM_KEY", "RPT_CASE_TYPE_KEY", "ACTL_CASE_TYPE_KEY", "CASE_CRE_HSE_EST_OFFC_KEY", "CASE_ACT_HSE_EST_OFFC_KEY")
+        df_SQ_SOR_CMS_CASE = df_SQ_SOR_CMS_CASE.select("CASE_KEY", "CMS_CASE_KEY", "BGN_DATE", "END_DATE", "CUST_RQS_KEY", "CASE_NUM", "RPT_CMS_HSE_EST_KEY", "RPT_CMS_HSE_BLK_KEY", "RPT_CMS_HSE_UNIT_KEY", "RPT_CASE_LOC_RMK_TEXT", "ACTL_CMS_HSE_EST_KEY", "ACTL_CMS_HSE_BLK_KEY", "ACTL_CMS_HSE_UNIT_KEY", "ACTL_CASE_LOC_RMK_TEXT", "CASE_CRE_DATE", "LAST_CASE_ACT_DATE", "CASE_CMPLT_DATE", "CASE_RMK_TEXT", "CASE_CRE_CMS_HSE_EST_KEY", "CASE_CRE_USER_ID", "CASE_CRE_USER_TYPE_CODE", "CASE_CRE_OFFC_TYPE_CODE", "CASE_ACT_CMS_HSE_EST_KEY", "CASE_ACT_USER_ID", "CASE_ACT_USER_TYPE_CODE", "CASE_ACT_OFFC_TYPE_CODE", "RLT_CASE_KEY", "CASE_PRIOR_CODE", "RESP_OFCR_USER_ID", "CASE_STS_CODE", "CASE_CNFRM_DATE", "CASE_RPLY_CNT", "LAST_CASE_RPLY_DATE", "DVC_REC_TXN_ID", "CUST_RQS_TXN_ID", "RLT_CASE_TXN_ID", "CLS_CASE_IND", "CASE_ITEM_KEY", "RPT_CASE_TYPE_KEY", "ACTL_CASE_TYPE_KEY", "CASE_CRE_HSE_EST_OFFC_KEY", "CASE_ACT_HSE_EST_OFFC_KEY")
         
-        ctx.register_df("df_sq_5", df_sq_5)
+        ctx.register_df("df_SQ_SOR_CMS_CASE", df_SQ_SOR_CMS_CASE)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_exp_6 = df_sq_5
+        df_EXPTRANS = df_SQ_SOR_CMS_CASE
         # Inline lookup join: LKPTRANS_SOR_CASE (return column: CASE_CRE_DATE_DIFF)
         # Select only join keys + return column from lookup, renaming
         # join keys to avoid column name conflicts with the main DataFrame.
-        _lkp_sub = df_lkp_2.select(
+        _lkp_sub = df_LKPTRANS_SOR_CASE.select(
             col("ACTL_CMS_HSE_UNIT_KEY").alias("_lkp_jk_ACTL_CMS_HSE_UNIT_KEY"),
             col("ACTL_CASE_TYPE_KEY").alias("_lkp_jk_ACTL_CASE_TYPE_KEY"),
             col("CASE_CRE_DATE_DIFF")
         )
-        df_exp_6 = df_exp_6.join(
+        df_EXPTRANS = df_EXPTRANS.join(
             broadcast(_lkp_sub),
-            (df_exp_6["ACTL_CMS_HSE_UNIT_KEY"] == _lkp_sub["_lkp_jk_ACTL_CMS_HSE_UNIT_KEY"]) &             (df_exp_6["ACTL_CASE_TYPE_KEY"] == _lkp_sub["_lkp_jk_ACTL_CASE_TYPE_KEY"]),
+            (df_EXPTRANS["ACTL_CMS_HSE_UNIT_KEY"] == _lkp_sub["_lkp_jk_ACTL_CMS_HSE_UNIT_KEY"]) &             (df_EXPTRANS["ACTL_CASE_TYPE_KEY"] == _lkp_sub["_lkp_jk_ACTL_CASE_TYPE_KEY"]),
             "left"
         ).drop("_lkp_jk_ACTL_CMS_HSE_UNIT_KEY", "_lkp_jk_ACTL_CASE_TYPE_KEY")
-        df_exp_6 = df_exp_6.withColumn("IN_CASE_CRE_DATE_DIFF", expr("CASE_CRE_DATE_DIFF"))
-        df_exp_6 = df_exp_6.withColumn("REPT_CASE_IND", expr("CASE WHEN IN_CASE_CRE_DATE_DIFF = NULL THEN 'N' WHEN IN_CASE_CRE_DATE_DIFF = 0 THEN 'N' ELSE 'Y' END"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("IN_CASE_CRE_DATE_DIFF", expr("CASE_CRE_DATE_DIFF"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("REPT_CASE_IND", expr("CASE WHEN IN_CASE_CRE_DATE_DIFF = NULL THEN 'N' WHEN IN_CASE_CRE_DATE_DIFF = 0 THEN 'N' ELSE 'Y' END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["CASE_KEY", "BGN_DATE", "END_DATE", "CUST_RQS_KEY", "CASE_NUM", "RPT_CMS_HSE_EST_KEY", "RPT_CMS_HSE_BLK_KEY", "RPT_CMS_HSE_UNIT_KEY", "RPT_CASE_LOC_RMK_TEXT", "ACTL_CMS_HSE_EST_KEY", "ACTL_CMS_HSE_BLK_KEY", "ACTL_CMS_HSE_UNIT_KEY", "ACTL_CASE_LOC_RMK_TEXT", "CASE_CRE_DATE", "LAST_CASE_ACT_DATE", "CASE_CMPLT_DATE", "CASE_RMK_TEXT", "CASE_CRE_CMS_HSE_EST_KEY", "CASE_CRE_USER_ID", "CASE_CRE_USER_TYPE_CODE", "CASE_CRE_OFFC_TYPE_CODE", "CASE_ACT_CMS_HSE_EST_KEY", "CASE_ACT_USER_ID", "CASE_ACT_USER_TYPE_CODE", "CASE_ACT_OFFC_TYPE_CODE", "CASE_PRIOR_CODE", "RESP_OFCR_USER_ID", "CASE_STS_CODE", "CASE_CNFRM_DATE", "CASE_RPLY_CNT", "LAST_CASE_RPLY_DATE", "DVC_REC_TXN_ID", "CUST_RQS_TXN_ID", "RLT_CASE_TXN_ID", "CLS_CASE_IND", "CASE_ITEM_KEY", "RPT_CASE_TYPE_KEY", "ACTL_CASE_TYPE_KEY", "CASE_CRE_HSE_EST_OFFC_KEY", "CASE_ACT_HSE_EST_OFFC_KEY", "CMS_CASE_KEY", "RLT_CASE_KEY"]:
-            if _col not in df_exp_6.columns:
-                df_exp_6 = df_exp_6.withColumn(_col, lit(None))
+            if _col not in df_EXPTRANS.columns:
+                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Select only mapping output ports (prevents column leakage)
-        df_exp_6 = df_exp_6.select("CASE_KEY", "CMS_CASE_KEY", "BGN_DATE", "END_DATE", "CUST_RQS_KEY", "CASE_NUM", "RPT_CMS_HSE_EST_KEY", "RPT_CMS_HSE_BLK_KEY", "RPT_CMS_HSE_UNIT_KEY", "RPT_CASE_LOC_RMK_TEXT", "ACTL_CMS_HSE_EST_KEY", "ACTL_CMS_HSE_BLK_KEY", "ACTL_CMS_HSE_UNIT_KEY", "ACTL_CASE_LOC_RMK_TEXT", "CASE_CRE_DATE", "LAST_CASE_ACT_DATE", "CASE_CMPLT_DATE", "CASE_RMK_TEXT", "CASE_CRE_CMS_HSE_EST_KEY", "CASE_CRE_USER_ID", "CASE_CRE_USER_TYPE_CODE", "CASE_CRE_OFFC_TYPE_CODE", "CASE_ACT_CMS_HSE_EST_KEY", "CASE_ACT_USER_ID", "CASE_ACT_USER_TYPE_CODE", "CASE_ACT_OFFC_TYPE_CODE", "RLT_CASE_KEY", "CASE_PRIOR_CODE", "RESP_OFCR_USER_ID", "CASE_STS_CODE", "CASE_CNFRM_DATE", "CASE_RPLY_CNT", "LAST_CASE_RPLY_DATE", "DVC_REC_TXN_ID", "CUST_RQS_TXN_ID", "RLT_CASE_TXN_ID", "CLS_CASE_IND", "CASE_ITEM_KEY", "RPT_CASE_TYPE_KEY", "ACTL_CASE_TYPE_KEY", "CASE_CRE_HSE_EST_OFFC_KEY", "CASE_ACT_HSE_EST_OFFC_KEY", "REPT_CASE_IND")
-        ctx.register_df("df_exp_6", df_exp_6)
+        df_EXPTRANS = df_EXPTRANS.select("CASE_KEY", "CMS_CASE_KEY", "BGN_DATE", "END_DATE", "CUST_RQS_KEY", "CASE_NUM", "RPT_CMS_HSE_EST_KEY", "RPT_CMS_HSE_BLK_KEY", "RPT_CMS_HSE_UNIT_KEY", "RPT_CASE_LOC_RMK_TEXT", "ACTL_CMS_HSE_EST_KEY", "ACTL_CMS_HSE_BLK_KEY", "ACTL_CMS_HSE_UNIT_KEY", "ACTL_CASE_LOC_RMK_TEXT", "CASE_CRE_DATE", "LAST_CASE_ACT_DATE", "CASE_CMPLT_DATE", "CASE_RMK_TEXT", "CASE_CRE_CMS_HSE_EST_KEY", "CASE_CRE_USER_ID", "CASE_CRE_USER_TYPE_CODE", "CASE_CRE_OFFC_TYPE_CODE", "CASE_ACT_CMS_HSE_EST_KEY", "CASE_ACT_USER_ID", "CASE_ACT_USER_TYPE_CODE", "CASE_ACT_OFFC_TYPE_CODE", "RLT_CASE_KEY", "CASE_PRIOR_CODE", "RESP_OFCR_USER_ID", "CASE_STS_CODE", "CASE_CNFRM_DATE", "CASE_RPLY_CNT", "LAST_CASE_RPLY_DATE", "DVC_REC_TXN_ID", "CUST_RQS_TXN_ID", "RLT_CASE_TXN_ID", "CLS_CASE_IND", "CASE_ITEM_KEY", "RPT_CASE_TYPE_KEY", "ACTL_CASE_TYPE_KEY", "CASE_CRE_HSE_EST_OFFC_KEY", "CASE_ACT_HSE_EST_OFFC_KEY", "REPT_CASE_IND")
+        ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: input_MPLT_LKP_HSE_UNIT_KEY")
         # Expression: input_MPLT_LKP_HSE_UNIT_KEY
-        df_mplt_input_7 = df_exp_6
-        df_mplt_input_7 = df_mplt_input_7.withColumn("IN_CMS_HSE_UNIT_KEY", expr("ACTL_CMS_HSE_UNIT_KEY"))
-        ctx.register_df("df_mplt_input_7", df_mplt_input_7)
+        df_mplt_input_1 = df_EXPTRANS
+        df_mplt_input_1 = df_mplt_input_1.withColumn("IN_CMS_HSE_UNIT_KEY", expr("ACTL_CMS_HSE_UNIT_KEY"))
+        ctx.register_df("df_mplt_input_1", df_mplt_input_1)
         
         logger.info("Step: read_mplt_LKPTRANS_SOR_CMS_HSE_UNIT")
         # Reading Data From Source - read_mplt_LKPTRANS_SOR_CMS_HSE_UNIT
@@ -230,34 +212,34 @@ from SOR_CMS_HSE_UNIT_STS a
 where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and end_date"""
         query = query.replace("$$v_rpt_date", v_rpt_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_mplt_lkp_8 = lib.read_sql(spark, _conn, query=query)
+        df_mplt_lkp_2 = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_mplt_LKPTRANS_SOR_CMS_HSE_UNIT")
         # Lookup: apply_mplt_LKPTRANS_SOR_CMS_HSE_UNIT
-        # Join condition: ACTL_CMS_HSE_UNIT_KEY=CMS_HSE_UNIT_KEY        
-        df_mplt_join_9 = df_mplt_input_7.join(
-            broadcast(df_mplt_lkp_8),
-            (df_mplt_input_7["ACTL_CMS_HSE_UNIT_KEY"] == df_mplt_lkp_8["CMS_HSE_UNIT_KEY"]),
+        # Join condition: ACTL_CMS_HSE_UNIT_KEY=CMS_HSE_UNIT_KEY
+        df_mplt_join_3 = df_mplt_input_1.join(
+            broadcast(df_mplt_lkp_2),
+            (df_mplt_input_1["ACTL_CMS_HSE_UNIT_KEY"] == df_mplt_lkp_2["CMS_HSE_UNIT_KEY"]),
             "left"
         )
-        ctx.register_df("df_mplt_join_9", df_mplt_join_9)
+        ctx.register_df("df_mplt_join_3", df_mplt_join_3)
         
         logger.info("Step: apply_MPLT_LKP_HSE_UNIT_KEY")
         # Expression: apply_MPLT_LKP_HSE_UNIT_KEY
-        df_mplt_10 = df_mplt_join_9
-        ctx.register_df("df_mplt_10", df_mplt_10)
+        df_MPLT_LKP_HSE_UNIT_KEY = df_mplt_join_3
+        ctx.register_df("df_MPLT_LKP_HSE_UNIT_KEY", df_MPLT_LKP_HSE_UNIT_KEY)
         
         logger.info("Step: input_MPLT_GET_CASE_TYPE_SCD_KEY")
         # Expression: input_MPLT_GET_CASE_TYPE_SCD_KEY
-        df_mplt_input_11 = df_exp_6
-        df_mplt_input_11 = df_mplt_input_11.withColumn("IN_CASE_TYPE_KEY", expr("ACTL_CASE_TYPE_KEY"))
-        ctx.register_df("df_mplt_input_11", df_mplt_input_11)
+        df_mplt_input_4 = df_EXPTRANS
+        df_mplt_input_4 = df_mplt_input_4.withColumn("IN_CASE_TYPE_KEY", expr("ACTL_CASE_TYPE_KEY"))
+        ctx.register_df("df_mplt_input_4", df_mplt_input_4)
         
         logger.info("Step: apply_mplt_EXPTRANS")
         # Expression: apply_mplt_EXPTRANS
-        df_mplt_expr_12 = df_mplt_input_11
-        df_mplt_expr_12 = df_mplt_expr_12.withColumn("IN_CASE_TYPE_KEY", expr("ACTL_CASE_TYPE_KEY"))
-        ctx.register_df("df_mplt_expr_12", df_mplt_expr_12)
+        df_mplt_expr_5 = df_mplt_input_4
+        df_mplt_expr_5 = df_mplt_expr_5.withColumn("IN_CASE_TYPE_KEY", expr("ACTL_CASE_TYPE_KEY"))
+        ctx.register_df("df_mplt_expr_5", df_mplt_expr_5)
         
         logger.info("Step: read_mplt_LKPTRANS_SOR_CMS_REF_CASE_TYPE1")
         # Reading Data From Source - read_mplt_LKPTRANS_SOR_CMS_REF_CASE_TYPE1
@@ -270,17 +252,17 @@ from SOR_CMS_REF_CASE_TYPE_STS a
 where last_day(to_date( '$$v_rpt_date', 'YYYYMMDD')) between bgn_date and end_date"""
         query = query.replace("$$v_rpt_date", v_rpt_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_mplt_lkp_13 = lib.read_sql(spark, _conn, query=query)
+        df_mplt_lkp_6 = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_mplt_LKPTRANS_SOR_CMS_REF_CASE_TYPE1")
         # Lookup: apply_mplt_LKPTRANS_SOR_CMS_REF_CASE_TYPE1
-        # Join condition: ACTL_CASE_TYPE_KEY=CASE_TYPE_KEY        
-        df_mplt_join_14 = df_mplt_expr_12.join(
-            broadcast(df_mplt_lkp_13),
-            (df_mplt_expr_12["ACTL_CASE_TYPE_KEY"] == df_mplt_lkp_13["CASE_TYPE_KEY"]),
+        # Join condition: ACTL_CASE_TYPE_KEY=CASE_TYPE_KEY
+        df_mplt_join_7 = df_mplt_expr_5.join(
+            broadcast(df_mplt_lkp_6),
+            (df_mplt_expr_5["ACTL_CASE_TYPE_KEY"] == df_mplt_lkp_6["CASE_TYPE_KEY"]),
             "left"
         )
-        ctx.register_df("df_mplt_join_14", df_mplt_join_14)
+        ctx.register_df("df_mplt_join_7", df_mplt_join_7)
         
         logger.info("Step: read_mplt_LKPTRANS_SOR_CMS_REF_CASE_TYPE")
         # Reading Data From Source - read_mplt_LKPTRANS_SOR_CMS_REF_CASE_TYPE
@@ -293,24 +275,57 @@ from SOR_CMS_REF_CASE_TYPE_STS a
 where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and end_date"""
         query = query.replace("$$v_rpt_date", v_rpt_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_mplt_lkp_15 = lib.read_sql(spark, _conn, query=query)
+        df_mplt_lkp_8 = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_mplt_LKPTRANS_SOR_CMS_REF_CASE_TYPE")
         # Lookup: apply_mplt_LKPTRANS_SOR_CMS_REF_CASE_TYPE
-        # Join condition: ACTL_CASE_TYPE_KEY=CASE_TYPE_KEY        
-        df_mplt_join_16 = df_mplt_expr_12.join(
-            broadcast(df_mplt_lkp_15),
-            (df_mplt_expr_12["ACTL_CASE_TYPE_KEY"] == df_mplt_lkp_15["CASE_TYPE_KEY"]),
+        # Join condition: ACTL_CASE_TYPE_KEY=CASE_TYPE_KEY
+        df_mplt_join_9 = df_mplt_expr_5.join(
+            broadcast(df_mplt_lkp_8),
+            (df_mplt_expr_5["ACTL_CASE_TYPE_KEY"] == df_mplt_lkp_8["CASE_TYPE_KEY"]),
             "left"
         )
-        ctx.register_df("df_mplt_join_16", df_mplt_join_16)
+        ctx.register_df("df_mplt_join_9", df_mplt_join_9)
+        
+        logger.info("Step: join_mplt_EXPTRANS1_0")
+        # Lookup: join_mplt_EXPTRANS1_0
+        # Merge parallel DataFrames on their common columns
+        _common_cols = [c for c in df_mplt_join_7.columns if c in df_mplt_join_9.columns]
+        df_mplt_merge_10 = df_mplt_join_7.join(
+            df_mplt_join_9,
+            on=_common_cols,
+            how="left"
+        )
+        ctx.register_df("df_mplt_merge_10", df_mplt_merge_10)
+        
+        logger.info("Step: join_mplt_EXPTRANS1_1")
+        # Lookup: join_mplt_EXPTRANS1_1
+        # Merge parallel DataFrames on their common columns
+        _common_cols = [c for c in df_mplt_merge_10.columns if c in df_mplt_join_9.columns]
+        df_mplt_merge_11 = df_mplt_merge_10.join(
+            df_mplt_join_9,
+            on=_common_cols,
+            how="left"
+        )
+        ctx.register_df("df_mplt_merge_11", df_mplt_merge_11)
+        
+        logger.info("Step: join_mplt_EXPTRANS1_2")
+        # Lookup: join_mplt_EXPTRANS1_2
+        # Merge parallel DataFrames on their common columns
+        _common_cols = [c for c in df_mplt_merge_11.columns if c in df_mplt_input_4.columns]
+        df_mplt_merge_12 = df_mplt_merge_11.join(
+            df_mplt_input_4,
+            on=_common_cols,
+            how="left"
+        )
+        ctx.register_df("df_mplt_merge_12", df_mplt_merge_12)
         
         logger.info("Step: apply_mplt_EXPTRANS1")
         # Expression: apply_mplt_EXPTRANS1
-        df_mplt_expr_17 = df_mplt_join_14
-        df_mplt_expr_17 = df_mplt_expr_17.withColumn("CASE_CATG_KEY", expr("CASE WHEN ((CASE_CATG_KEY IS NULL)) THEN CASE_CATG_KEY ELSE CASE_CATG_KEY END"))
-        df_mplt_expr_17 = df_mplt_expr_17.withColumn("CASE_TYPE_PATH_TEXT", expr("CASE WHEN ((CASE_TYPE_PATH_TEXT IS NULL)) THEN CASE_TYPE_PATH_TEXT ELSE CASE_TYPE_PATH_TEXT END"))
-        ctx.register_df("df_mplt_expr_17", df_mplt_expr_17)
+        df_mplt_expr_13 = df_mplt_merge_12
+        df_mplt_expr_13 = df_mplt_expr_13.withColumn("CASE_CATG_KEY", expr("CASE WHEN ((CASE_CATG_KEY IS NULL)) THEN CASE_CATG_KEY ELSE CASE_CATG_KEY END"))
+        df_mplt_expr_13 = df_mplt_expr_13.withColumn("CASE_TYPE_PATH_TEXT", expr("CASE WHEN ((CASE_TYPE_PATH_TEXT IS NULL)) THEN CASE_TYPE_PATH_TEXT ELSE CASE_TYPE_PATH_TEXT END"))
+        ctx.register_df("df_mplt_expr_13", df_mplt_expr_13)
         
         logger.info("Step: read_mplt_LKPTRANS_SOR_CMS_SRF_CASE_CATG")
         # Reading Data From Source - read_mplt_LKPTRANS_SOR_CMS_SRF_CASE_CATG
@@ -322,17 +337,18 @@ from SOR_CMS_SRF_CASE_CATG_STS a
 where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and end_date"""
         query = query.replace("$$v_rpt_date", v_rpt_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_mplt_lkp_18 = lib.read_sql(spark, _conn, query=query)
+        df_mplt_lkp_14 = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_mplt_LKPTRANS_SOR_CMS_SRF_CASE_CATG")
         # Lookup: apply_mplt_LKPTRANS_SOR_CMS_SRF_CASE_CATG
-        # Join condition: CASE_CATG_KEY=CASE_CATG_KEY        
-        df_mplt_join_19 = df_mplt_expr_17.join(
-            broadcast(df_mplt_lkp_18),
-            (df_mplt_expr_17["CASE_CATG_KEY"] == df_mplt_lkp_18["CASE_CATG_KEY"]),
-            "left"
+        # Join on common column: CASE_CATG_KEY
+
+        df_mplt_join_15 = df_mplt_expr_13.join(
+            broadcast(df_mplt_lkp_14),
+            on="CASE_CATG_KEY",
+            how="left"
         )
-        ctx.register_df("df_mplt_join_19", df_mplt_join_19)
+        ctx.register_df("df_mplt_join_15", df_mplt_join_15)
         
         logger.info("Step: read_mplt_LKPTRANS_DDS_DMNS_CMS_CASE_TYPE")
         # Reading Data From Source - read_mplt_LKPTRANS_DDS_DMNS_CMS_CASE_TYPE
@@ -344,17 +360,18 @@ from DDS_DMNS_CMS_CASE_TYPE a
 where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and end_date"""
         query = query.replace("$$v_rpt_date", v_rpt_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_mplt_lkp_20 = lib.read_sql(spark, _conn, query=query)
+        df_mplt_lkp_16 = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_mplt_LKPTRANS_DDS_DMNS_CMS_CASE_TYPE")
         # Lookup: apply_mplt_LKPTRANS_DDS_DMNS_CMS_CASE_TYPE
-        # Join condition: CASE_TYPE_PATH_TEXT=CASE_TYPE_PATH_TEXT        
-        df_mplt_join_21 = df_mplt_expr_17.join(
-            broadcast(df_mplt_lkp_20),
-            (df_mplt_expr_17["CASE_TYPE_PATH_TEXT"] == df_mplt_lkp_20["CASE_TYPE_PATH_TEXT"]),
-            "left"
+        # Join on common column: CASE_TYPE_PATH_TEXT
+
+        df_mplt_join_17 = df_mplt_expr_13.join(
+            broadcast(df_mplt_lkp_16),
+            on="CASE_TYPE_PATH_TEXT",
+            how="left"
         )
-        ctx.register_df("df_mplt_join_21", df_mplt_join_21)
+        ctx.register_df("df_mplt_join_17", df_mplt_join_17)
         
         logger.info("Step: read_mplt_LKPTRANS_DDS_DMNS_CMS_CASE_CATG")
         # Reading Data From Source - read_mplt_LKPTRANS_DDS_DMNS_CMS_CASE_CATG
@@ -366,39 +383,40 @@ from DDS_DMNS_CMS_CASE_CATG a
 where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and end_date"""
         query = query.replace("$$v_rpt_date", v_rpt_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_mplt_lkp_22 = lib.read_sql(spark, _conn, query=query)
+        df_mplt_lkp_18 = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_mplt_LKPTRANS_DDS_DMNS_CMS_CASE_CATG")
         # Lookup: apply_mplt_LKPTRANS_DDS_DMNS_CMS_CASE_CATG
-        # Join condition: CASE_CATG_CODE=CASE_CATG_CODE        
-        df_mplt_join_23 = df_mplt_join_19.join(
-            broadcast(df_mplt_lkp_22),
-            (df_mplt_join_19["CASE_CATG_CODE"] == df_mplt_lkp_22["CASE_CATG_CODE"]),
-            "left"
+        # Join on common column: CASE_CATG_CODE
+
+        df_mplt_join_19 = df_mplt_join_15.join(
+            broadcast(df_mplt_lkp_18),
+            on="CASE_CATG_CODE",
+            how="left"
         )
-        ctx.register_df("df_mplt_join_23", df_mplt_join_23)
+        ctx.register_df("df_mplt_join_19", df_mplt_join_19)
         
         logger.info("Step: join_output_MPLT_GET_CASE_TYPE_SCD_KEY_0")
         # Lookup: join_output_MPLT_GET_CASE_TYPE_SCD_KEY_0
         # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_mplt_join_23.columns if c in df_mplt_join_21.columns]
-        df_mplt_merge_24 = df_mplt_join_23.join(
-            df_mplt_join_21,
+        _common_cols = [c for c in df_mplt_join_19.columns if c in df_mplt_join_17.columns]
+        df_mplt_merge_20 = df_mplt_join_19.join(
+            df_mplt_join_17,
             on=_common_cols,
             how="left"
         )
-        ctx.register_df("df_mplt_merge_24", df_mplt_merge_24)
+        ctx.register_df("df_mplt_merge_20", df_mplt_merge_20)
         
         logger.info("Step: apply_MPLT_GET_CASE_TYPE_SCD_KEY")
         # Expression: apply_MPLT_GET_CASE_TYPE_SCD_KEY
-        df_mplt_25 = df_mplt_merge_24
-        ctx.register_df("df_mplt_25", df_mplt_25)
+        df_MPLT_GET_CASE_TYPE_SCD_KEY = df_mplt_merge_20
+        ctx.register_df("df_MPLT_GET_CASE_TYPE_SCD_KEY", df_MPLT_GET_CASE_TYPE_SCD_KEY)
         
         logger.info("Step: input_MPLT_LKP_EST_CODE")
         # Expression: input_MPLT_LKP_EST_CODE
-        df_mplt_input_26 = df_exp_6
-        df_mplt_input_26 = df_mplt_input_26.withColumn("IN_CMS_HSE_EST_KEY", expr("ACTL_CMS_HSE_EST_KEY"))
-        ctx.register_df("df_mplt_input_26", df_mplt_input_26)
+        df_mplt_input_21 = df_EXPTRANS
+        df_mplt_input_21 = df_mplt_input_21.withColumn("IN_CMS_HSE_EST_KEY", expr("ACTL_CMS_HSE_EST_KEY"))
+        ctx.register_df("df_mplt_input_21", df_mplt_input_21)
         
         logger.info("Step: read_mplt_LKPTRANS_SOR_CMS_HSE_EST_STS")
         # Reading Data From Source - read_mplt_LKPTRANS_SOR_CMS_HSE_EST_STS
@@ -411,28 +429,28 @@ from SOR_CMS_HSE_EST_STS a
 where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and end_date"""
         query = query.replace("$$v_rpt_date", v_rpt_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_mplt_lkp_27 = lib.read_sql(spark, _conn, query=query)
+        df_mplt_lkp_22 = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_mplt_LKPTRANS_SOR_CMS_HSE_EST_STS")
         # Lookup: apply_mplt_LKPTRANS_SOR_CMS_HSE_EST_STS
-        # Join condition: ACTL_CMS_HSE_EST_KEY=CMS_HSE_EST_KEY        
-        df_mplt_join_28 = df_mplt_input_26.join(
-            broadcast(df_mplt_lkp_27),
-            (df_mplt_input_26["ACTL_CMS_HSE_EST_KEY"] == df_mplt_lkp_27["CMS_HSE_EST_KEY"]),
+        # Join condition: ACTL_CMS_HSE_EST_KEY=CMS_HSE_EST_KEY
+        df_mplt_join_23 = df_mplt_input_21.join(
+            broadcast(df_mplt_lkp_22),
+            (df_mplt_input_21["ACTL_CMS_HSE_EST_KEY"] == df_mplt_lkp_22["CMS_HSE_EST_KEY"]),
             "left"
         )
-        ctx.register_df("df_mplt_join_28", df_mplt_join_28)
+        ctx.register_df("df_mplt_join_23", df_mplt_join_23)
         
         logger.info("Step: apply_MPLT_LKP_EST_CODE")
         # Expression: apply_MPLT_LKP_EST_CODE
-        df_mplt_29 = df_mplt_join_28
-        ctx.register_df("df_mplt_29", df_mplt_29)
+        df_MPLT_LKP_EST_CODE = df_mplt_join_23
+        ctx.register_df("df_MPLT_LKP_EST_CODE", df_MPLT_LKP_EST_CODE)
         
         logger.info("Step: input_MPLT_LKP_BLK_CODE")
         # Expression: input_MPLT_LKP_BLK_CODE
-        df_mplt_input_30 = df_exp_6
-        df_mplt_input_30 = df_mplt_input_30.withColumn("IN_CMS_HSE_BLK_KEY", expr("ACTL_CMS_HSE_BLK_KEY"))
-        ctx.register_df("df_mplt_input_30", df_mplt_input_30)
+        df_mplt_input_24 = df_EXPTRANS
+        df_mplt_input_24 = df_mplt_input_24.withColumn("IN_CMS_HSE_BLK_KEY", expr("ACTL_CMS_HSE_BLK_KEY"))
+        ctx.register_df("df_mplt_input_24", df_mplt_input_24)
         
         logger.info("Step: read_mplt_LKPTRANS_SOR_CMS_HSE_BLK_STS")
         # Reading Data From Source - read_mplt_LKPTRANS_SOR_CMS_HSE_BLK_STS
@@ -444,34 +462,34 @@ from SOR_CMS_HSE_BLK_STS a
 where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and end_date"""
         query = query.replace("$$v_rpt_date", v_rpt_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_mplt_lkp_31 = lib.read_sql(spark, _conn, query=query)
+        df_mplt_lkp_25 = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_mplt_LKPTRANS_SOR_CMS_HSE_BLK_STS")
         # Lookup: apply_mplt_LKPTRANS_SOR_CMS_HSE_BLK_STS
-        # Join condition: ACTL_CMS_HSE_BLK_KEY=CMS_HSE_BLK_KEY        
-        df_mplt_join_32 = df_mplt_input_30.join(
-            broadcast(df_mplt_lkp_31),
-            (df_mplt_input_30["ACTL_CMS_HSE_BLK_KEY"] == df_mplt_lkp_31["CMS_HSE_BLK_KEY"]),
+        # Join condition: ACTL_CMS_HSE_BLK_KEY=CMS_HSE_BLK_KEY
+        df_mplt_join_26 = df_mplt_input_24.join(
+            broadcast(df_mplt_lkp_25),
+            (df_mplt_input_24["ACTL_CMS_HSE_BLK_KEY"] == df_mplt_lkp_25["CMS_HSE_BLK_KEY"]),
             "left"
         )
-        ctx.register_df("df_mplt_join_32", df_mplt_join_32)
+        ctx.register_df("df_mplt_join_26", df_mplt_join_26)
         
         logger.info("Step: apply_MPLT_LKP_BLK_CODE")
         # Expression: apply_MPLT_LKP_BLK_CODE
-        df_mplt_33 = df_mplt_join_32
-        ctx.register_df("df_mplt_33", df_mplt_33)
+        df_MPLT_LKP_BLK_CODE = df_mplt_join_26
+        ctx.register_df("df_MPLT_LKP_BLK_CODE", df_MPLT_LKP_BLK_CODE)
         
         logger.info("Step: input_MPLT_LKP_CHNL_CODE")
         # Expression: input_MPLT_LKP_CHNL_CODE
-        df_mplt_input_34 = df_exp_6
-        df_mplt_input_34 = df_mplt_input_34.withColumn("IN_CUST_RQS_KEY", expr("CUST_RQS_KEY"))
-        ctx.register_df("df_mplt_input_34", df_mplt_input_34)
+        df_mplt_input_27 = df_EXPTRANS
+        df_mplt_input_27 = df_mplt_input_27.withColumn("IN_CUST_RQS_KEY", expr("CUST_RQS_KEY"))
+        ctx.register_df("df_mplt_input_27", df_mplt_input_27)
         
         logger.info("Step: apply_mplt_EXPTRANS")
         # Expression: apply_mplt_EXPTRANS
-        df_mplt_expr_35 = df_mplt_input_34
-        df_mplt_expr_35 = df_mplt_expr_35.withColumn("IN_CUST_RQS_KEY", expr("CUST_RQS_KEY"))
-        ctx.register_df("df_mplt_expr_35", df_mplt_expr_35)
+        df_mplt_expr_28 = df_mplt_input_27
+        df_mplt_expr_28 = df_mplt_expr_28.withColumn("IN_CUST_RQS_KEY", expr("CUST_RQS_KEY"))
+        ctx.register_df("df_mplt_expr_28", df_mplt_expr_28)
         
         logger.info("Step: read_mplt_LKPTRANS_SOR_CMS_CUST_RQS1")
         # Reading Data From Source - read_mplt_LKPTRANS_SOR_CMS_CUST_RQS1
@@ -484,17 +502,18 @@ from SOR_CMS_CUST_RQS_STS a
 where last_day(to_date( '$$v_rpt_date', 'YYYYMMDD')) between bgn_date and end_date"""
         query = query.replace("$$v_rpt_date", v_rpt_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_mplt_lkp_36 = lib.read_sql(spark, _conn, query=query)
+        df_mplt_lkp_29 = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_mplt_LKPTRANS_SOR_CMS_CUST_RQS1")
         # Lookup: apply_mplt_LKPTRANS_SOR_CMS_CUST_RQS1
-        # Join condition: CUST_RQS_KEY=CUST_RQS_KEY        
-        df_mplt_join_37 = df_mplt_expr_35.join(
-            broadcast(df_mplt_lkp_36),
-            (df_mplt_expr_35["CUST_RQS_KEY"] == df_mplt_lkp_36["CUST_RQS_KEY"]),
-            "left"
+        # Join on common column: CUST_RQS_KEY
+
+        df_mplt_join_30 = df_mplt_expr_28.join(
+            broadcast(df_mplt_lkp_29),
+            on="CUST_RQS_KEY",
+            how="left"
         )
-        ctx.register_df("df_mplt_join_37", df_mplt_join_37)
+        ctx.register_df("df_mplt_join_30", df_mplt_join_30)
         
         logger.info("Step: read_mplt_LKPTRANS_SOR_CMS_CUST_RQS")
         # Reading Data From Source - read_mplt_LKPTRANS_SOR_CMS_CUST_RQS
@@ -507,53 +526,87 @@ from SOR_CMS_CUST_RQS_STS a
 where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and end_date"""
         query = query.replace("$$v_rpt_date", v_rpt_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_mplt_lkp_38 = lib.read_sql(spark, _conn, query=query)
+        df_mplt_lkp_31 = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_mplt_LKPTRANS_SOR_CMS_CUST_RQS")
         # Lookup: apply_mplt_LKPTRANS_SOR_CMS_CUST_RQS
-        # Join condition: CUST_RQS_KEY=CUST_RQS_KEY        
-        df_mplt_join_39 = df_mplt_expr_35.join(
-            broadcast(df_mplt_lkp_38),
-            (df_mplt_expr_35["CUST_RQS_KEY"] == df_mplt_lkp_38["CUST_RQS_KEY"]),
-            "left"
+        # Join on common column: CUST_RQS_KEY
+
+        df_mplt_join_32 = df_mplt_expr_28.join(
+            broadcast(df_mplt_lkp_31),
+            on="CUST_RQS_KEY",
+            how="left"
         )
-        ctx.register_df("df_mplt_join_39", df_mplt_join_39)
+        ctx.register_df("df_mplt_join_32", df_mplt_join_32)
+        
+        logger.info("Step: join_mplt_EXPTRANS1_0")
+        # Lookup: join_mplt_EXPTRANS1_0
+        # Merge parallel DataFrames on their common columns
+        _common_cols = [c for c in df_mplt_join_30.columns if c in df_mplt_join_32.columns]
+        df_mplt_merge_33 = df_mplt_join_30.join(
+            df_mplt_join_32,
+            on=_common_cols,
+            how="left"
+        )
+        ctx.register_df("df_mplt_merge_33", df_mplt_merge_33)
+        
+        logger.info("Step: join_mplt_EXPTRANS1_1")
+        # Lookup: join_mplt_EXPTRANS1_1
+        # Merge parallel DataFrames on their common columns
+        _common_cols = [c for c in df_mplt_merge_33.columns if c in df_mplt_join_32.columns]
+        df_mplt_merge_34 = df_mplt_merge_33.join(
+            df_mplt_join_32,
+            on=_common_cols,
+            how="left"
+        )
+        ctx.register_df("df_mplt_merge_34", df_mplt_merge_34)
+        
+        logger.info("Step: join_mplt_EXPTRANS1_2")
+        # Lookup: join_mplt_EXPTRANS1_2
+        # Merge parallel DataFrames on their common columns
+        _common_cols = [c for c in df_mplt_merge_34.columns if c in df_mplt_input_27.columns]
+        df_mplt_merge_35 = df_mplt_merge_34.join(
+            df_mplt_input_27,
+            on=_common_cols,
+            how="left"
+        )
+        ctx.register_df("df_mplt_merge_35", df_mplt_merge_35)
         
         logger.info("Step: apply_mplt_EXPTRANS1")
         # Expression: apply_mplt_EXPTRANS1
-        df_mplt_expr_40 = df_mplt_join_37
-        df_mplt_expr_40 = df_mplt_expr_40.withColumn("CUST_RQS_INCMG_CHNL_CODE", expr("CASE WHEN ((CUST_RQS_INCMG_CHNL_CODE IS NULL)) THEN CUST_RQS_INCMG_CHNL_CODE ELSE CUST_RQS_INCMG_CHNL_CODE END"))
-        df_mplt_expr_40 = df_mplt_expr_40.withColumn("RCPT_PRN_DATE", expr("CASE WHEN ((RCPT_PRN_DATE IS NULL)) THEN RCPT_PRN_DATE ELSE RCPT_PRN_DATE END"))
-        df_mplt_expr_40 = df_mplt_expr_40.withColumn("IN_RCPT_PRN_DATE", expr("RCPT_PRN_DATE"))
-        df_mplt_expr_40 = df_mplt_expr_40.withColumn("IN_RCPT_PRN_DATE1", expr("RCPT_PRN_DATE"))
-        ctx.register_df("df_mplt_expr_40", df_mplt_expr_40)
+        df_mplt_expr_36 = df_mplt_merge_35
+        df_mplt_expr_36 = df_mplt_expr_36.withColumn("CUST_RQS_INCMG_CHNL_CODE", expr("CASE WHEN ((CUST_RQS_INCMG_CHNL_CODE IS NULL)) THEN CUST_RQS_INCMG_CHNL_CODE ELSE CUST_RQS_INCMG_CHNL_CODE END"))
+        df_mplt_expr_36 = df_mplt_expr_36.withColumn("RCPT_PRN_DATE", expr("CASE WHEN ((RCPT_PRN_DATE IS NULL)) THEN RCPT_PRN_DATE ELSE RCPT_PRN_DATE END"))
+        df_mplt_expr_36 = df_mplt_expr_36.withColumn("IN_RCPT_PRN_DATE", expr("RCPT_PRN_DATE"))
+        df_mplt_expr_36 = df_mplt_expr_36.withColumn("IN_RCPT_PRN_DATE1", expr("RCPT_PRN_DATE"))
+        ctx.register_df("df_mplt_expr_36", df_mplt_expr_36)
         
         logger.info("Step: apply_MPLT_LKP_CHNL_CODE")
         # Expression: apply_MPLT_LKP_CHNL_CODE
-        df_mplt_41 = df_mplt_expr_40
-        ctx.register_df("df_mplt_41", df_mplt_41)
+        df_MPLT_LKP_CHNL_CODE = df_mplt_expr_36
+        ctx.register_df("df_MPLT_LKP_CHNL_CODE", df_MPLT_LKP_CHNL_CODE)
         
         logger.info("Step: input_MPLT_GET_EST_OFFC_SCD_KEY")
         # Expression: input_MPLT_GET_EST_OFFC_SCD_KEY
-        df_mplt_input_42 = df_exp_6
-        df_mplt_input_42 = df_mplt_input_42.withColumn("IN_HSE_EST_OFFC_KEY", expr("CASE_ACT_HSE_EST_OFFC_KEY"))
-        ctx.register_df("df_mplt_input_42", df_mplt_input_42)
+        df_mplt_input_37 = df_EXPTRANS
+        df_mplt_input_37 = df_mplt_input_37.withColumn("IN_HSE_EST_OFFC_KEY", expr("CASE_ACT_HSE_EST_OFFC_KEY"))
+        ctx.register_df("df_mplt_input_37", df_mplt_input_37)
         
         logger.info("Step: read_mplt_LKPTRANS_SOR_CMS_HSE_EST_OFFC")
         # Reading Data From Source - read_mplt_LKPTRANS_SOR_CMS_HSE_EST_OFFC
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "SOR")
-        df_mplt_lkp_43 = lib.read_sql(spark, _conn, table="SOR_CMS_HSE_EST_OFFC")
+        df_mplt_lkp_38 = lib.read_sql(spark, _conn, table="SOR_CMS_HSE_EST_OFFC")
         
         logger.info("Step: apply_mplt_LKPTRANS_SOR_CMS_HSE_EST_OFFC")
         # Lookup: apply_mplt_LKPTRANS_SOR_CMS_HSE_EST_OFFC
-        # Join condition: CASE_ACT_HSE_EST_OFFC_KEY=HSE_EST_OFFC_KEY        
-        df_mplt_join_44 = df_mplt_input_42.join(
-            broadcast(df_mplt_lkp_43),
-            (df_mplt_input_42["CASE_ACT_HSE_EST_OFFC_KEY"] == df_mplt_lkp_43["HSE_EST_OFFC_KEY"]),
+        # Join condition: CASE_ACT_HSE_EST_OFFC_KEY=HSE_EST_OFFC_KEY
+        df_mplt_join_39 = df_mplt_input_37.join(
+            broadcast(df_mplt_lkp_38),
+            (df_mplt_input_37["CASE_ACT_HSE_EST_OFFC_KEY"] == df_mplt_lkp_38["HSE_EST_OFFC_KEY"]),
             "left"
         )
-        ctx.register_df("df_mplt_join_44", df_mplt_join_44)
+        ctx.register_df("df_mplt_join_39", df_mplt_join_39)
         
         logger.info("Step: read_mplt_LKPTRANS_DDS_DMNS_CMS_EST_OFFC")
         # Reading Data From Source - read_mplt_LKPTRANS_DDS_DMNS_CMS_EST_OFFC
@@ -565,49 +618,61 @@ from DDS_DMNS_CMS_EST_OFFC a
 where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and end_date"""
         query = query.replace("$$v_rpt_date", v_rpt_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_mplt_lkp_45 = lib.read_sql(spark, _conn, query=query)
+        df_mplt_lkp_40 = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_mplt_LKPTRANS_DDS_DMNS_CMS_EST_OFFC")
         # Lookup: apply_mplt_LKPTRANS_DDS_DMNS_CMS_EST_OFFC
-        # Join condition: CMS_HSE_EST_OFFC_KEY=CMS_HSE_EST_OFFC_KEY        
-        df_mplt_join_46 = df_mplt_join_44.join(
-            broadcast(df_mplt_lkp_45),
-            (df_mplt_join_44["CMS_HSE_EST_OFFC_KEY"] == df_mplt_lkp_45["CMS_HSE_EST_OFFC_KEY"]),
-            "left"
+        # Join on common column: CMS_HSE_EST_OFFC_KEY
+
+        df_mplt_join_41 = df_mplt_join_39.join(
+            broadcast(df_mplt_lkp_40),
+            on="CMS_HSE_EST_OFFC_KEY",
+            how="left"
         )
-        ctx.register_df("df_mplt_join_46", df_mplt_join_46)
+        ctx.register_df("df_mplt_join_41", df_mplt_join_41)
         
         logger.info("Step: apply_MPLT_GET_EST_OFFC_SCD_KEY")
         # Expression: apply_MPLT_GET_EST_OFFC_SCD_KEY
-        df_mplt_47 = df_mplt_join_46
-        ctx.register_df("df_mplt_47", df_mplt_47)
+        df_MPLT_GET_EST_OFFC_SCD_KEY = df_mplt_join_41
+        ctx.register_df("df_MPLT_GET_EST_OFFC_SCD_KEY", df_MPLT_GET_EST_OFFC_SCD_KEY)
         
         logger.info("Step: input_MPLT_GET_UNIT_SIZE_DMNS_KEY")
         # Expression: input_MPLT_GET_UNIT_SIZE_DMNS_KEY
-        df_mplt_input_48 = df_mplt_10
-        df_mplt_input_48 = df_mplt_input_48.withColumn("IN_EMS_CODE_ADDR", expr("EMS_CODE_ADDR"))
-        ctx.register_df("df_mplt_input_48", df_mplt_input_48)
+        df_mplt_input_42 = df_MPLT_LKP_HSE_UNIT_KEY
+        df_mplt_input_42 = df_mplt_input_42.withColumn("IN_EMS_CODE_ADDR", expr("EMS_CODE_ADDR"))
+        ctx.register_df("df_mplt_input_42", df_mplt_input_42)
         
         logger.info("Step: read_mplt_LKPTRANS_SOR_HSM_UNIT")
         # Reading Data From Source - read_mplt_LKPTRANS_SOR_HSM_UNIT
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "source_db")
-        df_mplt_lkp_49 = lib.read_sql(spark, _conn, table="SOR_HSM_UNIT")
+        df_mplt_lkp_43 = lib.read_sql(spark, _conn, table="SOR_HSM_UNIT")
         
         logger.info("Step: apply_mplt_LKPTRANS_SOR_HSM_UNIT")
         # Lookup: apply_mplt_LKPTRANS_SOR_HSM_UNIT
-        # Join condition: EMS_CODE_ADDR=UNIT_ADDR_CODE        
-        df_mplt_join_50 = df_mplt_input_48.join(
-            broadcast(df_mplt_lkp_49),
-            (df_mplt_input_48["EMS_CODE_ADDR"] == df_mplt_lkp_49["UNIT_ADDR_CODE"]),
+        # Join condition: EMS_CODE_ADDR=UNIT_ADDR_CODE
+        df_mplt_join_44 = df_mplt_input_42.join(
+            broadcast(df_mplt_lkp_43),
+            (df_mplt_input_42["EMS_CODE_ADDR"] == df_mplt_lkp_43["UNIT_ADDR_CODE"]),
             "left"
         )
-        ctx.register_df("df_mplt_join_50", df_mplt_join_50)
+        ctx.register_df("df_mplt_join_44", df_mplt_join_44)
+        
+        logger.info("Step: join_mplt_EXPTRANS_0")
+        # Lookup: join_mplt_EXPTRANS_0
+        # Merge parallel DataFrames on their common columns
+        _common_cols = [c for c in df_mplt_join_44.columns if c in df_mplt_input_42.columns]
+        df_mplt_merge_45 = df_mplt_join_44.join(
+            df_mplt_input_42,
+            on=_common_cols,
+            how="left"
+        )
+        ctx.register_df("df_mplt_merge_45", df_mplt_merge_45)
         
         logger.info("Step: apply_mplt_EXPTRANS")
         # Expression: apply_mplt_EXPTRANS
-        df_mplt_expr_51 = df_mplt_join_50
-        ctx.register_df("df_mplt_expr_51", df_mplt_expr_51)
+        df_mplt_expr_46 = df_mplt_merge_45
+        ctx.register_df("df_mplt_expr_46", df_mplt_expr_46)
         
         logger.info("Step: read_mplt_LKPTRANS_DDS_DMNS_UNIT_SIZE")
         # Reading Data From Source - read_mplt_LKPTRANS_DDS_DMNS_UNIT_SIZE
@@ -621,39 +686,39 @@ where a.UNIT_SIZE_MIN_AREA is not null
 or a.UNIT_SIZE_DMNS_KEY = 0"""
         query = query.replace("$$v_rpt_date", v_rpt_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_mplt_lkp_52 = lib.read_sql(spark, _conn, query=query)
+        df_mplt_lkp_47 = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_mplt_LKPTRANS_DDS_DMNS_UNIT_SIZE")
         # Lookup: apply_mplt_LKPTRANS_DDS_DMNS_UNIT_SIZE
-        df_mplt_join_53 = df_mplt_expr_51.join(
-            broadcast(df_mplt_lkp_52),
+        df_mplt_join_48 = df_mplt_expr_46.join(
+            broadcast(df_mplt_lkp_47),
             expr("UNIT_SIZE_MIN_AREA <= UNIT_IFA_AREA AND UNIT_SIZE_MAX_AREA > UNIT_IFA_AREA"),
             "left"
         )
-        ctx.register_df("df_mplt_join_53", df_mplt_join_53)
+        ctx.register_df("df_mplt_join_48", df_mplt_join_48)
         
         logger.info("Step: join_output_MPLT_GET_UNIT_SIZE_DMNS_KEY_0")
         # Lookup: join_output_MPLT_GET_UNIT_SIZE_DMNS_KEY_0
         # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_mplt_join_53.columns if c in df_mplt_expr_51.columns]
-        df_mplt_merge_54 = df_mplt_join_53.join(
-            df_mplt_expr_51,
+        _common_cols = [c for c in df_mplt_join_48.columns if c in df_mplt_expr_46.columns]
+        df_mplt_merge_49 = df_mplt_join_48.join(
+            df_mplt_expr_46,
             on=_common_cols,
             how="left"
         )
-        ctx.register_df("df_mplt_merge_54", df_mplt_merge_54)
+        ctx.register_df("df_mplt_merge_49", df_mplt_merge_49)
         
         logger.info("Step: apply_MPLT_GET_UNIT_SIZE_DMNS_KEY")
         # Expression: apply_MPLT_GET_UNIT_SIZE_DMNS_KEY
-        df_mplt_55 = df_mplt_merge_54
-        ctx.register_df("df_mplt_55", df_mplt_55)
+        df_MPLT_GET_UNIT_SIZE_DMNS_KEY = df_mplt_merge_49
+        ctx.register_df("df_MPLT_GET_UNIT_SIZE_DMNS_KEY", df_MPLT_GET_UNIT_SIZE_DMNS_KEY)
         
         logger.info("Step: input_MPLT_GET_CMS_EST_SCD_KEY")
         # Expression: input_MPLT_GET_CMS_EST_SCD_KEY
-        df_mplt_input_56 = df_mplt_29
-        df_mplt_input_56 = df_mplt_input_56.withColumn("IN_EST_CODE", expr("HSE_EST_CODE"))
-        df_mplt_input_56 = df_mplt_input_56.withColumn("IN_EST_TYPE_CODE", expr("HSE_EST_TYPE_CODE"))
-        ctx.register_df("df_mplt_input_56", df_mplt_input_56)
+        df_mplt_input_50 = df_MPLT_LKP_EST_CODE
+        df_mplt_input_50 = df_mplt_input_50.withColumn("IN_EST_CODE", expr("HSE_EST_CODE"))
+        df_mplt_input_50 = df_mplt_input_50.withColumn("IN_EST_TYPE_CODE", expr("HSE_EST_TYPE_CODE"))
+        ctx.register_df("df_mplt_input_50", df_mplt_input_50)
         
         logger.info("Step: read_mplt_LKPTRANS")
         # Reading Data From Source - read_mplt_LKPTRANS
@@ -666,34 +731,34 @@ from DDS_DMNS_CMS_EST a
 where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and end_date"""
         query = query.replace("$$v_rpt_date", v_rpt_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_mplt_lkp_57 = lib.read_sql(spark, _conn, query=query)
+        df_mplt_lkp_51 = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_mplt_LKPTRANS")
         # Lookup: apply_mplt_LKPTRANS
-        # Join condition: HSE_EST_CODE=EST_CODE AND HSE_EST_TYPE_CODE=EST_TYPE_CODE        
-        df_mplt_join_58 = df_mplt_input_56.join(
-            broadcast(df_mplt_lkp_57),
-            (df_mplt_input_56["HSE_EST_CODE"] == df_mplt_lkp_57["EST_CODE"]) &             (df_mplt_input_56["HSE_EST_TYPE_CODE"] == df_mplt_lkp_57["EST_TYPE_CODE"]),
+        # Join condition: HSE_EST_CODE=EST_CODE AND HSE_EST_TYPE_CODE=EST_TYPE_CODE
+        df_mplt_join_52 = df_mplt_input_50.join(
+            broadcast(df_mplt_lkp_51),
+            (df_mplt_input_50["HSE_EST_CODE"] == df_mplt_lkp_51["EST_CODE"]) &             (df_mplt_input_50["HSE_EST_TYPE_CODE"] == df_mplt_lkp_51["EST_TYPE_CODE"]),
             "left"
         )
-        ctx.register_df("df_mplt_join_58", df_mplt_join_58)
+        ctx.register_df("df_mplt_join_52", df_mplt_join_52)
         
         logger.info("Step: apply_MPLT_GET_CMS_EST_SCD_KEY")
         # Expression: apply_MPLT_GET_CMS_EST_SCD_KEY
-        df_mplt_59 = df_mplt_join_58
-        ctx.register_df("df_mplt_59", df_mplt_59)
+        df_MPLT_GET_CMS_EST_SCD_KEY = df_mplt_join_52
+        ctx.register_df("df_MPLT_GET_CMS_EST_SCD_KEY", df_MPLT_GET_CMS_EST_SCD_KEY)
         
         logger.info("Step: input_MPLT_GET_EST_SCD_KEY")
         # Expression: input_MPLT_GET_EST_SCD_KEY
-        df_mplt_input_60 = df_mplt_29
-        df_mplt_input_60 = df_mplt_input_60.withColumn("IN_HSE_EST_CODE", expr("HSE_EST_CODE"))
-        ctx.register_df("df_mplt_input_60", df_mplt_input_60)
+        df_mplt_input_53 = df_MPLT_LKP_EST_CODE
+        df_mplt_input_53 = df_mplt_input_53.withColumn("IN_HSE_EST_CODE", expr("HSE_EST_CODE"))
+        ctx.register_df("df_mplt_input_53", df_mplt_input_53)
         
         logger.info("Step: apply_mplt_EXPTRANS")
         # Expression: apply_mplt_EXPTRANS
-        df_mplt_expr_61 = df_mplt_input_60
-        df_mplt_expr_61 = df_mplt_expr_61.withColumn("IN_HSE_EST_CODE", expr("HSE_EST_CODE"))
-        ctx.register_df("df_mplt_expr_61", df_mplt_expr_61)
+        df_mplt_expr_54 = df_mplt_input_53
+        df_mplt_expr_54 = df_mplt_expr_54.withColumn("IN_HSE_EST_CODE", expr("HSE_EST_CODE"))
+        ctx.register_df("df_mplt_expr_54", df_mplt_expr_54)
         
         logger.info("Step: read_mplt_LKPTRANS")
         # Reading Data From Source - read_mplt_LKPTRANS
@@ -706,47 +771,47 @@ from DDS_HRCHY_EMS_EST a
 where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and end_date"""
         query = query.replace("$$v_rpt_date", v_rpt_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_mplt_lkp_62 = lib.read_sql(spark, _conn, query=query)
+        df_mplt_lkp_55 = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_mplt_LKPTRANS")
         # Lookup: apply_mplt_LKPTRANS
-        # Join condition: HSE_EST_CODE=EST_CODE        
-        df_mplt_join_63 = df_mplt_expr_61.join(
-            broadcast(df_mplt_lkp_62),
-            (df_mplt_expr_61["HSE_EST_CODE"] == df_mplt_lkp_62["EST_CODE"]),
+        # Join condition: HSE_EST_CODE=EST_CODE
+        df_mplt_join_56 = df_mplt_expr_54.join(
+            broadcast(df_mplt_lkp_55),
+            (df_mplt_expr_54["HSE_EST_CODE"] == df_mplt_lkp_55["EST_CODE"]),
             "left"
         )
-        ctx.register_df("df_mplt_join_63", df_mplt_join_63)
+        ctx.register_df("df_mplt_join_56", df_mplt_join_56)
         
         logger.info("Step: apply_MPLT_GET_EST_SCD_KEY")
         # Expression: apply_MPLT_GET_EST_SCD_KEY
-        df_mplt_64 = df_mplt_join_63
-        ctx.register_df("df_mplt_64", df_mplt_64)
+        df_MPLT_GET_EST_SCD_KEY = df_mplt_join_56
+        ctx.register_df("df_MPLT_GET_EST_SCD_KEY", df_MPLT_GET_EST_SCD_KEY)
         
         logger.info("Step: join_MPLT_GET_CMS_BLK_SCD_KEY_0")
         # Lookup: join_MPLT_GET_CMS_BLK_SCD_KEY_0
         # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_mplt_33.columns if c in df_mplt_29.columns]
-        df_mplt_merge_65 = df_mplt_33.join(
-            df_mplt_29,
+        _common_cols = [c for c in df_MPLT_LKP_BLK_CODE.columns if c in df_MPLT_LKP_EST_CODE.columns]
+        df_mplt_merge_57 = df_MPLT_LKP_BLK_CODE.join(
+            df_MPLT_LKP_EST_CODE,
             on=_common_cols,
             how="left"
         )
-        ctx.register_df("df_mplt_merge_65", df_mplt_merge_65)
+        ctx.register_df("df_mplt_merge_57", df_mplt_merge_57)
         
         logger.info("Step: input_MPLT_GET_CMS_BLK_SCD_KEY")
         # Expression: input_MPLT_GET_CMS_BLK_SCD_KEY
-        df_mplt_input_66 = df_mplt_merge_65
-        df_mplt_input_66 = df_mplt_input_66.withColumn("IN_EST_CODE", expr("HSE_EST_CODE"))
-        df_mplt_input_66 = df_mplt_input_66.withColumn("IN_BLK_CODE", expr("HSE_BLK_CODE"))
-        ctx.register_df("df_mplt_input_66", df_mplt_input_66)
+        df_mplt_input_58 = df_mplt_merge_57
+        df_mplt_input_58 = df_mplt_input_58.withColumn("IN_EST_CODE", expr("HSE_EST_CODE"))
+        df_mplt_input_58 = df_mplt_input_58.withColumn("IN_BLK_CODE", expr("HSE_BLK_CODE"))
+        ctx.register_df("df_mplt_input_58", df_mplt_input_58)
         
         logger.info("Step: apply_mplt_EXPTRANS")
         # Expression: apply_mplt_EXPTRANS
-        df_mplt_expr_67 = df_mplt_input_66
-        df_mplt_expr_67 = df_mplt_expr_67.withColumn("IN_EST_CODE", expr("HSE_EST_CODE"))
-        df_mplt_expr_67 = df_mplt_expr_67.withColumn("IN_BLK_CODE", expr("HSE_BLK_CODE"))
-        ctx.register_df("df_mplt_expr_67", df_mplt_expr_67)
+        df_mplt_expr_59 = df_mplt_input_58
+        df_mplt_expr_59 = df_mplt_expr_59.withColumn("IN_EST_CODE", expr("HSE_EST_CODE"))
+        df_mplt_expr_59 = df_mplt_expr_59.withColumn("IN_BLK_CODE", expr("HSE_BLK_CODE"))
+        ctx.register_df("df_mplt_expr_59", df_mplt_expr_59)
         
         logger.info("Step: read_mplt_LKPTRANS1")
         # Reading Data From Source - read_mplt_LKPTRANS1
@@ -759,40 +824,40 @@ from DDS_DMNS_CMS_BLK a
 where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and end_date"""
         query = query.replace("$$v_rpt_date", v_rpt_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_mplt_lkp_68 = lib.read_sql(spark, _conn, query=query)
+        df_mplt_lkp_60 = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_mplt_LKPTRANS1")
         # Lookup: apply_mplt_LKPTRANS1
-        # Join condition: HSE_EST_CODE=EST_CODE AND HSE_BLK_CODE=BLK_CODE        
-        df_mplt_join_69 = df_mplt_expr_67.join(
-            broadcast(df_mplt_lkp_68),
-            (df_mplt_expr_67["HSE_EST_CODE"] == df_mplt_lkp_68["EST_CODE"]) &             (df_mplt_expr_67["HSE_BLK_CODE"] == df_mplt_lkp_68["BLK_CODE"]),
+        # Join condition: HSE_EST_CODE=EST_CODE AND HSE_BLK_CODE=BLK_CODE
+        df_mplt_join_61 = df_mplt_expr_59.join(
+            broadcast(df_mplt_lkp_60),
+            (df_mplt_expr_59["HSE_EST_CODE"] == df_mplt_lkp_60["EST_CODE"]) &             (df_mplt_expr_59["HSE_BLK_CODE"] == df_mplt_lkp_60["BLK_CODE"]),
             "left"
         )
-        ctx.register_df("df_mplt_join_69", df_mplt_join_69)
+        ctx.register_df("df_mplt_join_61", df_mplt_join_61)
         
         logger.info("Step: apply_MPLT_GET_CMS_BLK_SCD_KEY")
         # Expression: apply_MPLT_GET_CMS_BLK_SCD_KEY
-        df_mplt_70 = df_mplt_join_69
-        ctx.register_df("df_mplt_70", df_mplt_70)
+        df_MPLT_GET_CMS_BLK_SCD_KEY = df_mplt_join_61
+        ctx.register_df("df_MPLT_GET_CMS_BLK_SCD_KEY", df_MPLT_GET_CMS_BLK_SCD_KEY)
         
         logger.info("Step: join_MPLT_GET_BLK_SCD_KEY_0")
         # Lookup: join_MPLT_GET_BLK_SCD_KEY_0
         # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_mplt_33.columns if c in df_mplt_29.columns]
-        df_mplt_merge_71 = df_mplt_33.join(
-            df_mplt_29,
+        _common_cols = [c for c in df_MPLT_LKP_BLK_CODE.columns if c in df_MPLT_LKP_EST_CODE.columns]
+        df_mplt_merge_62 = df_MPLT_LKP_BLK_CODE.join(
+            df_MPLT_LKP_EST_CODE,
             on=_common_cols,
             how="left"
         )
-        ctx.register_df("df_mplt_merge_71", df_mplt_merge_71)
+        ctx.register_df("df_mplt_merge_62", df_mplt_merge_62)
         
         logger.info("Step: input_MPLT_GET_BLK_SCD_KEY")
         # Expression: input_MPLT_GET_BLK_SCD_KEY
-        df_mplt_input_72 = df_mplt_merge_71
-        df_mplt_input_72 = df_mplt_input_72.withColumn("IN_HSE_EST_CODE", expr("HSE_EST_CODE"))
-        df_mplt_input_72 = df_mplt_input_72.withColumn("IN_HSE_BLK_CODE", expr("HSE_BLK_CODE"))
-        ctx.register_df("df_mplt_input_72", df_mplt_input_72)
+        df_mplt_input_63 = df_mplt_merge_62
+        df_mplt_input_63 = df_mplt_input_63.withColumn("IN_HSE_EST_CODE", expr("HSE_EST_CODE"))
+        df_mplt_input_63 = df_mplt_input_63.withColumn("IN_HSE_BLK_CODE", expr("HSE_BLK_CODE"))
+        ctx.register_df("df_mplt_input_63", df_mplt_input_63)
         
         logger.info("Step: read_mplt_LKPTRANS_DDS_HRCHY_EMS_BLK")
         # Reading Data From Source - read_mplt_LKPTRANS_DDS_HRCHY_EMS_BLK
@@ -806,89 +871,100 @@ from DDS_HRCHY_EMS_BLK a
 where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and end_date"""
         query = query.replace("$$v_rpt_date", v_rpt_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_mplt_lkp_73 = lib.read_sql(spark, _conn, query=query)
+        df_mplt_lkp_64 = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_mplt_LKPTRANS_DDS_HRCHY_EMS_BLK")
         # Lookup: apply_mplt_LKPTRANS_DDS_HRCHY_EMS_BLK
-        # Join condition: HSE_EST_CODE=EST_CODE AND HSE_BLK_CODE=BLK_CODE        
-        df_mplt_join_74 = df_mplt_input_72.join(
-            broadcast(df_mplt_lkp_73),
-            (df_mplt_input_72["HSE_EST_CODE"] == df_mplt_lkp_73["EST_CODE"]) &             (df_mplt_input_72["HSE_BLK_CODE"] == df_mplt_lkp_73["BLK_CODE"]),
+        # Join condition: HSE_EST_CODE=EST_CODE AND HSE_BLK_CODE=BLK_CODE
+        df_mplt_join_65 = df_mplt_input_63.join(
+            broadcast(df_mplt_lkp_64),
+            (df_mplt_input_63["HSE_EST_CODE"] == df_mplt_lkp_64["EST_CODE"]) &             (df_mplt_input_63["HSE_BLK_CODE"] == df_mplt_lkp_64["BLK_CODE"]),
             "left"
         )
-        ctx.register_df("df_mplt_join_74", df_mplt_join_74)
+        ctx.register_df("df_mplt_join_65", df_mplt_join_65)
+        
+        logger.info("Step: join_mplt_EXPTRANS2_0")
+        # Lookup: join_mplt_EXPTRANS2_0
+        # Merge parallel DataFrames on their common columns
+        _common_cols = [c for c in df_mplt_join_65.columns if c in df_mplt_input_63.columns]
+        df_mplt_merge_66 = df_mplt_join_65.join(
+            df_mplt_input_63,
+            on=_common_cols,
+            how="left"
+        )
+        ctx.register_df("df_mplt_merge_66", df_mplt_merge_66)
         
         logger.info("Step: apply_mplt_EXPTRANS2")
         # Expression: apply_mplt_EXPTRANS2
-        df_mplt_expr_75 = df_mplt_join_74
-        df_mplt_expr_75 = df_mplt_expr_75.withColumn("BLK_AGE_CODE", expr("CASE WHEN BLK_AGE = NULL THEN '-1' WHEN BLK_AGE = 0 THEN '0-5' ELSE CASE WHEN floor((BLK_AGE-1)/5) = 0 THEN '0-5' WHEN floor((BLK_AGE-1)/5) = 1 THEN '6-10' WHEN floor((BLK_AGE-1)/5) = 2 THEN '11-15' WHEN floor((BLK_AGE-1)/5) = 3 THEN '16-20' WHEN floor((BLK_AGE-1)/5) = 4 THEN '21-25' ELSE '>25' END END"))
-        df_mplt_expr_75 = df_mplt_expr_75.withColumn("BLK_AGE_SCHM_CODE", expr("'HPL'"))
-        ctx.register_df("df_mplt_expr_75", df_mplt_expr_75)
+        df_mplt_expr_67 = df_mplt_merge_66
+        df_mplt_expr_67 = df_mplt_expr_67.withColumn("BLK_AGE_CODE", expr("CASE WHEN BLK_AGE = NULL THEN '-1' WHEN BLK_AGE = 0 THEN '0-5' ELSE CASE WHEN floor((BLK_AGE-1)/5) = 0 THEN '0-5' WHEN floor((BLK_AGE-1)/5) = 1 THEN '6-10' WHEN floor((BLK_AGE-1)/5) = 2 THEN '11-15' WHEN floor((BLK_AGE-1)/5) = 3 THEN '16-20' WHEN floor((BLK_AGE-1)/5) = 4 THEN '21-25' ELSE '>25' END END"))
+        df_mplt_expr_67 = df_mplt_expr_67.withColumn("BLK_AGE_SCHM_CODE", expr("'HPL'"))
+        ctx.register_df("df_mplt_expr_67", df_mplt_expr_67)
         
         logger.info("Step: read_mplt_LKPTRANS_DDS_DMNS_EMS_BLK_AGE")
         # Reading Data From Source - read_mplt_LKPTRANS_DDS_DMNS_EMS_BLK_AGE
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "source_db")
-        df_mplt_lkp_76 = lib.read_sql(spark, _conn, table="DDS_DMNS_EMS_BLK_AGE")
+        df_mplt_lkp_68 = lib.read_sql(spark, _conn, table="DDS_DMNS_EMS_BLK_AGE")
         
         logger.info("Step: apply_mplt_LKPTRANS_DDS_DMNS_EMS_BLK_AGE")
         # Lookup: apply_mplt_LKPTRANS_DDS_DMNS_EMS_BLK_AGE
-        # Join condition: BLK_AGE_CODE=BLK_AGE_CODE AND BLK_AGE_SCHM_CODE=BLK_AGE_SCHM_CODE        
-        df_mplt_join_77 = df_mplt_expr_75.join(
-            broadcast(df_mplt_lkp_76),
-            (df_mplt_expr_75["BLK_AGE_CODE"] == df_mplt_lkp_76["BLK_AGE_CODE"]) &             (df_mplt_expr_75["BLK_AGE_SCHM_CODE"] == df_mplt_lkp_76["BLK_AGE_SCHM_CODE"]),
-            "left"
+        # Join on common columns: BLK_AGE_CODE, BLK_AGE_SCHM_CODE
+        df_mplt_join_69 = df_mplt_expr_67.join(
+            broadcast(df_mplt_lkp_68),
+            on=["BLK_AGE_CODE", "BLK_AGE_SCHM_CODE"],
+            how="left"
         )
-        ctx.register_df("df_mplt_join_77", df_mplt_join_77)
+        ctx.register_df("df_mplt_join_69", df_mplt_join_69)
         
         logger.info("Step: join_output_MPLT_GET_BLK_SCD_KEY_0")
         # Lookup: join_output_MPLT_GET_BLK_SCD_KEY_0
         # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_mplt_join_74.columns if c in df_mplt_join_77.columns]
-        df_mplt_merge_78 = df_mplt_join_74.join(
-            df_mplt_join_77,
+        _common_cols = [c for c in df_mplt_join_65.columns if c in df_mplt_join_69.columns]
+        df_mplt_merge_70 = df_mplt_join_65.join(
+            df_mplt_join_69,
             on=_common_cols,
             how="left"
         )
-        ctx.register_df("df_mplt_merge_78", df_mplt_merge_78)
+        ctx.register_df("df_mplt_merge_70", df_mplt_merge_70)
         
         logger.info("Step: apply_MPLT_GET_BLK_SCD_KEY")
         # Expression: apply_MPLT_GET_BLK_SCD_KEY
-        df_mplt_79 = df_mplt_merge_78
-        ctx.register_df("df_mplt_79", df_mplt_79)
+        df_MPLT_GET_BLK_SCD_KEY = df_mplt_merge_70
+        ctx.register_df("df_MPLT_GET_BLK_SCD_KEY", df_MPLT_GET_BLK_SCD_KEY)
         
         logger.info("Step: input_MPLT_GET_CHNL_DMNS_KEY")
         # Expression: input_MPLT_GET_CHNL_DMNS_KEY
-        df_mplt_input_80 = df_mplt_41
-        df_mplt_input_80 = df_mplt_input_80.withColumn("IN_CUST_RQS_INCMG_CHNL_CODE", expr("CUST_RQS_INCMG_CHNL_CODE"))
-        ctx.register_df("df_mplt_input_80", df_mplt_input_80)
+        df_mplt_input_71 = df_MPLT_LKP_CHNL_CODE
+        df_mplt_input_71 = df_mplt_input_71.withColumn("IN_CUST_RQS_INCMG_CHNL_CODE", expr("CUST_RQS_INCMG_CHNL_CODE"))
+        ctx.register_df("df_mplt_input_71", df_mplt_input_71)
         
         logger.info("Step: read_mplt_LKPTRANS_DDS_CMS_CUST_RQS")
         # Reading Data From Source - read_mplt_LKPTRANS_DDS_CMS_CUST_RQS
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "target")
-        df_mplt_lkp_81 = lib.read_sql(spark, _conn, table="DDS_DMNS_CMS_RQS_CHNL")
+        df_mplt_lkp_72 = lib.read_sql(spark, _conn, table="DDS_DMNS_CMS_RQS_CHNL")
         
         logger.info("Step: apply_mplt_LKPTRANS_DDS_CMS_CUST_RQS")
         # Lookup: apply_mplt_LKPTRANS_DDS_CMS_CUST_RQS
-        # Join condition: CUST_RQS_INCMG_CHNL_CODE=RQS_CHNL_CODE        
-        df_mplt_join_82 = df_mplt_input_80.join(
-            broadcast(df_mplt_lkp_81),
-            (df_mplt_input_80["CUST_RQS_INCMG_CHNL_CODE"] == df_mplt_lkp_81["RQS_CHNL_CODE"]),
+        # Join condition: CUST_RQS_INCMG_CHNL_CODE=RQS_CHNL_CODE
+        df_mplt_join_73 = df_mplt_input_71.join(
+            broadcast(df_mplt_lkp_72),
+            (df_mplt_input_71["CUST_RQS_INCMG_CHNL_CODE"] == df_mplt_lkp_72["RQS_CHNL_CODE"]),
             "left"
         )
-        ctx.register_df("df_mplt_join_82", df_mplt_join_82)
+        ctx.register_df("df_mplt_join_73", df_mplt_join_73)
         
         logger.info("Step: apply_MPLT_GET_CHNL_DMNS_KEY")
         # Expression: apply_MPLT_GET_CHNL_DMNS_KEY
-        df_mplt_83 = df_mplt_join_82
-        ctx.register_df("df_mplt_83", df_mplt_83)
+        df_MPLT_GET_CHNL_DMNS_KEY = df_mplt_join_73
+        ctx.register_df("df_MPLT_GET_CHNL_DMNS_KEY", df_MPLT_GET_CHNL_DMNS_KEY)
         
         logger.info("Step: input_MPLT_LKP_TNCY_AGRMT")
         # Expression: input_MPLT_LKP_TNCY_AGRMT
-        df_mplt_input_84 = df_mplt_55
-        df_mplt_input_84 = df_mplt_input_84.withColumn("IN_UNIT_KEY", expr("UNIT_KEY"))
-        ctx.register_df("df_mplt_input_84", df_mplt_input_84)
+        df_mplt_input_74 = df_MPLT_GET_UNIT_SIZE_DMNS_KEY
+        df_mplt_input_74 = df_mplt_input_74.withColumn("IN_UNIT_KEY", expr("UNIT_KEY"))
+        ctx.register_df("df_mplt_input_74", df_mplt_input_74)
         
         logger.info("Step: read_mplt_LKPTRANS_SOR_EMS_TAM_TNCY_AGRMT_STS")
         # Reading Data From Source - read_mplt_LKPTRANS_SOR_EMS_TAM_TNCY_AGRMT_STS
@@ -905,28 +981,29 @@ WHERE  a.TNCY_AGRMT_KEY = b.TNCY_AGRMT_KEY
 and last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between b.bgn_date and b.end_date"""
         query = query.replace("$$v_rpt_date", v_rpt_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_mplt_lkp_85 = lib.read_sql(spark, _conn, query=query)
+        df_mplt_lkp_75 = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_mplt_LKPTRANS_SOR_EMS_TAM_TNCY_AGRMT_STS")
         # Lookup: apply_mplt_LKPTRANS_SOR_EMS_TAM_TNCY_AGRMT_STS
-        # Join condition: UNIT_KEY=UNIT_KEY        
-        df_mplt_join_86 = df_mplt_input_84.join(
-            broadcast(df_mplt_lkp_85),
-            (df_mplt_input_84["UNIT_KEY"] == df_mplt_lkp_85["UNIT_KEY"]),
-            "left"
+        # Join on common column: UNIT_KEY
+
+        df_mplt_join_76 = df_mplt_input_74.join(
+            broadcast(df_mplt_lkp_75),
+            on="UNIT_KEY",
+            how="left"
         )
-        ctx.register_df("df_mplt_join_86", df_mplt_join_86)
+        ctx.register_df("df_mplt_join_76", df_mplt_join_76)
         
         logger.info("Step: apply_MPLT_LKP_TNCY_AGRMT")
         # Expression: apply_MPLT_LKP_TNCY_AGRMT
-        df_mplt_87 = df_mplt_join_86
-        ctx.register_df("df_mplt_87", df_mplt_87)
+        df_MPLT_LKP_TNCY_AGRMT = df_mplt_join_76
+        ctx.register_df("df_MPLT_LKP_TNCY_AGRMT", df_MPLT_LKP_TNCY_AGRMT)
         
         logger.info("Step: input_MPLT_GET_HSHLD_SIZE_DMNS_KEY")
         # Expression: input_MPLT_GET_HSHLD_SIZE_DMNS_KEY
-        df_mplt_input_88 = df_mplt_87
-        df_mplt_input_88 = df_mplt_input_88.withColumn("IN_TNCY_AGRMT_BK", expr("TNCY_AGRMT_BK"))
-        ctx.register_df("df_mplt_input_88", df_mplt_input_88)
+        df_mplt_input_77 = df_MPLT_LKP_TNCY_AGRMT
+        df_mplt_input_77 = df_mplt_input_77.withColumn("IN_TNCY_AGRMT_BK", expr("TNCY_AGRMT_BK"))
+        ctx.register_df("df_mplt_input_77", df_mplt_input_77)
         
         logger.info("Step: read_mplt_LKPTRANS_HSHLD_CNT")
         # Reading Data From Source - read_mplt_LKPTRANS_HSHLD_CNT
@@ -963,393 +1040,407 @@ GROUP BY
   SOR_EMS_TAM_TNCY_AGRMT.TNCY_AGRMT_BK"""
         query = query.replace("$$v_rpt_date", v_rpt_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_mplt_lkp_89 = lib.read_sql(spark, _conn, query=query)
+        df_mplt_lkp_78 = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_mplt_LKPTRANS_HSHLD_CNT")
         # Lookup: apply_mplt_LKPTRANS_HSHLD_CNT
-        # Join condition: TNCY_AGRMT_BK=TNCY_AGRMT_BK        
-        df_mplt_join_90 = df_mplt_input_88.join(
-            broadcast(df_mplt_lkp_89),
-            (df_mplt_input_88["TNCY_AGRMT_BK"] == df_mplt_lkp_89["TNCY_AGRMT_BK"]),
-            "left"
+        # Join on common column: TNCY_AGRMT_BK
+
+        df_mplt_join_79 = df_mplt_input_77.join(
+            broadcast(df_mplt_lkp_78),
+            on="TNCY_AGRMT_BK",
+            how="left"
         )
-        ctx.register_df("df_mplt_join_90", df_mplt_join_90)
+        ctx.register_df("df_mplt_join_79", df_mplt_join_79)
+        
+        logger.info("Step: join_mplt_EXPTRANS3_0")
+        # Lookup: join_mplt_EXPTRANS3_0
+        # Merge parallel DataFrames on their common columns
+        _common_cols = [c for c in df_mplt_join_79.columns if c in df_mplt_input_77.columns]
+        df_mplt_merge_80 = df_mplt_join_79.join(
+            df_mplt_input_77,
+            on=_common_cols,
+            how="left"
+        )
+        ctx.register_df("df_mplt_merge_80", df_mplt_merge_80)
         
         logger.info("Step: apply_mplt_EXPTRANS3")
         # Expression: apply_mplt_EXPTRANS3
-        df_mplt_expr_91 = df_mplt_join_90
-        df_mplt_expr_91 = df_mplt_expr_91.withColumn("HSHLD_SIZE_CODE", expr("CASE WHEN HSHLD_SIZE = 0 THEN 'N/A' WHEN HSHLD_SIZE = NULL THEN 'N/A' ELSE CASE WHEN sign(10-HSHLD_SIZE) = 1 THEN cast(HSHLD_SIZE as string) ELSE '9+' END END"))
-        ctx.register_df("df_mplt_expr_91", df_mplt_expr_91)
+        df_mplt_expr_81 = df_mplt_merge_80
+        df_mplt_expr_81 = df_mplt_expr_81.withColumn("HSHLD_SIZE_CODE", expr("CASE WHEN HSHLD_SIZE = 0 THEN 'N/A' WHEN HSHLD_SIZE = NULL THEN 'N/A' ELSE CASE WHEN sign(10-HSHLD_SIZE) = 1 THEN cast(HSHLD_SIZE as string) ELSE '9+' END END"))
+        ctx.register_df("df_mplt_expr_81", df_mplt_expr_81)
         
         logger.info("Step: read_mplt_LKPTRANS_DDS_DMNS_HSHLD_SIZE")
         # Reading Data From Source - read_mplt_LKPTRANS_DDS_DMNS_HSHLD_SIZE
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "source_db")
-        df_mplt_lkp_92 = lib.read_sql(spark, _conn, table="DDS_DMNS_HSHLD_SIZE")
+        df_mplt_lkp_82 = lib.read_sql(spark, _conn, table="DDS_DMNS_HSHLD_SIZE")
         
         logger.info("Step: apply_mplt_LKPTRANS_DDS_DMNS_HSHLD_SIZE")
         # Lookup: apply_mplt_LKPTRANS_DDS_DMNS_HSHLD_SIZE
-        # Join condition: HSHLD_SIZE_CODE=HSHLD_SIZE_CODE        
-        df_mplt_join_93 = df_mplt_expr_91.join(
-            broadcast(df_mplt_lkp_92),
-            (df_mplt_expr_91["HSHLD_SIZE_CODE"] == df_mplt_lkp_92["HSHLD_SIZE_CODE"]),
-            "left"
+        # Join on common column: HSHLD_SIZE_CODE
+
+        df_mplt_join_83 = df_mplt_expr_81.join(
+            broadcast(df_mplt_lkp_82),
+            on="HSHLD_SIZE_CODE",
+            how="left"
         )
-        ctx.register_df("df_mplt_join_93", df_mplt_join_93)
+        ctx.register_df("df_mplt_join_83", df_mplt_join_83)
         
         logger.info("Step: join_output_MPLT_GET_HSHLD_SIZE_DMNS_KEY_0")
         # Lookup: join_output_MPLT_GET_HSHLD_SIZE_DMNS_KEY_0
         # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_mplt_expr_91.columns if c in df_mplt_join_93.columns]
-        df_mplt_merge_94 = df_mplt_expr_91.join(
-            df_mplt_join_93,
+        _common_cols = [c for c in df_mplt_expr_81.columns if c in df_mplt_join_83.columns]
+        df_mplt_merge_84 = df_mplt_expr_81.join(
+            df_mplt_join_83,
             on=_common_cols,
             how="left"
         )
-        ctx.register_df("df_mplt_merge_94", df_mplt_merge_94)
+        ctx.register_df("df_mplt_merge_84", df_mplt_merge_84)
         
         logger.info("Step: apply_MPLT_GET_HSHLD_SIZE_DMNS_KEY")
         # Expression: apply_MPLT_GET_HSHLD_SIZE_DMNS_KEY
-        df_mplt_95 = df_mplt_merge_94
-        ctx.register_df("df_mplt_95", df_mplt_95)
+        df_MPLT_GET_HSHLD_SIZE_DMNS_KEY = df_mplt_merge_84
+        ctx.register_df("df_MPLT_GET_HSHLD_SIZE_DMNS_KEY", df_MPLT_GET_HSHLD_SIZE_DMNS_KEY)
         
         logger.info("Step: input_MPLT_GET_RSDN_LNG_DMNS_KEY")
         # Expression: input_MPLT_GET_RSDN_LNG_DMNS_KEY
-        df_mplt_input_96 = df_mplt_87
-        df_mplt_input_96 = df_mplt_input_96.withColumn("IN_RSDN_LNG", expr("RSDN_LNG"))
-        ctx.register_df("df_mplt_input_96", df_mplt_input_96)
+        df_mplt_input_85 = df_MPLT_LKP_TNCY_AGRMT
+        df_mplt_input_85 = df_mplt_input_85.withColumn("IN_RSDN_LNG", expr("RSDN_LNG"))
+        ctx.register_df("df_mplt_input_85", df_mplt_input_85)
         
         logger.info("Step: apply_mplt_EXPTRANS4")
         # Expression: apply_mplt_EXPTRANS4
-        df_mplt_expr_97 = df_mplt_input_96
-        df_mplt_expr_97 = df_mplt_expr_97.withColumn("RSDN_LNG_CODE", expr("CASE WHEN RSDN_LNG = NULL THEN 0 ELSE CASE WHEN sign(3-RSDN_LNG) = 1 THEN 1 ELSE CASE WHEN sign(6-RSDN_LNG) = 1 THEN 2 ELSE CASE WHEN sign(8-RSDN_LNG) = 1 THEN 3 ELSE CASE WHEN sign(10-RSDN_LNG) = 1 THEN 4 ELSE 5 END END END END END"))
-        ctx.register_df("df_mplt_expr_97", df_mplt_expr_97)
+        df_mplt_expr_86 = df_mplt_input_85
+        df_mplt_expr_86 = df_mplt_expr_86.withColumn("RSDN_LNG_CODE", expr("CASE WHEN RSDN_LNG = NULL THEN 0 ELSE CASE WHEN sign(3-RSDN_LNG) = 1 THEN 1 ELSE CASE WHEN sign(6-RSDN_LNG) = 1 THEN 2 ELSE CASE WHEN sign(8-RSDN_LNG) = 1 THEN 3 ELSE CASE WHEN sign(10-RSDN_LNG) = 1 THEN 4 ELSE 5 END END END END END"))
+        ctx.register_df("df_mplt_expr_86", df_mplt_expr_86)
         
         logger.info("Step: read_mplt_LKPTRANS_DDS_DMNS_EMS_RSDN_LNG")
         # Reading Data From Source - read_mplt_LKPTRANS_DDS_DMNS_EMS_RSDN_LNG
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "source_db")
-        df_mplt_lkp_98 = lib.read_sql(spark, _conn, table="DDS_DMNS_EMS_RSDN_LNG")
+        df_mplt_lkp_87 = lib.read_sql(spark, _conn, table="DDS_DMNS_EMS_RSDN_LNG")
         
         logger.info("Step: apply_mplt_LKPTRANS_DDS_DMNS_EMS_RSDN_LNG")
         # Lookup: apply_mplt_LKPTRANS_DDS_DMNS_EMS_RSDN_LNG
-        # Join condition: RSDN_LNG_CODE=RSDN_LNG_CODE        
-        df_mplt_join_99 = df_mplt_expr_97.join(
-            broadcast(df_mplt_lkp_98),
-            (df_mplt_expr_97["RSDN_LNG_CODE"] == df_mplt_lkp_98["RSDN_LNG_CODE"]),
-            "left"
+        # Join on common column: RSDN_LNG_CODE
+
+        df_mplt_join_88 = df_mplt_expr_86.join(
+            broadcast(df_mplt_lkp_87),
+            on="RSDN_LNG_CODE",
+            how="left"
         )
-        ctx.register_df("df_mplt_join_99", df_mplt_join_99)
+        ctx.register_df("df_mplt_join_88", df_mplt_join_88)
         
         logger.info("Step: join_output_MPLT_GET_RSDN_LNG_DMNS_KEY_0")
         # Lookup: join_output_MPLT_GET_RSDN_LNG_DMNS_KEY_0
         # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_mplt_expr_97.columns if c in df_mplt_join_99.columns]
-        df_mplt_merge_100 = df_mplt_expr_97.join(
-            df_mplt_join_99,
+        _common_cols = [c for c in df_mplt_expr_86.columns if c in df_mplt_join_88.columns]
+        df_mplt_merge_89 = df_mplt_expr_86.join(
+            df_mplt_join_88,
             on=_common_cols,
             how="left"
         )
-        ctx.register_df("df_mplt_merge_100", df_mplt_merge_100)
+        ctx.register_df("df_mplt_merge_89", df_mplt_merge_89)
         
         logger.info("Step: apply_MPLT_GET_RSDN_LNG_DMNS_KEY")
         # Expression: apply_MPLT_GET_RSDN_LNG_DMNS_KEY
-        df_mplt_101 = df_mplt_merge_100
-        ctx.register_df("df_mplt_101", df_mplt_101)
+        df_MPLT_GET_RSDN_LNG_DMNS_KEY = df_mplt_merge_89
+        ctx.register_df("df_MPLT_GET_RSDN_LNG_DMNS_KEY", df_MPLT_GET_RSDN_LNG_DMNS_KEY)
         
         logger.info("Step: join_EXPTRANS1_0")
         # Lookup: join_EXPTRANS1_0
         # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_mplt_79.columns if c in df_mplt_55.columns]
-        df_exp_merge_103 = df_mplt_79.join(
-            df_mplt_55,
+        _common_cols = [c for c in df_MPLT_GET_BLK_SCD_KEY.columns if c in df_MPLT_GET_UNIT_SIZE_DMNS_KEY.columns]
+        df_exp_merge_90 = df_MPLT_GET_BLK_SCD_KEY.join(
+            df_MPLT_GET_UNIT_SIZE_DMNS_KEY,
             on=_common_cols,
             how="left"
         )
-        ctx.register_df("df_exp_merge_103", df_exp_merge_103)
+        ctx.register_df("df_exp_merge_90", df_exp_merge_90)
         
         logger.info("Step: join_EXPTRANS1_1")
         # Lookup: join_EXPTRANS1_1
         # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_exp_merge_103.columns if c in df_mplt_95.columns]
-        df_exp_merge_104 = df_exp_merge_103.join(
-            df_mplt_95,
+        _common_cols = [c for c in df_exp_merge_90.columns if c in df_MPLT_GET_HSHLD_SIZE_DMNS_KEY.columns]
+        df_exp_merge_91 = df_exp_merge_90.join(
+            df_MPLT_GET_HSHLD_SIZE_DMNS_KEY,
             on=_common_cols,
             how="left"
         )
-        ctx.register_df("df_exp_merge_104", df_exp_merge_104)
+        ctx.register_df("df_exp_merge_91", df_exp_merge_91)
         
         logger.info("Step: join_EXPTRANS1_2")
         # Lookup: join_EXPTRANS1_2
         # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_exp_merge_104.columns if c in df_mplt_101.columns]
-        df_exp_merge_105 = df_exp_merge_104.join(
-            df_mplt_101,
+        _common_cols = [c for c in df_exp_merge_91.columns if c in df_MPLT_GET_RSDN_LNG_DMNS_KEY.columns]
+        df_exp_merge_92 = df_exp_merge_91.join(
+            df_MPLT_GET_RSDN_LNG_DMNS_KEY,
             on=_common_cols,
             how="left"
         )
-        ctx.register_df("df_exp_merge_105", df_exp_merge_105)
+        ctx.register_df("df_exp_merge_92", df_exp_merge_92)
         
         logger.info("Step: join_EXPTRANS1_3")
         # Lookup: join_EXPTRANS1_3
         # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_exp_merge_105.columns if c in df_mplt_83.columns]
-        df_exp_merge_106 = df_exp_merge_105.join(
-            df_mplt_83,
+        _common_cols = [c for c in df_exp_merge_92.columns if c in df_MPLT_GET_CHNL_DMNS_KEY.columns]
+        df_exp_merge_93 = df_exp_merge_92.join(
+            df_MPLT_GET_CHNL_DMNS_KEY,
             on=_common_cols,
             how="left"
         )
-        ctx.register_df("df_exp_merge_106", df_exp_merge_106)
+        ctx.register_df("df_exp_merge_93", df_exp_merge_93)
         
         logger.info("Step: join_EXPTRANS1_4")
         # Lookup: join_EXPTRANS1_4
         # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_exp_merge_106.columns if c in df_mplt_25.columns]
-        df_exp_merge_107 = df_exp_merge_106.join(
-            df_mplt_25,
+        _common_cols = [c for c in df_exp_merge_93.columns if c in df_MPLT_GET_CASE_TYPE_SCD_KEY.columns]
+        df_exp_merge_94 = df_exp_merge_93.join(
+            df_MPLT_GET_CASE_TYPE_SCD_KEY,
             on=_common_cols,
             how="left"
         )
-        ctx.register_df("df_exp_merge_107", df_exp_merge_107)
+        ctx.register_df("df_exp_merge_94", df_exp_merge_94)
         
         logger.info("Step: join_EXPTRANS1_5")
         # Lookup: join_EXPTRANS1_5
         # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_exp_merge_107.columns if c in df_exp_6.columns]
-        df_exp_merge_108 = df_exp_merge_107.join(
-            df_exp_6,
+        _common_cols = [c for c in df_exp_merge_94.columns if c in df_EXPTRANS.columns]
+        df_exp_merge_95 = df_exp_merge_94.join(
+            df_EXPTRANS,
             on=_common_cols,
             how="left"
         )
-        ctx.register_df("df_exp_merge_108", df_exp_merge_108)
+        ctx.register_df("df_exp_merge_95", df_exp_merge_95)
         
         logger.info("Step: join_EXPTRANS1_6")
         # Lookup: join_EXPTRANS1_6
         # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_exp_merge_108.columns if c in df_mplt_41.columns]
-        df_exp_merge_109 = df_exp_merge_108.join(
-            df_mplt_41,
+        _common_cols = [c for c in df_exp_merge_95.columns if c in df_MPLT_LKP_CHNL_CODE.columns]
+        df_exp_merge_96 = df_exp_merge_95.join(
+            df_MPLT_LKP_CHNL_CODE,
             on=_common_cols,
             how="left"
         )
-        ctx.register_df("df_exp_merge_109", df_exp_merge_109)
+        ctx.register_df("df_exp_merge_96", df_exp_merge_96)
         
         logger.info("Step: join_EXPTRANS1_7")
         # Lookup: join_EXPTRANS1_7
         # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_exp_merge_109.columns if c in df_mplt_59.columns]
-        df_exp_merge_110 = df_exp_merge_109.join(
-            df_mplt_59,
+        _common_cols = [c for c in df_exp_merge_96.columns if c in df_MPLT_GET_CMS_EST_SCD_KEY.columns]
+        df_exp_merge_97 = df_exp_merge_96.join(
+            df_MPLT_GET_CMS_EST_SCD_KEY,
             on=_common_cols,
             how="left"
         )
-        ctx.register_df("df_exp_merge_110", df_exp_merge_110)
+        ctx.register_df("df_exp_merge_97", df_exp_merge_97)
         
         logger.info("Step: join_EXPTRANS1_8")
         # Lookup: join_EXPTRANS1_8
         # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_exp_merge_110.columns if c in df_mplt_64.columns]
-        df_exp_merge_111 = df_exp_merge_110.join(
-            df_mplt_64,
+        _common_cols = [c for c in df_exp_merge_97.columns if c in df_MPLT_GET_EST_SCD_KEY.columns]
+        df_exp_merge_98 = df_exp_merge_97.join(
+            df_MPLT_GET_EST_SCD_KEY,
             on=_common_cols,
             how="left"
         )
-        ctx.register_df("df_exp_merge_111", df_exp_merge_111)
+        ctx.register_df("df_exp_merge_98", df_exp_merge_98)
         
         logger.info("Step: join_EXPTRANS1_9")
         # Lookup: join_EXPTRANS1_9
         # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_exp_merge_111.columns if c in df_mplt_70.columns]
-        df_exp_merge_112 = df_exp_merge_111.join(
-            df_mplt_70,
+        _common_cols = [c for c in df_exp_merge_98.columns if c in df_MPLT_GET_CMS_BLK_SCD_KEY.columns]
+        df_exp_merge_99 = df_exp_merge_98.join(
+            df_MPLT_GET_CMS_BLK_SCD_KEY,
             on=_common_cols,
             how="left"
         )
-        ctx.register_df("df_exp_merge_112", df_exp_merge_112)
+        ctx.register_df("df_exp_merge_99", df_exp_merge_99)
         
         logger.info("Step: join_EXPTRANS1_10")
         # Lookup: join_EXPTRANS1_10
         # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_exp_merge_112.columns if c in df_mplt_47.columns]
-        df_exp_merge_113 = df_exp_merge_112.join(
-            df_mplt_47,
+        _common_cols = [c for c in df_exp_merge_99.columns if c in df_MPLT_GET_EST_OFFC_SCD_KEY.columns]
+        df_exp_merge_100 = df_exp_merge_99.join(
+            df_MPLT_GET_EST_OFFC_SCD_KEY,
             on=_common_cols,
             how="left"
         )
-        ctx.register_df("df_exp_merge_113", df_exp_merge_113)
+        ctx.register_df("df_exp_merge_100", df_exp_merge_100)
         
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
-        df_exp_102 = df_exp_merge_113
+        df_EXPTRANS1 = df_exp_merge_100
         _expr = """'2' || substring('$$v_rpt_mth',1,6) || '00'"""
         _expr = _expr.replace("$$v_rpt_date", str(v_rpt_date))
         _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
-        df_exp_102 = df_exp_102.withColumn("TIME_DMNS_KEY", expr(_expr))
-        df_exp_102 = df_exp_102.withColumn("HSHLD_AEM_IND", expr("CASE WHEN CASE WHEN HSHLD_SIZE = NULL THEN -1 WHEN HSHLD_SIZE = 0 THEN -1 ELSE HSHLD_SIZE END - CASE WHEN ELD_CNT = null THEN 0 ELSE ELD_CNT END = 0 THEN 'Y' ELSE 'N' END"))
-        df_exp_102 = df_exp_102.withColumn("HSHLD_ELDR_IND", expr("CASE WHEN ELD_CNT = 0 THEN 'N' WHEN ELD_CNT = NULL THEN 'N' ELSE 'Y' END"))
-        df_exp_102 = df_exp_102.withColumn("HSHLD_DSBL_IND", expr("CASE WHEN HSHLD_DSBL_MBR_CNT = 0 THEN 'N' WHEN HSHLD_DSBL_MBR_CNT = NULL THEN 'N' ELSE 'Y' END"))
-        df_exp_102 = df_exp_102.withColumn("CMS_BLK_SCD_KEY", expr("BLK_SCD_KEY"))
-        df_exp_102 = df_exp_102.withColumn("CMS_EST_SCD_KEY", expr("EST_SCD_KEY"))
-        df_exp_102 = df_exp_102.withColumn("REPT_CASE_IND", expr("CASE WHEN RLT_CASE_KEY = NULL THEN 'N' ELSE 'Y' END"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("TIME_DMNS_KEY", expr(_expr))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("HSHLD_AEM_IND", expr("CASE WHEN CASE WHEN HSHLD_SIZE = NULL THEN -1 WHEN HSHLD_SIZE = 0 THEN -1 ELSE HSHLD_SIZE END - CASE WHEN ELD_CNT = null THEN 0 ELSE ELD_CNT END = 0 THEN 'Y' ELSE 'N' END"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("HSHLD_ELDR_IND", expr("CASE WHEN ELD_CNT = 0 THEN 'N' WHEN ELD_CNT = NULL THEN 'N' ELSE 'Y' END"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("HSHLD_DSBL_IND", expr("CASE WHEN HSHLD_DSBL_MBR_CNT = 0 THEN 'N' WHEN HSHLD_DSBL_MBR_CNT = NULL THEN 'N' ELSE 'Y' END"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("CMS_BLK_SCD_KEY", expr("BLK_SCD_KEY"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("CMS_EST_SCD_KEY", expr("EST_SCD_KEY"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("REPT_CASE_IND", expr("CASE WHEN RLT_CASE_KEY = NULL THEN 'N' ELSE 'Y' END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["RQS_CHNL_DMNS_KEY", "CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "HSHLD_SIZE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "CASE_CATG_SCD_KEY", "RSDN_LNG_DMNS_KEY", "BLK_SCD_KEY", "CASE_CRE_DATE", "CASE_CMPLT_DATE", "CASE_KEY", "EST_SCD_KEY", "CASE_ITEM_KEY", "RCPT_PRN_DATE", "RLT_CASE_KEY"]:
-            if _col not in df_exp_102.columns:
-                df_exp_102 = df_exp_102.withColumn(_col, lit(None))
+            if _col not in df_EXPTRANS1.columns:
+                df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
         # Select only mapping output ports (prevents column leakage)
-        df_exp_102 = df_exp_102.select("TIME_DMNS_KEY", "RQS_CHNL_DMNS_KEY", "CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "HSHLD_SIZE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "CASE_CATG_SCD_KEY", "RSDN_LNG_DMNS_KEY", "BLK_SCD_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "HSHLD_DSBL_IND", "CASE_CRE_DATE", "CASE_CMPLT_DATE", "REPT_CASE_IND", "EST_SCD_KEY", "CMS_BLK_SCD_KEY", "CASE_KEY", "CASE_ITEM_KEY", "RLT_CASE_KEY", "CMS_EST_SCD_KEY", "RCPT_PRN_DATE")
-        ctx.register_df("df_exp_102", df_exp_102)
+        df_EXPTRANS1 = df_EXPTRANS1.select("TIME_DMNS_KEY", "RQS_CHNL_DMNS_KEY", "CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "HSHLD_SIZE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "CASE_CATG_SCD_KEY", "RSDN_LNG_DMNS_KEY", "BLK_SCD_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "HSHLD_DSBL_IND", "CASE_CRE_DATE", "CASE_CMPLT_DATE", "REPT_CASE_IND", "EST_SCD_KEY", "CMS_BLK_SCD_KEY", "CASE_KEY", "CASE_ITEM_KEY", "RLT_CASE_KEY", "CMS_EST_SCD_KEY", "RCPT_PRN_DATE")
+        ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
         
         logger.info("Step: apply_AGGTRANS2")
         # Aggregator: apply_AGGTRANS2
-        df_agg_114 = df_exp_102.groupBy("TIME_DMNS_KEY", "RQS_CHNL_DMNS_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "HSHLD_SIZE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "CASE_CATG_SCD_KEY", "RSDN_LNG_DMNS_KEY", "BLK_SCD_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "HSHLD_DSBL_IND", "CASE_CRE_DATE", "CASE_CMPLT_DATE", "EST_SCD_KEY", "CMS_BLK_SCD_KEY", "CASE_KEY", "CMS_EST_SCD_KEY", "RCPT_PRN_DATE")
-        df_agg_114 = df_agg_114.agg(
+        df_AGGTRANS2 = df_EXPTRANS1.groupBy("TIME_DMNS_KEY", "RQS_CHNL_DMNS_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "HSHLD_SIZE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "CASE_CATG_SCD_KEY", "RSDN_LNG_DMNS_KEY", "BLK_SCD_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "HSHLD_DSBL_IND", "CASE_CRE_DATE", "CASE_CMPLT_DATE", "EST_SCD_KEY", "CMS_BLK_SCD_KEY", "CASE_KEY", "CMS_EST_SCD_KEY", "RCPT_PRN_DATE")
+        df_AGGTRANS2 = df_AGGTRANS2.agg(
             min("CASE_TYPE_SCD_KEY").alias("CASE_TYPE_SCD_KEY"),
             max("REPT_CASE_IND").alias("REPT_CASE_IND")
         )
-        ctx.register_df("df_agg_114", df_agg_114)
+        ctx.register_df("df_AGGTRANS2", df_AGGTRANS2)
         
         logger.info("Step: apply_AGGTRANS11")
         # Aggregator: apply_AGGTRANS11
-        df_agg_115 = df_exp_102.groupBy("TIME_DMNS_KEY", "RQS_CHNL_DMNS_KEY", "CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "HSHLD_SIZE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "CASE_CATG_SCD_KEY", "RSDN_LNG_DMNS_KEY", "BLK_SCD_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "HSHLD_DSBL_IND", "EST_SCD_KEY", "CMS_BLK_SCD_KEY", "CMS_EST_SCD_KEY")
-        df_agg_115 = df_agg_115.agg(
+        df_AGGTRANS11 = df_EXPTRANS1.groupBy("TIME_DMNS_KEY", "RQS_CHNL_DMNS_KEY", "CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "HSHLD_SIZE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "CASE_CATG_SCD_KEY", "RSDN_LNG_DMNS_KEY", "BLK_SCD_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "HSHLD_DSBL_IND", "EST_SCD_KEY", "CMS_BLK_SCD_KEY", "CMS_EST_SCD_KEY")
+        df_AGGTRANS11 = df_AGGTRANS11.agg(
             sum(expr(f"""CASE WHEN cast(cast(CASE_CRE_DATE as string) as int) - cast(substring({v_rpt_mth},1,6) as int) = 0 THEN 1 ELSE 0 END""")).alias("TTL_CMS_CASE_ITEM_CNT"),
             sum(expr(f"""CASE WHEN cast(cast(CASE_CMPLT_DATE as string) as int) - cast(substring({v_rpt_mth},1,6) as int) = 0 THEN 1 ELSE 0 END""")).alias("TTL_CMS_CASE_ITEM_CMPLT_CNT"),
             sum(expr(f"""CASE WHEN cast(cast(CASE_CRE_DATE as string) as int) - cast(substring({v_rpt_mth},1,6) as int) = 0 THEN CASE WHEN RLT_CASE_KEY = NULL THEN 0 ELSE 1 END ELSE 0 END""")).alias("TTL_CMS_CASE_ITEM_RPET_CNT"),
             sum(expr(f"""CASE WHEN cast(cast(CASE_CRE_DATE as string) as int) - cast(substring({v_rpt_mth},1,6) as int) = 0 THEN CASE WHEN RLT_CASE_KEY = NULL THEN 1 ELSE 0 END ELSE 0 END""")).alias("TTL_CMS_CASE_ITEM_NEW_CNT")
         )
-        ctx.register_df("df_agg_115", df_agg_115)
+        ctx.register_df("df_AGGTRANS11", df_AGGTRANS11)
         
         logger.info("Step: apply_EXPTRANS12")
         # Expression: apply_EXPTRANS12
-        df_exp_116 = df_agg_114
+        df_EXPTRANS12 = df_AGGTRANS2
         _expr = """CASE WHEN cast(cast(CASE_CRE_DATE as string) as int) - cast(substring('$$v_rpt_mth',1,6) as int) = 0 THEN CASE_KEY ELSE NULL END"""
         _expr = _expr.replace("$$v_rpt_date", str(v_rpt_date))
         _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
-        df_exp_116 = df_exp_116.withColumn("CMS_CASE_KEY", expr(_expr))
+        df_EXPTRANS12 = df_EXPTRANS12.withColumn("CMS_CASE_KEY", expr(_expr))
         _expr = """CASE WHEN cast(cast(CASE_CMPLT_DATE as string) as int) - cast(substring('$$v_rpt_mth',1,6) as int) = NULL THEN NULL WHEN cast(cast(CASE_CMPLT_DATE as string) as int) - cast(substring('$$v_rpt_mth',1,6) as int) = 0 THEN CASE_KEY ELSE NULL END"""
         _expr = _expr.replace("$$v_rpt_date", str(v_rpt_date))
         _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
-        df_exp_116 = df_exp_116.withColumn("CMS_CASE_CMPLT_KEY", expr(_expr))
+        df_EXPTRANS12 = df_EXPTRANS12.withColumn("CMS_CASE_CMPLT_KEY", expr(_expr))
         _expr = """CASE WHEN cast(cast(CASE_CRE_DATE as string) as int) - cast(substring('$$v_rpt_mth',1,6) as int) = 0 THEN CASE WHEN REPT_CASE_IND = 'Y' THEN CASE_KEY ELSE NULL END ELSE NULL END"""
         _expr = _expr.replace("$$v_rpt_date", str(v_rpt_date))
         _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
-        df_exp_116 = df_exp_116.withColumn("CMS_CASE_RPET_KEY", expr(_expr))
+        df_EXPTRANS12 = df_EXPTRANS12.withColumn("CMS_CASE_RPET_KEY", expr(_expr))
         _expr = """CASE WHEN cast(cast(CASE_CRE_DATE as string) as int) - cast(substring('$$v_rpt_mth',1,6) as int) = 0 THEN CASE WHEN REPT_CASE_IND = 'Y' THEN NULL ELSE CASE_KEY END ELSE NULL END"""
         _expr = _expr.replace("$$v_rpt_date", str(v_rpt_date))
         _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
-        df_exp_116 = df_exp_116.withColumn("CMS_CASE_NEW_KEY", expr(_expr))
+        df_EXPTRANS12 = df_EXPTRANS12.withColumn("CMS_CASE_NEW_KEY", expr(_expr))
         _expr = """CASE WHEN cast(cast(RCPT_PRN_DATE as string) as int) - cast(substring('$$v_rpt_mth',1,6) as int) = NULL THEN NULL WHEN cast(cast(RCPT_PRN_DATE as string) as int) - cast(substring('$$v_rpt_mth',1,6) as int) = 0 THEN CASE_KEY ELSE NULL END"""
         _expr = _expr.replace("$$v_rpt_date", str(v_rpt_date))
         _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
-        df_exp_116 = df_exp_116.withColumn("CMS_RCPT_PRN_KEY", expr(_expr))
+        df_EXPTRANS12 = df_EXPTRANS12.withColumn("CMS_RCPT_PRN_KEY", expr(_expr))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["TIME_DMNS_KEY", "RQS_CHNL_DMNS_KEY", "CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "HSHLD_SIZE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "CASE_CATG_SCD_KEY", "RSDN_LNG_DMNS_KEY", "BLK_SCD_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "HSHLD_DSBL_IND", "CASE_KEY", "EST_SCD_KEY", "CMS_BLK_SCD_KEY", "CMS_EST_SCD_KEY"]:
-            if _col not in df_exp_116.columns:
-                df_exp_116 = df_exp_116.withColumn(_col, lit(None))
+            if _col not in df_EXPTRANS12.columns:
+                df_EXPTRANS12 = df_EXPTRANS12.withColumn(_col, lit(None))
         # Select only mapping output ports (prevents column leakage)
-        df_exp_116 = df_exp_116.select("TIME_DMNS_KEY", "RQS_CHNL_DMNS_KEY", "CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "HSHLD_SIZE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "CASE_CATG_SCD_KEY", "RSDN_LNG_DMNS_KEY", "BLK_SCD_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "HSHLD_DSBL_IND", "CMS_CASE_KEY", "CMS_CASE_CMPLT_KEY", "CMS_CASE_RPET_KEY", "CMS_CASE_NEW_KEY", "EST_SCD_KEY", "CMS_BLK_SCD_KEY", "CASE_KEY", "CMS_EST_SCD_KEY", "CMS_RCPT_PRN_KEY")
-        ctx.register_df("df_exp_116", df_exp_116)
+        df_EXPTRANS12 = df_EXPTRANS12.select("TIME_DMNS_KEY", "RQS_CHNL_DMNS_KEY", "CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "HSHLD_SIZE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "CASE_CATG_SCD_KEY", "RSDN_LNG_DMNS_KEY", "BLK_SCD_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "HSHLD_DSBL_IND", "CMS_CASE_KEY", "CMS_CASE_CMPLT_KEY", "CMS_CASE_RPET_KEY", "CMS_CASE_NEW_KEY", "EST_SCD_KEY", "CMS_BLK_SCD_KEY", "CASE_KEY", "CMS_EST_SCD_KEY", "CMS_RCPT_PRN_KEY")
+        ctx.register_df("df_EXPTRANS12", df_EXPTRANS12)
         
         logger.info("Step: apply_FILTRANS1")
         # Filter: apply_FILTRANS1
-        df_fil_117 = df_agg_115.filter(expr("TTL_CMS_CASE_ITEM_CNT > 0 OR TTL_CMS_CASE_ITEM_CMPLT_CNT > 0 OR TTL_CMS_CASE_ITEM_RPET_CNT > 0 OR TTL_CMS_CASE_ITEM_NEW_CNT > 0"))
-        ctx.register_df("df_fil_117", df_fil_117)
+        df_FILTRANS1 = df_AGGTRANS11.filter(expr("TTL_CMS_CASE_ITEM_CNT > 0 OR TTL_CMS_CASE_ITEM_CMPLT_CNT > 0 OR TTL_CMS_CASE_ITEM_RPET_CNT > 0 OR TTL_CMS_CASE_ITEM_NEW_CNT > 0"))
+        ctx.register_df("df_FILTRANS1", df_FILTRANS1)
         
         logger.info("Step: apply_AGGTRANS1")
         # Aggregator: apply_AGGTRANS1
-        df_agg_118 = df_exp_116.groupBy("TIME_DMNS_KEY", "RQS_CHNL_DMNS_KEY", "CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "HSHLD_SIZE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "CASE_CATG_SCD_KEY", "RSDN_LNG_DMNS_KEY", "BLK_SCD_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "HSHLD_DSBL_IND", "EST_SCD_KEY", "CMS_BLK_SCD_KEY", "CMS_EST_SCD_KEY")
-        df_agg_118 = df_agg_118.agg(
+        df_AGGTRANS1 = df_EXPTRANS12.groupBy("TIME_DMNS_KEY", "RQS_CHNL_DMNS_KEY", "CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "HSHLD_SIZE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "CASE_CATG_SCD_KEY", "RSDN_LNG_DMNS_KEY", "BLK_SCD_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "HSHLD_DSBL_IND", "EST_SCD_KEY", "CMS_BLK_SCD_KEY", "CMS_EST_SCD_KEY")
+        df_AGGTRANS1 = df_AGGTRANS1.agg(
             count("CMS_CASE_KEY").alias("TTL_CMS_CASE_CNT"),
             count("CMS_CASE_CMPLT_KEY").alias("TTL_CMS_CASE_CMPLT_CNT"),
             count("CMS_CASE_RPET_KEY").alias("TTL_CMS_CASE_RPET_CNT"),
             count("CMS_CASE_NEW_KEY").alias("TTL_CMS_CASE_NEW_CNT"),
             count("CMS_RCPT_PRN_KEY").alias("TTL_CMS_RCPT_PRN_CNT")
         )
-        ctx.register_df("df_agg_118", df_agg_118)
+        ctx.register_df("df_AGGTRANS1", df_AGGTRANS1)
         
         logger.info("Step: apply_EXPTRANS51")
         # Expression: apply_EXPTRANS51
-        df_exp_119 = df_fil_117
-        df_exp_119 = df_exp_119.withColumn("TIME_DMNS_KEY", expr("CASE WHEN TIME_DMNS_KEY = NULL THEN 0 ELSE TIME_DMNS_KEY END"))
-        df_exp_119 = df_exp_119.withColumn("RQS_CHNL_DMNS_KEY", expr("CASE WHEN RQS_CHNL_DMNS_KEY = NULL THEN 0 ELSE RQS_CHNL_DMNS_KEY END"))
-        df_exp_119 = df_exp_119.withColumn("CASE_TYPE_SCD_KEY", expr("CASE WHEN CASE_TYPE_SCD_KEY = NULL THEN 0 ELSE CASE_TYPE_SCD_KEY END"))
-        df_exp_119 = df_exp_119.withColumn("BLK_AGE_DMNS_KEY", expr("CASE WHEN BLK_AGE_DMNS_KEY = NULL THEN 0 ELSE BLK_AGE_DMNS_KEY END"))
-        df_exp_119 = df_exp_119.withColumn("EST_OFFC_SCD_KEY", expr("CASE WHEN EST_OFFC_SCD_KEY = NULL THEN 0 ELSE EST_OFFC_SCD_KEY END"))
-        df_exp_119 = df_exp_119.withColumn("HSHLD_SIZE_DMNS_KEY", expr("CASE WHEN HSHLD_SIZE_DMNS_KEY = NULL THEN 0 ELSE HSHLD_SIZE_DMNS_KEY END"))
-        df_exp_119 = df_exp_119.withColumn("UNIT_SIZE_DMNS_KEY", expr("CASE WHEN UNIT_SIZE_DMNS_KEY = NULL THEN 0 ELSE UNIT_SIZE_DMNS_KEY END"))
-        df_exp_119 = df_exp_119.withColumn("CASE_CATG_SCD_KEY", expr("CASE WHEN CASE_CATG_SCD_KEY = NULL THEN 0 ELSE CASE_CATG_SCD_KEY END"))
-        df_exp_119 = df_exp_119.withColumn("RSDN_LNG_DMNS_KEY", expr("CASE WHEN RSDN_LNG_DMNS_KEY = NULL THEN 0 ELSE RSDN_LNG_DMNS_KEY END"))
-        df_exp_119 = df_exp_119.withColumn("BLK_SCD_KEY", expr("CASE WHEN BLK_SCD_KEY = NULL THEN 0 ELSE BLK_SCD_KEY END"))
-        df_exp_119 = df_exp_119.withColumn("HSHLD_AEM_IND", expr("CASE WHEN HSHLD_AEM_IND = NULL THEN 'N' ELSE HSHLD_AEM_IND END"))
-        df_exp_119 = df_exp_119.withColumn("HSHLD_ELDR_IND", expr("CASE WHEN HSHLD_ELDR_IND = NULL THEN 'N' ELSE HSHLD_ELDR_IND END"))
-        df_exp_119 = df_exp_119.withColumn("HSHLD_DSBL_IND", expr("CASE WHEN HSHLD_DSBL_IND = NULL THEN 'N' ELSE HSHLD_DSBL_IND END"))
-        df_exp_119 = df_exp_119.withColumn("CMS_CASE_CNT", expr("0"))
-        df_exp_119 = df_exp_119.withColumn("CMS_CASE_CMPLT_CNT", expr("0"))
-        df_exp_119 = df_exp_119.withColumn("CMS_CASE_RPET_CNT", expr("0"))
-        df_exp_119 = df_exp_119.withColumn("CMS_CASE_NEW_CNT", expr("0"))
-        df_exp_119 = df_exp_119.withColumn("EST_SCD_KEY", expr("CASE WHEN EST_SCD_KEY = null THEN 0 ELSE EST_SCD_KEY END"))
-        df_exp_119 = df_exp_119.withColumn("CMS_RCPT_PRN_CNT", expr("0"))
-        df_exp_119 = df_exp_119.withColumn("CMS_CASE_ITEM_CNT", expr("TTL_CMS_CASE_ITEM_CNT"))
-        df_exp_119 = df_exp_119.withColumn("CMS_CASE_ITEM_CMPLT_CNT", expr("TTL_CMS_CASE_ITEM_CMPLT_CNT"))
-        df_exp_119 = df_exp_119.withColumn("CMS_CASE_ITEM_RPET_CNT", expr("TTL_CMS_CASE_ITEM_RPET_CNT"))
-        df_exp_119 = df_exp_119.withColumn("CMS_CASE_ITEM_NEW_CNT", expr("TTL_CMS_CASE_ITEM_NEW_CNT"))
-        df_exp_119 = df_exp_119.withColumn("CMS_BLK_SCD_KEY", expr("CASE WHEN CMS_BLK_SCD_KEY = NULL THEN 0 ELSE CMS_BLK_SCD_KEY END"))
-        df_exp_119 = df_exp_119.withColumn("CMS_EST_SCD_KEY", expr("CASE WHEN CMS_EST_SCD_KEY = null THEN 0 ELSE CMS_EST_SCD_KEY END"))
+        df_EXPTRANS51 = df_FILTRANS1
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("TIME_DMNS_KEY", expr("CASE WHEN TIME_DMNS_KEY = NULL THEN 0 ELSE TIME_DMNS_KEY END"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("RQS_CHNL_DMNS_KEY", expr("CASE WHEN RQS_CHNL_DMNS_KEY = NULL THEN 0 ELSE RQS_CHNL_DMNS_KEY END"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("CASE_TYPE_SCD_KEY", expr("CASE WHEN CASE_TYPE_SCD_KEY = NULL THEN 0 ELSE CASE_TYPE_SCD_KEY END"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("BLK_AGE_DMNS_KEY", expr("CASE WHEN BLK_AGE_DMNS_KEY = NULL THEN 0 ELSE BLK_AGE_DMNS_KEY END"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("EST_OFFC_SCD_KEY", expr("CASE WHEN EST_OFFC_SCD_KEY = NULL THEN 0 ELSE EST_OFFC_SCD_KEY END"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("HSHLD_SIZE_DMNS_KEY", expr("CASE WHEN HSHLD_SIZE_DMNS_KEY = NULL THEN 0 ELSE HSHLD_SIZE_DMNS_KEY END"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("UNIT_SIZE_DMNS_KEY", expr("CASE WHEN UNIT_SIZE_DMNS_KEY = NULL THEN 0 ELSE UNIT_SIZE_DMNS_KEY END"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("CASE_CATG_SCD_KEY", expr("CASE WHEN CASE_CATG_SCD_KEY = NULL THEN 0 ELSE CASE_CATG_SCD_KEY END"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("RSDN_LNG_DMNS_KEY", expr("CASE WHEN RSDN_LNG_DMNS_KEY = NULL THEN 0 ELSE RSDN_LNG_DMNS_KEY END"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("BLK_SCD_KEY", expr("CASE WHEN BLK_SCD_KEY = NULL THEN 0 ELSE BLK_SCD_KEY END"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("HSHLD_AEM_IND", expr("CASE WHEN HSHLD_AEM_IND = NULL THEN 'N' ELSE HSHLD_AEM_IND END"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("HSHLD_ELDR_IND", expr("CASE WHEN HSHLD_ELDR_IND = NULL THEN 'N' ELSE HSHLD_ELDR_IND END"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("HSHLD_DSBL_IND", expr("CASE WHEN HSHLD_DSBL_IND = NULL THEN 'N' ELSE HSHLD_DSBL_IND END"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("CMS_CASE_CNT", expr("0"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("CMS_CASE_CMPLT_CNT", expr("0"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("CMS_CASE_RPET_CNT", expr("0"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("CMS_CASE_NEW_CNT", expr("0"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("EST_SCD_KEY", expr("CASE WHEN EST_SCD_KEY = null THEN 0 ELSE EST_SCD_KEY END"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("CMS_RCPT_PRN_CNT", expr("0"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("CMS_CASE_ITEM_CNT", expr("TTL_CMS_CASE_ITEM_CNT"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("CMS_CASE_ITEM_CMPLT_CNT", expr("TTL_CMS_CASE_ITEM_CMPLT_CNT"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("CMS_CASE_ITEM_RPET_CNT", expr("TTL_CMS_CASE_ITEM_RPET_CNT"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("CMS_CASE_ITEM_NEW_CNT", expr("TTL_CMS_CASE_ITEM_NEW_CNT"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("CMS_BLK_SCD_KEY", expr("CASE WHEN CMS_BLK_SCD_KEY = NULL THEN 0 ELSE CMS_BLK_SCD_KEY END"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("CMS_EST_SCD_KEY", expr("CASE WHEN CMS_EST_SCD_KEY = null THEN 0 ELSE CMS_EST_SCD_KEY END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         # Select only mapping output ports (prevents column leakage)
-        df_exp_119 = df_exp_119.select("TIME_DMNS_KEY", "RQS_CHNL_DMNS_KEY", "CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "HSHLD_SIZE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "CASE_CATG_SCD_KEY", "RSDN_LNG_DMNS_KEY", "BLK_SCD_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "HSHLD_DSBL_IND", "CMS_CASE_CNT", "CMS_CASE_CMPLT_CNT", "CMS_CASE_RPET_CNT", "CMS_CASE_NEW_CNT", "CMS_BLK_SCD_KEY", "EST_SCD_KEY", "CMS_EST_SCD_KEY", "CMS_RCPT_PRN_CNT", "CMS_CASE_ITEM_CNT", "CMS_CASE_ITEM_CMPLT_CNT", "CMS_CASE_ITEM_RPET_CNT", "CMS_CASE_ITEM_NEW_CNT")
-        ctx.register_df("df_exp_119", df_exp_119)
+        df_EXPTRANS51 = df_EXPTRANS51.select("TIME_DMNS_KEY", "RQS_CHNL_DMNS_KEY", "CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "HSHLD_SIZE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "CASE_CATG_SCD_KEY", "RSDN_LNG_DMNS_KEY", "BLK_SCD_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "HSHLD_DSBL_IND", "CMS_CASE_CNT", "CMS_CASE_CMPLT_CNT", "CMS_CASE_RPET_CNT", "CMS_CASE_NEW_CNT", "CMS_BLK_SCD_KEY", "EST_SCD_KEY", "CMS_EST_SCD_KEY", "CMS_RCPT_PRN_CNT", "CMS_CASE_ITEM_CNT", "CMS_CASE_ITEM_CMPLT_CNT", "CMS_CASE_ITEM_RPET_CNT", "CMS_CASE_ITEM_NEW_CNT")
+        ctx.register_df("df_EXPTRANS51", df_EXPTRANS51)
         
         logger.info("Step: apply_FILTRANS")
         # Filter: apply_FILTRANS
-        df_fil_120 = df_agg_118.filter(expr("TTL_CMS_CASE_CNT > 0 OR TTL_CMS_CASE_CMPLT_CNT > 0 OR TTL_CMS_CASE_RPET_CNT > 0 OR TTL_CMS_CASE_NEW_CNT > 0"))
-        ctx.register_df("df_fil_120", df_fil_120)
+        df_FILTRANS = df_AGGTRANS1.filter(expr("TTL_CMS_CASE_CNT > 0 OR TTL_CMS_CASE_CMPLT_CNT > 0 OR TTL_CMS_CASE_RPET_CNT > 0 OR TTL_CMS_CASE_NEW_CNT > 0"))
+        ctx.register_df("df_FILTRANS", df_FILTRANS)
         
         logger.info("Step: apply_EXPTRANS5")
         # Expression: apply_EXPTRANS5
-        df_exp_121 = df_fil_120
-        df_exp_121 = df_exp_121.withColumn("TIME_DMNS_KEY", expr("CASE WHEN TIME_DMNS_KEY = NULL THEN 0 ELSE TIME_DMNS_KEY END"))
-        df_exp_121 = df_exp_121.withColumn("RQS_CHNL_DMNS_KEY", expr("CASE WHEN RQS_CHNL_DMNS_KEY = NULL THEN 0 ELSE RQS_CHNL_DMNS_KEY END"))
-        df_exp_121 = df_exp_121.withColumn("CASE_TYPE_SCD_KEY", expr("CASE WHEN CASE_TYPE_SCD_KEY = NULL THEN 0 ELSE CASE_TYPE_SCD_KEY END"))
-        df_exp_121 = df_exp_121.withColumn("BLK_AGE_DMNS_KEY", expr("CASE WHEN BLK_AGE_DMNS_KEY = NULL THEN 0 ELSE BLK_AGE_DMNS_KEY END"))
-        df_exp_121 = df_exp_121.withColumn("EST_OFFC_SCD_KEY", expr("CASE WHEN EST_OFFC_SCD_KEY = NULL THEN 0 ELSE EST_OFFC_SCD_KEY END"))
-        df_exp_121 = df_exp_121.withColumn("HSHLD_SIZE_DMNS_KEY", expr("CASE WHEN HSHLD_SIZE_DMNS_KEY = NULL THEN 0 ELSE HSHLD_SIZE_DMNS_KEY END"))
-        df_exp_121 = df_exp_121.withColumn("UNIT_SIZE_DMNS_KEY", expr("CASE WHEN UNIT_SIZE_DMNS_KEY = NULL THEN 0 ELSE UNIT_SIZE_DMNS_KEY END"))
-        df_exp_121 = df_exp_121.withColumn("CASE_CATG_SCD_KEY", expr("CASE WHEN CASE_CATG_SCD_KEY = NULL THEN 0 ELSE CASE_CATG_SCD_KEY END"))
-        df_exp_121 = df_exp_121.withColumn("RSDN_LNG_DMNS_KEY", expr("CASE WHEN RSDN_LNG_DMNS_KEY = NULL THEN 0 ELSE RSDN_LNG_DMNS_KEY END"))
-        df_exp_121 = df_exp_121.withColumn("BLK_SCD_KEY", expr("CASE WHEN BLK_SCD_KEY = NULL THEN 0 ELSE BLK_SCD_KEY END"))
-        df_exp_121 = df_exp_121.withColumn("HSHLD_AEM_IND", expr("CASE WHEN HSHLD_AEM_IND = NULL THEN 'N' ELSE HSHLD_AEM_IND END"))
-        df_exp_121 = df_exp_121.withColumn("HSHLD_ELDR_IND", expr("CASE WHEN HSHLD_ELDR_IND = NULL THEN 'N' ELSE HSHLD_ELDR_IND END"))
-        df_exp_121 = df_exp_121.withColumn("HSHLD_DSBL_IND", expr("CASE WHEN HSHLD_DSBL_IND = NULL THEN 'N' ELSE HSHLD_DSBL_IND END"))
-        df_exp_121 = df_exp_121.withColumn("CMS_CASE_CNT", expr("TTL_CMS_CASE_CNT"))
-        df_exp_121 = df_exp_121.withColumn("CMS_CASE_CMPLT_CNT", expr("TTL_CMS_CASE_CMPLT_CNT"))
-        df_exp_121 = df_exp_121.withColumn("CMS_CASE_RPET_CNT", expr("TTL_CMS_CASE_RPET_CNT"))
-        df_exp_121 = df_exp_121.withColumn("CMS_CASE_NEW_CNT", expr("TTL_CMS_CASE_NEW_CNT"))
-        df_exp_121 = df_exp_121.withColumn("EST_SCD_KEY", expr("CASE WHEN EST_SCD_KEY = null THEN 0 ELSE EST_SCD_KEY END"))
-        df_exp_121 = df_exp_121.withColumn("CMS_RCPT_PRN_CNT", expr("TTL_CMS_RCPT_PRN_CNT"))
-        df_exp_121 = df_exp_121.withColumn("CMS_CASE_ITEM_CNT", expr("0"))
-        df_exp_121 = df_exp_121.withColumn("CMS_CASE_ITEM_CMPLT_CNT", expr("0"))
-        df_exp_121 = df_exp_121.withColumn("CMS_CASE_ITEM_RPET_CNT", expr("0"))
-        df_exp_121 = df_exp_121.withColumn("CMS_CASE_ITEM_NEW_CNT", expr("0"))
-        df_exp_121 = df_exp_121.withColumn("CMS_BLK_SCD_KEY", expr("CASE WHEN CMS_BLK_SCD_KEY = NULL THEN 0 ELSE CMS_BLK_SCD_KEY END"))
-        df_exp_121 = df_exp_121.withColumn("CMS_EST_SCD_KEY", expr("CASE WHEN CMS_EST_SCD_KEY = null THEN 0 ELSE CMS_EST_SCD_KEY END"))
+        df_EXPTRANS5 = df_FILTRANS
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("TIME_DMNS_KEY", expr("CASE WHEN TIME_DMNS_KEY = NULL THEN 0 ELSE TIME_DMNS_KEY END"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("RQS_CHNL_DMNS_KEY", expr("CASE WHEN RQS_CHNL_DMNS_KEY = NULL THEN 0 ELSE RQS_CHNL_DMNS_KEY END"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("CASE_TYPE_SCD_KEY", expr("CASE WHEN CASE_TYPE_SCD_KEY = NULL THEN 0 ELSE CASE_TYPE_SCD_KEY END"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("BLK_AGE_DMNS_KEY", expr("CASE WHEN BLK_AGE_DMNS_KEY = NULL THEN 0 ELSE BLK_AGE_DMNS_KEY END"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("EST_OFFC_SCD_KEY", expr("CASE WHEN EST_OFFC_SCD_KEY = NULL THEN 0 ELSE EST_OFFC_SCD_KEY END"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("HSHLD_SIZE_DMNS_KEY", expr("CASE WHEN HSHLD_SIZE_DMNS_KEY = NULL THEN 0 ELSE HSHLD_SIZE_DMNS_KEY END"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("UNIT_SIZE_DMNS_KEY", expr("CASE WHEN UNIT_SIZE_DMNS_KEY = NULL THEN 0 ELSE UNIT_SIZE_DMNS_KEY END"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("CASE_CATG_SCD_KEY", expr("CASE WHEN CASE_CATG_SCD_KEY = NULL THEN 0 ELSE CASE_CATG_SCD_KEY END"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("RSDN_LNG_DMNS_KEY", expr("CASE WHEN RSDN_LNG_DMNS_KEY = NULL THEN 0 ELSE RSDN_LNG_DMNS_KEY END"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("BLK_SCD_KEY", expr("CASE WHEN BLK_SCD_KEY = NULL THEN 0 ELSE BLK_SCD_KEY END"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("HSHLD_AEM_IND", expr("CASE WHEN HSHLD_AEM_IND = NULL THEN 'N' ELSE HSHLD_AEM_IND END"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("HSHLD_ELDR_IND", expr("CASE WHEN HSHLD_ELDR_IND = NULL THEN 'N' ELSE HSHLD_ELDR_IND END"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("HSHLD_DSBL_IND", expr("CASE WHEN HSHLD_DSBL_IND = NULL THEN 'N' ELSE HSHLD_DSBL_IND END"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("CMS_CASE_CNT", expr("TTL_CMS_CASE_CNT"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("CMS_CASE_CMPLT_CNT", expr("TTL_CMS_CASE_CMPLT_CNT"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("CMS_CASE_RPET_CNT", expr("TTL_CMS_CASE_RPET_CNT"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("CMS_CASE_NEW_CNT", expr("TTL_CMS_CASE_NEW_CNT"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("EST_SCD_KEY", expr("CASE WHEN EST_SCD_KEY = null THEN 0 ELSE EST_SCD_KEY END"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("CMS_RCPT_PRN_CNT", expr("TTL_CMS_RCPT_PRN_CNT"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("CMS_CASE_ITEM_CNT", expr("0"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("CMS_CASE_ITEM_CMPLT_CNT", expr("0"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("CMS_CASE_ITEM_RPET_CNT", expr("0"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("CMS_CASE_ITEM_NEW_CNT", expr("0"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("CMS_BLK_SCD_KEY", expr("CASE WHEN CMS_BLK_SCD_KEY = NULL THEN 0 ELSE CMS_BLK_SCD_KEY END"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("CMS_EST_SCD_KEY", expr("CASE WHEN CMS_EST_SCD_KEY = null THEN 0 ELSE CMS_EST_SCD_KEY END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         # Select only mapping output ports (prevents column leakage)
-        df_exp_121 = df_exp_121.select("TIME_DMNS_KEY", "RQS_CHNL_DMNS_KEY", "CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "HSHLD_SIZE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "CASE_CATG_SCD_KEY", "RSDN_LNG_DMNS_KEY", "BLK_SCD_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "HSHLD_DSBL_IND", "CMS_CASE_CNT", "CMS_CASE_CMPLT_CNT", "CMS_CASE_RPET_CNT", "CMS_CASE_NEW_CNT", "CMS_BLK_SCD_KEY", "EST_SCD_KEY", "CMS_EST_SCD_KEY", "CMS_RCPT_PRN_CNT", "CMS_CASE_ITEM_CNT", "CMS_CASE_ITEM_CMPLT_CNT", "CMS_CASE_ITEM_RPET_CNT", "CMS_CASE_ITEM_NEW_CNT")
-        ctx.register_df("df_exp_121", df_exp_121)
+        df_EXPTRANS5 = df_EXPTRANS5.select("TIME_DMNS_KEY", "RQS_CHNL_DMNS_KEY", "CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "HSHLD_SIZE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "CASE_CATG_SCD_KEY", "RSDN_LNG_DMNS_KEY", "BLK_SCD_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "HSHLD_DSBL_IND", "CMS_CASE_CNT", "CMS_CASE_CMPLT_CNT", "CMS_CASE_RPET_CNT", "CMS_CASE_NEW_CNT", "CMS_BLK_SCD_KEY", "EST_SCD_KEY", "CMS_EST_SCD_KEY", "CMS_RCPT_PRN_CNT", "CMS_CASE_ITEM_CNT", "CMS_CASE_ITEM_CMPLT_CNT", "CMS_CASE_ITEM_RPET_CNT", "CMS_CASE_ITEM_NEW_CNT")
+        ctx.register_df("df_EXPTRANS5", df_EXPTRANS5)
         
         logger.info("Step: apply_Union")
         # Union: apply_Union
-        df_un_122 = df_exp_119
-        df_un_122 = df_un_122.unionByName(df_exp_121, allowMissingColumns=True)
+        df_Union = df_EXPTRANS51
+        df_Union = df_Union.unionByName(df_EXPTRANS5, allowMissingColumns=True)
         # Select only union output columns
-        df_un_122 = df_un_122.select("TIME_DMNS_KEY", "RQS_CHNL_DMNS_KEY", "CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "HSHLD_SIZE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "CASE_CATG_SCD_KEY", "RSDN_LNG_DMNS_KEY", "BLK_SCD_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "HSHLD_DSBL_IND", "CMS_CASE_CNT", "CMS_CASE_CMPLT_CNT", "CMS_CASE_RPET_CNT", "CMS_CASE_NEW_CNT", "CMS_BLK_SCD_KEY", "EST_SCD_KEY", "CMS_EST_SCD_KEY", "CMS_RCPT_PRN_CNT", "CMS_CASE_ITEM_CNT", "CMS_CASE_ITEM_CMPLT_CNT", "CMS_CASE_ITEM_RPET_CNT", "CMS_CASE_ITEM_NEW_CNT")
-        ctx.register_df("df_un_122", df_un_122)
+        df_Union = df_Union.select("TIME_DMNS_KEY", "RQS_CHNL_DMNS_KEY", "CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "HSHLD_SIZE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "CASE_CATG_SCD_KEY", "RSDN_LNG_DMNS_KEY", "BLK_SCD_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "HSHLD_DSBL_IND", "CMS_CASE_CNT", "CMS_CASE_CMPLT_CNT", "CMS_CASE_RPET_CNT", "CMS_CASE_NEW_CNT", "CMS_BLK_SCD_KEY", "EST_SCD_KEY", "CMS_EST_SCD_KEY", "CMS_RCPT_PRN_CNT", "CMS_CASE_ITEM_CNT", "CMS_CASE_ITEM_CMPLT_CNT", "CMS_CASE_ITEM_RPET_CNT", "CMS_CASE_ITEM_NEW_CNT")
+        ctx.register_df("df_Union", df_Union)
         
         logger.info("Step: apply_AGGTRANS")
         # Aggregator: apply_AGGTRANS
-        df_agg_123 = df_un_122.groupBy("TIME_DMNS_KEY", "RQS_CHNL_DMNS_KEY", "CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "HSHLD_SIZE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "CASE_CATG_SCD_KEY", "RSDN_LNG_DMNS_KEY", "BLK_SCD_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "HSHLD_DSBL_IND", "CMS_BLK_SCD_KEY", "EST_SCD_KEY", "CMS_EST_SCD_KEY")
-        df_agg_123 = df_agg_123.agg(
+        df_AGGTRANS = df_Union.groupBy("TIME_DMNS_KEY", "RQS_CHNL_DMNS_KEY", "CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "HSHLD_SIZE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "CASE_CATG_SCD_KEY", "RSDN_LNG_DMNS_KEY", "BLK_SCD_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "HSHLD_DSBL_IND", "CMS_BLK_SCD_KEY", "EST_SCD_KEY", "CMS_EST_SCD_KEY")
+        df_AGGTRANS = df_AGGTRANS.agg(
             sum("CMS_CASE_CNT").alias("CMS_CASE_CNT"),
             sum("CMS_CASE_CMPLT_CNT").alias("CMS_CASE_CMPLT_CNT"),
             sum("CMS_CASE_RPET_CNT").alias("CMS_CASE_RPET_CNT"),
@@ -1360,24 +1451,24 @@ GROUP BY
             sum("CMS_CASE_ITEM_RPET_CNT").alias("CMS_CASE_ITEM_RPET_CNT"),
             sum("CMS_CASE_ITEM_NEW_CNT").alias("CMS_CASE_ITEM_NEW_CNT")
         )
-        ctx.register_df("df_agg_123", df_agg_123)
+        ctx.register_df("df_AGGTRANS", df_AGGTRANS)
         
         logger.info("Step: apply_EXPTRANS52")
         # Expression: apply_EXPTRANS52
-        df_exp_124 = df_agg_123
-        df_exp_124 = df_exp_124.withColumn("LAST_REC_TXN_DATE", expr("current_timestamp()"))
-        df_exp_124 = df_exp_124.withColumn("LAST_REC_TXN_TYPE_CODE", expr("'I'"))
+        df_EXPTRANS52 = df_AGGTRANS
+        df_EXPTRANS52 = df_EXPTRANS52.withColumn("LAST_REC_TXN_DATE", expr("current_timestamp()"))
+        df_EXPTRANS52 = df_EXPTRANS52.withColumn("LAST_REC_TXN_TYPE_CODE", expr("'I'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["TIME_DMNS_KEY", "RQS_CHNL_DMNS_KEY", "CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "HSHLD_SIZE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "CASE_CATG_SCD_KEY", "RSDN_LNG_DMNS_KEY", "BLK_SCD_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "HSHLD_DSBL_IND", "CMS_CASE_CNT", "CMS_CASE_CMPLT_CNT", "CMS_CASE_RPET_CNT", "CMS_CASE_NEW_CNT", "EST_SCD_KEY", "CMS_RCPT_PRN_CNT", "CMS_CASE_ITEM_CNT", "CMS_CASE_ITEM_CMPLT_CNT", "CMS_CASE_ITEM_RPET_CNT", "CMS_CASE_ITEM_NEW_CNT", "CMS_BLK_SCD_KEY", "CMS_EST_SCD_KEY"]:
-            if _col not in df_exp_124.columns:
-                df_exp_124 = df_exp_124.withColumn(_col, lit(None))
+            if _col not in df_EXPTRANS52.columns:
+                df_EXPTRANS52 = df_EXPTRANS52.withColumn(_col, lit(None))
         # Select only mapping output ports (prevents column leakage)
-        df_exp_124 = df_exp_124.select("TIME_DMNS_KEY", "RQS_CHNL_DMNS_KEY", "CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "HSHLD_SIZE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "CASE_CATG_SCD_KEY", "RSDN_LNG_DMNS_KEY", "BLK_SCD_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "HSHLD_DSBL_IND", "CMS_CASE_CNT", "CMS_CASE_CMPLT_CNT", "CMS_CASE_RPET_CNT", "CMS_CASE_NEW_CNT", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "CMS_BLK_SCD_KEY", "EST_SCD_KEY", "CMS_EST_SCD_KEY", "CMS_RCPT_PRN_CNT", "CMS_CASE_ITEM_CNT", "CMS_CASE_ITEM_CMPLT_CNT", "CMS_CASE_ITEM_RPET_CNT", "CMS_CASE_ITEM_NEW_CNT")
-        ctx.register_df("df_exp_124", df_exp_124)
+        df_EXPTRANS52 = df_EXPTRANS52.select("TIME_DMNS_KEY", "RQS_CHNL_DMNS_KEY", "CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "HSHLD_SIZE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "CASE_CATG_SCD_KEY", "RSDN_LNG_DMNS_KEY", "BLK_SCD_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "HSHLD_DSBL_IND", "CMS_CASE_CNT", "CMS_CASE_CMPLT_CNT", "CMS_CASE_RPET_CNT", "CMS_CASE_NEW_CNT", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "CMS_BLK_SCD_KEY", "EST_SCD_KEY", "CMS_EST_SCD_KEY", "CMS_RCPT_PRN_CNT", "CMS_CASE_ITEM_CNT", "CMS_CASE_ITEM_CMPLT_CNT", "CMS_CASE_ITEM_RPET_CNT", "CMS_CASE_ITEM_NEW_CNT")
+        ctx.register_df("df_EXPTRANS52", df_EXPTRANS52)
         
         logger.info("Step: write_DPA_FACT_CMS_CASE_SMRY")
         # Write to Target: write_DPA_FACT_CMS_CASE_SMRY
-        df_write = df_exp_124
+        df_write = df_EXPTRANS52
         # Cast columns to match target schema data types
         if "hshld_aem_ind" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

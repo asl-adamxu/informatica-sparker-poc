@@ -55,18 +55,18 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Reading Data From Source - read_DPA_FACT_CMS_CASE_SMRY
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_src_1 = lib.read_sql(spark, _conn, table="DPA_FACT_CMS_CASE_SMRY")
+        df_DPA_FACT_CMS_CASE_SMRY = lib.read_sql(spark, _conn, table="DPA_FACT_CMS_CASE_SMRY")
         
         logger.info("Step: apply_SQ_DPA_FACT_CMS_CASE_SMRY")
         # Source Qualifier: apply_SQ_DPA_FACT_CMS_CASE_SMRY
-        df_sq_2 = df_src_1
+        df_SQ_DPA_FACT_CMS_CASE_SMRY = df_DPA_FACT_CMS_CASE_SMRY
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_2 = df_sq_2.select("TIME_DMNS_KEY", "RQS_CHNL_DMNS_KEY", "CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "HSHLD_SIZE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "CASE_CATG_SCD_KEY", "RSDN_LNG_DMNS_KEY", "BLK_SCD_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "HSHLD_DSBL_IND", "CMS_CASE_CNT", "CMS_CASE_CMPLT_CNT", "CMS_CASE_RPET_CNT", "CMS_CASE_NEW_CNT", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "CMS_BLK_SCD_KEY", "EST_SCD_KEY", "CMS_EST_SCD_KEY", "CMS_RCPT_PRN_CNT", "CMS_CASE_ITEM_CNT", "CMS_CASE_ITEM_CMPLT_CNT", "CMS_CASE_ITEM_RPET_CNT", "CMS_CASE_ITEM_NEW_CNT")
-        ctx.register_df("df_sq_2", df_sq_2)
+        df_SQ_DPA_FACT_CMS_CASE_SMRY = df_SQ_DPA_FACT_CMS_CASE_SMRY.select("TIME_DMNS_KEY", "RQS_CHNL_DMNS_KEY", "CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "HSHLD_SIZE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "CASE_CATG_SCD_KEY", "RSDN_LNG_DMNS_KEY", "BLK_SCD_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "HSHLD_DSBL_IND", "CMS_CASE_CNT", "CMS_CASE_CMPLT_CNT", "CMS_CASE_RPET_CNT", "CMS_CASE_NEW_CNT", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "CMS_BLK_SCD_KEY", "EST_SCD_KEY", "CMS_EST_SCD_KEY", "CMS_RCPT_PRN_CNT", "CMS_CASE_ITEM_CNT", "CMS_CASE_ITEM_CMPLT_CNT", "CMS_CASE_ITEM_RPET_CNT", "CMS_CASE_ITEM_NEW_CNT")
+        ctx.register_df("df_SQ_DPA_FACT_CMS_CASE_SMRY", df_SQ_DPA_FACT_CMS_CASE_SMRY)
         
         logger.info("Step: write_DDS_FACT_CMS_CASE_SMRY")
         # Write to Target: write_DDS_FACT_CMS_CASE_SMRY
-        df_write = df_sq_2
+        df_write = df_SQ_DPA_FACT_CMS_CASE_SMRY
         # Cast columns to match target schema data types
         if "hshld_aem_ind" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

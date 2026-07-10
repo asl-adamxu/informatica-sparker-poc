@@ -73,42 +73,42 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Reading Data From Source - read_DPA_FACT_MTH_DRP_SWD_CLCT_SMRY
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_src_1 = lib.read_sql(spark, _conn, table="DPA_FACT_MTH_DRP_SWD_CLCT_SMRY")
+        df_DPA_FACT_MTH_DRP_SWD_CLCT_SMRY = lib.read_sql(spark, _conn, table="DPA_FACT_MTH_DRP_SWD_CLCT_SMRY")
         
         logger.info("Step: apply_SQ_SP_DELETE")
         # Source Qualifier: apply_SQ_SP_DELETE
-        df_sq_2 = df_src_1
+        df_SQ_SP_DELETE = df_DPA_FACT_MTH_DRP_SWD_CLCT_SMRY
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_2 = df_sq_2.select("TIME_DMNS_KEY")
-        ctx.register_df("df_sq_2", df_sq_2)
+        df_SQ_SP_DELETE = df_SQ_SP_DELETE.select("TIME_DMNS_KEY")
+        ctx.register_df("df_SQ_SP_DELETE", df_SQ_SP_DELETE)
         
         logger.info("Step: apply_SQ_DPA_FACT_MTH_DRP_SWD_CLCT_SMRY")
         # Source Qualifier: apply_SQ_DPA_FACT_MTH_DRP_SWD_CLCT_SMRY
-        df_sq_3 = df_src_1
+        df_SQ_DPA_FACT_MTH_DRP_SWD_CLCT_SMRY = df_DPA_FACT_MTH_DRP_SWD_CLCT_SMRY
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_3 = df_sq_3.select("TIME_DMNS_KEY", "RVN_TXN_MODE_DMNS_KEY", "EST_SCD_KEY", "DRP_ACTL_TXN_PYMT_ITEM_AMT", "DRP_ACTL_TXN_CNT", "DRP_ACTL_TXN_TNCY_CNT", "DRP_PRLM_FILE_TNCY_CNT", "DRP_OVER_PAY_TNCY_CNT", "DRP_EXACT_PAY_TNCY_CNT", "DRP_UND_PAY_TNCY_CNT", "DRP_CMLT_ARR_AMT", "DRP_UND_PAY_CMLT_ARR_AMT", "DRP_EXACT_PAY_ARR_TNCY_CNT", "DRP_UND_PAY_ARR_TNCY_CNT", "DRP_TNCY_CMLT_ADV_AMT", "DRP_ADV_TNCY_CNT", "DRP_HALF_RENT_TNCY_CNT", "DRP_THRD_QTR_RENT_TNCY_CNT", "DRP_NRML_RENT_TNCY_CNT", "DRP_EXTRA_RENT_TNCY_CNT", "DRP_DBL_RENT_TNCY_CNT", "DRP_MKT_RENT_TNCY_CNT", "DRP_CASE_CNT", "DRP_REJ_TXN_PYMT_ITEM_AMT", "DRP_REJ_TXN_CNT")
-        ctx.register_df("df_sq_3", df_sq_3)
+        df_SQ_DPA_FACT_MTH_DRP_SWD_CLCT_SMRY = df_SQ_DPA_FACT_MTH_DRP_SWD_CLCT_SMRY.select("TIME_DMNS_KEY", "RVN_TXN_MODE_DMNS_KEY", "EST_SCD_KEY", "DRP_ACTL_TXN_PYMT_ITEM_AMT", "DRP_ACTL_TXN_CNT", "DRP_ACTL_TXN_TNCY_CNT", "DRP_PRLM_FILE_TNCY_CNT", "DRP_OVER_PAY_TNCY_CNT", "DRP_EXACT_PAY_TNCY_CNT", "DRP_UND_PAY_TNCY_CNT", "DRP_CMLT_ARR_AMT", "DRP_UND_PAY_CMLT_ARR_AMT", "DRP_EXACT_PAY_ARR_TNCY_CNT", "DRP_UND_PAY_ARR_TNCY_CNT", "DRP_TNCY_CMLT_ADV_AMT", "DRP_ADV_TNCY_CNT", "DRP_HALF_RENT_TNCY_CNT", "DRP_THRD_QTR_RENT_TNCY_CNT", "DRP_NRML_RENT_TNCY_CNT", "DRP_EXTRA_RENT_TNCY_CNT", "DRP_DBL_RENT_TNCY_CNT", "DRP_MKT_RENT_TNCY_CNT", "DRP_CASE_CNT", "DRP_REJ_TXN_PYMT_ITEM_AMT", "DRP_REJ_TXN_CNT")
+        ctx.register_df("df_SQ_DPA_FACT_MTH_DRP_SWD_CLCT_SMRY", df_SQ_DPA_FACT_MTH_DRP_SWD_CLCT_SMRY)
         
         logger.info("Step: apply_EXP_SET_DEL_INFO")
         # Expression: apply_EXP_SET_DEL_INFO
-        df_exp_4 = df_sq_2
-        df_exp_4 = df_exp_4.withColumn("TBL_NAME", expr("'DDS_FACT_MTH_DRP_SWD_CLCT_SMRY'"))
-        df_exp_4 = df_exp_4.withColumn("RM_FLG", expr("'Y'"))
+        df_EXP_SET_DEL_INFO = df_SQ_SP_DELETE
+        df_EXP_SET_DEL_INFO = df_EXP_SET_DEL_INFO.withColumn("TBL_NAME", expr("'DDS_FACT_MTH_DRP_SWD_CLCT_SMRY'"))
+        df_EXP_SET_DEL_INFO = df_EXP_SET_DEL_INFO.withColumn("RM_FLG", expr("'Y'"))
         _expr = """'$$v_REC_RLS_IND'"""
         _expr = _expr.replace("$$v_REC_RLS_IND", str(v_REC_RLS_IND))
-        df_exp_4 = df_exp_4.withColumn("RSL_CTL_IND", expr(_expr))
+        df_EXP_SET_DEL_INFO = df_EXP_SET_DEL_INFO.withColumn("RSL_CTL_IND", expr(_expr))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["TIME_DMNS_KEY"]:
-            if _col not in df_exp_4.columns:
-                df_exp_4 = df_exp_4.withColumn(_col, lit(None))
+            if _col not in df_EXP_SET_DEL_INFO.columns:
+                df_EXP_SET_DEL_INFO = df_EXP_SET_DEL_INFO.withColumn(_col, lit(None))
         # Select only mapping output ports (prevents column leakage)
-        df_exp_4 = df_exp_4.select("TIME_DMNS_KEY", "TBL_NAME", "RM_FLG", "RSL_CTL_IND")
-        ctx.register_df("df_exp_4", df_exp_4)
+        df_EXP_SET_DEL_INFO = df_EXP_SET_DEL_INFO.select("TIME_DMNS_KEY", "TBL_NAME", "RM_FLG", "RSL_CTL_IND")
+        ctx.register_df("df_EXP_SET_DEL_INFO", df_EXP_SET_DEL_INFO)
         
         logger.info("Step: apply_AGGTRANS")
         # Aggregator: apply_AGGTRANS
-        df_agg_5 = df_sq_3.groupBy("TIME_DMNS_KEY", "EST_SCD_KEY")
-        df_agg_5 = df_agg_5.agg(
+        df_AGGTRANS = df_SQ_DPA_FACT_MTH_DRP_SWD_CLCT_SMRY.groupBy("TIME_DMNS_KEY", "EST_SCD_KEY")
+        df_AGGTRANS = df_AGGTRANS.agg(
             max("RVN_TXN_MODE_DMNS_KEY").alias("RVN_TXN_MODE_DMNS_KEY1"),
             sum("DRP_ACTL_TXN_PYMT_ITEM_AMT").alias("DRP_ACTL_TXN_PYMT_ITEM_AMT1"),
             sum("DRP_ACTL_TXN_CNT").alias("DRP_ACTL_TXN_CNT1"),
@@ -133,49 +133,62 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             sum("DRP_REJ_TXN_PYMT_ITEM_AMT").alias("DRP_REJ_TXN_PYMT_ITEM_AMT1"),
             sum("DRP_REJ_TXN_CNT").alias("DRP_REJ_TXN_CNT1")
         )
-        ctx.register_df("df_agg_5", df_agg_5)
+        ctx.register_df("df_AGGTRANS", df_AGGTRANS)
         
         logger.info("Step: apply_mplt_EXPTRANS")
         # Expression: apply_mplt_EXPTRANS
-        df_mplt_expr_6 = df_exp_4
-        df_mplt_expr_6 = df_mplt_expr_6.withColumn("RLS_CNTL_DMNS_TYPE_CODE", expr("substring(cast(TIME_DMNS_KEY as string),1,1)"))
-        ctx.register_df("df_mplt_expr_6", df_mplt_expr_6)
+        df_mplt_expr_1 = df_EXP_SET_DEL_INFO
+        df_mplt_expr_1 = df_mplt_expr_1.withColumn("RLS_CNTL_DMNS_TYPE_CODE", expr("substring(cast(TIME_DMNS_KEY as string),1,1)"))
+        ctx.register_df("df_mplt_expr_1", df_mplt_expr_1)
         
         logger.info("Step: read_mplt_LKPTRANS")
         # Reading Data From Source - read_mplt_LKPTRANS
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "target")
-        df_mplt_lkp_7 = lib.read_sql(spark, _conn, table="DDS_RLS_CNTL")
+        df_mplt_lkp_2 = lib.read_sql(spark, _conn, table="DDS_RLS_CNTL")
+        
+        logger.info("Step: join_mplt_EXP_SP_DELETE_0")
+        # Lookup: join_mplt_EXP_SP_DELETE_0
+        # Merge parallel DataFrames on their common columns
+        _common_cols = [c for c in df_mplt_lkp_2.columns if c in df_EXP_SET_DEL_INFO.columns]
+        df_mplt_merge_3 = df_mplt_lkp_2.join(
+            df_EXP_SET_DEL_INFO,
+            on=_common_cols,
+            how="left"
+        )
+        ctx.register_df("df_mplt_merge_3", df_mplt_merge_3)
         
         logger.info("Step: apply_mplt_EXP_SP_DELETE")
         # Expression: apply_mplt_EXP_SP_DELETE
-        df_mplt_expr_8 = df_exp_4
-        df_mplt_expr_8 = df_mplt_expr_8.withColumn("FACT_TBL_NAME", expr("TBL_NAME"))
+        df_mplt_expr_4 = df_mplt_merge_3
+        df_mplt_expr_4 = df_mplt_expr_4.withColumn("FACT_TBL_NAME", expr("TBL_NAME"))
         # Execute stored procedure for each input value via JDBC
         _sp_conn = conn_oracle
-        _input_vals = [row["TBL_NAME, MIN_TIME_DMNS_KEY, RM_FLG"] for row in df_exp_4.select("TBL_NAME, MIN_TIME_DMNS_KEY, RM_FLG").collect()]
-        for _val in _input_vals:
+        _sp_input_cols = ["TBL_NAME", "MIN_TIME_DMNS_KEY", "RM_FLG"]
+        _input_rows = [row for row in df_mplt_merge_3.select(*_sp_input_cols).collect()]
+        for _row in _input_rows:
+            _arg_vals = ", ".join("'" + str(_row[c]) + "'" for c in _sp_input_cols)
             lib.execute_sql(spark, _sp_conn,
-                "BEGIN SP_DELETE_DDS_FACT('" + _val + "'); END;")
-        df_mplt_expr_8 = df_mplt_expr_8.withColumn("CALL_SP", lit("SUCCESS"))
-        df_mplt_expr_8 = df_mplt_expr_8.withColumn("RLS_CNTL_BGN_DMNS_KEY", expr("CASE WHEN (RLS_CNTL_BGN_TIME_DMNS_KEY IS NULL) OR (MIN_TIME_DMNS_KEY < RLS_CNTL_BGN_TIME_DMNS_KEY) THEN MIN_TIME_DMNS_KEY ELSE RLS_CNTL_BGN_TIME_DMNS_KEY END"))
-        df_mplt_expr_8 = df_mplt_expr_8.withColumn("RLS_CNTL_END_DMNS_KEY", expr("CASE WHEN (RLS_CNTL_END_TIME_DMNS_KEY IS NULL) OR (MAX_TIME_DMNS_KEY > RLS_CNTL_END_TIME_DMNS_KEY) THEN MAX_TIME_DMNS_KEY ELSE RLS_CNTL_END_TIME_DMNS_KEY END"))
-        df_mplt_expr_8 = df_mplt_expr_8.withColumn("UPDATE_FLAG", expr("CASE WHEN (DDS_RLS_CNTL_TBL_NAME IS NULL) THEN DD_INSERT ELSE DD_UPDATE END"))
-        ctx.register_df("df_mplt_expr_8", df_mplt_expr_8)
+                "BEGIN SP_DELETE_DDS_FACT(" + _arg_vals + "); END;")
+        df_mplt_expr_4 = df_mplt_expr_4.withColumn("CALL_SP", lit("SUCCESS"))
+        df_mplt_expr_4 = df_mplt_expr_4.withColumn("RLS_CNTL_BGN_DMNS_KEY", expr("CASE WHEN (RLS_CNTL_BGN_TIME_DMNS_KEY IS NULL) OR (MIN_TIME_DMNS_KEY < RLS_CNTL_BGN_TIME_DMNS_KEY) THEN MIN_TIME_DMNS_KEY ELSE RLS_CNTL_BGN_TIME_DMNS_KEY END"))
+        df_mplt_expr_4 = df_mplt_expr_4.withColumn("RLS_CNTL_END_DMNS_KEY", expr("CASE WHEN (RLS_CNTL_END_TIME_DMNS_KEY IS NULL) OR (MAX_TIME_DMNS_KEY > RLS_CNTL_END_TIME_DMNS_KEY) THEN MAX_TIME_DMNS_KEY ELSE RLS_CNTL_END_TIME_DMNS_KEY END"))
+        df_mplt_expr_4 = df_mplt_expr_4.withColumn("UPDATE_FLAG", expr("CASE WHEN (DDS_RLS_CNTL_TBL_NAME IS NULL) THEN DD_INSERT ELSE DD_UPDATE END"))
+        ctx.register_df("df_mplt_expr_4", df_mplt_expr_4)
         
         logger.info("Step: apply_mplt_FILTRANS")
         # Filter: apply_mplt_FILTRANS
-        df_mplt_fil_9 = df_mplt_expr_8.filter(expr("RSL_CTL_IND = '1'"))
-        ctx.register_df("df_mplt_fil_9", df_mplt_fil_9)
+        df_mplt_fil_5 = df_mplt_expr_4.filter(expr("RSL_CTL_IND = '1'"))
+        ctx.register_df("df_mplt_fil_5", df_mplt_fil_5)
         
         logger.info("Step: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD")
         # Expression: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD
-        df_mplt_10 = df_mplt_expr_8
-        ctx.register_df("df_mplt_10", df_mplt_10)
+        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD = df_mplt_expr_4
+        ctx.register_df("df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD", df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD)
         
         logger.info("Step: write_DDS_FACT_MTH_DRP_SWD_CLCT_SMRY")
         # Write to Target: write_DDS_FACT_MTH_DRP_SWD_CLCT_SMRY
-        df_write = df_agg_5
+        df_write = df_AGGTRANS
         # Cast columns to match target schema data types
         if "drp_actl_txn_cnt" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:
@@ -205,12 +218,12 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: apply_UPD_RLS_CNTL")
         # Update Strategy: apply_UPD_RLS_CNTL
         # Strategy: UPDATE_FLAG
-        df_upd_11 = df_mplt_10.withColumn("_update_strategy", lit("INSERT"))
-        ctx.register_df("df_upd_11", df_upd_11)
+        df_UPD_RLS_CNTL = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD.withColumn("_update_strategy", lit("INSERT"))
+        ctx.register_df("df_UPD_RLS_CNTL", df_UPD_RLS_CNTL)
         
         logger.info("Step: write_DDS_RLS_CNTL")
         # Write to Target: write_DDS_RLS_CNTL
-        df_write = df_upd_11
+        df_write = df_UPD_RLS_CNTL
         # Cast columns to match target schema data types
         if "rls_cntl_fact_tbl_name" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

@@ -55,33 +55,33 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Reading Data From Source - read_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "SSA")
-        df_src_1 = lib.read_sql(spark, _conn, table="EMS_CSA_DRP_SWD_PRLM_PYMT_RAW")
+        df_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW = lib.read_sql(spark, _conn, table="EMS_CSA_DRP_SWD_PRLM_PYMT_RAW")
         
         logger.info("Step: apply_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW")
         # Source Qualifier: apply_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW
-        df_sq_2 = df_src_1
+        df_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW = df_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_2 = df_sq_2.select("FILE_MTH", "VALUE_DATE", "REC_TYPE", "SEQ_NUM", "SWD_CASE_FILE_REF_NUM", "ADDR_ROOM", "ADDR_BLK", "ADDR_EST", "DRP_PYMT_AMT", "PYMT_FROM_DATE", "PYMT_TO_DATE", "ASGN_STF", "CUST_CNT", "CUST_ROLE_1", "CUST_ID_TYPE_1", "CUST_ID_NUM_1", "CUST_ENG_NAME_1", "CUST_ROLE_2", "CUST_ID_TYPE_2", "CUST_ID_NUM_2", "CUST_ENG_NAME_2", "CUST_ROLE_3", "CUST_ID_TYPE_3", "CUST_ID_NUM_3", "CUST_ENG_NAME_3", "CUST_ROLE_4", "CUST_ID_TYPE_4", "CUST_ID_NUM_4", "CUST_ENG_NAME_4", "CUST_ROLE_5", "CUST_ID_TYPE_5", "CUST_ID_NUM_5", "CUST_ENG_NAME_5", "CUST_ROLE_6", "CUST_ID_TYPE_6", "CUST_ID_NUM_6", "CUST_ENG_NAME_6", "CUST_ROLE_7", "CUST_ID_TYPE_7", "CUST_ID_NUM_7", "CUST_ENG_NAME_7", "CUST_ROLE_8", "CUST_ID_TYPE_8", "CUST_ID_NUM_8", "CUST_ENG_NAME_8", "CUST_ROLE_9", "CUST_ID_TYPE_9", "CUST_ID_NUM_9", "CUST_ENG_NAME_9", "CUST_ROLE_10", "CUST_ID_TYPE_10", "CUST_ID_NUM_10", "CUST_ENG_NAME_10", "CUST_ROLE_11", "CUST_ID_TYPE_11", "CUST_ID_NUM_11", "CUST_ENG_NAME_11", "CUST_ROLE_12", "CUST_ID_TYPE_12", "CUST_ID_NUM_12", "CUST_ENG_NAME_12", "CUST_ROLE_13", "CUST_ID_TYPE_13", "CUST_ID_NUM_13", "CUST_ENG_NAME_13", "CUST_ROLE_14", "CUST_ID_TYPE_14", "CUST_ID_NUM_14", "CUST_ENG_NAME_14", "CUST_ROLE_15", "CUST_ID_TYPE_15", "CUST_ID_NUM_15", "CUST_ENG_NAME_15", "CUST_ROLE_16", "CUST_ID_TYPE_16", "CUST_ID_NUM_16", "CUST_ENG_NAME_16", "CUST_ROLE_17", "CUST_ID_TYPE_17", "CUST_ID_NUM_17", "CUST_ENG_NAME_17", "CUST_ROLE_18", "CUST_ID_TYPE_18", "CUST_ID_NUM_18", "CUST_ENG_NAME_18", "CUST_ROLE_19", "CUST_ID_TYPE_19", "CUST_ID_NUM_19", "CUST_ENG_NAME_19", "CUST_ROLE_20", "CUST_ID_TYPE_20", "CUST_ID_NUM_20", "CUST_ENG_NAME_20")
-        ctx.register_df("df_sq_2", df_sq_2)
+        df_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW = df_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW.select("FILE_MTH", "VALUE_DATE", "REC_TYPE", "SEQ_NUM", "SWD_CASE_FILE_REF_NUM", "ADDR_ROOM", "ADDR_BLK", "ADDR_EST", "DRP_PYMT_AMT", "PYMT_FROM_DATE", "PYMT_TO_DATE", "ASGN_STF", "CUST_CNT", "CUST_ROLE_1", "CUST_ID_TYPE_1", "CUST_ID_NUM_1", "CUST_ENG_NAME_1", "CUST_ROLE_2", "CUST_ID_TYPE_2", "CUST_ID_NUM_2", "CUST_ENG_NAME_2", "CUST_ROLE_3", "CUST_ID_TYPE_3", "CUST_ID_NUM_3", "CUST_ENG_NAME_3", "CUST_ROLE_4", "CUST_ID_TYPE_4", "CUST_ID_NUM_4", "CUST_ENG_NAME_4", "CUST_ROLE_5", "CUST_ID_TYPE_5", "CUST_ID_NUM_5", "CUST_ENG_NAME_5", "CUST_ROLE_6", "CUST_ID_TYPE_6", "CUST_ID_NUM_6", "CUST_ENG_NAME_6", "CUST_ROLE_7", "CUST_ID_TYPE_7", "CUST_ID_NUM_7", "CUST_ENG_NAME_7", "CUST_ROLE_8", "CUST_ID_TYPE_8", "CUST_ID_NUM_8", "CUST_ENG_NAME_8", "CUST_ROLE_9", "CUST_ID_TYPE_9", "CUST_ID_NUM_9", "CUST_ENG_NAME_9", "CUST_ROLE_10", "CUST_ID_TYPE_10", "CUST_ID_NUM_10", "CUST_ENG_NAME_10", "CUST_ROLE_11", "CUST_ID_TYPE_11", "CUST_ID_NUM_11", "CUST_ENG_NAME_11", "CUST_ROLE_12", "CUST_ID_TYPE_12", "CUST_ID_NUM_12", "CUST_ENG_NAME_12", "CUST_ROLE_13", "CUST_ID_TYPE_13", "CUST_ID_NUM_13", "CUST_ENG_NAME_13", "CUST_ROLE_14", "CUST_ID_TYPE_14", "CUST_ID_NUM_14", "CUST_ENG_NAME_14", "CUST_ROLE_15", "CUST_ID_TYPE_15", "CUST_ID_NUM_15", "CUST_ENG_NAME_15", "CUST_ROLE_16", "CUST_ID_TYPE_16", "CUST_ID_NUM_16", "CUST_ENG_NAME_16", "CUST_ROLE_17", "CUST_ID_TYPE_17", "CUST_ID_NUM_17", "CUST_ENG_NAME_17", "CUST_ROLE_18", "CUST_ID_TYPE_18", "CUST_ID_NUM_18", "CUST_ENG_NAME_18", "CUST_ROLE_19", "CUST_ID_TYPE_19", "CUST_ID_NUM_19", "CUST_ENG_NAME_19", "CUST_ROLE_20", "CUST_ID_TYPE_20", "CUST_ID_NUM_20", "CUST_ENG_NAME_20")
+        ctx.register_df("df_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW", df_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW)
         
         logger.info("Step: apply_AGGTRANS")
         # Aggregator: apply_AGGTRANS
-        df_agg_3 = df_sq_2.select("FILE_MTH").distinct()
-        ctx.register_df("df_agg_3", df_agg_3)
+        df_AGGTRANS = df_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW.select("FILE_MTH").distinct()
+        ctx.register_df("df_AGGTRANS", df_AGGTRANS)
         
         logger.info("Step: apply_UPDTRANS")
         # Update Strategy: apply_UPDTRANS
         # Strategy: DD_DELETE
-        df_upd_4 = df_agg_3.withColumn("_update_flag",
+        df_UPDTRANS = df_AGGTRANS.withColumn("_update_flag",
             when(lit(False), lit("U"))
             .when(lit(True), lit("D"))
             .otherwise(lit("I"))
         )
-        ctx.register_df("df_upd_4", df_upd_4)
+        ctx.register_df("df_UPDTRANS", df_UPDTRANS)
         
         logger.info("Step: write_SOR_EMS_CSA_DRP_PRLM_PYMT_RAW")
         # Write to Target: write_SOR_EMS_CSA_DRP_PRLM_PYMT_RAW
-        df_write = df_upd_4
+        df_write = df_UPDTRANS
         # DD_DELETE: Delete matching rows from target table by key field(s)
         for _dk in ['FILE_MTH']:
             _dk_lower = _dk.lower()
