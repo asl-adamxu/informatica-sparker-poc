@@ -165,11 +165,16 @@ use default python to run pyspark workflow or mapping
 - **Connection name resolution** uses prefix matching in `get_db_config()`: if `"DPA_FACT_..."` is the requested name, try `"DPA"` first by checking if any connection key is a prefix of the requested name.
 - **Hardcoded default connection names** (`"source_db"`, `"target_db"`, `"default_conn"`, `"lookup_conn"`) must be filtered out in `codegen.py` so they don't overwrite properly resolved connection aliases.
 
+### Mapping Variable Loading (Per-Mapping from Param File)
+- Each mapping reads `$$` variables directly from the `UTL_JOB_PARAM` file on disk (not from a workflow-passed `job_params` dict), so upstream mappings' updates to the file are always visible.
+- The `job_params` dict is still passed by the workflow for compatibility but is **ignored** by mapping templates in favor of the file.
+- Only mappings that declare `$$` mapping variables in their Informatica definition generate the file-reading code.
+- The param file is the single source of truth for variable values across sequential mappings.
+
 ### Job Parameters
 
-- **Centralized loading** — `run_workflow` in runtime_lib loads job params ONCE and passes `job_params` dict through `execute_plan_step` → `run_sessions_*` → each mapping.
-- **Parameter file path** comes from config: `config["objects"]["UTL_JOB_PARAM"]["path"]`, defaulting to `/tmp/UTL_JOB_PARAM`.
-- Mappings use `job_params` dict when available (from workflow), falling back to direct file read in standalone mode.
+- **Parameter file path** comes from config: `config["objects"]["UTL_JOB_PARAM"]["path"]`.
+- Each mapping reads the file independently at runtime via `try: open(_param_path) ... except: pass`.
 
 ### Email Notifications
 

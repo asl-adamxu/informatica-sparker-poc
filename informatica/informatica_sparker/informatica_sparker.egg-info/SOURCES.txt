@@ -23,6 +23,11 @@ informatica_sparker.egg-info/dependency_links.txt
 informatica_sparker.egg-info/entry_points.txt
 informatica_sparker.egg-info/requires.txt
 informatica_sparker.egg-info/top_level.txt
+informatica_sparker/metadata/__init__.py
+informatica_sparker/metadata/manifest_builder.py
+informatica_sparker/metadata/metadata_builder.py
+informatica_sparker/metadata/metadata_model.py
+informatica_sparker/metadata/metadata_writer.py
 informatica_sparker/templates/config.yml.j2
 informatica_sparker/templates/job.py.j2
 informatica_sparker/templates/mapping.py.j2
@@ -37,3 +42,13 @@ informatica_sparker/templates/lib/logging.py.j2
 informatica_sparker/templates/lib/spark.py.j2
 informatica_sparker/utils/__init__.py
 informatica_sparker/utils/sql_dialect.py
+tests/test_metadata_builder.py
+tests/test_validation.py
+validation/__init__.py
+validation/cli.py
+validation/comparator.py
+validation/config.py
+validation/loader.py
+validation/models.py
+validation/report.py
+validation/runner.py

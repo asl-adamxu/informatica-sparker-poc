@@ -1,0 +1,119 @@
+{
+  "metadata_version": "1.0",
+  "workflow": "WF_CMS_DDS_APLY_MTH",
+  "mappings": [
+    {
+      "mapping": "M_DPA_APLY_FACT_CMS_CASE_OSTD_SMRY",
+      "targets": [
+        {
+          "table": "DDS_FACT_CMS_CASE_OSTD_SMRY",
+          "connection": "target_db"
+        },
+        {
+          "table": "DPA_FACT_CMS_CASE_OSTD_SMRY",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_FACT_CMS_CASE_SMRY",
+      "targets": [
+        {
+          "table": "DDS_FACT_CMS_CASE_SMRY",
+          "connection": "target_db"
+        },
+        {
+          "table": "DPA_FACT_CMS_CASE_SMRY",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_FACT_CMS_ORD_SMRY",
+      "targets": [
+        {
+          "table": "DDS_FACT_CMS_ORD_SMRY",
+          "connection": "target_db"
+        },
+        {
+          "table": "DPA_FACT_CMS_ORD_SMRY",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DDS_APLY_FACT_CMS_CASE_PRNT_SMRY",
+      "targets": [
+        {
+          "table": "DDS_FACT_CMS_CASE_PRNT_SMRY",
+          "connection": "target_db"
+        },
+        {
+          "table": "DPA_FACT_CMS_CASE_PRNT_SMRY",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_FACT_CMS_CASE_SMRY",
+      "targets": [
+        {
+          "table": "DPA_FACT_CMS_CASE_SMRY",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_FACT_CMS_CASE_OSTD_SMRY",
+      "targets": [
+        {
+          "table": "DPA_FACT_CMS_CASE_OSTD_SMRY",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_FACT_CMS_ORD_SMRY",
+      "targets": [
+        {
+          "table": "DPA_FACT_CMS_ORD_SMRY",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_DPA_SUMMARIZE_FACT_CMS_CASE_PRNT_SMRY",
+      "targets": [
+        {
+          "table": "DPA_FACT_CMS_CASE_PRNT_SMRY",
+          "connection": "DPA"
+        },
+        {
+          "table": "DPA_FACT_CMS_CASE_PRNT_SMRY",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_UTL_DPA_TRUNCATE",
+      "targets": [
+        {
+          "table": "UTL_DEV_NULL",
+          "connection": "/dev/null"
+        }
+      ]
+    },
+    {
+      "mapping": "M_UTL_PARAM_SETUP",
+      "targets": [
+        {
+          "table": "UTL_JOB_PARAM",
+          "connection": "$PMSourceFileDir/PCIS01/cms_mth_job_param.txt"
+        }
+      ]
+    }
+  ],
+  "output": {
+    "script": "wf_cms_dds_aply_mth.py"
+  }
+}

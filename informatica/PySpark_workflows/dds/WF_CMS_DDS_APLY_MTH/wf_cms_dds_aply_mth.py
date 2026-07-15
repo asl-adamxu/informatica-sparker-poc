@@ -21,9 +21,8 @@ EXECUTION_PLAN = [
     "type": "parallel_group",
     "steps": [
       {
-        "type": "session",
-        "name": "S_CMS_FACT_PARAM_SETUP",
-        "mapping_name": "M_UTL_PARAM_SETUP"
+        "type": "task",
+        "name": "T_RM_CMS_CACHE_FACT"
       },
       {
         "type": "session",
@@ -31,8 +30,9 @@ EXECUTION_PLAN = [
         "mapping_name": "M_UTL_DPA_TRUNCATE"
       },
       {
-        "type": "task",
-        "name": "T_RM_CMS_CACHE_FACT"
+        "type": "session",
+        "name": "S_CMS_FACT_PARAM_SETUP",
+        "mapping_name": "M_UTL_PARAM_SETUP"
       }
     ]
   },

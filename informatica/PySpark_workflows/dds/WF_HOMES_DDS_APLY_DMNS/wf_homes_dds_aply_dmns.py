@@ -27,13 +27,13 @@ EXECUTION_PLAN = [
       },
       {
         "type": "session",
-        "name": "S_HOM_ETL_DDS_BKP_DELETE",
-        "mapping_name": "M_HOM_ETL_DDS_BKP_DELETE"
+        "name": "S_HOM_ETL_DPA_TRUNCATE",
+        "mapping_name": "M_UTL_DPA_TRUNCATE"
       },
       {
         "type": "session",
-        "name": "S_HOM_ETL_DPA_TRUNCATE",
-        "mapping_name": "M_UTL_DPA_TRUNCATE"
+        "name": "S_HOM_ETL_DDS_BKP_DELETE",
+        "mapping_name": "M_HOM_ETL_DDS_BKP_DELETE"
       }
     ]
   },
@@ -66,8 +66,8 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_RPT_CATG",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_RPT_CATG"
+            "name": "S_DPA_SUMMARIZE_DMNS_SNSH",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_SNSH"
           },
           {
             "type": "session",
@@ -76,8 +76,8 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_CNTR_TYPE",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_CNTR_TYPE"
+            "name": "S_DPA_SUMMARIZE_DMNS_SNSH_CNTR",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_SNSH_CNTR"
           },
           {
             "type": "session",
@@ -86,33 +86,28 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
+            "name": "S_DPA_SUMMARIZE_DMNS_DSTR",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_DSTR"
+          },
+          {
+            "type": "session",
+            "name": "S_DPA_SUMMARIZE_DMNS_FUND_NTR",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_FUND_NTR"
+          },
+          {
+            "type": "session",
+            "name": "S_DPA_SUMMARIZE_DMNS_DSTR_GRP",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_DSTR_GRP"
+          },
+          {
+            "type": "session",
             "name": "S_DPA_SUMMARIZE_DMNS_PROJ_STG",
             "mapping_name": "M_DPA_SUMMARIZE_DMNS_PROJ_STG"
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_PROJ_BLK_TYPE",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_PROJ_BLK_TYPE"
-          },
-          {
-            "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_SNSH_CNTR",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_SNSH_CNTR"
-          },
-          {
-            "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_PROJ",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_PROJ"
-          },
-          {
-            "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_PRCS_YEAR",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_PRCS_YEAR"
-          },
-          {
-            "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_MTH",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_MTH"
+            "name": "S_DPA_SUMMARIZE_DMNS_CNTR_TYPE",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_CNTR_TYPE"
           },
           {
             "type": "session",
@@ -121,8 +116,28 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_SNSH_PROJ",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_SNSH_PROJ"
+            "name": "S_DPA_SUMMARIZE_DMNS_BDGT_PRCS_YEAR",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_BDGT_PRCS_YEAR"
+          },
+          {
+            "type": "session",
+            "name": "S_DPA_SUMMARIZE_DMNS_CNTR",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_CNTR"
+          },
+          {
+            "type": "session",
+            "name": "S_DPA_SUMMARIZE_DMNS_KPI_SNSH_YEAR",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_KPI_SNSH_YEAR"
+          },
+          {
+            "type": "session",
+            "name": "S_DPA_SUMMARIZE_DMNS_MTH",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_MTH"
+          },
+          {
+            "type": "session",
+            "name": "S_DPA_SUMMARIZE_DMNS_CNTR_MGR",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_CNTR_MGR"
           },
           {
             "type": "session",
@@ -136,68 +151,28 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_SNSH",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_SNSH"
-          },
-          {
-            "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_CNTR_MGR",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_CNTR_MGR"
-          },
-          {
-            "type": "session",
             "name": "S_DPA_SUMMARIZE_DMNS_BDGT_PROJ_MGR",
             "mapping_name": "M_DPA_SUMMARIZE_DMNS_BDGT_PROJ_MGR"
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_DSTR_GRP",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_DSTR_GRP"
+            "name": "S_DPA_SUMMARIZE_DMNS_PROJ_BLK_TYPE",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_PROJ_BLK_TYPE"
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_PROJ_NTR",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_PROJ_NTR"
+            "name": "S_DPA_SUMMARIZE_DMNS_PROJ",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_PROJ"
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_PHCP",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_PHCP"
+            "name": "S_DPA_SUMMARIZE_DMNS_RPT_CATG",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_RPT_CATG"
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_DSTR",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_DSTR"
-          },
-          {
-            "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_CNTR",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_CNTR"
-          },
-          {
-            "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_CNTR_STG",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_CNTR_STG"
-          },
-          {
-            "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_BDGT_PRCS_YEAR",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_BDGT_PRCS_YEAR"
-          },
-          {
-            "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_FUND_NTR",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_FUND_NTR"
-          },
-          {
-            "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_KPI_SNSH_YEAR",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_KPI_SNSH_YEAR"
-          },
-          {
-            "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_BDGT_COPY",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_BDGT_COPY"
+            "name": "S_DPA_SUMMARIZE_DMNS_ORG",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_ORG"
           },
           {
             "type": "session",
@@ -206,8 +181,33 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_ORG",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_ORG"
+            "name": "S_DPA_SUMMARIZE_DMNS_SNSH_PROJ",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_SNSH_PROJ"
+          },
+          {
+            "type": "session",
+            "name": "S_DPA_SUMMARIZE_DMNS_PRCS_YEAR",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_PRCS_YEAR"
+          },
+          {
+            "type": "session",
+            "name": "S_DPA_SUMMARIZE_DMNS_PHCP",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_PHCP"
+          },
+          {
+            "type": "session",
+            "name": "S_DPA_SUMMARIZE_DMNS_CNTR_STG",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_CNTR_STG"
+          },
+          {
+            "type": "session",
+            "name": "S_DPA_SUMMARIZE_DMNS_PROJ_NTR",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_PROJ_NTR"
+          },
+          {
+            "type": "session",
+            "name": "S_DPA_SUMMARIZE_DMNS_BDGT_COPY",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_BDGT_COPY"
           }
         ]
       }
@@ -222,68 +222,8 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_DDS_APLY_DMNS_KPI_TYPE",
-            "mapping_name": "M_DDS_APLY_DMNS_KPI_TYPE"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_FLATMIX",
-            "mapping_name": "M_DDS_APLY_DMNS_FLATMIX"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_BDGT_COPY",
-            "mapping_name": "M_DDS_APLY_DMNS_BDGT_COPY"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_MTH",
-            "mapping_name": "M_DDS_APLY_DMNS_MTH"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_SNSH",
-            "mapping_name": "M_DDS_APLY_DMNS_SNSH"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_PROJ_NTR",
-            "mapping_name": "M_DDS_APLY_DMNS_PROJ_NTR"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_DSTR",
-            "mapping_name": "M_DDS_APLY_DMNS_DSTR"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_PMC_DSTR",
-            "mapping_name": "M_DDS_APLY_DMNS_PMC_DSTR"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_CNTR_TYPE",
-            "mapping_name": "M_DDS_APLY_DMNS_CNTR_TYPE"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_BDGT_PROJ_STS",
-            "mapping_name": "M_DDS_APLY_DMNS_BDGT_PROJ_STS"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_DSTR_GRP",
-            "mapping_name": "M_DDS_APLY_DMNS_DSTR_GRP"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_PHCP",
-            "mapping_name": "M_DDS_APLY_DMNS_PHCP"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_KPI_SNSH_YEAR",
-            "mapping_name": "M_DDS_APLY_DMNS_KPI_SNSH_YEAR"
+            "name": "S_DDS_APLY_DMNS_PROJ_BLK_TYPE",
+            "mapping_name": "M_DDS_APLY_DMNS_PROJ_BLK_TYPE"
           },
           {
             "type": "session",
@@ -292,53 +232,8 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_DDS_APLY_DMNS_SNSH_CNTR",
-            "mapping_name": "M_DDS_APLY_DMNS_SNSH_CNTR"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_CNTR",
-            "mapping_name": "M_DDS_APLY_DMNS_CNTR"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_BDGT_PROJ_MGR",
-            "mapping_name": "M_DDS_APLY_DMNS_BDGT_PROJ_MGR"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_CNTR_MGR",
-            "mapping_name": "M_DDS_APLY_DMNS_CNTR_MGR"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_PROJ",
-            "mapping_name": "M_DDS_APLY_DMNS_PROJ"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_KPI_SNSH_MTH",
-            "mapping_name": "M_DDS_APLY_DMNS_KPI_SNSH_MTH"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_PROJ_STG",
-            "mapping_name": "M_DDS_APLY_DMNS_PROJ_STG"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_BDGT_PRCS_YEAR",
-            "mapping_name": "M_DDS_APLY_DMNS_BDGT_PRCS_YEAR"
-          },
-          {
-            "type": "session",
             "name": "S_DDS_APLY_DMNS_VDR",
             "mapping_name": "M_DDS_APLY_DMNS_VDR"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_RPT_CATG",
-            "mapping_name": "M_DDS_APLY_DMNS_RPT_CATG"
           },
           {
             "type": "session",
@@ -347,18 +242,43 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_DDS_APLY_DMNS_SNSH_PROJ",
-            "mapping_name": "M_DDS_APLY_DMNS_SNSH_PROJ"
+            "name": "S_DDS_APLY_DMNS_MTH",
+            "mapping_name": "M_DDS_APLY_DMNS_MTH"
           },
           {
             "type": "session",
-            "name": "S_DDS_APLY_DMNS_PROJ_BLK_TYPE",
-            "mapping_name": "M_DDS_APLY_DMNS_PROJ_BLK_TYPE"
+            "name": "S_DDS_APLY_DMNS_DSTR_GRP",
+            "mapping_name": "M_DDS_APLY_DMNS_DSTR_GRP"
           },
           {
             "type": "session",
-            "name": "S_DDS_APLY_DMNS_CNTR_STG",
-            "mapping_name": "M_DDS_APLY_DMNS_CNTR_STG"
+            "name": "S_DDS_APLY_DMNS_RPT_CATG",
+            "mapping_name": "M_DDS_APLY_DMNS_RPT_CATG"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_PROJ_NTR",
+            "mapping_name": "M_DDS_APLY_DMNS_PROJ_NTR"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_KPI_SNSH_MTH",
+            "mapping_name": "M_DDS_APLY_DMNS_KPI_SNSH_MTH"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_PMC_DSTR",
+            "mapping_name": "M_DDS_APLY_DMNS_PMC_DSTR"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_KPI_TYPE",
+            "mapping_name": "M_DDS_APLY_DMNS_KPI_TYPE"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_CNTR",
+            "mapping_name": "M_DDS_APLY_DMNS_CNTR"
           },
           {
             "type": "session",
@@ -367,8 +287,88 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
+            "name": "S_DDS_APLY_DMNS_SNSH_CNTR",
+            "mapping_name": "M_DDS_APLY_DMNS_SNSH_CNTR"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_PHCP",
+            "mapping_name": "M_DDS_APLY_DMNS_PHCP"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_SNSH_PROJ",
+            "mapping_name": "M_DDS_APLY_DMNS_SNSH_PROJ"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_BDGT_PRCS_YEAR",
+            "mapping_name": "M_DDS_APLY_DMNS_BDGT_PRCS_YEAR"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_KPI_SNSH_YEAR",
+            "mapping_name": "M_DDS_APLY_DMNS_KPI_SNSH_YEAR"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_DSTR",
+            "mapping_name": "M_DDS_APLY_DMNS_DSTR"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_CNTR_STG",
+            "mapping_name": "M_DDS_APLY_DMNS_CNTR_STG"
+          },
+          {
+            "type": "session",
             "name": "S_DDS_APLY_DMNS_FUND_NTR",
             "mapping_name": "M_DDS_APLY_DMNS_FUND_NTR"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_BDGT_PROJ_MGR",
+            "mapping_name": "M_DDS_APLY_DMNS_BDGT_PROJ_MGR"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_BDGT_PROJ_STS",
+            "mapping_name": "M_DDS_APLY_DMNS_BDGT_PROJ_STS"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_CNTR_TYPE",
+            "mapping_name": "M_DDS_APLY_DMNS_CNTR_TYPE"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_SNSH",
+            "mapping_name": "M_DDS_APLY_DMNS_SNSH"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_BDGT_COPY",
+            "mapping_name": "M_DDS_APLY_DMNS_BDGT_COPY"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_PROJ_STG",
+            "mapping_name": "M_DDS_APLY_DMNS_PROJ_STG"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_CNTR_MGR",
+            "mapping_name": "M_DDS_APLY_DMNS_CNTR_MGR"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_FLATMIX",
+            "mapping_name": "M_DDS_APLY_DMNS_FLATMIX"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_PROJ",
+            "mapping_name": "M_DDS_APLY_DMNS_PROJ"
           }
         ]
       }
@@ -378,13 +378,13 @@ EXECUTION_PLAN = [
     "type": "parallel_group",
     "steps": [
       {
+        "type": "task",
+        "name": "T_MAIL_SUCCESS"
+      },
+      {
         "type": "session",
         "name": "S_HOM_ELT_DDS_DMNS_DELETE",
         "mapping_name": "M_HOM_ETL_DDS_DMNS_DELETE"
-      },
-      {
-        "type": "task",
-        "name": "T_MAIL_SUCCESS"
       }
     ]
   },

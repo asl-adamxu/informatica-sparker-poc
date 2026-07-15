@@ -150,6 +150,24 @@ class ConversionService:
         if output_dir:
             self._write_output(all_files, output_dir)
 
+            # Generate metadata.json for this workflow
+            try:
+                _workflows = workflow_analysis.get("workflows", [])
+                _wf_name = _workflows[0]["name"] if _workflows else parser.folder_name
+                _script = f"{self._make_safe_name(_wf_name)}.py"
+                # Collect file-source info (same as config generation below)
+                _file_sources = {}
+                for _sess in workflow_analysis.get("sessions", []):
+                    for _src_inst, _src_info in _sess.get("file_sources", {}).items():
+                        _file_sources[_src_inst] = _src_info
+                from informatica_sparker.metadata import generate_metadata as _gen_meta
+                _gen_meta(mappings, _wf_name, _script, output_dir,
+                          session_file_sources=_file_sources)
+            except Exception as _meta_err:
+                import sys as _sys
+                print(f"Warning: metadata generation failed: {_meta_err}",
+                      file=_sys.stderr)
+
         # Generate E2E test artifacts when --with-tests flag is set
         if output_dir and self.with_tests and not result.errors:
             wf_name = "workflow"

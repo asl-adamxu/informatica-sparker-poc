@@ -27,6 +27,48 @@ def main():
     analyze_parser.add_argument("xml_file", help="Path to Informatica XML file")
     analyze_parser.add_argument("--json", action="store_true", help="Output as JSON")
 
+    manifest_parser = subparsers.add_parser(
+        "build-manifest",
+        help="Scan output directory and generate manifest.json"
+    )
+    manifest_parser.add_argument(
+        "root_dir",
+        help="Root directory containing converted workflow subdirectories"
+    )
+
+    validate_parser = subparsers.add_parser(
+        "validate",
+        help="Validate converted PySpark workflows against target databases"
+    )
+    validate_parser.add_argument(
+        "--root", default="output",
+        help="Root directory containing manifest.json and workflow directories (default: output)"
+    )
+    validate_parser.add_argument(
+        "--config",
+        help="Path to config.yml (default: ROOT/env/config.yml — reuses converter's config)"
+    )
+    group = validate_parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--all", action="store_true", default=True,
+        help="Validate all workflows in manifest.json (default)"
+    )
+    group.add_argument(
+        "--workflow",
+        help="Validate a single workflow by name"
+    )
+    group.add_argument(
+        "--mapping",
+        help="Validate a single mapping by name (validated in all workflows)"
+    )
+    validate_parser.add_argument(
+        "--compare-only", action="store_true", default=False,
+        help="Skip workflow execution — only compare target tables"
+    )
+    validate_parser.add_argument(
+        "--continue-on-error", action="store_true", default=True,
+        help="Continue validation even if a workflow fails (default: True)"
+    )
     args = parser.parse_args()
 
     if not args.command:
@@ -37,6 +79,10 @@ def main():
         _run_convert(args)
     elif args.command == "analyze":
         _run_analyze(args)
+    elif args.command == "build-manifest":
+        _run_build_manifest(args)
+    elif args.command == "validate":
+        _run_validate(args)
 
 
 def _run_convert(args):
@@ -154,6 +200,18 @@ def _run_analyze(args):
             print(f"\nWorkflows: {len(workflows)}")
             for w in workflows:
                 print(f"  - {w['name']}")
+
+
+def _run_build_manifest(args):
+    from .metadata.manifest_builder import build_manifest
+
+    result = build_manifest(args.root_dir)
+    print(f"manifest.json written to {result}")
+
+
+def _run_validate(args):
+    from validation.cli import run_validate
+    run_validate(args)
 
 
 def _load_user_config(config_path: str):
