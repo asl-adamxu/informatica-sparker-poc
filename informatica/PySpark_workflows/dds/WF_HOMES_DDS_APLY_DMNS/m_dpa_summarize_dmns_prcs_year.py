@@ -73,27 +73,15 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Reading Data From Source - read_SOR_HOM_BUD_PARM
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "SOR")
-        df_src_1 = lib.read_sql(spark, _conn, table="SOR_HOM_BUD_PARM")
-        
-        logger.info("Step: read_SOR_HOM_BUD_PARM_STS")
-        # Reading Data From Source - read_SOR_HOM_BUD_PARM_STS
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_2 = lib.read_sql(spark, _conn, table="SOR_HOM_BUD_PARM")
-        
-        logger.info("Step: read_SOR_HOM_BUD_COPY")
-        # Reading Data From Source - read_SOR_HOM_BUD_COPY
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_3 = lib.read_sql(spark, _conn, table="SOR_HOM_BUD_COPY")
+        df_SOR_HOM_BUD_PARM = lib.read_sql(spark, _conn, table="SOR_HOM_BUD_PARM")
         
         logger.info("Step: apply_SEQ_DMNS_PRCS_YEAR_KEY")
         # Sequence Generator: apply_SEQ_DMNS_PRCS_YEAR_KEY
-        df_seq_4 = df_input.withColumn(
+        df_SEQ_DMNS_PRCS_YEAR_KEY = df_input.withColumn(
             "NEXTVAL", 
             monotonically_increasing_id() + 0
         )
-        ctx.register_df("df_seq_4", df_seq_4)
+        ctx.register_df("df_SEQ_DMNS_PRCS_YEAR_KEY", df_SEQ_DMNS_PRCS_YEAR_KEY)
         
         logger.info("Step: apply_SQ_SOR_HOM_BUD_PARM")
         # Source Qualifier: apply_SQ_SOR_HOM_BUD_PARM
@@ -287,79 +275,89 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
 		       ) y
        ) a"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
-        df_sq_5 = lib.read_sql(spark, _conn, query=query)
+        df_SQ_SOR_HOM_BUD_PARM = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_5.columns
+        _sql_cols = df_SQ_SOR_HOM_BUD_PARM.columns
         _port_cols = ["PRCS_YEAR", "PARM_TEXT"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_5 = df_sq_5.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_SQ_SOR_HOM_BUD_PARM = df_SQ_SOR_HOM_BUD_PARM.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_5 = df_sq_5.select("PRCS_YEAR", "PARM_TEXT")
+        df_SQ_SOR_HOM_BUD_PARM = df_SQ_SOR_HOM_BUD_PARM.select("PRCS_YEAR", "PARM_TEXT")
         
-        ctx.register_df("df_sq_5", df_sq_5)
+        ctx.register_df("df_SQ_SOR_HOM_BUD_PARM", df_SQ_SOR_HOM_BUD_PARM)
         
         logger.info("Step: read_LKP_DDS_DMNS_PRCS_YEAR")
         # Reading Data From Source - read_LKP_DDS_DMNS_PRCS_YEAR
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_lkp_6 = lib.read_sql(spark, _conn, table="DDS_DMNS_PRCS_YEAR")
+        df_LKP_DDS_DMNS_PRCS_YEAR = lib.read_sql(spark, _conn, table="DDS_DMNS_PRCS_YEAR")
         
         logger.info("Step: apply_LKP_DDS_DMNS_PRCS_YEAR")
         # Lookup: apply_LKP_DDS_DMNS_PRCS_YEAR
-        # Join condition: IN_PRCS_YEAR_NUM=PRCS_YEAR_NUM        
-        df_lkp_result_7 = df_sq_5.join(
-            broadcast(df_lkp_6),
-            (df_sq_5["IN_PRCS_YEAR_NUM"] == df_lkp_6["PRCS_YEAR_NUM"]),
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_DDS_DMNS_PRCS_YEAR = df_LKP_DDS_DMNS_PRCS_YEAR.dropDuplicates(subset=["PRCS_YEAR_NUM"])
+        # Join condition: PRCS_YEAR=PRCS_YEAR_NUM
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_DDS_DMNS_PRCS_YEAR
+        _lkp_right = _lkp_right.withColumnRenamed("PRCS_YEAR_NUM", "_lkp_PRCS_YEAR_NUM")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_SQ_SOR_HOM_BUD_PARM.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_1 = df_SQ_SOR_HOM_BUD_PARM.join(
+            broadcast(_lkp_right),
+            (df_SQ_SOR_HOM_BUD_PARM["PRCS_YEAR"] == _lkp_right["_lkp_PRCS_YEAR_NUM"]),
             "left"
-        )
-        ctx.register_df("df_lkp_result_7", df_lkp_result_7)
-        
-        logger.info("Step: join_EXPTRANS_0")
-        # Lookup: join_EXPTRANS_0
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_lkp_result_7.columns if c in df_sq_5.columns]
-        df_exp_merge_9 = df_lkp_result_7.join(
-            df_sq_5,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_exp_merge_9", df_exp_merge_9)
+        ).drop("_lkp_PRCS_YEAR_NUM")
+
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_exp_8 = df_exp_merge_9
-        df_exp_8 = df_exp_8.withColumn("IN_PARM_TEXT", expr("PARM_TEXT"))
-        df_exp_8 = df_exp_8.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_PRCS_YEAR_KEY IS NULL) OR CASE WHEN PRCS_YEAR_NUM = IN_PRCS_YEAR_NUM THEN false ELSE true END OR CASE WHEN PRCS_YEAR_TEXT = PARM_TEXT THEN false ELSE true END THEN 1 ELSE 0 END"))
+        df_EXPTRANS = df_lkp_merge_1
+        df_EXPTRANS = df_EXPTRANS.withColumn("IN_PARM_TEXT", expr("PARM_TEXT"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_PRCS_YEAR_KEY IS NULL) OR CASE WHEN PRCS_YEAR_NUM = IN_PRCS_YEAR_NUM THEN false ELSE true END OR CASE WHEN PRCS_YEAR_TEXT = PARM_TEXT THEN false ELSE true END THEN 1 ELSE 0 END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["PRCS_YEAR_NUM", "PRCS_YEAR_TEXT", "DMNS_PRCS_YEAR_KEY", "YEAR_DISP_SEQ_NUM", "IN_PRCS_YEAR_NUM"]:
-            if _col not in df_exp_8.columns:
-                df_exp_8 = df_exp_8.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_8 = df_exp_8.select("CHANGE_FLAG", "DMNS_PRCS_YEAR_KEY", "PRCS_YEAR_NUM", "PRCS_YEAR_TEXT", "YEAR_DISP_SEQ_NUM", "IN_PRCS_YEAR_NUM", "IN_PARM_TEXT")
-        ctx.register_df("df_exp_8", df_exp_8)
+        for _col in ["PRCS_YEAR_TEXT", "IN_PRCS_YEAR_NUM", "PRCS_YEAR_NUM", "DMNS_PRCS_YEAR_KEY", "YEAR_DISP_SEQ_NUM"]:
+            if _col not in df_EXPTRANS.columns:
+                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: apply_FIL_CHANGE")
         # Filter: apply_FIL_CHANGE
-        df_fil_10 = df_exp_8.filter(expr("CHANGE_FLAG = 1 AND ( NOT (DMNS_PRCS_YEAR_KEY IS NULL))"))
-        ctx.register_df("df_fil_10", df_fil_10)
+        __fil_input = df_EXPTRANS
+        df_FIL_CHANGE = __fil_input.filter(expr("CHANGE_FLAG = 1 AND ( NOT (DMNS_PRCS_YEAR_KEY IS NULL))"))
+        ctx.register_df("df_FIL_CHANGE", df_FIL_CHANGE)
         
         logger.info("Step: apply_FIL_NEW")
         # Filter: apply_FIL_NEW
-        df_fil_11 = df_seq_4.filter(expr("CHANGE_FLAG = 1 AND (DMNS_PRCS_YEAR_KEY IS NULL)"))
-        ctx.register_df("df_fil_11", df_fil_11)
+        __fil_input = df_EXPTRANS
+        df_FIL_NEW = __fil_input.filter(expr("CHANGE_FLAG = 1 AND (DMNS_PRCS_YEAR_KEY IS NULL)"))
+        ctx.register_df("df_FIL_NEW", df_FIL_NEW)
         
         logger.info("Step: apply_Union_Transformation")
         # Union: apply_Union_Transformation
-        df_un_12 = df_fil_10
-        df_un_12 = df_un_12.unionByName(df_fil_11, allowMissingColumns=True)
+        # Select + rename upstream columns per input, then union
+        df_Union_Transformation_change = df_FIL_CHANGE.select(
+            col("DMNS_PRCS_YEAR_KEY").alias("DMNS_PRCS_YEAR_KEY"),
+            col("IN_PRCS_YEAR_NUM").alias("IN_PRCS_YEAR_NUM"),
+            col("IN_PARM_TEXT").alias("IN_PARM_TEXT")        )
+        df_Union_Transformation_new = df_FIL_NEW.select(
+            col("NEXTVAL").alias("DMNS_PRCS_YEAR_KEY"),
+            col("IN_PRCS_YEAR_NUM").alias("IN_PRCS_YEAR_NUM"),
+            col("IN_PARM_TEXT").alias("IN_PARM_TEXT")        )
+        df_Union_Transformation = df_Union_Transformation_change
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_new, allowMissingColumns=True)
         # Select only union output columns
-        df_un_12 = df_un_12.select("DMNS_PRCS_YEAR_KEY", "IN_PRCS_YEAR_NUM", "IN_PARM_TEXT")
-        ctx.register_df("df_un_12", df_un_12)
+        df_Union_Transformation = df_Union_Transformation.select("DMNS_PRCS_YEAR_KEY", "IN_PRCS_YEAR_NUM", "IN_PARM_TEXT")
+        ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
         logger.info("Step: write_DPA_DMNS_PRCS_YEAR")
         # Write to Target: write_DPA_DMNS_PRCS_YEAR
-        df_write = df_un_12
+        df_write = df_Union_Transformation
         # Cast columns to match target schema data types
         if "prcs_year_text" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

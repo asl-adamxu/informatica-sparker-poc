@@ -71,42 +71,41 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         if not _file_path:
             # No file path found in config.yml or step params — fail fast so generator users must provide paths
             raise RuntimeError(f"Missing file path for object '{_obj_name}' in config.yml or step params for mapping 'M_UTL_PARAM_SETUP'. Please define the file.path for this object.")
-        df_src_1 = lib.read_file(
+        df_UTL_SESSION_LIST = lib.read_file(
             spark,
             _file_path,
             format=_file_format,
             options=_file_options
         )
-        _csv_cols = df_src_1.columns
+        _csv_cols = df_UTL_SESSION_LIST.columns
         if _csv_cols:
             # Rename CSV columns by position to match Informatica source definition field names
             _src_cols = ["SESSION"]
             for _i in range(_builtin_min([len(_csv_cols), len(_src_cols)])):
                 if _csv_cols[_i].lower() != _src_cols[_i].lower():
-                    df_src_1 = df_src_1.withColumnRenamed(_csv_cols[_i], _src_cols[_i])
+                    df_UTL_SESSION_LIST = df_UTL_SESSION_LIST.withColumnRenamed(_csv_cols[_i], _src_cols[_i])
         else:
             logger.warning("Source file '%s' is empty or has no columns", _file_path)
-            df_src_1 = spark.createDataFrame([], StructType([
+            df_UTL_SESSION_LIST = spark.createDataFrame([], StructType([
                 StructField("SESSION", StringType(), True)
             ]))
-        ctx.register_df("df_src_1", df_src_1)
+        ctx.register_df("df_UTL_SESSION_LIST", df_UTL_SESSION_LIST)
         
         logger.info("Step: apply_SQ_UTL_SESSION_LIST")
         # Source Qualifier: apply_SQ_UTL_SESSION_LIST
-        df_sq_2 = df_src_1
+        df_SQ_UTL_SESSION_LIST = df_UTL_SESSION_LIST
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_2 = df_sq_2.select("SESSION")
-        ctx.register_df("df_sq_2", df_sq_2)
+        df_SQ_UTL_SESSION_LIST = df_SQ_UTL_SESSION_LIST.select("SESSION")
+        ctx.register_df("df_SQ_UTL_SESSION_LIST", df_SQ_UTL_SESSION_LIST)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_exp_3 = df_sq_2
-        df_exp_3 = df_exp_3.withColumn("PARAMETER", expr("CASE WHEN instr(SESSION, '=')=0 THEN SESSION ELSE substring(SESSION,1,instr(SESSION,'=')) END"))
-        df_exp_3 = df_exp_3.withColumn("PROPERTY", expr("CASE WHEN instr(SESSION, '=')=0 THEN NULL ELSE substring(SESSION,instr(SESSION,'=')+1) END"))
+        df_EXPTRANS = df_SQ_UTL_SESSION_LIST
+        df_EXPTRANS = df_EXPTRANS.withColumn("PARAMETER", expr("CASE WHEN instr(SESSION, '=')=0 THEN SESSION ELSE substring(SESSION,1,instr(SESSION,'=')) END"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("PROPERTY", expr("CASE WHEN instr(SESSION, '=')=0 THEN NULL ELSE substring(SESSION,instr(SESSION,'=')+1) END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_3 = df_exp_3.select("PARAMETER", "PROPERTY")
-        ctx.register_df("df_exp_3", df_exp_3)
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: read_LKPTRANS")
         # Reading Data From Source - read_LKPTRANS
@@ -115,41 +114,40 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Parameterize schema from connection config
         _schema = _conn.get("schema", "") or "psor"
         query = f"""SELECT SOR_SYS_PRPTY.VAL as VAL, SOR_SYS_PRPTY.PRPTY_DESP as PRPTY_DESP, SOR_SYS_PRPTY.PRPTY as PRPTY FROM PSOR.SOR_SYS_PRPTY"""
-        df_lkp_4 = lib.read_sql(spark, _conn, query=query)
+        df_LKPTRANS = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_LKPTRANS")
         # Lookup: apply_LKPTRANS
-        # Join condition: PROPERTY=PRPTY        
-        df_lkp_result_5 = df_exp_3.join(
-            broadcast(df_lkp_4),
-            (df_exp_3["PROPERTY"] == df_lkp_4["PRPTY"]),
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKPTRANS = df_LKPTRANS.dropDuplicates(subset=["PRPTY"])
+        # Join condition: PROPERTY=PRPTY
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKPTRANS
+        _lkp_right = _lkp_right.withColumnRenamed("PRPTY", "_lkp_PRPTY")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_EXPTRANS.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_1 = df_EXPTRANS.join(
+            broadcast(_lkp_right),
+            (df_EXPTRANS["PROPERTY"] == _lkp_right["_lkp_PRPTY"]),
             "left"
-        )
-        ctx.register_df("df_lkp_result_5", df_lkp_result_5)
-        
-        logger.info("Step: join_EXPTRANS1_0")
-        # Lookup: join_EXPTRANS1_0
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_lkp_result_5.columns if c in df_exp_3.columns]
-        df_exp_merge_7 = df_lkp_result_5.join(
-            df_exp_3,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_exp_merge_7", df_exp_merge_7)
+        ).drop("_lkp_PRPTY")
+
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
         
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
-        df_exp_6 = df_exp_merge_7
-        df_exp_6 = df_exp_6.withColumn("LINE", expr("concat(PARAMETER,CASE WHEN (VAL IS NULL) THEN '' ELSE VAL END)"))
+        df_EXPTRANS1 = df_lkp_merge_1
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("LINE", expr("concat(PARAMETER,CASE WHEN (VAL IS NULL) THEN '' ELSE VAL END)"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_6 = df_exp_6.select("LINE")
-        ctx.register_df("df_exp_6", df_exp_6)
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
         
         logger.info("Step: write_UTL_JOB_PARAM")
         # Write to Target: write_UTL_JOB_PARAM
-        df_write = df_exp_6
+        df_write = df_EXPTRANS1
         # Cast columns to match target schema data types
         if "line" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

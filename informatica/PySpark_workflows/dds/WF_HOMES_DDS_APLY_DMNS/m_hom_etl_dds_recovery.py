@@ -55,18 +55,18 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Reading Data From Source - read_DUAL
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DDS")
-        df_src_1 = lib.read_sql(spark, _conn, table="DUAL")
+        df_DUAL = lib.read_sql(spark, _conn, table="DUAL")
         
         logger.info("Step: apply_SQ_DUAL")
         # Source Qualifier: apply_SQ_DUAL
-        df_sq_2 = df_src_1
+        df_SQ_DUAL = df_DUAL
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_2 = df_sq_2.select("DUMMY")
-        ctx.register_df("df_sq_2", df_sq_2)
+        df_SQ_DUAL = df_SQ_DUAL.select("DUMMY")
+        ctx.register_df("df_SQ_DUAL", df_SQ_DUAL)
         
         logger.info("Step: write_DUAL1")
         # Write to Target: write_DUAL1
-        df_write = df_sq_2
+        df_write = df_SQ_DUAL
         # Cast columns to match target schema data types
         if "dummy" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

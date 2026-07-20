@@ -78,7 +78,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: apply_SQ_SP_DELETE")
         # Source Qualifier: apply_SQ_SP_DELETE
         df_SQ_SP_DELETE = df_DPA_FACT_MTH_RENT_AND_ARR_SMRY
-        df_SQ_SP_DELETE = df_SQ_SP_DELETE.filter(expr("DPA_FACT_MTH_RENT_AND_ARR_SMRY.LTNG_RTN_CMLT_ARR_AMT is null AND DPA_FACT_MTH_RENT_AND_ARR_SMRY.LTNG_RTN_MTH_RENT_RCV_AMT is null"))
+        df_SQ_SP_DELETE = df_SQ_SP_DELETE.filter(expr("LTNG_RTN_CMLT_ARR_AMT is null AND LTNG_RTN_MTH_RENT_RCV_AMT is null"))
         # Select only SQ output ports (matches Informatica behavior)
         df_SQ_SP_DELETE = df_SQ_SP_DELETE.select("TIME_DMNS_KEY")
         ctx.register_df("df_SQ_SP_DELETE", df_SQ_SP_DELETE)
@@ -86,7 +86,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: apply_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY")
         # Source Qualifier: apply_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY
         df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY = df_DPA_FACT_MTH_RENT_AND_ARR_SMRY
-        df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY = df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY.filter(expr("DPA_FACT_MTH_RENT_AND_ARR_SMRY.LTNG_RTN_CMLT_ARR_AMT is null AND DPA_FACT_MTH_RENT_AND_ARR_SMRY.LTNG_RTN_MTH_RENT_RCV_AMT is null"))
+        df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY = df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY.filter(expr("LTNG_RTN_CMLT_ARR_AMT is null AND LTNG_RTN_MTH_RENT_RCV_AMT is null"))
         # Select only SQ output ports (matches Informatica behavior)
         df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY = df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY.select("TIME_DMNS_KEY", "RENT_RVW_CATG_DMNS_KEY", "COST_CTR_SCD_KEY", "RENT_FCTR_DMNS_KEY", "MGT_MODE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MTH_RCV_RENT_AMT", "FRST_MTH_ARR_AMT", "SCND_MTH_ARR_AMT", "THRD_AND_ABV_MTH_ARR_AMT", "EXTNT_OSTD_DEBT_AMT", "ACTV_TNCY_CNT", "ARR_ACTV_TNCY_CNT", "LTNG_RTN_CMLT_ARR_AMT", "LTNG_RTN_MTH_RENT_RCV_AMT", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "MIN_MTH_RENT_AMT", "MAX_MTH_RENT_AMT", "TOT_MTH_RENT_AMT", "FLAT_TYPE_DMNS_KEY", "PSTV_RENT_ACTV_TNCY_CNT", "LTNG_RTN_FRST_MTH_ARR_AMT", "LTNG_RTN_SCND_MTH_ARR_AMT", "LTNG_RTN_THRD_ABV_MTH_ARR_AMT", "LTNG_RTN_PND_WRTF_AMT")
         ctx.register_df("df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY", df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY)
@@ -103,31 +103,58 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         for _col in ["TIME_DMNS_KEY"]:
             if _col not in df_EXP_SET_DEL_INFO.columns:
                 df_EXP_SET_DEL_INFO = df_EXP_SET_DEL_INFO.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_EXP_SET_DEL_INFO = df_EXP_SET_DEL_INFO.select("TIME_DMNS_KEY", "TBL_NAME", "RM_FLG", "RSL_CTL_IND")
+        # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXP_SET_DEL_INFO", df_EXP_SET_DEL_INFO)
         
         logger.info("Step: apply_AGGTRANS")
         # Aggregator: apply_AGGTRANS
-        df_AGGTRANS = df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY.groupBy("TIME_DMNS_KEY", "RENT_RVW_CATG_DMNS_KEY", "COST_CTR_SCD_KEY", "RENT_FCTR_DMNS_KEY", "MGT_MODE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "FLAT_TYPE_DMNS_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND")
+        # Select only mapped upstream columns with correct port names
+        _agg_input = df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY.select(
+            col("HSHLD_AEM_IND"),
+            col("HSHLD_ELDR_IND"),
+            col("MIN_MTH_RENT_AMT").alias("MIN_MTH_RENT_AMT_IN"),
+            col("MAX_MTH_RENT_AMT").alias("MAX_MTH_RENT_AMT_IN"),
+            col("ACTV_TNCY_CNT").alias("ACTV_TNCY_CNT_IN"),
+            col("ARR_ACTV_TNCY_CNT").alias("ARR_ACTV_TNCY_CNT_IN"),
+            col("LTNG_RTN_CMLT_ARR_AMT").alias("LTNG_RTN_CMLT_ARR_AMT_IN"),
+            col("LTNG_RTN_MTH_RENT_RCV_AMT").alias("LTNG_RTN_MTH_RENT_RCV_AMT_IN"),
+            col("TOT_MTH_RENT_AMT").alias("TOT_MTH_RENT_AMT_IN"),
+            col("FLAT_TYPE_DMNS_KEY"),
+            col("TIME_DMNS_KEY"),
+            col("RENT_RVW_CATG_DMNS_KEY"),
+            col("COST_CTR_SCD_KEY"),
+            col("RENT_FCTR_DMNS_KEY"),
+            col("MGT_MODE_DMNS_KEY"),
+            col("HSHLD_SIZE_DMNS_KEY"),
+            col("MTH_RCV_RENT_AMT").alias("MTH_RCV_RENT_AMT_IN"),
+            col("FRST_MTH_ARR_AMT").alias("FRST_MTH_ARR_AMT_IN"),
+            col("SCND_MTH_ARR_AMT").alias("SCND_MTH_ARR_AMT_IN"),
+            col("THRD_AND_ABV_MTH_ARR_AMT").alias("THRD_AND_ABV_MTH_ARR_AMT_IN"),
+            col("EXTNT_OSTD_DEBT_AMT").alias("EXTNT_OSTD_DEBT_AMT_IN"),
+            col("PSTV_RENT_ACTV_TNCY_CNT").alias("PSTV_RENT_ACTV_TNCY_CNT_IN"),
+            col("LTNG_RTN_FRST_MTH_ARR_AMT").alias("LTNG_RTN_FRST_MTH_ARR_AMT_IN"),
+            col("LTNG_RTN_SCND_MTH_ARR_AMT").alias("LTNG_RTN_SCND_MTH_ARR_AMT_IN"),
+            col("LTNG_RTN_THRD_ABV_MTH_ARR_AMT").alias("LTNG_RTN_THRD_ABV_MTH_ARR_AMT_IN"),
+            col("LTNG_RTN_PND_WRTF_AMT").alias("LTNG_RTN_PND_WRTF_AMT_IN")        )
+        df_AGGTRANS = _agg_input.groupBy("TIME_DMNS_KEY", "RENT_RVW_CATG_DMNS_KEY", "COST_CTR_SCD_KEY", "RENT_FCTR_DMNS_KEY", "MGT_MODE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "FLAT_TYPE_DMNS_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND")
         df_AGGTRANS = df_AGGTRANS.agg(
-            sum("MTH_RCV_RENT_AMT").alias("MTH_RCV_RENT_AMT"),
-            sum("FRST_MTH_ARR_AMT").alias("FRST_MTH_ARR_AMT"),
-            sum("SCND_MTH_ARR_AMT").alias("SCND_MTH_ARR_AMT"),
-            sum("THRD_AND_ABV_MTH_ARR_AMT").alias("THRD_AND_ABV_MTH_ARR_AMT"),
-            sum("EXTNT_OSTD_DEBT_AMT").alias("EXTNT_OSTD_DEBT_AMT"),
-            sum("ACTV_TNCY_CNT").alias("ACTV_TNCY_CNT"),
-            sum("ARR_ACTV_TNCY_CNT").alias("ARR_ACTV_TNCY_CNT"),
-            sum("LTNG_RTN_CMLT_ARR_AMT").alias("LTNG_RTN_CMLT_ARR_AMT"),
-            sum("LTNG_RTN_MTH_RENT_RCV_AMT").alias("LTNG_RTN_MTH_RENT_RCV_AMT"),
-            min("MIN_MTH_RENT_AMT").alias("MIN_MTH_RENT_AMT"),
-            max("MAX_MTH_RENT_AMT").alias("MAX_MTH_RENT_AMT"),
-            sum("TOT_MTH_RENT_AMT").alias("TOT_MTH_RENT_AMT"),
-            sum("PSTV_RENT_ACTV_TNCY_CNT").alias("PSTV_RENT_ACTV_TNCY_CNT"),
-            sum("LTNG_RTN_FRST_MTH_ARR_AMT").alias("LTNG_RTN_FRST_MTH_ARR_AMT"),
-            sum("LTNG_RTN_SCND_MTH_ARR_AMT").alias("LTNG_RTN_SCND_MTH_ARR_AMT"),
-            sum("LTNG_RTN_THRD_ABV_MTH_ARR_AMT").alias("LTNG_RTN_THRD_ABV_MTH_ARR_AMT"),
-            sum("LTNG_RTN_PND_WRTF_AMT").alias("LTNG_RTN_PND_WRTF_AMT")
+            sum("MTH_RCV_RENT_AMT_IN").alias("MTH_RCV_RENT_AMT"),
+            sum("FRST_MTH_ARR_AMT_IN").alias("FRST_MTH_ARR_AMT"),
+            sum("SCND_MTH_ARR_AMT_IN").alias("SCND_MTH_ARR_AMT"),
+            sum("THRD_AND_ABV_MTH_ARR_AMT_IN").alias("THRD_AND_ABV_MTH_ARR_AMT"),
+            sum("EXTNT_OSTD_DEBT_AMT_IN").alias("EXTNT_OSTD_DEBT_AMT"),
+            sum("ACTV_TNCY_CNT_IN").alias("ACTV_TNCY_CNT"),
+            sum("ARR_ACTV_TNCY_CNT_IN").alias("ARR_ACTV_TNCY_CNT"),
+            sum("LTNG_RTN_CMLT_ARR_AMT_IN").alias("LTNG_RTN_CMLT_ARR_AMT"),
+            sum("LTNG_RTN_MTH_RENT_RCV_AMT_IN").alias("LTNG_RTN_MTH_RENT_RCV_AMT"),
+            min("MIN_MTH_RENT_AMT_IN").alias("MIN_MTH_RENT_AMT"),
+            max("MAX_MTH_RENT_AMT_IN").alias("MAX_MTH_RENT_AMT"),
+            sum("TOT_MTH_RENT_AMT_IN").alias("TOT_MTH_RENT_AMT"),
+            sum("PSTV_RENT_ACTV_TNCY_CNT_IN").alias("PSTV_RENT_ACTV_TNCY_CNT"),
+            sum("LTNG_RTN_FRST_MTH_ARR_AMT_IN").alias("LTNG_RTN_FRST_MTH_ARR_AMT"),
+            sum("LTNG_RTN_SCND_MTH_ARR_AMT_IN").alias("LTNG_RTN_SCND_MTH_ARR_AMT"),
+            sum("LTNG_RTN_THRD_ABV_MTH_ARR_AMT_IN").alias("LTNG_RTN_THRD_ABV_MTH_ARR_AMT"),
+            sum("LTNG_RTN_PND_WRTF_AMT_IN").alias("LTNG_RTN_PND_WRTF_AMT")
         )
         ctx.register_df("df_AGGTRANS", df_AGGTRANS)
         
@@ -145,13 +172,20 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         
         logger.info("Step: join_mplt_EXP_SP_DELETE_0")
         # Lookup: join_mplt_EXP_SP_DELETE_0
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_mplt_lkp_2.columns if c in df_EXP_SET_DEL_INFO.columns]
-        df_mplt_merge_3 = df_mplt_lkp_2.join(
-            df_EXP_SET_DEL_INFO,
-            on=_common_cols,
-            how="left"
-        )
+        # Merge on common columns — drop lookup columns that duplicate non-key
+        # input columns (e.g. EST_KEY from both sides → ambiguity).
+        _cc = list(dict.fromkeys(c for c in df_mplt_lkp_2.columns if c in df_EXP_SET_DEL_INFO.columns))
+        if _cc:
+            __lkp_dup = [c for c in df_EXP_SET_DEL_INFO.columns if c in df_mplt_lkp_2.columns and c not in _cc]
+            df_mplt_merge_3 = df_mplt_lkp_2.join(
+                df_EXP_SET_DEL_INFO.drop(*__lkp_dup) if __lkp_dup else df_EXP_SET_DEL_INFO,
+                on=_cc, how="left"
+            )
+        else:
+            logger.warning("No common columns between df_mplt_lkp_2 and df_EXP_SET_DEL_INFO — using synthetic key join")
+            df_mplt_merge_3 = df_mplt_lkp_2.withColumn("_join_key", lit(1)).join(
+                df_EXP_SET_DEL_INFO.withColumn("_join_key", lit(1)),
+                on="_join_key", how="left").drop("_join_key")
         ctx.register_df("df_mplt_merge_3", df_mplt_merge_3)
         
         logger.info("Step: apply_mplt_EXP_SP_DELETE")
@@ -174,7 +208,8 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         
         logger.info("Step: apply_mplt_FILTRANS")
         # Filter: apply_mplt_FILTRANS
-        df_mplt_fil_5 = df_mplt_expr_4.filter(expr("RSL_CTL_IND = '1'"))
+        __fil_input = df_mplt_expr_4
+        df_mplt_fil_5 = __fil_input.filter(expr("RSL_CTL_IND = '1'"))
         ctx.register_df("df_mplt_fil_5", df_mplt_fil_5)
         
         logger.info("Step: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD")

@@ -112,7 +112,7 @@ group by time_dmns_key,est_key"""
         logger.info("Step: apply_SQ_DDS_DMNS_ENQ_CHNL_TYPE")
         # Source Qualifier: apply_SQ_DDS_DMNS_ENQ_CHNL_TYPE
         df_SQ_DDS_DMNS_ENQ_CHNL_TYPE = df_DDS_DMNS_ENQ_CHNL_TYPE
-        df_SQ_DDS_DMNS_ENQ_CHNL_TYPE = df_SQ_DDS_DMNS_ENQ_CHNL_TYPE.filter(expr("DDS_DMNS_ENQ_CHNL_TYPE.ENQ_CHNL_TYPE_KEY != 0"))
+        df_SQ_DDS_DMNS_ENQ_CHNL_TYPE = df_SQ_DDS_DMNS_ENQ_CHNL_TYPE.filter(expr("ENQ_CHNL_TYPE_KEY != 0"))
         # Select only SQ output ports (matches Informatica behavior)
         df_SQ_DDS_DMNS_ENQ_CHNL_TYPE = df_SQ_DDS_DMNS_ENQ_CHNL_TYPE.select("ENQ_CHNL_TYPE_KEY", "ENQ_CHNL_TYPE_CODE", "ENQ_CHNL_TYPE_DESP")
         ctx.register_df("df_SQ_DDS_DMNS_ENQ_CHNL_TYPE", df_SQ_DDS_DMNS_ENQ_CHNL_TYPE)
@@ -126,8 +126,7 @@ group by time_dmns_key,est_key"""
         for _col in ["TIME_DMNS_KEY", "EST_KEY", "ACTV_TNCY_CNT", "ARR_ACTV_TNCY_CNT"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_EXPTRANS = df_EXPTRANS.select("TIME_DMNS_KEY", "SYS_RPT_YEAR", "SYS_RPT_MTH", "EST_KEY", "ACTV_TNCY_CNT", "ARR_ACTV_TNCY_CNT")
+        # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: apply_EXPTRANS1")
@@ -138,22 +137,40 @@ group by time_dmns_key,est_key"""
         for _col in ["ENQ_CHNL_TYPE_KEY", "ENQ_CHNL_TYPE_CODE", "ENQ_CHNL_TYPE_DESP"]:
             if _col not in df_EXPTRANS1.columns:
                 df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_EXPTRANS1 = df_EXPTRANS1.select("ENQ_CHNL_TYPE_KEY", "ENQ_CHNL_TYPE_CODE", "ENQ_CHNL_TYPE_DESP", "DUMMY")
+        # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
         
         logger.info("Step: apply_FILTRANS")
         # Filter: apply_FILTRANS
-        df_FILTRANS = df_EXPTRANS.filter(expr("SYS_RPT_YEAR = cast(substring('$$v_rpt_mth',1,4) as decimal) AND SYS_RPT_MTH = cast(substring('$$v_rpt_mth',5,2) as decimal)"))
+        __fil_input = df_EXPTRANS
+        _filter_text = """SYS_RPT_YEAR = cast(substring($$v_rpt_mth,1,4) as decimal) AND SYS_RPT_MTH = cast(substring($$v_rpt_mth,5,2) as decimal)"""
+        _filter_text = _filter_text.replace("$$v_rpt_mth", v_rpt_mth)
+        _filter_text = _filter_text.replace("$$v_snsh_date", v_snsh_date)
+        df_FILTRANS = __fil_input.filter(expr(_filter_text))
         ctx.register_df("df_FILTRANS", df_FILTRANS)
         
         logger.info("Step: apply_RTRTRANS")
         # Router: apply_RTRTRANS - splits into multiple output groups
-        df_rtr_actv_tncy_cnt_1 = df_FILTRANS  # Default group
+        df_rtr_actv_tncy_cnt_1 = df_FILTRANS.filter(expr("TRUE"))
+        df_rtr_actv_tncy_cnt_1 = df_rtr_actv_tncy_cnt_1.drop("EST_KEY2").withColumnRenamed("EST_KEY", "EST_KEY2")
+        df_rtr_actv_tncy_cnt_1 = df_rtr_actv_tncy_cnt_1.drop("SYS_RPT_YEAR2").withColumnRenamed("SYS_RPT_YEAR", "SYS_RPT_YEAR2")
+        df_rtr_actv_tncy_cnt_1 = df_rtr_actv_tncy_cnt_1.drop("SYS_RPT_MTH2").withColumnRenamed("SYS_RPT_MTH", "SYS_RPT_MTH2")
+        df_rtr_actv_tncy_cnt_1 = df_rtr_actv_tncy_cnt_1.drop("ACTV_TNCY_CNT2").withColumnRenamed("ACTV_TNCY_CNT", "ACTV_TNCY_CNT2")
+        df_rtr_actv_tncy_cnt_1 = df_rtr_actv_tncy_cnt_1.drop("ARR_ACTV_TNCY_CNT2").withColumnRenamed("ARR_ACTV_TNCY_CNT", "ARR_ACTV_TNCY_CNT2")
         ctx.register_df("df_rtr_actv_tncy_cnt_1", df_rtr_actv_tncy_cnt_1)
-        df_rtr_arr_actv_tncy_cnt_2 = df_FILTRANS  # Default group
+        df_rtr_arr_actv_tncy_cnt_2 = df_FILTRANS.filter(expr("TRUE"))
+        df_rtr_arr_actv_tncy_cnt_2 = df_rtr_arr_actv_tncy_cnt_2.drop("EST_KEY3").withColumnRenamed("EST_KEY", "EST_KEY3")
+        df_rtr_arr_actv_tncy_cnt_2 = df_rtr_arr_actv_tncy_cnt_2.drop("SYS_RPT_YEAR3").withColumnRenamed("SYS_RPT_YEAR", "SYS_RPT_YEAR3")
+        df_rtr_arr_actv_tncy_cnt_2 = df_rtr_arr_actv_tncy_cnt_2.drop("SYS_RPT_MTH3").withColumnRenamed("SYS_RPT_MTH", "SYS_RPT_MTH3")
+        df_rtr_arr_actv_tncy_cnt_2 = df_rtr_arr_actv_tncy_cnt_2.drop("ACTV_TNCY_CNT3").withColumnRenamed("ACTV_TNCY_CNT", "ACTV_TNCY_CNT3")
+        df_rtr_arr_actv_tncy_cnt_2 = df_rtr_arr_actv_tncy_cnt_2.drop("ARR_ACTV_TNCY_CNT3").withColumnRenamed("ARR_ACTV_TNCY_CNT", "ARR_ACTV_TNCY_CNT3")
         ctx.register_df("df_rtr_arr_actv_tncy_cnt_2", df_rtr_arr_actv_tncy_cnt_2)
-        df_rtr_default_3 = df_FILTRANS  # Default group
+        df_rtr_default_3 = df_FILTRANS.filter(~(expr("TRUE")) & ~(expr("TRUE")))
+        df_rtr_default_3 = df_rtr_default_3.drop("EST_KEY1").withColumnRenamed("EST_KEY", "EST_KEY1")
+        df_rtr_default_3 = df_rtr_default_3.drop("SYS_RPT_YEAR1").withColumnRenamed("SYS_RPT_YEAR", "SYS_RPT_YEAR1")
+        df_rtr_default_3 = df_rtr_default_3.drop("SYS_RPT_MTH1").withColumnRenamed("SYS_RPT_MTH", "SYS_RPT_MTH1")
+        df_rtr_default_3 = df_rtr_default_3.drop("ACTV_TNCY_CNT1").withColumnRenamed("ACTV_TNCY_CNT", "ACTV_TNCY_CNT1")
+        df_rtr_default_3 = df_rtr_default_3.drop("ARR_ACTV_TNCY_CNT1").withColumnRenamed("ARR_ACTV_TNCY_CNT", "ARR_ACTV_TNCY_CNT1")
         ctx.register_df("df_rtr_default_3", df_rtr_default_3)
         
         logger.info("Step: apply_EXP_ACTV_TNCY_CNT")
@@ -166,13 +183,12 @@ group by time_dmns_key,est_key"""
         df_EXP_ACTV_TNCY_CNT = df_EXP_ACTV_TNCY_CNT.withColumn("RENT_ENQ_RMDR_DTL_CODE", expr("'XA_ACTV_TNCY_CNT'"))
         df_EXP_ACTV_TNCY_CNT = df_EXP_ACTV_TNCY_CNT.withColumn("VALUE", expr("ACTV_TNCY_CNT2"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Select only mapping output ports (prevents column leakage)
-        df_EXP_ACTV_TNCY_CNT = df_EXP_ACTV_TNCY_CNT.select("EST_KEY1", "SYS_RPT_YEAR1", "SYS_RPT_MTH1", "ENQ_CHNL_TYPE_CODE", "RENT_ENQ_RMDR_DTL_CODE", "VALUE")
+        # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXP_ACTV_TNCY_CNT", df_EXP_ACTV_TNCY_CNT)
         
         logger.info("Step: apply_EXP_PHONE_SUCC_CNT")
         # Expression: apply_EXP_PHONE_SUCC_CNT
-        df_EXP_PHONE_SUCC_CNT = df_rtr_actv_tncy_cnt_1
+        df_EXP_PHONE_SUCC_CNT = df_rtr_arr_actv_tncy_cnt_2
         df_EXP_PHONE_SUCC_CNT = df_EXP_PHONE_SUCC_CNT.withColumn("ENQ_CHNL_TYPE_CODE", expr("'1'"))
         df_EXP_PHONE_SUCC_CNT = df_EXP_PHONE_SUCC_CNT.withColumn("RENT_ENQ_RMDR_DTL_CODE", expr("'XA_ACTV_TNCY_ARR_CNT'"))
         df_EXP_PHONE_SUCC_CNT = df_EXP_PHONE_SUCC_CNT.withColumn("VALUE", expr("ARR_ACTV_TNCY_CNT3"))
@@ -180,29 +196,48 @@ group by time_dmns_key,est_key"""
         for _col in ["EST_KEY3", "SYS_RPT_YEAR3", "SYS_RPT_MTH3"]:
             if _col not in df_EXP_PHONE_SUCC_CNT.columns:
                 df_EXP_PHONE_SUCC_CNT = df_EXP_PHONE_SUCC_CNT.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_EXP_PHONE_SUCC_CNT = df_EXP_PHONE_SUCC_CNT.select("EST_KEY3", "SYS_RPT_YEAR3", "SYS_RPT_MTH3", "ENQ_CHNL_TYPE_CODE", "RENT_ENQ_RMDR_DTL_CODE", "VALUE")
+        # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXP_PHONE_SUCC_CNT", df_EXP_PHONE_SUCC_CNT)
         
         logger.info("Step: apply_Union_Transformation")
         # Union: apply_Union_Transformation
-        # Rename upstream columns to match union output port names
-        df_EXP_PHONE_SUCC_CNT = df_EXP_PHONE_SUCC_CNT.withColumnRenamed("EST_KEY3", "EST_KEY1")
-        df_EXP_PHONE_SUCC_CNT = df_EXP_PHONE_SUCC_CNT.withColumnRenamed("SYS_RPT_YEAR3", "SYS_RPT_YEAR1")
-        df_EXP_PHONE_SUCC_CNT = df_EXP_PHONE_SUCC_CNT.withColumnRenamed("SYS_RPT_MTH3", "SYS_RPT_MTH1")
-        df_Union_Transformation = df_EXP_ACTV_TNCY_CNT
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_EXP_PHONE_SUCC_CNT, allowMissingColumns=True)
+        # Select + rename upstream columns per input, then union
+        df_Union_Transformation_actv_tncy_cnt = df_EXP_ACTV_TNCY_CNT.select(
+            col("EST_KEY1").alias("EST_KEY1"),
+            col("SYS_RPT_YEAR1").alias("SYS_RPT_YEAR1"),
+            col("SYS_RPT_MTH1").alias("SYS_RPT_MTH1"),
+            col("ENQ_CHNL_TYPE_CODE").alias("ENQ_CHNL_TYPE_CODE"),
+            col("RENT_ENQ_RMDR_DTL_CODE").alias("RENT_ENQ_RMDR_DTL_CODE"),
+            col("VALUE").alias("VALUE")        )
+        df_Union_Transformation_arr_actv_tncy_cnt = df_EXP_PHONE_SUCC_CNT.select(
+            col("EST_KEY3").alias("EST_KEY1"),
+            col("SYS_RPT_YEAR3").alias("SYS_RPT_YEAR1"),
+            col("SYS_RPT_MTH3").alias("SYS_RPT_MTH1"),
+            col("ENQ_CHNL_TYPE_CODE").alias("ENQ_CHNL_TYPE_CODE"),
+            col("RENT_ENQ_RMDR_DTL_CODE").alias("RENT_ENQ_RMDR_DTL_CODE"),
+            col("VALUE").alias("VALUE")        )
+        df_Union_Transformation = df_Union_Transformation_actv_tncy_cnt
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_arr_actv_tncy_cnt, allowMissingColumns=True)
         # Select only union output columns
         df_Union_Transformation = df_Union_Transformation.select("EST_KEY1", "SYS_RPT_YEAR1", "SYS_RPT_MTH1", "ENQ_CHNL_TYPE_CODE", "RENT_ENQ_RMDR_DTL_CODE", "VALUE")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
         logger.info("Step: apply_JNRTRANS")
         # Joiner: apply_JNRTRANS
-        # Complex join condition - using aliases for unambiguous column references
-        _master = df_EXPTRANS1.alias("MASTER")
-        _detail = df_EXPTRANS1.alias("DETAIL")
-        df_JNRTRANS = _master.join(
-            _detail,
+        # Select + rename upstream columns to Joiner port names
+        df_JNRTRANS_master = df_EXPTRANS1.select(
+            col("ENQ_CHNL_TYPE_CODE").alias("ENQ_CHNL_TYPE_CODE1"),
+            col("DUMMY")        )
+        df_JNRTRANS_detail = df_Union_Transformation.select(
+            col("EST_KEY1"),
+            col("SYS_RPT_YEAR1"),
+            col("SYS_RPT_MTH1"),
+            col("ENQ_CHNL_TYPE_CODE"),
+            col("RENT_ENQ_RMDR_DTL_CODE"),
+            col("VALUE")        )
+        # Complex join condition
+        df_JNRTRANS = df_JNRTRANS_master.join(
+            df_JNRTRANS_detail,
             expr("DUMMY = ENQ_CHNL_TYPE_CODE"),
             "inner"
         )
@@ -256,13 +291,21 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         
         logger.info("Step: apply_mplt_LKP_DDS_HRCHY_EMS_EST")
         # Lookup: apply_mplt_LKP_DDS_HRCHY_EMS_EST
-        # Join on common column: EST_KEY
-
+        # Join condition: EST_KEY=EST_KEY
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_mplt_lkp_6
+        _lkp_right = _lkp_right.withColumnRenamed("EST_KEY", "_lkp_EST_KEY")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_mplt_expr_5.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
         df_mplt_join_7 = df_mplt_expr_5.join(
-            broadcast(df_mplt_lkp_6),
-            on="EST_KEY",
-            how="left"
-        )
+            broadcast(_lkp_right),
+            (df_mplt_expr_5["EST_KEY"] == _lkp_right["_lkp_EST_KEY"]),
+            "left"
+        ).drop("_lkp_EST_KEY")
+
         ctx.register_df("df_mplt_join_7", df_mplt_join_7)
         
         logger.info("Step: read_mplt_LKP_DDS_DMNS_RENT_ENQ_RMDR_DTL")
@@ -273,13 +316,21 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         
         logger.info("Step: apply_mplt_LKP_DDS_DMNS_RENT_ENQ_RMDR_DTL")
         # Lookup: apply_mplt_LKP_DDS_DMNS_RENT_ENQ_RMDR_DTL
-        # Join on common column: RENT_ENQ_RMDR_DTL_CODE
-
+        # Join condition: RENT_ENQ_RMDR_DTL_CODE=RENT_ENQ_RMDR_DTL_CODE
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_mplt_lkp_8
+        _lkp_right = _lkp_right.withColumnRenamed("RENT_ENQ_RMDR_DTL_CODE", "_lkp_RENT_ENQ_RMDR_DTL_CODE")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_mplt_expr_5.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
         df_mplt_join_9 = df_mplt_expr_5.join(
-            broadcast(df_mplt_lkp_8),
-            on="RENT_ENQ_RMDR_DTL_CODE",
-            how="left"
-        )
+            broadcast(_lkp_right),
+            (df_mplt_expr_5["RENT_ENQ_RMDR_DTL_CODE"] == _lkp_right["_lkp_RENT_ENQ_RMDR_DTL_CODE"]),
+            "left"
+        ).drop("_lkp_RENT_ENQ_RMDR_DTL_CODE")
+
         ctx.register_df("df_mplt_join_9", df_mplt_join_9)
         
         logger.info("Step: read_mplt_LKP_DDS_DMNS_ENQ_CHNL_TYPE")
@@ -290,57 +341,93 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         
         logger.info("Step: apply_mplt_LKP_DDS_DMNS_ENQ_CHNL_TYPE")
         # Lookup: apply_mplt_LKP_DDS_DMNS_ENQ_CHNL_TYPE
-        # Join on common column: ENQ_CHNL_TYPE_CODE
-
+        # Join condition: ENQ_CHNL_TYPE_CODE=ENQ_CHNL_TYPE_CODE
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_mplt_lkp_10
+        _lkp_right = _lkp_right.withColumnRenamed("ENQ_CHNL_TYPE_CODE", "_lkp_ENQ_CHNL_TYPE_CODE")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_mplt_expr_5.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
         df_mplt_join_11 = df_mplt_expr_5.join(
-            broadcast(df_mplt_lkp_10),
-            on="ENQ_CHNL_TYPE_CODE",
-            how="left"
-        )
+            broadcast(_lkp_right),
+            (df_mplt_expr_5["ENQ_CHNL_TYPE_CODE"] == _lkp_right["_lkp_ENQ_CHNL_TYPE_CODE"]),
+            "left"
+        ).drop("_lkp_ENQ_CHNL_TYPE_CODE")
+
         ctx.register_df("df_mplt_join_11", df_mplt_join_11)
         
         logger.info("Step: join_mplt_EXPTRANS2_0")
         # Lookup: join_mplt_EXPTRANS2_0
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_mplt_join_7.columns if c in df_mplt_expr_5.columns]
-        df_mplt_merge_12 = df_mplt_join_7.join(
-            df_mplt_expr_5,
-            on=_common_cols,
-            how="left"
-        )
+        # Merge on common columns — drop lookup columns that duplicate non-key
+        # input columns (e.g. EST_KEY from both sides → ambiguity).
+        _cc = list(dict.fromkeys(c for c in df_mplt_join_7.columns if c in df_mplt_expr_5.columns))
+        if _cc:
+            __lkp_dup = [c for c in df_mplt_expr_5.columns if c in df_mplt_join_7.columns and c not in _cc]
+            df_mplt_merge_12 = df_mplt_join_7.join(
+                df_mplt_expr_5.drop(*__lkp_dup) if __lkp_dup else df_mplt_expr_5,
+                on=_cc, how="left"
+            )
+        else:
+            logger.warning("No common columns between df_mplt_join_7 and df_mplt_expr_5 — using synthetic key join")
+            df_mplt_merge_12 = df_mplt_join_7.withColumn("_join_key", lit(1)).join(
+                df_mplt_expr_5.withColumn("_join_key", lit(1)),
+                on="_join_key", how="left").drop("_join_key")
         ctx.register_df("df_mplt_merge_12", df_mplt_merge_12)
         
         logger.info("Step: join_mplt_EXPTRANS2_1")
         # Lookup: join_mplt_EXPTRANS2_1
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_mplt_merge_12.columns if c in df_mplt_join_11.columns]
-        df_mplt_merge_13 = df_mplt_merge_12.join(
-            df_mplt_join_11,
-            on=_common_cols,
-            how="left"
-        )
+        # Merge on common columns — drop lookup columns that duplicate non-key
+        # input columns (e.g. EST_KEY from both sides → ambiguity).
+        _cc = list(dict.fromkeys(c for c in df_mplt_merge_12.columns if c in df_mplt_join_11.columns))
+        if _cc:
+            __lkp_dup = [c for c in df_mplt_join_11.columns if c in df_mplt_merge_12.columns and c not in _cc]
+            df_mplt_merge_13 = df_mplt_merge_12.join(
+                df_mplt_join_11.drop(*__lkp_dup) if __lkp_dup else df_mplt_join_11,
+                on=_cc, how="left"
+            )
+        else:
+            logger.warning("No common columns between df_mplt_merge_12 and df_mplt_join_11 — using synthetic key join")
+            df_mplt_merge_13 = df_mplt_merge_12.withColumn("_join_key", lit(1)).join(
+                df_mplt_join_11.withColumn("_join_key", lit(1)),
+                on="_join_key", how="left").drop("_join_key")
         ctx.register_df("df_mplt_merge_13", df_mplt_merge_13)
         
         logger.info("Step: join_mplt_EXPTRANS2_2")
         # Lookup: join_mplt_EXPTRANS2_2
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_mplt_merge_13.columns if c in df_mplt_join_9.columns]
-        df_mplt_merge_14 = df_mplt_merge_13.join(
-            df_mplt_join_9,
-            on=_common_cols,
-            how="left"
-        )
+        # Merge on common columns — drop lookup columns that duplicate non-key
+        # input columns (e.g. EST_KEY from both sides → ambiguity).
+        _cc = list(dict.fromkeys(c for c in df_mplt_merge_13.columns if c in df_mplt_join_9.columns))
+        if _cc:
+            __lkp_dup = [c for c in df_mplt_join_9.columns if c in df_mplt_merge_13.columns and c not in _cc]
+            df_mplt_merge_14 = df_mplt_merge_13.join(
+                df_mplt_join_9.drop(*__lkp_dup) if __lkp_dup else df_mplt_join_9,
+                on=_cc, how="left"
+            )
+        else:
+            logger.warning("No common columns between df_mplt_merge_13 and df_mplt_join_9 — using synthetic key join")
+            df_mplt_merge_14 = df_mplt_merge_13.withColumn("_join_key", lit(1)).join(
+                df_mplt_join_9.withColumn("_join_key", lit(1)),
+                on="_join_key", how="left").drop("_join_key")
         ctx.register_df("df_mplt_merge_14", df_mplt_merge_14)
         
         logger.info("Step: join_mplt_EXPTRANS2_3")
         # Lookup: join_mplt_EXPTRANS2_3
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_mplt_merge_14.columns if c in df_mplt_input_4.columns]
-        df_mplt_merge_15 = df_mplt_merge_14.join(
-            df_mplt_input_4,
-            on=_common_cols,
-            how="left"
-        )
+        # Merge on common columns — drop lookup columns that duplicate non-key
+        # input columns (e.g. EST_KEY from both sides → ambiguity).
+        _cc = list(dict.fromkeys(c for c in df_mplt_merge_14.columns if c in df_mplt_input_4.columns))
+        if _cc:
+            __lkp_dup = [c for c in df_mplt_input_4.columns if c in df_mplt_merge_14.columns and c not in _cc]
+            df_mplt_merge_15 = df_mplt_merge_14.join(
+                df_mplt_input_4.drop(*__lkp_dup) if __lkp_dup else df_mplt_input_4,
+                on=_cc, how="left"
+            )
+        else:
+            logger.warning("No common columns between df_mplt_merge_14 and df_mplt_input_4 — using synthetic key join")
+            df_mplt_merge_15 = df_mplt_merge_14.withColumn("_join_key", lit(1)).join(
+                df_mplt_input_4.withColumn("_join_key", lit(1)),
+                on="_join_key", how="left").drop("_join_key")
         ctx.register_df("df_mplt_merge_15", df_mplt_merge_15)
         
         logger.info("Step: apply_mplt_EXPTRANS2")
@@ -357,22 +444,18 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         df_MPLT_LKP_RENT_ENQ_RMDR_SMRY = df_mplt_expr_16
         ctx.register_df("df_MPLT_LKP_RENT_ENQ_RMDR_SMRY", df_MPLT_LKP_RENT_ENQ_RMDR_SMRY)
         
-        logger.info("Step: join_AGG_SUM_0")
-        # Lookup: join_AGG_SUM_0
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_MPLT_LKP_RENT_ENQ_RMDR_SMRY.columns if c in df_JNRTRANS.columns]
-        df_agg_merge_17 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY.join(
-            df_JNRTRANS,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_agg_merge_17", df_agg_merge_17)
-        
         logger.info("Step: apply_AGG_SUM")
         # Aggregator: apply_AGG_SUM
-        df_AGG_SUM = df_agg_merge_17.groupBy("TIME_DMNS_KEY", "EST_SCD_KEY", "ENQ_CHNL_TYPE_KEY", "RENT_ENQ_RMDR_DTL_KEY")
+        # Select only mapped upstream columns with correct port names
+        _agg_input = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY.select(
+            col("VALUE").alias("VALUE_IN"),
+            col("TIME_DMNS_KEY"),
+            col("EST_SCD_KEY"),
+            col("ENQ_CHNL_TYPE_KEY"),
+            col("RENT_ENQ_RMDR_DTL_KEY")        )
+        df_AGG_SUM = _agg_input.groupBy("TIME_DMNS_KEY", "EST_SCD_KEY", "ENQ_CHNL_TYPE_KEY", "RENT_ENQ_RMDR_DTL_KEY")
         df_AGG_SUM = df_AGG_SUM.agg(
-            sum("VALUE").alias("VALUE")
+            sum("VALUE_IN").alias("VALUE")
         )
         ctx.register_df("df_AGG_SUM", df_AGG_SUM)
         

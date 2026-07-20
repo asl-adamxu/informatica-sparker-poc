@@ -90,7 +90,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: apply_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY1")
         # Source Qualifier: apply_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY1
         df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY1 = df_DPA_FACT_MTH_RENT_AND_ARR_SMRY1
-        df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY1 = df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY1.filter(expr("DPA_FACT_MTH_RENT_AND_ARR_SMRY.LTNG_RTN_CMLT_ARR_AMT is NOT null OR DPA_FACT_MTH_RENT_AND_ARR_SMRY.LTNG_RTN_MTH_RENT_RCV_AMT is NOT null"))
+        df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY1 = df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY1.filter(expr("LTNG_RTN_CMLT_ARR_AMT is NOT null OR LTNG_RTN_MTH_RENT_RCV_AMT is NOT null"))
         # Select only SQ output ports (matches Informatica behavior)
         df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY1 = df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY1.select("TIME_DMNS_KEY", "RENT_RVW_CATG_DMNS_KEY", "COST_CTR_SCD_KEY", "RENT_FCTR_DMNS_KEY", "MGT_MODE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MTH_RCV_RENT_AMT", "FRST_MTH_ARR_AMT", "SCND_MTH_ARR_AMT", "THRD_AND_ABV_MTH_ARR_AMT", "EXTNT_OSTD_DEBT_AMT", "ACTV_TNCY_CNT", "ARR_ACTV_TNCY_CNT", "LTNG_RTN_CMLT_ARR_AMT", "LTNG_RTN_MTH_RENT_RCV_AMT", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "MIN_MTH_RENT_AMT", "MAX_MTH_RENT_AMT", "TOT_MTH_RENT_AMT", "FLAT_TYPE_DMNS_KEY", "PSTV_RENT_ACTV_TNCY_CNT")
         ctx.register_df("df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY1", df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY1)
@@ -98,7 +98,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: apply_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY")
         # Source Qualifier: apply_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY
         df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY = df_DPA_FACT_MTH_RENT_AND_ARR_SMRY
-        df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY = df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY.filter(expr("DPA_FACT_MTH_RENT_AND_ARR_SMRY.LTNG_RTN_CMLT_ARR_AMT is NOT null OR DPA_FACT_MTH_RENT_AND_ARR_SMRY.LTNG_RTN_MTH_RENT_RCV_AMT is NOT null"))
+        df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY = df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY.filter(expr("LTNG_RTN_CMLT_ARR_AMT is NOT null OR LTNG_RTN_MTH_RENT_RCV_AMT is NOT null"))
         # Select only SQ output ports (matches Informatica behavior)
         df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY = df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY.select("TIME_DMNS_KEY", "RENT_RVW_CATG_DMNS_KEY", "COST_CTR_SCD_KEY", "RENT_FCTR_DMNS_KEY", "MGT_MODE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MTH_RCV_RENT_AMT", "FRST_MTH_ARR_AMT", "SCND_MTH_ARR_AMT", "THRD_AND_ABV_MTH_ARR_AMT", "EXTNT_OSTD_DEBT_AMT", "ACTV_TNCY_CNT", "ARR_ACTV_TNCY_CNT", "LTNG_RTN_CMLT_ARR_AMT", "LTNG_RTN_MTH_RENT_RCV_AMT", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "MIN_MTH_RENT_AMT", "MAX_MTH_RENT_AMT", "TOT_MTH_RENT_AMT", "FLAT_TYPE_DMNS_KEY", "PSTV_RENT_ACTV_TNCY_CNT", "LTNG_RTN_FRST_MTH_ARR_AMT", "LTNG_RTN_SCND_MTH_ARR_AMT", "LTNG_RTN_THRD_ABV_MTH_ARR_AMT", "LTNG_RTN_PND_WRTF_AMT")
         ctx.register_df("df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY", df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY)
@@ -117,24 +117,52 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         
         logger.info("Step: apply_AGGTRANS")
         # Aggregator: apply_AGGTRANS
-        df_AGGTRANS = df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY.groupBy("TIME_DMNS_KEY", "RENT_RVW_CATG_DMNS_KEY", "COST_CTR_SCD_KEY", "RENT_FCTR_DMNS_KEY", "MGT_MODE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "FLAT_TYPE_DMNS_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND")
+        # Select only mapped upstream columns with correct port names
+        _agg_input = df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY.select(
+            col("HSHLD_AEM_IND"),
+            col("HSHLD_ELDR_IND"),
+            col("LTNG_RTN_CMLT_ARR_AMT").alias("LTNG_RTN_CMLT_ARR_AMT_IN"),
+            col("LTNG_RTN_MTH_RENT_RCV_AMT").alias("LTNG_RTN_MTH_RENT_RCV_AMT_IN"),
+            col("FLAT_TYPE_DMNS_KEY"),
+            col("TIME_DMNS_KEY"),
+            col("RENT_RVW_CATG_DMNS_KEY"),
+            col("COST_CTR_SCD_KEY"),
+            col("RENT_FCTR_DMNS_KEY"),
+            col("MGT_MODE_DMNS_KEY"),
+            col("HSHLD_SIZE_DMNS_KEY"),
+            col("LTNG_RTN_FRST_MTH_ARR_AMT").alias("LTNG_RTN_FRST_MTH_ARR_AMT_IN"),
+            col("LTNG_RTN_SCND_MTH_ARR_AMT").alias("LTNG_RTN_SCND_MTH_ARR_AMT_IN"),
+            col("LTNG_RTN_THRD_ABV_MTH_ARR_AMT").alias("LTNG_RTN_THRD_ABV_MTH_ARR_AMT_IN"),
+            col("LTNG_RTN_PND_WRTF_AMT").alias("LTNG_RTN_PND_WRTF_AMT_IN")        )
+        df_AGGTRANS = _agg_input.groupBy("TIME_DMNS_KEY", "RENT_RVW_CATG_DMNS_KEY", "COST_CTR_SCD_KEY", "RENT_FCTR_DMNS_KEY", "MGT_MODE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "FLAT_TYPE_DMNS_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND")
         df_AGGTRANS = df_AGGTRANS.agg(
-            sum("LTNG_RTN_CMLT_ARR_AMT").alias("LTNG_RTN_CMLT_ARR_AMT"),
-            sum("LTNG_RTN_MTH_RENT_RCV_AMT").alias("LTNG_RTN_MTH_RENT_RCV_AMT"),
-            sum("LTNG_RTN_FRST_MTH_ARR_AMT").alias("LTNG_RTN_FRST_MTH_ARR_AMT"),
-            sum("LTNG_RTN_SCND_MTH_ARR_AMT").alias("LTNG_RTN_SCND_MTH_ARR_AMT"),
-            sum("LTNG_RTN_THRD_ABV_MTH_ARR_AMT").alias("LTNG_RTN_THRD_ABV_MTH_ARR_AMT"),
-            sum("LTNG_RTN_PND_WRTF_AMT").alias("LTNG_RTN_PND_WRTF_AMT")
+            sum("LTNG_RTN_CMLT_ARR_AMT_IN").alias("LTNG_RTN_CMLT_ARR_AMT"),
+            sum("LTNG_RTN_MTH_RENT_RCV_AMT_IN").alias("LTNG_RTN_MTH_RENT_RCV_AMT"),
+            sum("LTNG_RTN_FRST_MTH_ARR_AMT_IN").alias("LTNG_RTN_FRST_MTH_ARR_AMT"),
+            sum("LTNG_RTN_SCND_MTH_ARR_AMT_IN").alias("LTNG_RTN_SCND_MTH_ARR_AMT"),
+            sum("LTNG_RTN_THRD_ABV_MTH_ARR_AMT_IN").alias("LTNG_RTN_THRD_ABV_MTH_ARR_AMT"),
+            sum("LTNG_RTN_PND_WRTF_AMT_IN").alias("LTNG_RTN_PND_WRTF_AMT")
         )
         ctx.register_df("df_AGGTRANS", df_AGGTRANS)
         
         logger.info("Step: apply_JNRTRANS")
         # Joiner: apply_JNRTRANS
-        # Complex join condition - using aliases for unambiguous column references
-        _master = df_AGGTRANS1.alias("MASTER")
-        _detail = df_SQ_DDS_FACT_MTH_RENT_AND_ARR_SMRY.alias("DETAIL")
-        df_JNRTRANS = _master.join(
-            _detail,
+        # Select + rename upstream columns to Joiner port names
+        df_JNRTRANS_master = df_AGGTRANS1.select(
+            col("TIME_DMNS_KEY").alias("TIME_DMNS_KEY1")        )
+        df_JNRTRANS_detail = df_SQ_DDS_FACT_MTH_RENT_AND_ARR_SMRY.select(
+            col("FLAT_TYPE_DMNS_KEY"),
+            col("TIME_DMNS_KEY"),
+            col("RENT_RVW_CATG_DMNS_KEY"),
+            col("COST_CTR_SCD_KEY"),
+            col("RENT_FCTR_DMNS_KEY"),
+            col("MGT_MODE_DMNS_KEY"),
+            col("HSHLD_SIZE_DMNS_KEY"),
+            col("HSHLD_AEM_IND"),
+            col("HSHLD_ELDR_IND")        )
+        # Complex join condition
+        df_JNRTRANS = df_JNRTRANS_master.join(
+            df_JNRTRANS_detail,
             expr("TIME_DMNS_KEY1 = TIME_DMNS_KEY"),
             "inner"
         )
@@ -190,8 +218,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         for _col in ["TIME_DMNS_KEY", "RENT_RVW_CATG_DMNS_KEY", "COST_CTR_SCD_KEY", "RENT_FCTR_DMNS_KEY", "MGT_MODE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "FLAT_TYPE_DMNS_KEY"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_EXPTRANS = df_EXPTRANS.select("TIME_DMNS_KEY", "RENT_RVW_CATG_DMNS_KEY", "COST_CTR_SCD_KEY", "RENT_FCTR_DMNS_KEY", "MGT_MODE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "FLAT_TYPE_DMNS_KEY", "DUMMY")
+        # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_DDS_FACT_MTH_RENT_AND_ARR_SMRY1")

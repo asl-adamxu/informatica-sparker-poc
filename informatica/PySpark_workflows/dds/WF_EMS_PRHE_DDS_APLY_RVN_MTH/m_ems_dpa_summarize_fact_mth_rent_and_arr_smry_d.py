@@ -117,18 +117,17 @@ where substr(LTNG_RTN_STAT_YEAR_MTH,1,4) = substr('$$v_rpt_mth',1,4) and substr(
         df_EXPTRANS2 = df_EXPTRANS2.withColumn("MONTHLY_DATE", expr("LTNG_RTN_STAT_YEAR_MTH"))
         df_EXPTRANS2 = df_EXPTRANS2.withColumn("ESTATE_CODE", expr("ltrim(rtrim(HSE_EST_CODE))"))
         df_EXPTRANS2 = df_EXPTRANS2.withColumn("TIME_DMNS_KEY", expr("'2' || LTNG_RTN_STAT_YEAR_MTH || '00'"))
+        df_EXPTRANS2 = df_EXPTRANS2.withColumn("COST_CTR_CODE", expr("rpad(ltrim(rtrim(HSE_EST_CODE)), 4, 'X') || HSE_BLDG_TYPE_CODE"))
         _expr = """date_add(add_months(to_date('$$v_rpt_mth' || '01', 'yyyyMMdd'), 1), CAST(-1 AS INT))"""
         _expr = _expr.replace("$$v_snsh_date", str(v_snsh_date))
         _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
         df_EXPTRANS2 = df_EXPTRANS2.withColumn("SNSH_DATE", expr(_expr))
-        df_EXPTRANS2 = df_EXPTRANS2.withColumn("COST_CTR_CODE", expr("rpad(ltrim(rtrim(HSE_EST_CODE)), 4, 'X') || HSE_BLDG_TYPE_CODE"))
         df_EXPTRANS2 = df_EXPTRANS2.withColumn("BSNS_ACTV_CODE", expr("HSE_EST_TYPE_CODE || HSE_BLDG_TYPE_CODE || PART_CODE"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["PART_CODE"]:
             if _col not in df_EXPTRANS2.columns:
                 df_EXPTRANS2 = df_EXPTRANS2.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_EXPTRANS2 = df_EXPTRANS2.select("ESTATE_TYPE", "BLDG_TYPE_CODE", "PART_CODE", "MONTHLY_DATE", "ESTATE_CODE", "TIME_DMNS_KEY", "COST_CTR_CODE", "BSNS_ACTV_CODE", "SNSH_DATE")
+        # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS2", df_EXPTRANS2)
         
         logger.info("Step: read_LKP_DDS_DMNS_PRPTY_TYPE")
@@ -142,13 +141,24 @@ where substr(LTNG_RTN_STAT_YEAR_MTH,1,4) = substr('$$v_rpt_mth',1,4) and substr(
         
         logger.info("Step: apply_LKP_DDS_DMNS_PRPTY_TYPE")
         # Lookup: apply_LKP_DDS_DMNS_PRPTY_TYPE
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_DDS_DMNS_PRPTY_TYPE = df_LKP_DDS_DMNS_PRPTY_TYPE.dropDuplicates(subset=["PRPTY_SBTYP_CODE"])
         # Join condition: PART_CODE=PRPTY_SBTYP_CODE
-        df_LKP_DDS_DMNS_PRPTY_TYPE = df_EXPTRANS2.join(
-            broadcast(df_LKP_DDS_DMNS_PRPTY_TYPE),
-            (df_EXPTRANS2["PART_CODE"] == df_LKP_DDS_DMNS_PRPTY_TYPE["PRPTY_SBTYP_CODE"]),
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_DDS_DMNS_PRPTY_TYPE
+        _lkp_right = _lkp_right.withColumnRenamed("PRPTY_SBTYP_CODE", "_lkp_PRPTY_SBTYP_CODE")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_EXPTRANS2.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_1 = df_EXPTRANS2.join(
+            broadcast(_lkp_right),
+            (df_EXPTRANS2["PART_CODE"] == _lkp_right["_lkp_PRPTY_SBTYP_CODE"]),
             "left"
-        )
-        ctx.register_df("df_LKP_DDS_DMNS_PRPTY_TYPE", df_LKP_DDS_DMNS_PRPTY_TYPE)
+        ).drop("_lkp_PRPTY_SBTYP_CODE")
+
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
         
         logger.info("Step: read_LKP_SOR_RVC_COST_CTR")
         # Reading Data From Source - read_LKP_SOR_RVC_COST_CTR
@@ -166,13 +176,26 @@ FROM
         
         logger.info("Step: apply_LKP_SOR_RVC_COST_CTR")
         # Lookup: apply_LKP_SOR_RVC_COST_CTR
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_SOR_RVC_COST_CTR = df_LKP_SOR_RVC_COST_CTR.dropDuplicates(subset=["COST_CTR_CODE", "COST_CTR_BSNS_ACTV_CODE"])
         # Join condition: COST_CTR_CODE=COST_CTR_CODE AND BSNS_ACTV_CODE=COST_CTR_BSNS_ACTV_CODE
-        df_LKP_SOR_RVC_COST_CTR = df_EXPTRANS2.join(
-            broadcast(df_LKP_SOR_RVC_COST_CTR),
-            (df_EXPTRANS2["COST_CTR_CODE"] == df_LKP_SOR_RVC_COST_CTR["COST_CTR_CODE"]) &             (df_EXPTRANS2["BSNS_ACTV_CODE"] == df_LKP_SOR_RVC_COST_CTR["COST_CTR_BSNS_ACTV_CODE"]),
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_SOR_RVC_COST_CTR
+        _lkp_right = _lkp_right.withColumnRenamed("COST_CTR_CODE", "_lkp_COST_CTR_CODE")
+        _lkp_right = _lkp_right.withColumnRenamed("COST_CTR_BSNS_ACTV_CODE", "_lkp_COST_CTR_BSNS_ACTV_CODE")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_1.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_1 = df_lkp_merge_1.join(
+            broadcast(_lkp_right),
+            (df_lkp_merge_1["COST_CTR_CODE"] == _lkp_right["_lkp_COST_CTR_CODE"]) &
+            (df_lkp_merge_1["BSNS_ACTV_CODE"] == _lkp_right["_lkp_COST_CTR_BSNS_ACTV_CODE"]),
             "left"
-        )
-        ctx.register_df("df_LKP_SOR_RVC_COST_CTR", df_LKP_SOR_RVC_COST_CTR)
+        ).drop("_lkp_COST_CTR_CODE").drop("_lkp_COST_CTR_BSNS_ACTV_CODE")
+
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
         
         logger.info("Step: read_LKP_SOR_HSM_EST")
         # Reading Data From Source - read_LKP_SOR_HSM_EST
@@ -204,13 +227,24 @@ GROUP BY
         
         logger.info("Step: apply_LKP_SOR_HSM_EST")
         # Lookup: apply_LKP_SOR_HSM_EST
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_SOR_HSM_EST = df_LKP_SOR_HSM_EST.dropDuplicates(subset=["EST_CODE"])
         # Join condition: ESTATE_CODE=EST_CODE
-        df_LKP_SOR_HSM_EST = df_EXPTRANS2.join(
-            broadcast(df_LKP_SOR_HSM_EST),
-            (df_EXPTRANS2["ESTATE_CODE"] == df_LKP_SOR_HSM_EST["EST_CODE"]),
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_SOR_HSM_EST
+        _lkp_right = _lkp_right.withColumnRenamed("EST_CODE", "_lkp_EST_CODE")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_1.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_1 = df_lkp_merge_1.join(
+            broadcast(_lkp_right),
+            (df_lkp_merge_1["ESTATE_CODE"] == _lkp_right["_lkp_EST_CODE"]),
             "left"
-        )
-        ctx.register_df("df_LKP_SOR_HSM_EST", df_LKP_SOR_HSM_EST)
+        ).drop("_lkp_EST_CODE")
+
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
         
         logger.info("Step: read_LKP_DDS_HRCHY_EMS_COST_CTR")
         # Reading Data From Source - read_LKP_DDS_HRCHY_EMS_COST_CTR
@@ -220,14 +254,24 @@ GROUP BY
         
         logger.info("Step: apply_LKP_DDS_HRCHY_EMS_COST_CTR")
         # Lookup: apply_LKP_DDS_HRCHY_EMS_COST_CTR
-        # Join on common column: COST_CTR_KEY
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_DDS_HRCHY_EMS_COST_CTR = df_LKP_DDS_HRCHY_EMS_COST_CTR.dropDuplicates(subset=["COST_CTR_KEY"])
+        # Join condition: COST_CTR_KEY=COST_CTR_KEY
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_DDS_HRCHY_EMS_COST_CTR
+        _lkp_right = _lkp_right.withColumnRenamed("COST_CTR_KEY", "_lkp_COST_CTR_KEY")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_1.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_2 = df_lkp_merge_1.join(
+            broadcast(_lkp_right),
+            (df_lkp_merge_1["COST_CTR_KEY"] == _lkp_right["_lkp_COST_CTR_KEY"]),
+            "left"
+        ).drop("_lkp_COST_CTR_KEY")
 
-        df_LKP_DDS_HRCHY_EMS_COST_CTR = df_EXPTRANS2.join(
-            broadcast(df_LKP_DDS_HRCHY_EMS_COST_CTR),
-            on="COST_CTR_KEY",
-            how="left"
-        )
-        ctx.register_df("df_LKP_DDS_HRCHY_EMS_COST_CTR", df_LKP_DDS_HRCHY_EMS_COST_CTR)
+        ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_MGT_MODE")
         # Reading Data From Source - read_LKP_DDS_DMNS_EMS_MGT_MODE
@@ -237,51 +281,46 @@ GROUP BY
         
         logger.info("Step: apply_LKP_DDS_DMNS_EMS_MGT_MODE")
         # Lookup: apply_LKP_DDS_DMNS_EMS_MGT_MODE
-        # Join on common column: MGT_MODE_CODE
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_DDS_DMNS_EMS_MGT_MODE = df_LKP_DDS_DMNS_EMS_MGT_MODE.dropDuplicates(subset=["MGT_MODE_CODE"])
+        # Join condition: MGT_MODE_CODE=MGT_MODE_CODE
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_DDS_DMNS_EMS_MGT_MODE
+        _lkp_right = _lkp_right.withColumnRenamed("MGT_MODE_CODE", "_lkp_MGT_MODE_CODE")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_1.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_3 = df_lkp_merge_1.join(
+            broadcast(_lkp_right),
+            (df_lkp_merge_1["MGT_MODE_CODE"] == _lkp_right["_lkp_MGT_MODE_CODE"]),
+            "left"
+        ).drop("_lkp_MGT_MODE_CODE")
 
-        df_LKP_DDS_DMNS_EMS_MGT_MODE = df_LKP_SOR_HSM_EST.join(
-            broadcast(df_LKP_DDS_DMNS_EMS_MGT_MODE),
-            on="MGT_MODE_CODE",
-            how="left"
-        )
-        ctx.register_df("df_LKP_DDS_DMNS_EMS_MGT_MODE", df_LKP_DDS_DMNS_EMS_MGT_MODE)
+        ctx.register_df("df_lkp_merge_3", df_lkp_merge_3)
         
-        logger.info("Step: join_EXPTRANS1_0")
-        # Lookup: join_EXPTRANS1_0
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_LKP_DDS_DMNS_EMS_MGT_MODE.columns if c in df_SQ_LRS_MTH_LTNG_RTN_STAT.columns]
-        df_exp_merge_1 = df_LKP_DDS_DMNS_EMS_MGT_MODE.join(
-            df_SQ_LRS_MTH_LTNG_RTN_STAT,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_exp_merge_1", df_exp_merge_1)
-        
-        logger.info("Step: join_EXPTRANS1_1")
-        # Lookup: join_EXPTRANS1_1
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_exp_merge_1.columns if c in df_LKP_DDS_HRCHY_EMS_COST_CTR.columns]
-        df_exp_merge_2 = df_exp_merge_1.join(
-            df_LKP_DDS_HRCHY_EMS_COST_CTR,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_exp_merge_2", df_exp_merge_2)
-        
-        logger.info("Step: join_EXPTRANS1_2")
-        # Lookup: join_EXPTRANS1_2
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_exp_merge_2.columns if c in df_EXPTRANS2.columns]
-        df_exp_merge_3 = df_exp_merge_2.join(
-            df_EXPTRANS2,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_exp_merge_3", df_exp_merge_3)
+        logger.info("Step: merge_EXPTRANS1_0")
+        # Lookup: merge_EXPTRANS1_0
+        # Merge on common columns — drop lookup columns that duplicate non-key
+        # input columns (e.g. EST_KEY from both sides → ambiguity).
+        _cc = list(dict.fromkeys(c for c in df_lkp_merge_3.columns if c in df_lkp_merge_2.columns))
+        if _cc:
+            __lkp_dup = [c for c in df_lkp_merge_2.columns if c in df_lkp_merge_3.columns and c not in _cc]
+            df_merge_4 = df_lkp_merge_3.join(
+                df_lkp_merge_2.drop(*__lkp_dup) if __lkp_dup else df_lkp_merge_2,
+                on=_cc, how="left"
+            )
+        else:
+            logger.warning("No common columns between df_lkp_merge_3 and df_lkp_merge_2 — using synthetic key join")
+            df_merge_4 = df_lkp_merge_3.withColumn("_join_key", lit(1)).join(
+                df_lkp_merge_2.withColumn("_join_key", lit(1)),
+                on="_join_key", how="left").drop("_join_key")
+        ctx.register_df("df_merge_4", df_merge_4)
         
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
-        df_EXPTRANS1 = df_exp_merge_3
+        df_EXPTRANS1 = df_merge_4
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("COST_CTR_SCD_KEY1", expr("CASE WHEN (COST_CTR_SCD_KEY IS NULL) THEN 0 ELSE COST_CTR_SCD_KEY END"))
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("MGT_MODE_DMNS_KEY1", expr("CASE WHEN (MGT_MODE_DMNS_KEY IS NULL) THEN 0 ELSE MGT_MODE_DMNS_KEY END"))
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("ARR_RENT_CF_CUR", expr("CUR_RENT_ARR_CF_AMT"))
@@ -299,25 +338,39 @@ GROUP BY
         for _col in ["TIME_DMNS_KEY"]:
             if _col not in df_EXPTRANS1.columns:
                 df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_EXPTRANS1 = df_EXPTRANS1.select("TIME_DMNS_KEY", "COST_CTR_SCD_KEY1", "MGT_MODE_DMNS_KEY1", "ARR_RENT_CF_CUR", "ARR_RENT_CF_SCND", "ARR_RENT_CF_THRD", "ARR_RENT_CF_FRTH_AND_ABV", "PENDING_WRITE_OFF", "LRT_CMLT_ARR_AMT", "UNITS_LET_AMT", "LRT_FRST_MTH_ARR_AMT", "LRT_RTN_SCND_MTH_ARR_AMT", "LRT_RTN_THRD_ABV_MTH_ARR_AMT", "LRT_RTN_PND_WRTF_AMT")
+        # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
         
         logger.info("Step: apply_FILTRANS")
         # Filter: apply_FILTRANS
-        df_FILTRANS = df_EXPTRANS1.filter(expr("PRPTY_TYPE_DESP = 'Domestic'"))
+        __fil_input = df_lkp_merge_1
+        df_FILTRANS = __fil_input.filter(expr("PRPTY_TYPE_DESP = 'Domestic'"))
         ctx.register_df("df_FILTRANS", df_FILTRANS)
         
         logger.info("Step: apply_AGGTRANS")
         # Aggregator: apply_AGGTRANS
-        df_AGGTRANS = df_FILTRANS.groupBy("TIME_DMNS_KEY", "COST_CTR_SCD_KEY1", "MGT_MODE_DMNS_KEY1", "DUMMY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND")
+        # Select only mapped upstream columns with correct port names
+        _agg_input = df_FILTRANS.select(
+            col("TIME_DMNS_KEY"),
+            col("COST_CTR_SCD_KEY1").alias("COST_CTR_SCD_KEY"),
+            col("MGT_MODE_DMNS_KEY1").alias("MGT_MODE_DMNS_KEY"),
+            col("LRT_CMLT_ARR_AMT").alias("LRT_CMLT_ARR_AMT_IN"),
+            col("UNITS_LET_AMT").alias("UNITS_LET_AMT_IN"),
+            col("LRT_FRST_MTH_ARR_AMT").alias("LRT_FRST_MTH_ARR_AMT_IN"),
+            col("LRT_RTN_SCND_MTH_ARR_AMT").alias("LRT_RTN_SCND_MTH_ARR_AMT_IN"),
+            col("LRT_RTN_THRD_ABV_MTH_ARR_AMT").alias("LRT_RTN_THRD_ABV_MTH_ARR_AMT_IN"),
+            col("LRT_RTN_PND_WRTF_AMT").alias("LRT_RTN_PND_WRTF_AMT_IN"),
+            expr("0").alias("DUMMY"),
+            expr("'U'").alias("HSHLD_AEM_IND"),
+            expr("'U'").alias("HSHLD_ELDR_IND")        )
+        df_AGGTRANS = _agg_input.groupBy("TIME_DMNS_KEY", "COST_CTR_SCD_KEY", "MGT_MODE_DMNS_KEY", "DUMMY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND")
         df_AGGTRANS = df_AGGTRANS.agg(
-            sum("LRT_CMLT_ARR_AMT").alias("LTNG_RTN_CMLT_ARR_AMT"),
-            sum("UNITS_LET_AMT").alias("LTNG_RTN_MTH_RENT_RCV_AMT"),
-            sum("LRT_FRST_MTH_ARR_AMT").alias("LRT_FRST_MTH_ARR_AMT"),
-            sum("LRT_RTN_SCND_MTH_ARR_AMT").alias("LRT_RTN_SCND_MTH_ARR_AMT"),
-            sum("LRT_RTN_THRD_ABV_MTH_ARR_AMT").alias("LRT_RTN_THRD_ABV_MTH_ARR_AMT"),
-            sum("LRT_RTN_PND_WRTF_AMT").alias("LRT_RTN_PND_WRTF_AMT")
+            sum("LRT_CMLT_ARR_AMT_IN").alias("LTNG_RTN_CMLT_ARR_AMT"),
+            sum("UNITS_LET_AMT_IN").alias("LTNG_RTN_MTH_RENT_RCV_AMT"),
+            sum("LRT_FRST_MTH_ARR_AMT_IN").alias("LRT_FRST_MTH_ARR_AMT"),
+            sum("LRT_RTN_SCND_MTH_ARR_AMT_IN").alias("LRT_RTN_SCND_MTH_ARR_AMT"),
+            sum("LRT_RTN_THRD_ABV_MTH_ARR_AMT_IN").alias("LRT_RTN_THRD_ABV_MTH_ARR_AMT"),
+            sum("LRT_RTN_PND_WRTF_AMT_IN").alias("LRT_RTN_PND_WRTF_AMT")
         )
         ctx.register_df("df_AGGTRANS", df_AGGTRANS)
         

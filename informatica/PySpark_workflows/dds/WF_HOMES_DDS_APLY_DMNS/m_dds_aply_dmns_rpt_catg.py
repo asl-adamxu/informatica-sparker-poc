@@ -51,12 +51,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
 
     
     try:
-        logger.info("Step: read_DPA_DMNS_RPT_CATG")
-        # Reading Data From Source - read_DPA_DMNS_RPT_CATG
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "DPA")
-        df_src_1 = lib.read_sql(spark, _conn, table="DPA_DMNS_RPT_CATG")
-        
         logger.info("Step: apply_SQ_DPA_DMNS_RPT_CATG")
         # Source Qualifier: apply_SQ_DPA_DMNS_RPT_CATG
         # SQL Pushdown - executes Informatica SQ SQL on source database
@@ -69,21 +63,21 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
        ) RPT_CATG_DISP_SEQ_NUM 
 FROM
  DPA_DMNS_RPT_CATG"""
-        df_sq_2 = lib.read_sql(spark, _conn, query=query)
+        df_SQ_DPA_DMNS_RPT_CATG = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_2.columns
+        _sql_cols = df_SQ_DPA_DMNS_RPT_CATG.columns
         _port_cols = ["DMNS_RPT_CATG_KEY", "RPT_CATG_CODE", "RPT_CATG_DESP", "RPT_CATG_DISP_SEQ_NUM"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_2 = df_sq_2.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_SQ_DPA_DMNS_RPT_CATG = df_SQ_DPA_DMNS_RPT_CATG.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_2 = df_sq_2.select("DMNS_RPT_CATG_KEY", "RPT_CATG_CODE", "RPT_CATG_DESP", "RPT_CATG_DISP_SEQ_NUM")
+        df_SQ_DPA_DMNS_RPT_CATG = df_SQ_DPA_DMNS_RPT_CATG.select("DMNS_RPT_CATG_KEY", "RPT_CATG_CODE", "RPT_CATG_DESP", "RPT_CATG_DISP_SEQ_NUM")
         
-        ctx.register_df("df_sq_2", df_sq_2)
+        ctx.register_df("df_SQ_DPA_DMNS_RPT_CATG", df_SQ_DPA_DMNS_RPT_CATG)
         
         logger.info("Step: write_DDS_DMNS_RPT_CATG")
         # Write to Target: write_DDS_DMNS_RPT_CATG
-        df_write = df_sq_2
+        df_write = df_SQ_DPA_DMNS_RPT_CATG
         # Cast columns to match target schema data types
         if "rpt_catg_desp" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

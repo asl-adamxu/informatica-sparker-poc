@@ -190,22 +190,23 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
+        from pyspark.sql.window import Window
         df_EXPTRANS = df_SQ_FLAT_DRP_MP
-        df_EXPTRANS = df_EXPTRANS.withColumn("SEQ_ID_V", expr("CASE WHEN (SEQ_ID_V IS NULL) THEN 1 ELSE SEQ_ID_V+1 END"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("SEQ_ID_V", monotonically_increasing_id() + 1)
+        df_EXPTRANS = df_EXPTRANS.withColumn("FILE_MTH_V", last(when(expr("SEQ_ID_V = 1"), expr("substring(REC_TYPE || SEQ_NUM || SWD_CASE_FILE_REF_NUM || ADDR_ROOM || ADDR_BLK || ADDR_EST || DRP_PYMT_AMT,22,29)")), True).over(Window.orderBy(lit(1))))
         df_EXPTRANS = df_EXPTRANS.withColumn("FILE_MTH", expr("substring(FILE_MTH_V,0,6)"))
         df_EXPTRANS = df_EXPTRANS.withColumn("VALUE_DATE", expr("substring(FILE_MTH_V,0,8)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("FILE_MTH_V", expr("CASE WHEN SEQ_ID_V = 1 THEN substring(REC_TYPE || SEQ_NUM || SWD_CASE_FILE_REF_NUM || ADDR_ROOM || ADDR_BLK || ADDR_EST || DRP_PYMT_AMT,22,29) ELSE FILE_MTH_V END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["REC_TYPE", "SEQ_NUM", "SWD_CASE_FILE_REF_NUM", "ADDR_ROOM", "ADDR_BLK", "ADDR_EST", "DRP_PYMT_AMT", "PYMT_FROM_DATE", "PYMT_TO_DATE", "ASGN_STF", "CUST_CNT", "CUST_ROLE_1", "CUST_ID_TYPE_1", "CUST_ID_NUM_1", "CUST_ENG_NAME_1", "CUST_ROLE_2", "CUST_ID_TYPE_2", "CUST_ID_NUM_2", "CUST_ENG_NAME_2", "CUST_ROLE_3", "CUST_ID_TYPE_3", "CUST_ID_NUM_3", "CUST_ENG_NAME_3", "CUST_ROLE_4", "CUST_ID_TYPE_4", "CUST_ID_NUM_4", "CUST_ENG_NAME_4", "CUST_ROLE_5", "CUST_ID_TYPE_5", "CUST_ID_NUM_5", "CUST_ENG_NAME_5", "CUST_ROLE_6", "CUST_ID_TYPE_6", "CUST_ID_NUM_6", "CUST_ENG_NAME_6", "CUST_ROLE_7", "CUST_ID_TYPE_7", "CUST_ID_NUM_7", "CUST_ENG_NAME_7", "CUST_ROLE_8", "CUST_ID_TYPE_8", "CUST_ID_NUM_8", "CUST_ENG_NAME_8", "CUST_ROLE_9", "CUST_ID_TYPE_9", "CUST_ID_NUM_9", "CUST_ENG_NAME_9", "CUST_ROLE_10", "CUST_ID_TYPE_10", "CUST_ID_NUM_10", "CUST_ENG_NAME_10", "CUST_ROLE_11", "CUST_ID_TYPE_11", "CUST_ID_NUM_11", "CUST_ENG_NAME_11", "CUST_ROLE_12", "CUST_ID_TYPE_12", "CUST_ID_NUM_12", "CUST_ENG_NAME_12", "CUST_ROLE_13", "CUST_ID_TYPE_13", "CUST_ID_NUM_13", "CUST_ENG_NAME_13", "CUST_ROLE_14", "CUST_ID_TYPE_14", "CUST_ID_NUM_14", "CUST_ENG_NAME_14", "CUST_ROLE_15", "CUST_ID_TYPE_15", "CUST_ID_NUM_15", "CUST_ENG_NAME_15", "CUST_ROLE_16", "CUST_ID_TYPE_16", "CUST_ID_NUM_16", "CUST_ENG_NAME_16", "CUST_ROLE_17", "CUST_ID_TYPE_17", "CUST_ID_NUM_17", "CUST_ENG_NAME_17", "CUST_ROLE_18", "CUST_ID_TYPE_18", "CUST_ID_NUM_18", "CUST_ENG_NAME_18", "CUST_ROLE_19", "CUST_ID_TYPE_19", "CUST_ID_NUM_19", "CUST_ENG_NAME_19", "CUST_ROLE_20", "CUST_ID_TYPE_20", "CUST_ID_NUM_20", "CUST_ENG_NAME_20"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_EXPTRANS = df_EXPTRANS.select("FILE_MTH", "VALUE_DATE", "REC_TYPE", "SEQ_NUM", "SWD_CASE_FILE_REF_NUM", "ADDR_ROOM", "ADDR_BLK", "ADDR_EST", "DRP_PYMT_AMT", "PYMT_FROM_DATE", "PYMT_TO_DATE", "ASGN_STF", "CUST_CNT", "CUST_ROLE_1", "CUST_ID_TYPE_1", "CUST_ID_NUM_1", "CUST_ENG_NAME_1", "CUST_ROLE_2", "CUST_ID_TYPE_2", "CUST_ID_NUM_2", "CUST_ENG_NAME_2", "CUST_ROLE_3", "CUST_ID_TYPE_3", "CUST_ID_NUM_3", "CUST_ENG_NAME_3", "CUST_ROLE_4", "CUST_ID_TYPE_4", "CUST_ID_NUM_4", "CUST_ENG_NAME_4", "CUST_ROLE_5", "CUST_ID_TYPE_5", "CUST_ID_NUM_5", "CUST_ENG_NAME_5", "CUST_ROLE_6", "CUST_ID_TYPE_6", "CUST_ID_NUM_6", "CUST_ENG_NAME_6", "CUST_ROLE_7", "CUST_ID_TYPE_7", "CUST_ID_NUM_7", "CUST_ENG_NAME_7", "CUST_ROLE_8", "CUST_ID_TYPE_8", "CUST_ID_NUM_8", "CUST_ENG_NAME_8", "CUST_ROLE_9", "CUST_ID_TYPE_9", "CUST_ID_NUM_9", "CUST_ENG_NAME_9", "CUST_ROLE_10", "CUST_ID_TYPE_10", "CUST_ID_NUM_10", "CUST_ENG_NAME_10", "CUST_ROLE_11", "CUST_ID_TYPE_11", "CUST_ID_NUM_11", "CUST_ENG_NAME_11", "CUST_ROLE_12", "CUST_ID_TYPE_12", "CUST_ID_NUM_12", "CUST_ENG_NAME_12", "CUST_ROLE_13", "CUST_ID_TYPE_13", "CUST_ID_NUM_13", "CUST_ENG_NAME_13", "CUST_ROLE_14", "CUST_ID_TYPE_14", "CUST_ID_NUM_14", "CUST_ENG_NAME_14", "CUST_ROLE_15", "CUST_ID_TYPE_15", "CUST_ID_NUM_15", "CUST_ENG_NAME_15", "CUST_ROLE_16", "CUST_ID_TYPE_16", "CUST_ID_NUM_16", "CUST_ENG_NAME_16", "CUST_ROLE_17", "CUST_ID_TYPE_17", "CUST_ID_NUM_17", "CUST_ENG_NAME_17", "CUST_ROLE_18", "CUST_ID_TYPE_18", "CUST_ID_NUM_18", "CUST_ENG_NAME_18", "CUST_ROLE_19", "CUST_ID_TYPE_19", "CUST_ID_NUM_19", "CUST_ENG_NAME_19", "CUST_ROLE_20", "CUST_ID_TYPE_20", "CUST_ID_NUM_20", "CUST_ENG_NAME_20")
+        # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: apply_FILTRANS")
         # Filter: apply_FILTRANS
-        df_FILTRANS = df_EXPTRANS.filter(expr("REC_TYPE != '0' AND REC_TYPE != '9'"))
+        __fil_input = df_EXPTRANS
+        df_FILTRANS = __fil_input.filter(expr("REC_TYPE != '0' AND REC_TYPE != '9'"))
         ctx.register_df("df_FILTRANS", df_FILTRANS)
         
         logger.info("Step: write_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW")

@@ -73,42 +73,86 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Reading Data From Source - read_DPA_FACT_EMS_RCVR_FLAT_ANLS
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_src_1 = lib.read_sql(spark, _conn, table="DPA_FACT_EMS_RCVR_FLAT_ANLS")
+        df_DPA_FACT_EMS_RCVR_FLAT_ANLS = lib.read_sql(spark, _conn, table="DPA_FACT_EMS_RCVR_FLAT_ANLS")
         
         logger.info("Step: apply_SQ_SP_DELETE")
         # Source Qualifier: apply_SQ_SP_DELETE
-        df_sq_2 = df_src_1
+        df_SQ_SP_DELETE = df_DPA_FACT_EMS_RCVR_FLAT_ANLS
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_2 = df_sq_2.select("TIME_DMNS_KEY")
-        ctx.register_df("df_sq_2", df_sq_2)
+        df_SQ_SP_DELETE = df_SQ_SP_DELETE.select("TIME_DMNS_KEY")
+        ctx.register_df("df_SQ_SP_DELETE", df_SQ_SP_DELETE)
         
         logger.info("Step: apply_SQ_DPA_FACT_EMS_RCVR_FLAT_ANLS")
         # Source Qualifier: apply_SQ_DPA_FACT_EMS_RCVR_FLAT_ANLS
-        df_sq_3 = df_src_1
+        df_SQ_DPA_FACT_EMS_RCVR_FLAT_ANLS = df_DPA_FACT_EMS_RCVR_FLAT_ANLS
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_3 = df_sq_3.select("TIME_DMNS_KEY", "EST_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_SIZE_DMNS_KEY", "MGT_MODE_DMNS_KEY", "DOT_WO_DRFT_DAY_NUM", "DOT_WO_DRFT_CNT", "WO_DRFT_WO_ISS_DAY_NUM", "WO_DRFT_WO_ISS_CNT", "WO_ISS_WO_RPT_DAY_NUM", "WO_ISS_WO_RPT_CNT", "WO_RPT_WO_CMPLT_DAY_NUM", "WO_RPT_WO_CMPLT_CNT", "WO_CMPLT_FRST_OFR_DAY_NUM", "WO_CMPLT_FRST_OFR_CNT", "OFR_RLET_DAY_NUM", "OFR_RLET_CNT", "FRST_OFR_RLET_DAY_NUM", "FRST_OFR_RLET_CNT", "OFR_PRVS_ACPT_DAY_NUM", "OFR_PRVS_ACPT_CNT", "PRVS_ACPT_WO_CMPLT_DAY_NUM", "PRVS_ACPT_WO_CMPLT_CNT", "WO_CMPLT_RLET_DAY_NUM", "WO_CMPLT_RLET_CNT", "PRVS_ACPT_TCHUP_CMPLT_DAY_NUM", "PRVS_ACPT_TCHUP_CMPLT_CNT", "TCHUP_CMPLT_RLET_DAY_NUM", "TCHUP_CMPLT_RLET_CNT", "WO_ISS_WO_CMPLT_DAY_NUM", "WO_ISS_WO_CMPLT_CNT", "TOT_OFR_BFR_SUCC_RLET_CNT", "OFR_BFR_SUCC_RLET_CNT", "DOT_RLET_DAY_NUM", "DOT_RLET_CNT", "DOT_FRZ_FLAT_RTN_DAY_NUM", "DOT_FRZ_FLAT_RTN_CNT", "WO_ISS_FRST_OFR_DAY_NUM", "WO_ISS_FRST_OFR_CNT")
-        ctx.register_df("df_sq_3", df_sq_3)
+        df_SQ_DPA_FACT_EMS_RCVR_FLAT_ANLS = df_SQ_DPA_FACT_EMS_RCVR_FLAT_ANLS.select("TIME_DMNS_KEY", "EST_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_SIZE_DMNS_KEY", "MGT_MODE_DMNS_KEY", "DOT_WO_DRFT_DAY_NUM", "DOT_WO_DRFT_CNT", "WO_DRFT_WO_ISS_DAY_NUM", "WO_DRFT_WO_ISS_CNT", "WO_ISS_WO_RPT_DAY_NUM", "WO_ISS_WO_RPT_CNT", "WO_RPT_WO_CMPLT_DAY_NUM", "WO_RPT_WO_CMPLT_CNT", "WO_CMPLT_FRST_OFR_DAY_NUM", "WO_CMPLT_FRST_OFR_CNT", "OFR_RLET_DAY_NUM", "OFR_RLET_CNT", "FRST_OFR_RLET_DAY_NUM", "FRST_OFR_RLET_CNT", "OFR_PRVS_ACPT_DAY_NUM", "OFR_PRVS_ACPT_CNT", "PRVS_ACPT_WO_CMPLT_DAY_NUM", "PRVS_ACPT_WO_CMPLT_CNT", "WO_CMPLT_RLET_DAY_NUM", "WO_CMPLT_RLET_CNT", "PRVS_ACPT_TCHUP_CMPLT_DAY_NUM", "PRVS_ACPT_TCHUP_CMPLT_CNT", "TCHUP_CMPLT_RLET_DAY_NUM", "TCHUP_CMPLT_RLET_CNT", "WO_ISS_WO_CMPLT_DAY_NUM", "WO_ISS_WO_CMPLT_CNT", "TOT_OFR_BFR_SUCC_RLET_CNT", "OFR_BFR_SUCC_RLET_CNT", "DOT_RLET_DAY_NUM", "DOT_RLET_CNT", "DOT_FRZ_FLAT_RTN_DAY_NUM", "DOT_FRZ_FLAT_RTN_CNT", "WO_ISS_FRST_OFR_DAY_NUM", "WO_ISS_FRST_OFR_CNT")
+        ctx.register_df("df_SQ_DPA_FACT_EMS_RCVR_FLAT_ANLS", df_SQ_DPA_FACT_EMS_RCVR_FLAT_ANLS)
         
         logger.info("Step: apply_EXP_SET_DEL_INFO")
         # Expression: apply_EXP_SET_DEL_INFO
-        df_exp_4 = df_sq_2
-        df_exp_4 = df_exp_4.withColumn("TBL_NAME", expr("'DDS_FACT_EMS_RCVR_FLAT_ANLS'"))
-        df_exp_4 = df_exp_4.withColumn("RM_FLG", expr("'Y'"))
+        df_EXP_SET_DEL_INFO = df_SQ_SP_DELETE
+        df_EXP_SET_DEL_INFO = df_EXP_SET_DEL_INFO.withColumn("TBL_NAME", expr("'DDS_FACT_EMS_RCVR_FLAT_ANLS'"))
+        df_EXP_SET_DEL_INFO = df_EXP_SET_DEL_INFO.withColumn("RM_FLG", expr("'Y'"))
         _expr = """'$$v_REC_RLS_IND'"""
         _expr = _expr.replace("$$v_REC_RLS_IND", str(v_REC_RLS_IND))
-        df_exp_4 = df_exp_4.withColumn("RSL_CTL_IND", expr(_expr))
+        df_EXP_SET_DEL_INFO = df_EXP_SET_DEL_INFO.withColumn("RSL_CTL_IND", expr(_expr))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["TIME_DMNS_KEY"]:
-            if _col not in df_exp_4.columns:
-                df_exp_4 = df_exp_4.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_4 = df_exp_4.select("TIME_DMNS_KEY", "TBL_NAME", "RM_FLG", "RSL_CTL_IND")
-        ctx.register_df("df_exp_4", df_exp_4)
+            if _col not in df_EXP_SET_DEL_INFO.columns:
+                df_EXP_SET_DEL_INFO = df_EXP_SET_DEL_INFO.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXP_SET_DEL_INFO", df_EXP_SET_DEL_INFO)
         
         logger.info("Step: apply_AGGTRANS")
         # Aggregator: apply_AGGTRANS
-        df_agg_5 = df_sq_3.groupBy("TIME_DMNS_KEY", "EST_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_SIZE_DMNS_KEY", "MGT_MODE_DMNS_KEY")
-        df_agg_5 = df_agg_5.agg(
+        # Select only mapped upstream columns with correct port names
+        _agg_input = df_SQ_DPA_FACT_EMS_RCVR_FLAT_ANLS.select(
+            col("OFR_RLET_CNT"),
+            col("FRST_OFR_RLET_DAY_NUM"),
+            col("FRST_OFR_RLET_CNT"),
+            col("OFR_PRVS_ACPT_DAY_NUM"),
+            col("OFR_PRVS_ACPT_CNT"),
+            col("PRVS_ACPT_WO_CMPLT_DAY_NUM"),
+            col("PRVS_ACPT_WO_CMPLT_CNT"),
+            col("WO_CMPLT_RLET_DAY_NUM"),
+            col("WO_CMPLT_RLET_CNT"),
+            col("TCHUP_CMPLT_RLET_CNT"),
+            col("PRVS_ACPT_TCHUP_CMPLT_DAY_NUM"),
+            col("PRVS_ACPT_TCHUP_CMPLT_CNT"),
+            col("TCHUP_CMPLT_RLET_DAY_NUM"),
+            col("WO_ISS_WO_CMPLT_DAY_NUM"),
+            col("WO_ISS_WO_CMPLT_CNT"),
+            col("TOT_OFR_BFR_SUCC_RLET_CNT"),
+            col("OFR_BFR_SUCC_RLET_CNT"),
+            col("DOT_RLET_DAY_NUM"),
+            col("DOT_RLET_CNT"),
+            col("DOT_FRZ_FLAT_RTN_DAY_NUM"),
+            col("DOT_FRZ_FLAT_RTN_CNT"),
+            col("WO_ISS_FRST_OFR_DAY_NUM"),
+            col("WO_ISS_FRST_OFR_CNT"),
+            col("WO_DRFT_WO_ISS_DAY_NUM"),
+            col("WO_RPT_WO_CMPLT_DAY_NUM"),
+            col("WO_DRFT_WO_ISS_CNT"),
+            col("WO_ISS_WO_RPT_DAY_NUM"),
+            col("WO_ISS_WO_RPT_CNT"),
+            col("WO_RPT_WO_CMPLT_CNT"),
+            col("WO_CMPLT_FRST_OFR_DAY_NUM"),
+            col("WO_CMPLT_FRST_OFR_CNT"),
+            col("TIME_DMNS_KEY"),
+            col("EST_SCD_KEY"),
+            col("DSTR_BRD_DSTR_DMNS_KEY"),
+            col("DSTR_CHC_DSTR_SCD_KEY"),
+            col("FLAT_TYPE_DMNS_KEY"),
+            col("MAX_UNIT_HEAD_CNT"),
+            col("MIN_UNIT_HEAD_CNT"),
+            col("UNIT_SIZE_DMNS_KEY"),
+            col("MGT_MODE_DMNS_KEY"),
+            col("DOT_WO_DRFT_DAY_NUM"),
+            col("DOT_WO_DRFT_CNT"),
+            col("OFR_RLET_DAY_NUM")        )
+        df_AGGTRANS = _agg_input.groupBy("TIME_DMNS_KEY", "EST_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_SIZE_DMNS_KEY", "MGT_MODE_DMNS_KEY")
+        df_AGGTRANS = df_AGGTRANS.agg(
             sum(expr("""CASE WHEN (DOT_WO_DRFT_DAY_NUM IS NULL) THEN 0 ELSE DOT_WO_DRFT_DAY_NUM END""")).alias("DOT_WO_DRFT_DAY_NUM1"),
             sum(expr("""CASE WHEN (DOT_WO_DRFT_CNT IS NULL) THEN 0 ELSE DOT_WO_DRFT_CNT END""")).alias("DOT_WO_DRFT_CNT1"),
             sum(expr("""CASE WHEN (WO_DRFT_WO_ISS_DAY_NUM IS NULL) THEN 0 ELSE WO_DRFT_WO_ISS_DAY_NUM END""")).alias("WO_DRFT_WO_ISS_DAY_NUM1"),
@@ -144,49 +188,70 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             sum(expr("""CASE WHEN (WO_ISS_FRST_OFR_DAY_NUM IS NULL) THEN 0 ELSE WO_ISS_FRST_OFR_DAY_NUM END""")).alias("WO_ISS_FRST_OFR_DAY_NUM1"),
             sum(expr("""CASE WHEN (WO_ISS_FRST_OFR_CNT IS NULL) THEN 0 ELSE WO_ISS_FRST_OFR_CNT END""")).alias("WO_ISS_FRST_OFR_CNT1")
         )
-        ctx.register_df("df_agg_5", df_agg_5)
+        ctx.register_df("df_AGGTRANS", df_AGGTRANS)
         
         logger.info("Step: apply_mplt_EXPTRANS")
         # Expression: apply_mplt_EXPTRANS
-        df_mplt_expr_6 = df_exp_4
-        df_mplt_expr_6 = df_mplt_expr_6.withColumn("RLS_CNTL_DMNS_TYPE_CODE", expr("substring(cast(TIME_DMNS_KEY as string),1,1)"))
-        ctx.register_df("df_mplt_expr_6", df_mplt_expr_6)
+        df_mplt_expr_1 = df_EXP_SET_DEL_INFO
+        df_mplt_expr_1 = df_mplt_expr_1.withColumn("RLS_CNTL_DMNS_TYPE_CODE", expr("substring(cast(TIME_DMNS_KEY as string),1,1)"))
+        ctx.register_df("df_mplt_expr_1", df_mplt_expr_1)
         
         logger.info("Step: read_mplt_LKPTRANS")
         # Reading Data From Source - read_mplt_LKPTRANS
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "target")
-        df_mplt_lkp_7 = lib.read_sql(spark, _conn, table="DDS_RLS_CNTL")
+        df_mplt_lkp_2 = lib.read_sql(spark, _conn, table="DDS_RLS_CNTL")
+        
+        logger.info("Step: join_mplt_EXP_SP_DELETE_0")
+        # Lookup: join_mplt_EXP_SP_DELETE_0
+        # Merge on common columns — drop lookup columns that duplicate non-key
+        # input columns (e.g. EST_KEY from both sides → ambiguity).
+        _cc = list(dict.fromkeys(c for c in df_mplt_lkp_2.columns if c in df_EXP_SET_DEL_INFO.columns))
+        if _cc:
+            __lkp_dup = [c for c in df_EXP_SET_DEL_INFO.columns if c in df_mplt_lkp_2.columns and c not in _cc]
+            df_mplt_merge_3 = df_mplt_lkp_2.join(
+                df_EXP_SET_DEL_INFO.drop(*__lkp_dup) if __lkp_dup else df_EXP_SET_DEL_INFO,
+                on=_cc, how="left"
+            )
+        else:
+            logger.warning("No common columns between df_mplt_lkp_2 and df_EXP_SET_DEL_INFO — using synthetic key join")
+            df_mplt_merge_3 = df_mplt_lkp_2.withColumn("_join_key", lit(1)).join(
+                df_EXP_SET_DEL_INFO.withColumn("_join_key", lit(1)),
+                on="_join_key", how="left").drop("_join_key")
+        ctx.register_df("df_mplt_merge_3", df_mplt_merge_3)
         
         logger.info("Step: apply_mplt_EXP_SP_DELETE")
         # Expression: apply_mplt_EXP_SP_DELETE
-        df_mplt_expr_8 = df_exp_4
-        df_mplt_expr_8 = df_mplt_expr_8.withColumn("FACT_TBL_NAME", expr("TBL_NAME"))
+        df_mplt_expr_4 = df_mplt_merge_3
+        df_mplt_expr_4 = df_mplt_expr_4.withColumn("FACT_TBL_NAME", expr("TBL_NAME"))
         # Execute stored procedure for each input value via JDBC
         _sp_conn = conn_oracle
-        _input_vals = [row["TBL_NAME, MIN_TIME_DMNS_KEY, RM_FLG"] for row in df_exp_4.select("TBL_NAME, MIN_TIME_DMNS_KEY, RM_FLG").collect()]
-        for _val in _input_vals:
+        _sp_input_cols = ["TBL_NAME", "MIN_TIME_DMNS_KEY", "RM_FLG"]
+        _input_rows = [row for row in df_mplt_merge_3.select(*_sp_input_cols).collect()]
+        for _row in _input_rows:
+            _arg_vals = ", ".join("'" + str(_row[c]) + "'" for c in _sp_input_cols)
             lib.execute_sql(spark, _sp_conn,
-                "BEGIN SP_DELETE_DDS_FACT('" + _val + "'); END;")
-        df_mplt_expr_8 = df_mplt_expr_8.withColumn("CALL_SP", lit("SUCCESS"))
-        df_mplt_expr_8 = df_mplt_expr_8.withColumn("RLS_CNTL_BGN_DMNS_KEY", expr("CASE WHEN (RLS_CNTL_BGN_TIME_DMNS_KEY IS NULL) OR (MIN_TIME_DMNS_KEY < RLS_CNTL_BGN_TIME_DMNS_KEY) THEN MIN_TIME_DMNS_KEY ELSE RLS_CNTL_BGN_TIME_DMNS_KEY END"))
-        df_mplt_expr_8 = df_mplt_expr_8.withColumn("RLS_CNTL_END_DMNS_KEY", expr("CASE WHEN (RLS_CNTL_END_TIME_DMNS_KEY IS NULL) OR (MAX_TIME_DMNS_KEY > RLS_CNTL_END_TIME_DMNS_KEY) THEN MAX_TIME_DMNS_KEY ELSE RLS_CNTL_END_TIME_DMNS_KEY END"))
-        df_mplt_expr_8 = df_mplt_expr_8.withColumn("UPDATE_FLAG", expr("CASE WHEN (DDS_RLS_CNTL_TBL_NAME IS NULL) THEN DD_INSERT ELSE DD_UPDATE END"))
-        ctx.register_df("df_mplt_expr_8", df_mplt_expr_8)
+                "BEGIN SP_DELETE_DDS_FACT(" + _arg_vals + "); END;")
+        df_mplt_expr_4 = df_mplt_expr_4.withColumn("CALL_SP", lit("SUCCESS"))
+        df_mplt_expr_4 = df_mplt_expr_4.withColumn("RLS_CNTL_BGN_DMNS_KEY", expr("CASE WHEN (RLS_CNTL_BGN_TIME_DMNS_KEY IS NULL) OR (MIN_TIME_DMNS_KEY < RLS_CNTL_BGN_TIME_DMNS_KEY) THEN MIN_TIME_DMNS_KEY ELSE RLS_CNTL_BGN_TIME_DMNS_KEY END"))
+        df_mplt_expr_4 = df_mplt_expr_4.withColumn("RLS_CNTL_END_DMNS_KEY", expr("CASE WHEN (RLS_CNTL_END_TIME_DMNS_KEY IS NULL) OR (MAX_TIME_DMNS_KEY > RLS_CNTL_END_TIME_DMNS_KEY) THEN MAX_TIME_DMNS_KEY ELSE RLS_CNTL_END_TIME_DMNS_KEY END"))
+        df_mplt_expr_4 = df_mplt_expr_4.withColumn("UPDATE_FLAG", expr("CASE WHEN (DDS_RLS_CNTL_TBL_NAME IS NULL) THEN DD_INSERT ELSE DD_UPDATE END"))
+        ctx.register_df("df_mplt_expr_4", df_mplt_expr_4)
         
         logger.info("Step: apply_mplt_FILTRANS")
         # Filter: apply_mplt_FILTRANS
-        df_mplt_fil_9 = df_mplt_expr_8.filter(expr("RSL_CTL_IND = '1'"))
-        ctx.register_df("df_mplt_fil_9", df_mplt_fil_9)
+        __fil_input = df_mplt_expr_4
+        df_mplt_fil_5 = __fil_input.filter(expr("RSL_CTL_IND = '1'"))
+        ctx.register_df("df_mplt_fil_5", df_mplt_fil_5)
         
         logger.info("Step: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD")
         # Expression: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD
-        df_mplt_10 = df_mplt_expr_8
-        ctx.register_df("df_mplt_10", df_mplt_10)
+        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD = df_mplt_expr_4
+        ctx.register_df("df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD", df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD)
         
         logger.info("Step: write_DDS_FACT_EMS_RCVR_FLAT_ANLS")
         # Write to Target: write_DDS_FACT_EMS_RCVR_FLAT_ANLS
-        df_write = df_agg_5
+        df_write = df_AGGTRANS
         # Cast columns to match target schema data types
         # Map source columns to target columns using connector field map (handles name mismatches)
         _field_map = {"DOT_FRZ_FLAT_RTN_CNT": "WO_DRFT_FRZ_FLAT_RTN_CNT1", "DOT_FRZ_FLAT_RTN_DAY_NUM": "WO_DRFT_FRZ_FLAT_RTN_DAY_NUM1", "DOT_RLET_CNT": "DOT_RLET_CNT1", "DOT_RLET_DAY_NUM": "DOT_RLET_DAY_NUM1", "DOT_WO_DRFT_CNT": "DOT_WO_DRFT_CNT1", "DOT_WO_DRFT_DAY_NUM": "DOT_WO_DRFT_DAY_NUM1", "DSTR_BRD_DSTR_DMNS_KEY": "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY": "DSTR_CHC_DSTR_SCD_KEY", "EST_SCD_KEY": "EST_SCD_KEY", "FLAT_TYPE_DMNS_KEY": "FLAT_TYPE_DMNS_KEY", "FRST_OFR_RLET_CNT": "FRST_OFR_RLET_CNT1", "FRST_OFR_RLET_DAY_NUM": "FRST_OFR_RLET_DAY_NUM1", "MAX_UNIT_HEAD_CNT": "MAX_UNIT_HEAD_CNT", "MGT_MODE_DMNS_KEY": "MGT_MODE_DMNS_KEY", "MIN_UNIT_HEAD_CNT": "MIN_UNIT_HEAD_CNT", "OFR_BFR_SUCC_RLET_CNT": "OFR_BFR_SUCC_RLET_CNT1", "OFR_PRVS_ACPT_CNT": "OFR_PRVS_ACPT_CNT1", "OFR_PRVS_ACPT_DAY_NUM": "OFR_PRVS_ACPT_DAY_NUM1", "OFR_RLET_CNT": "OFR_RLET_CNT1", "OFR_RLET_DAY_NUM": "OFR_RLET_DAY_NUM1", "PRVS_ACPT_TCHUP_CMPLT_CNT": "PRVS_ACPT_TCHUP_CMPLT_CNT1", "PRVS_ACPT_TCHUP_CMPLT_DAY_NUM": "PRVS_ACPT_TCHUP_CMPLT_DAY_NUM1", "PRVS_ACPT_WO_CMPLT_CNT": "PRVS_ACPT_WO_CMPLT_CNT1", "PRVS_ACPT_WO_CMPLT_DAY_NUM": "PRVS_ACPT_WO_CMPLT_DAY_NUM1", "TCHUP_CMPLT_RLET_CNT": "TCHUP_END_RLET_CNT1", "TCHUP_CMPLT_RLET_DAY_NUM": "TCHUP_END_RLET_DAY_NUM1", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TOT_OFR_BFR_SUCC_RLET_CNT": "TOT_OFR_BFR_SUCC_RLET_CNT1", "UNIT_SIZE_DMNS_KEY": "UNIT_SIZE_DMNS_KEY", "WO_CMPLT_FRST_OFR_CNT": "WO_CMPLT_FRST_OFR_CNT1", "WO_CMPLT_FRST_OFR_DAY_NUM": "WO_CMPLT_FRST_OFR_DAY_NUM1", "WO_CMPLT_RLET_CNT": "WO_CMPLT_RLET_CNT1", "WO_CMPLT_RLET_DAY_NUM": "WO_CMPLT_RLET_DAY_NUM1", "WO_DRFT_WO_ISS_CNT": "WO_DRFT_WO_ISS_CNT1", "WO_DRFT_WO_ISS_DAY_NUM": "WO_DRFT_WO_ISS_DAY_NUM1", "WO_ISS_FRST_OFR_CNT": "WO_ISS_FRST_OFR_CNT1", "WO_ISS_FRST_OFR_DAY_NUM": "WO_ISS_FRST_OFR_DAY_NUM1", "WO_ISS_WO_CMPLT_CNT": "WO_ISS_WO_CMPLT_CNT1", "WO_ISS_WO_CMPLT_DAY_NUM": "WO_ISS_WO_CMPLT_DAY_NUM1", "WO_ISS_WO_RPT_CNT": "WO_ISS_WO_RPT_CNT1", "WO_ISS_WO_RPT_DAY_NUM": "WO_ISS_WO_RPT_DAY_NUM1", "WO_RPT_WO_CMPLT_CNT": "WO_RPT_WO_CMPLT_CNT1", "WO_RPT_WO_CMPLT_DAY_NUM": "WO_RPT_WO_CMPLT_DAY_NUM1"}
@@ -209,12 +274,12 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: apply_UPD_RLS_CNTL")
         # Update Strategy: apply_UPD_RLS_CNTL
         # Strategy: UPDATE_FLAG
-        df_upd_11 = df_mplt_10.withColumn("_update_strategy", lit("INSERT"))
-        ctx.register_df("df_upd_11", df_upd_11)
+        df_UPD_RLS_CNTL = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD.withColumn("_update_strategy", lit("INSERT"))
+        ctx.register_df("df_UPD_RLS_CNTL", df_UPD_RLS_CNTL)
         
         logger.info("Step: write_DDS_RLS_CNTL")
         # Write to Target: write_DDS_RLS_CNTL
-        df_write = df_upd_11
+        df_write = df_UPD_RLS_CNTL
         # Cast columns to match target schema data types
         if "rls_cntl_fact_tbl_name" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

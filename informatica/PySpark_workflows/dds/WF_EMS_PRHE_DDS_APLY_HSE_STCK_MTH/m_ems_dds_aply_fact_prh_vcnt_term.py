@@ -73,60 +73,73 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Reading Data From Source - read_DPA_FACT_EMS_PRH_VCNT_TERM
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_src_1 = lib.read_sql(spark, _conn, table="DPA_FACT_EMS_PRH_VCNT_TERM")
+        df_DPA_FACT_EMS_PRH_VCNT_TERM = lib.read_sql(spark, _conn, table="DPA_FACT_EMS_PRH_VCNT_TERM")
         
         logger.info("Step: apply_SQ_DPA_FACT_EMS_PRH_VCNT_TERM")
         # Source Qualifier: apply_SQ_DPA_FACT_EMS_PRH_VCNT_TERM
-        df_sq_2 = df_src_1
+        df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM = df_DPA_FACT_EMS_PRH_VCNT_TERM
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_2 = df_sq_2.select("TIME_DMNS_KEY", "VCNT_FLAT_TYPE_DMNS_KEY", "BLK_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_ADVS_ENV_IND", "STA_VCNT_UNIT_ALCT_CNT", "TOT_UNIT_MTH_RENT_AMT")
-        ctx.register_df("df_sq_2", df_sq_2)
+        df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM = df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM.select("TIME_DMNS_KEY", "VCNT_FLAT_TYPE_DMNS_KEY", "BLK_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_ADVS_ENV_IND", "STA_VCNT_UNIT_ALCT_CNT", "TOT_UNIT_MTH_RENT_AMT")
+        ctx.register_df("df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM", df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM)
         
         logger.info("Step: apply_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1")
         # Source Qualifier: apply_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1
-        df_sq_3 = df_src_1
+        df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1 = df_DPA_FACT_EMS_PRH_VCNT_TERM
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_3 = df_sq_3.select("TIME_DMNS_KEY", "VCNT_FLAT_TYPE_DMNS_KEY", "BLK_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_ADVS_ENV_IND", "STA_VCNT_UNIT_ALCT_CNT", "TOT_UNIT_MTH_RENT_AMT", "REC_RLS_IND")
-        ctx.register_df("df_sq_3", df_sq_3)
+        df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1 = df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1.select("TIME_DMNS_KEY", "VCNT_FLAT_TYPE_DMNS_KEY", "BLK_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_ADVS_ENV_IND", "STA_VCNT_UNIT_ALCT_CNT", "TOT_UNIT_MTH_RENT_AMT", "REC_RLS_IND")
+        ctx.register_df("df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1", df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1)
         
         logger.info("Step: apply_AGGTRANS")
         # Aggregator: apply_AGGTRANS
-        df_agg_4 = df_sq_2.groupBy("TIME_DMNS_KEY", "VCNT_FLAT_TYPE_DMNS_KEY", "BLK_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_ADVS_ENV_IND")
-        df_agg_4 = df_agg_4.agg(
+        # Select only mapped upstream columns with correct port names
+        _agg_input = df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM.select(
+            col("TIME_DMNS_KEY"),
+            col("VCNT_FLAT_TYPE_DMNS_KEY"),
+            col("BLK_SCD_KEY"),
+            col("DSTR_BRD_DSTR_DMNS_KEY"),
+            col("DSTR_CHC_DSTR_SCD_KEY"),
+            col("FLAT_TYPE_DMNS_KEY"),
+            col("UNIT_SIZE_DMNS_KEY"),
+            col("MAX_UNIT_HEAD_CNT"),
+            col("MIN_UNIT_HEAD_CNT"),
+            col("UNIT_ADVS_ENV_IND"),
+            col("STA_VCNT_UNIT_ALCT_CNT"),
+            col("TOT_UNIT_MTH_RENT_AMT")        )
+        df_AGGTRANS = _agg_input.groupBy("TIME_DMNS_KEY", "VCNT_FLAT_TYPE_DMNS_KEY", "BLK_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_ADVS_ENV_IND")
+        df_AGGTRANS = df_AGGTRANS.agg(
             sum("STA_VCNT_UNIT_ALCT_CNT").alias("STA_VCNT_UNIT_ALCT_CNT_out"),
             sum("TOT_UNIT_MTH_RENT_AMT").alias("TOT_UNIT_MTH_RENT_AMT_out")
         )
-        ctx.register_df("df_agg_4", df_agg_4)
+        ctx.register_df("df_AGGTRANS", df_AGGTRANS)
         
         logger.info("Step: apply_UPDTRANS")
         # Update Strategy: apply_UPDTRANS
         # Strategy: DD_DELETE
-        df_upd_5 = df_sq_3.withColumn("_update_flag",
+        df_UPDTRANS = df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1.withColumn("_update_flag",
             when(lit(False), lit("U"))
             .when(lit(True), lit("D"))
             .otherwise(lit("I"))
         )
-        ctx.register_df("df_upd_5", df_upd_5)
+        ctx.register_df("df_UPDTRANS", df_UPDTRANS)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_exp_6 = df_agg_4
-        df_exp_6 = df_exp_6.withColumn("STA_VCNT_UNIT_ALCT_CNT", expr("STA_VCNT_UNIT_ALCT_CNT_out"))
-        df_exp_6 = df_exp_6.withColumn("TOT_UNIT_MTH_RENT_AMT", expr("TOT_UNIT_MTH_RENT_AMT_out"))
+        df_EXPTRANS = df_AGGTRANS
+        df_EXPTRANS = df_EXPTRANS.withColumn("STA_VCNT_UNIT_ALCT_CNT", expr("STA_VCNT_UNIT_ALCT_CNT_out"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("TOT_UNIT_MTH_RENT_AMT", expr("TOT_UNIT_MTH_RENT_AMT_out"))
         _expr = """'$$v_REC_RLS_IND'"""
         _expr = _expr.replace("$$v_REC_RLS_IND", str(v_REC_RLS_IND))
-        df_exp_6 = df_exp_6.withColumn("REC_RLS_IND", expr(_expr))
+        df_EXPTRANS = df_EXPTRANS.withColumn("REC_RLS_IND", expr(_expr))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["TIME_DMNS_KEY", "FLAT_TYPE_DMNS_KEY", "BLK_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "UNIT_SIZE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_ADVS_ENV_IND", "VCNT_FLAT_TYPE_DMNS_KEY"]:
-            if _col not in df_exp_6.columns:
-                df_exp_6 = df_exp_6.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_6 = df_exp_6.select("TIME_DMNS_KEY", "VCNT_FLAT_TYPE_DMNS_KEY", "BLK_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_ADVS_ENV_IND", "STA_VCNT_UNIT_ALCT_CNT", "TOT_UNIT_MTH_RENT_AMT", "REC_RLS_IND")
-        ctx.register_df("df_exp_6", df_exp_6)
+        for _col in ["TIME_DMNS_KEY", "VCNT_FLAT_TYPE_DMNS_KEY", "BLK_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_ADVS_ENV_IND"]:
+            if _col not in df_EXPTRANS.columns:
+                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_DDS_FACT_EMS_PRH_VCNT_TERM1")
         # Write to Target: write_DDS_FACT_EMS_PRH_VCNT_TERM1
-        df_write = df_upd_5
+        df_write = df_UPDTRANS
         # DD_DELETE: Delete matching rows from target table by key field(s)
         for _dk in ['TIME_DMNS_KEY']:
             _dk_lower = _dk.lower()
@@ -138,7 +151,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("write_DDS_FACT_EMS_PRH_VCNT_TERM1 write completed")
         logger.info("Step: write_DDS_FACT_EMS_PRH_VCNT_TERM")
         # Write to Target: write_DDS_FACT_EMS_PRH_VCNT_TERM
-        df_write = df_exp_6
+        df_write = df_EXPTRANS
         # Cast columns to match target schema data types
         if "unit_advs_env_ind" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

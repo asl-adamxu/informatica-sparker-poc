@@ -18,6 +18,14 @@ def sanitize_for_expr(expr: str) -> str:
 
 def wrap_with_expr(condition: str) -> str:
     if not condition or condition.strip().lower() in ('true', 'false'):
+        # Wrap bare True/False in expr() so filter(expr("TRUE")) works in all
+        # contexts (bare True works in filter() but bare TRUE fails in Router
+        # templates where string casing may differ from Python builtins).
+        _lower = condition.strip().lower()
+        if _lower == 'true':
+            return 'expr("TRUE")'
+        if _lower == 'false':
+            return 'expr("FALSE")'
         return condition
 
     sanitized = sanitize_for_expr(condition)
@@ -35,6 +43,7 @@ class ExpressionTranslator:
         'TO_CHAR': 'cast({} as string)',
         'TO_DATE': 'to_date',
         'TO_DECIMAL': 'cast({} as decimal)',
+        'TO_NUMBER': 'cast({} as decimal)',
         'TO_INTEGER': 'cast({} as int)',
         'TO_BIGINT': 'cast({} as bigint)',
         'TO_FLOAT': 'cast({} as float)',
@@ -59,7 +68,7 @@ class ExpressionTranslator:
         'ASCII': 'ascii',
         'SOUNDEX': 'soundex',
         'REPLACESTR': 'regexp_replace',
-        'REPLACECHR': 'translate',
+        # REPLACECHR handled by _translate_replacechr (4 args, start_pos dropped)
         'ROUND': 'round',
         'TRUNC': 'floor',
         'ABS': 'abs',
@@ -141,6 +150,7 @@ class ExpressionTranslator:
         result = self._translate_cume(result)
         result = self._translate_movingsum(result)
         result = self._translate_movingavg(result)
+        result = self._translate_replacechr(result)
         result = self._translate_functions(result)
         result = self._translate_date_trunc(result)
         result = self._translate_operators(result)
@@ -159,13 +169,23 @@ class ExpressionTranslator:
 
     def translate_for_filter(self, expression: str, field_name: str = "") -> str:
         if not expression:
-            return "True"
+            translated = "True"
+        else:
+            # Temporarily remove user-defined $$ mapping variables so they're not
+            # replaced with hardcoded default values by _replace_pm_variables.
+            # $PM system variables (e.g. $PMMappingName) are kept as-is.
+            _saved = {}
+            for _k in list(self.pm_variables.keys()):
+                if _k.startswith('$$'):
+                    _saved[_k] = self.pm_variables.pop(_k)
+            try:
+                translated = self.translate(expression, "filter", field_name)
+            finally:
+                self.pm_variables.update(_saved)
 
-        translated = self.translate(expression, "filter", field_name)
-
-        if translated.strip().lower() in ('true', 'false'):
-            return translated
-
+        # Always route through wrap_with_expr so that bare True/False become
+        # expr("TRUE")/expr("FALSE") — these work in all filter() contexts
+        # (including Router templates) unlike bare Python True/False.
         return wrap_with_expr(translated)
 
     def _translate_isnull(self, expr: str) -> str:
@@ -510,6 +530,40 @@ class ExpressionTranslator:
 
         return expr
 
+    def _translate_replacechr(self, expr: str) -> str:
+        """Translate Informatica REPLACECHR(start, string, from, to) to PySpark
+        translate(string, from, to).
+
+        REPLACECHR has 4 args (start_pos is Informatica-specific and dropped):
+          REPLACECHR(0, col, ' ', NULL)  ->  translate(col, ' ', '')
+        When to_chars is NULL/empty, use '' (remove matched characters).
+        """
+        pattern = re.compile(r'\bREPLACECHR\s*\(', re.IGNORECASE)
+        max_iterations = 100
+        iteration = 0
+        while pattern.search(expr) and iteration < max_iterations:
+            iteration += 1
+            match = pattern.search(expr)
+            if not match:
+                break
+            args = self._extract_function_args(expr, match.end() - 1)
+            if len(args) == 4:
+                _str = args[1]
+                _from = args[2]
+                _to = args[3]
+                if _to.upper() == 'NULL' or _to.strip() == "''":
+                    _to = "''"
+                replacement = f'translate({_str}, {_from}, {_to})'
+                full_match = expr[match.start():self._find_closing_paren(expr, match.end() - 1) + 1]
+                expr = expr.replace(full_match, replacement, 1)
+            elif len(args) > 1:
+                replacement = f'translate({", ".join(args[1:])})'
+                full_match = expr[match.start():self._find_closing_paren(expr, match.end() - 1) + 1]
+                expr = expr.replace(full_match, replacement, 1)
+            else:
+                break
+        return expr
+
     def _translate_date_format_patterns(self, expr: str) -> str:
         """Fix Informatica date format patterns in date-related function calls.
         Spark 3+ uses Java 8 DateTimeFormatter which is stricter:
@@ -520,22 +574,28 @@ class ExpressionTranslator:
           MON              → MMM
           MONTH            → MMMM
         Applies to single-quoted format strings in to_date/to_char/date_format.
+        Uses _extract_function_args to handle nested parentheses.
         """
         result = expr
-        # Match format strings after to_date(..., 'FORMAT') or to_char(..., 'FORMAT')
-        _pat = re.compile(r"(to_date|to_char|date_format)\s*\([^)]*?'([A-ZYMDSHNm/.\-]+)'\s*[,\)]", re.IGNORECASE)
-        for _m in _pat.finditer(result):
-            _old_fmt = _m.group(2)
-            _new_fmt = _old_fmt
-            _new_fmt = _new_fmt.replace('YYYY', 'yyyy')
-            _new_fmt = _new_fmt.replace('YY', 'yy')
-            _new_fmt = _new_fmt.replace('DD', 'dd')
-            _new_fmt = _new_fmt.replace('MI', 'mm')
-            _new_fmt = _new_fmt.replace('SS', 'ss')
-            _new_fmt = _new_fmt.replace('MONTH', 'MMMM')
-            _new_fmt = _new_fmt.replace('MON', 'MMM')
-            if _new_fmt != _old_fmt:
-                result = result[:_m.start(2)] + _new_fmt + result[_m.end(2):]
+        _funcs = ['to_date', 'to_char', 'date_format']
+        for _func in _funcs:
+            _pat = re.compile(r'\b' + _func + r'\s*\(', re.IGNORECASE)
+            for _m in list(_pat.finditer(result)):
+                _args = self._extract_function_args(result, _m.end() - 1)
+                if _args and len(_args) >= 2:
+                    _fmt = _args[-1].strip()
+                    if _fmt.startswith("'") and _fmt.endswith("'"):
+                        _inner = _fmt[1:-1]
+                        _new = _inner
+                        _new = _new.replace('YYYY', 'yyyy')
+                        _new = _new.replace('YY', 'yy')
+                        _new = _new.replace('DD', 'dd')
+                        _new = _new.replace('MI', 'mm')
+                        _new = _new.replace('SS', 'ss')
+                        _new = _new.replace('MONTH', 'MMMM')
+                        _new = _new.replace('MON', 'MMM')
+                        if _new != _inner:
+                            result = result.replace("'" + _inner + "'", "'" + _new + "'", 1)
         return result
 
     def _translate_string_literals(self, expr: str) -> str:
@@ -639,7 +699,15 @@ class ExpressionTranslator:
                 while i < len(pairs) - 1:
                     search_val = pairs[i]
                     result_val = pairs[i + 1]
-                    when_clauses.append(f"WHEN {test_expr} = {search_val} THEN {result_val}")
+                    # DECODE(TRUE, cond1, val1, cond2, val2, ...) is a
+                    # searched-case pattern: return the first val whose
+                    # condition evaluates to TRUE.  Generate WHEN cond THEN val
+                    # (without the TRUE = prefix) so that operator precedence
+                    # is correct (e.g. TRUE = x > 10 would parse wrongly).
+                    if test_expr.strip().upper() == 'TRUE':
+                        when_clauses.append(f"WHEN {search_val} THEN {result_val}")
+                    else:
+                        when_clauses.append(f"WHEN {test_expr} = {search_val} THEN {result_val}")
                     i += 2
 
                 if len(pairs) % 2 == 1:

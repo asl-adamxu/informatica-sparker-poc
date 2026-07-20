@@ -34,6 +34,9 @@ class TransformHandlers:
         self.target_map: Dict[str, TargetDefinition] = {}
         self.df_counter = 0
         self.current_df_map: Dict[str, str] = {}
+        # Tracks chain-join DataFrames: maps upstream df name → chain df name.
+        # Lookups sharing the same upstream chain-join onto one accumulating df.
+        self._chain_df_map: Dict[str, str] = {}
 
         self._build_maps()
 
@@ -261,6 +264,15 @@ class TransformHandlers:
                              "Union", "Custom Transformation"):
                 _input_ok = self._get_input_df(instance.name)
                 if not _input_ok:
+                    _deferred_insts.append(instance)
+                    continue
+            elif inst_type in ("Joiner",):
+                # Joiner needs ALL upstream DFs to be available, not just one
+                _all_inputs = self._get_all_input_dfs(instance.name)
+                _expected = len(set(
+                    c.from_instance for c in self.mapping.connectors
+                    if c.to_instance == instance.name))
+                if len(_all_inputs) < min(_expected, 4) or len(_all_inputs) < 2:
                     _deferred_insts.append(instance)
                     continue
 
@@ -508,6 +520,16 @@ class TransformHandlers:
                         "Union converted", LogLevel.SUCCESS)
                 else:
                     _logging.warning(f"Union {_d_inst.name} returned None! inputs={self._get_all_input_dfs(_d_inst.name)}")
+            elif _d_type == "Joiner":
+                self.logger.log_transformation(_d_inst.name, "Joiner",
+                    "Processing joiner", LogLevel.INFO)
+                _step = self._handle_joiner(_d_inst, plan)
+                if _step:
+                    plan.add_step(_step)
+                    self.logger.log_transformation(_d_inst.name, "Joiner",
+                        "Joiner converted", LogLevel.SUCCESS)
+                else:
+                    _logging.warning(f"Joiner {_d_inst.name} returned None! inputs={self._get_all_input_dfs(_d_inst.name)}")
 
         # Also catch any instances that were overwritten in instance_map by a
         # SOURCE with the same name (SSAL1 pattern). These weren't found by
@@ -612,12 +634,21 @@ class TransformHandlers:
         if not input_df:
             # Check if this SQ has any upstream connectors — if not, it's a file-based
             # or standalone source qualifier (no warning needed, reads from file directly).
+            # Also skip warning if the SQ uses SQL pushdown (User Defined Join or Sql Query),
+            # because the corresponding Source Definition was skipped as unnecessary.
+            _transform = self.transform_map.get(instance.transformation_name or instance.name)
+            _has_sql_override = False
+            if _transform:
+                _udj = _transform.table_attributes.get("User Defined Join", "")
+                _sql = _transform.table_attributes.get("Sql Query", "")
+                _sqo = _transform.table_attributes.get("SQL Override", "") or _transform.table_attributes.get("Sql Override", "")
+                _has_sql_override = bool(_udj.strip() or _sql.strip() or _sqo.strip())
             _has_upstream = any(
                 c.to_instance == instance.name
                 and c.from_instance != c.to_instance  # skip self-loops (Source Def → same-name SQ)
                 for c in self.mapping.connectors
             )
-            if _has_upstream:
+            if _has_upstream and not _has_sql_override:
                 plan.add_warning(f"No input DataFrame found for {instance.name}")
             input_df = "df_source"
 
@@ -650,8 +681,22 @@ class TransformHandlers:
         use_sql_pushdown = bool(final_sql)
 
         translated_filter = ""
+        filter_inner = ""
         if filter_cond:
-            translated_filter = self.expr_translator.translate_for_filter(filter_cond, "source_filter")
+            # Strip table name prefixes from column references (e.g. "TBL.COL" -> "COL")
+            # since the filter is applied on the DataFrame after SQL execution, where
+            # column aliases no longer apply.
+            _filter_cond = re.sub(r'\b(\w+)\.(\w+)\b', r'\2', filter_cond)
+            _tf = self.expr_translator.translate_for_filter(_filter_cond, "source_filter")
+            translated_filter = _tf
+            # Extract inner text from the translated result for filter_inner.
+            # translate_for_filter now skips $$ variable replacement (prevents
+            # double-quoting), so the result has functions translated (TO_NUMBER
+            # → cast(... as decimal)) while $$ variables are preserved for
+            # runtime .replace() in the template.
+            import re as _re
+            _m = _re.match(r'expr\("(.*)"\)$', _tf)
+            filter_inner = _m.group(1) if _m else _filter_cond
 
         source_inputs = self._get_source_inputs_for_sq(instance.name)
 
@@ -668,7 +713,22 @@ class TransformHandlers:
             _from_clause = ', '.join(sorted(_tables)) if _tables else (
                 source_inputs[0].get("name", "DUAL") if source_inputs else "DUAL"
             )
-            _select_cols = ', '.join(output_columns) if output_columns else '*'
+            # Build column→table mapping from connectors feeding this Source Qualifier.
+            # Each connector links a source definition's field to the SQ's input port.
+            _field_table: Dict[str, str] = {}
+            for _c in self.mapping.connectors:
+                if _c.to_instance == instance.name:
+                    _field_table[_c.to_field] = _c.from_instance
+            # Prefix each output column with its source table name.
+            # Columns that cannot be mapped (no connector) are left bare.
+            _qualified_cols = []
+            for _c in output_columns:
+                _t = _field_table.get(_c, "")
+                if _t:
+                    _qualified_cols.append(f"{_t}.{_c}")
+                else:
+                    _qualified_cols.append(_c)
+            _select_cols = ', '.join(_qualified_cols) if _qualified_cols else '*'
             _where_parts = [final_sql]
             if filter_cond:
                 _where_parts.append(filter_cond)
@@ -722,6 +782,8 @@ class TransformHandlers:
             step.params["use_sql_override"] = False
             step.params["sql_query"] = ""
             step.params["filter_condition"] = translated_filter
+            if filter_inner:
+                step.params["filter_inner"] = filter_inner
             step.params["distinct"] = distinct
             step.params["db_type"] = source_db_type
 
@@ -769,18 +831,37 @@ class TransformHandlers:
 
         if original_condition:
             condition = self.expr_translator.translate_for_filter(original_condition, "filter_condition")
+            # Extract inner text for runtime $$ replacement in the template
+            _m = re.match(r'expr\("(.*)"\)$', condition)
+            filter_inner = _m.group(1) if _m else original_condition
         else:
             condition = "True"
             original_condition = ""
+            filter_inner = ""
             plan.add_warning(f"No filter condition found for {instance.name}")
 
-        return ApplyFilterStep(
+        step = ApplyFilterStep(
             step_name=f"apply_{instance.name}",
             df_input=input_df,
             df_output=df_output,
             condition=condition,
             original_condition=original_condition
         )
+        if filter_inner and '$$' in filter_inner and plan and plan.mapping_variables:
+            step.params["filter_inner"] = filter_inner
+        # Collect connector field renames: upstream column → Filter input port name
+        # (e.g. CUST_TNT_CODE_OUT → CUST_TNT_CODE) so the filter's condition
+        # references the correct columns.
+        _filter_renames = []
+        for conn in self.mapping.connectors:
+            if conn.to_instance == instance.name and conn.from_field != conn.to_field:
+                _filter_renames.append({
+                    "from": conn.from_field,
+                    "to": conn.to_field,
+                })
+        if _filter_renames:
+            step.params["filter_renames"] = _filter_renames
+        return step
 
     def _handle_expression(self, instance: Instance, plan: IRPlan) -> Optional[IRStep]:
         import re as _re
@@ -817,6 +898,7 @@ class TransformHandlers:
         # referenced lookup transformation, extract its INPUT/LOOKUP/RETURN
         # ports and condition, then build join predicates so the template
         # can join the lookup DataFrame into the expression upstream.
+        _expr_window_imports = False
         inline_lkp_info = {}  # lkp_name -> {lookup_name, lookup_df, return_port, join_predicates}
         _lkp_pattern = _re.compile(r':LKP\.(\w+)\s*\(([^)]+)\)', _re.IGNORECASE)
 
@@ -921,11 +1003,45 @@ class TransformHandlers:
                             datatype=field.datatype
                         ))
                 elif "LOCAL VARIABLE" in field.port_type.upper():
-                    # LOCAL VARIABLE with expression (e.g. :LKP.xxx() call) —
-                    # promote to a computed column so downstream expressions can reference it
+                    # LOCAL VARIABLE with expression — promote to a computed column
+                    # so downstream expressions can reference it.
                     if expr_text:
-                        translated = self.expr_translator.translate(expr_text, "column", field.name)
-                        sanitized = sanitize_for_expr(translated)
+                        # Detect self-referencing LOCAL VARIABLEs that implement a
+                        # row-counter pattern (e.g. IIF(ISNULL(X),1,X+1)). In
+                        # Informatica these are processed row-by-row and increment
+                        # per row. In PySpark, convert to row_number() instead.
+                        _counter_ref = bool(re.search(
+                            r'\b' + re.escape(field.name) + r'\s*\+?\s*1\b',
+                            expr_text
+                        ))
+                        _retain_ref = not _counter_ref and bool(re.search(
+                            r'\b' + re.escape(field.name) + r'\b',
+                            expr_text
+                        ))
+                        if _counter_ref:
+                            sanitized = 'monotonically_increasing_id() + 1'
+                        elif _retain_ref:
+                            # Retain pattern: IIF(cond, value, self_ref) local
+                            # variable that keeps its value across rows.
+                            # Convert to last(when(cond, value), True) window.
+                            import re as _re2
+                            _iif = _re2.search(r'IIF\s*\(', expr_text, _re2.IGNORECASE)
+                            if _iif:
+                                _args = self.expr_translator._extract_function_args(expr_text, _iif.end() - 1)
+                            if _iif and len(_args) == 3 and _args[2].strip() == field.name:
+                                _ct = self.expr_translator.translate(_args[0], "column", field.name)
+                                _vt = self.expr_translator.translate(_args[1], "column", field.name)
+                                _sc = sanitize_for_expr(_ct)
+                                _sv = sanitize_for_expr(_vt)
+                                sanitized = f'last(when(expr("{_sc}"), expr("{_sv}")), True).over(Window.orderBy(lit(1)))'
+                            else:
+                                _tt = self.expr_translator.translate(expr_text, "column", field.name)
+                                _st = sanitize_for_expr(_tt)
+                                sanitized = f'last(when(lit(True), expr("{_st}")), True).over(Window.orderBy(lit(1)))'
+                            _expr_window_imports = True
+                        else:
+                            translated = self.expr_translator.translate(expr_text, "column", field.name)
+                            sanitized = sanitize_for_expr(translated)
                         computed_columns.append(ComputedColumn(
                             name=field.name,
                             expression=sanitized,
@@ -940,7 +1056,10 @@ class TransformHandlers:
             for _cc in computed_columns:
                 _dep_graph.add_node(_cc.name)
                 for _dep_name in _all_names:
-                    if _dep_name != _cc.name and _dep_name in (_cc.expression or ""):
+                    if _dep_name != _cc.name and re.search(
+                        r'\b' + re.escape(_dep_name) + r'\b',
+                        _cc.expression or ""
+                    ):
                         _dep_graph.add_edge(_dep_name, _cc.name)
             try:
                 _sorted = list(nx.topological_sort(_dep_graph))
@@ -957,6 +1076,8 @@ class TransformHandlers:
             computed_columns=computed_columns
         )
         step.params["output_columns"] = output_columns
+        if _expr_window_imports:
+            step.params["window_imports"] = True
 
         # Attach inline lookup join info so the template generates the join code
         if inline_lkp_info:
@@ -981,29 +1102,35 @@ class TransformHandlers:
                                 step.params["sp_call_text"] = _sp_call
                                 break
 
-        # When an expression has multiple upstream DataFrames (e.g. EXPTRANS1
-        # receives columns from 10+ parallel mapplets), join the extra DFs
-        # before the expression step. All upstream DFs share the source qualifier
-        # columns (e.g. CASE_KEY). Use a runtime common-column join.
-        if _multistep:
-            result_steps: List[IRStep] = []
+        # Multi-upstream: merge extra DFs into the main input so that
+        # lookups and other pipeline branches contribute their columns.
+        # (e.g. EXPTRANS1 receiving columns from both AGGTRANS2 chain
+        #  and separate lookups like LKP_UAO_FEE_ADV_AMT).
+        if _multistep and extra_inputs:
             _cur_df = input_df
             for _i, _extra_df in enumerate(extra_inputs):
-                _join_df = self._get_df_name("df_exp_merge")
-                result_steps.append(ApplyLookupStep(
-                    step_name=f"join_{instance.name}_{_i}",
+                _merge_df = self._get_df_name("df_merge")
+                _merge_step = ApplyLookupStep(
+                    step_name=f"merge_{instance.name}_{_i}",
                     df_input=_cur_df,
-                    df_output=_join_df,
+                    df_output=_merge_df,
                     lookup_df=_extra_df,
                     join_predicates=[],
                     join_expr="__common_cols__",
                     output_columns=[],
                     lookup_type="left",
-                ))
-                _cur_df = _join_df
-            step.df_input = _cur_df
-            result_steps.append(step)
-            return result_steps
+                )
+                plan.add_step(_merge_step)
+                _cur_df = _merge_df
+                self.logger.log_transformation(instance.name, "Expression",
+                    f"Merge extra df {_extra_df} into {_cur_df} via common columns",
+                    LogLevel.INFO)
+            input_df = _cur_df
+            step.df_input = input_df
+        elif _multistep:
+            self.logger.log_transformation(instance.name, "Expression",
+                "Extra inputs exist but none to merge — all columns already available",
+                LogLevel.INFO)
 
         return step
 
@@ -1084,8 +1211,52 @@ class TransformHandlers:
         plan.lookup_return_ports[instance.name] = output_columns
 
         if input_df:
-            df_output = self._get_df_name("df_lkp_result", instance)
+            # Chain lookups that share the same upstream into one accumulating df.
+            # First lookup on this input → start chain; subsequent → chain onto it.
+            # Determine the upstream instance name (for chain key).
+            # All lookups feeding from the same upstream instance share one chain df.
+            _upstream_name = ""
+            for _c in self.mapping.connectors:
+                if _c.to_instance == instance.name:
+                    _upstream_name = _c.from_instance
+                    break
+            if _upstream_name in self._chain_df_map:
+                # Chain onto existing accumulated df
+                df_output = self._chain_df_map[_upstream_name]
+                _chain_input = df_output
+            else:
+                # First lookup for this upstream — create chain df
+                df_output = self._get_df_name("df_lkp_merge")
+                if _upstream_name:
+                    self._chain_df_map[_upstream_name] = df_output
+                _chain_input = input_df
+            # Register lookup instance → chain df
             self._register_df(instance, df_output)
+            # Walk upstream from this lookup's connector chain and register the
+            # chain df for every instance in the same pipeline segment. This
+            # ensures that downstream components (e.g. EXPTRANS4 connected to
+            # DRP_EXCP) see the chain df instead of the raw SQ result.
+            # NOTE: Skip Router instances — they have multiple output groups
+            # registered under suffixed keys (RTRTRANS_VALID_TYPE, etc.) and
+            # overwriting their map entry would break downstream lookup.
+            _visited = set()
+            _queue = [_upstream_name] if _upstream_name else []
+            while _queue:
+                _inst = _queue.pop(0)
+                if _inst in _visited:
+                    continue
+                _visited.add(_inst)
+                # Skip Router instances (they have multiple output groups)
+                _skip = False
+                _ii = self.instance_map.get(_inst)
+                if _ii and _ii.transformation_type == 'Router':
+                    _skip = True
+                if not _skip:
+                    self.current_df_map[_inst] = df_output
+                # Find what feeds this instance (walk upstream regardless)
+                for _c in self.mapping.connectors:
+                    if _c.to_instance == _inst:
+                        _queue.append(_c.from_instance)
 
             # Build field remap from connectors: lookup INPUT port → upstream column
             # (Informatica adds numeric suffixes like TNCY_AGRMT_BK1 when multiple
@@ -1115,7 +1286,7 @@ class TransformHandlers:
 
             steps.append(ApplyLookupStep(
                 step_name=f"apply_{instance.name}",
-                df_input=input_df,
+                df_input=_chain_input,
                 df_output=df_output,
                 lookup_df=lookup_df,
                 join_predicates=join_predicates,
@@ -1123,6 +1294,27 @@ class TransformHandlers:
                 output_columns=output_columns,
                 lookup_type="left"
             ))
+            # Handle "Lookup policy on multiple match" — dedup the lookup
+            # DataFrame by join keys when there could be multiple matches.
+            # Options: Use First Value, Use Last Value, Use Any Value, Report Error.
+            if join_predicates:
+                try:
+                    _lkp_policy = transform.table_attributes.get(
+                        "Lookup policy on multiple match", "")
+                except (AttributeError, TypeError):
+                    _lkp_policy = ""
+                _dedup_keys = [jp.get("lookup_col", "") for jp in join_predicates]
+                if _lkp_policy.upper() in ("USE FIRST VALUE", "USE ANY VALUE", ""):
+                    steps[-1].params["dedup_lookup"] = True
+                    steps[-1].params["dedup_lookup_keys"] = _dedup_keys
+                elif _lkp_policy.upper() == "USE LAST VALUE":
+                    steps[-1].params["dedup_lookup"] = True
+                    steps[-1].params["dedup_lookup_keys"] = _dedup_keys
+                    steps[-1].params["dedup_lookup_last"] = True
+                elif _lkp_policy.upper() == "REPORT ERROR":
+                    steps[-1].params["dedup_lookup"] = True
+                    steps[-1].params["dedup_lookup_error"] = True
+                    steps[-1].params["dedup_lookup_keys"] = _dedup_keys
 
         return steps
 
@@ -1159,7 +1351,9 @@ class TransformHandlers:
     def _joiner_pick_master_detail(self, joiner_instance: Instance, inputs: List[str]) -> tuple:
         transform = self.transform_map.get(joiner_instance.transformation_name or joiner_instance.name)
         if not transform:
-            return inputs[0], inputs[1] if len(inputs) > 1 else inputs[0]
+            if len(inputs) < 2:
+                return inputs[0], inputs[0], None, None
+            return inputs[0], inputs[1], None, None
 
         port_role = {f.name: (f.port_type or "").upper() for f in transform.fields}
         master_from = None
@@ -1174,17 +1368,24 @@ class TransformHandlers:
             elif "DETAIL" in role:
                 detail_from = c.from_instance
 
+        # If only MASTER is marked (no DETAIL marker), derive detail via exclusion
+        if master_from and not detail_from:
+            for c in self.mapping.connectors:
+                if c.to_instance == joiner_instance.name and c.from_instance != master_from:
+                    detail_from = c.from_instance
+                    break
+
         if master_from and master_from in self.current_df_map:
             df_master = self.current_df_map[master_from]
         else:
-            df_master = inputs[0]
+            df_master = inputs[0] if inputs else "df_input"
 
         if detail_from and detail_from in self.current_df_map:
             df_detail = self.current_df_map[detail_from]
         else:
-            df_detail = inputs[1] if len(inputs) > 1 else inputs[0]
+            df_detail = inputs[1] if len(inputs) > 1 else (inputs[0] if inputs else "df_detail")
 
-        return df_master, df_detail
+        return df_master, df_detail, master_from, detail_from
 
     def _parse_joiner_condition(self, cond: str) -> dict:
         result = {
@@ -1252,13 +1453,13 @@ class TransformHandlers:
             join_condition = transform.table_attributes.get("Join Condition", "")
             join_type_attr = transform.table_attributes.get("Join Type", "Normal")
             if "Master Outer" in join_type_attr:
-                join_type = "left"
-            elif "Detail Outer" in join_type_attr:
                 join_type = "right"
+            elif "Detail Outer" in join_type_attr:
+                join_type = "left"
             elif "Full Outer" in join_type_attr:
                 join_type = "full"
 
-        df_master, df_detail = self._joiner_pick_master_detail(instance, inputs)
+        df_master, df_detail, master_from, detail_from = self._joiner_pick_master_detail(instance, inputs)
         parsed_condition = self._parse_joiner_condition(join_condition)
 
         step = ApplyJoinerStep(
@@ -1273,6 +1474,28 @@ class TransformHandlers:
         step.params["raw_condition"] = parsed_condition["raw_condition"]
         step.params["use_fallback"] = parsed_condition["use_fallback"]
 
+        # Build select maps for master/detail: upstream column → Joiner port name.
+        # Collect all upstream instances that feed into this Joiner.
+        _master_selects: List[Dict] = []
+        _detail_selects: List[Dict] = []
+        _seen_master = set()
+        _seen_detail = set()
+        for conn in self.mapping.connectors:
+            if conn.to_instance == instance.name:
+                _entry = {"from": conn.from_field, "to": conn.to_field}
+                # Assign to master or detail based on which df the instance maps to
+                _inst_df = self.current_df_map.get(conn.from_instance)
+                if _inst_df == df_master and conn.from_field not in _seen_master:
+                    _master_selects.append(_entry)
+                    _seen_master.add(conn.from_field)
+                elif _inst_df == df_detail and conn.from_field not in _seen_detail:
+                    _detail_selects.append(_entry)
+                    _seen_detail.add(conn.from_field)
+        if _master_selects:
+            step.params["master_selects"] = _master_selects
+        if _detail_selects:
+            step.params["detail_selects"] = _detail_selects
+
         return step
 
     def _handle_aggregator(self, instance: Instance, plan: IRPlan) -> Optional[IRStep]:
@@ -1280,49 +1503,19 @@ class TransformHandlers:
         if not input_df:
             input_df = "df_input"
 
-        # Build field remap from main mapping connectors for INPUT port names
-        _agg_field_remap: Dict[str, str] = {}
+        # Build select mappings: upstream column → Aggregator port name.
+        # Use select(col("x").alias("y")) instead of withColumnRenamed to
+        # avoid duplicate columns when an upstream column already has the
+        # target name.  Only mapped columns are carried forward.
+        _agg_selects: List[Dict] = []
         for conn in self.mapping.connectors:
-            if conn.to_instance == instance.name and conn.from_field != conn.to_field:
-                _agg_field_remap[conn.to_field] = conn.from_field
+            if conn.to_instance == instance.name:
+                _agg_selects.append({
+                    "from": conn.from_field,
+                    "to": conn.to_field
+                })
 
-        # When the aggregator references columns produced by expression chains
-        # that are not directly connected, merge the latest relevant DataFrame
-        # into the primary input so all needed columns are available.
-        _all_inputs = self._get_all_input_dfs(instance.name)
-        _extra_dfs = [df for df in _all_inputs if df != input_df]
-        if not _extra_dfs:
-            # No extra directly-connected inputs, but the aggregator may still
-            # need columns from expression/lookup outputs that flow through the
-            # Informatica pipeline implicitly.  Find the most recently registered
-            # DataFrame that shares common columns with the primary input.
-            _registered = list(self.current_df_map.values())
-            # Walk backwards to find a later DF that shares common columns
-            for _df_name in reversed(_registered):
-                if _df_name == input_df:
-                    break
-                if _df_name in _all_inputs or _df_name.startswith('df_lkp_result') or _df_name.startswith('df_exp_'):
-                    if _df_name != input_df and _df_name not in _extra_dfs:
-                        _extra_dfs.append(_df_name)
-                        break  # only take the most recent one
-
-        _pre_steps: List[IRStep] = []
-        if _extra_dfs:
-            _cur_df = input_df
-            for _i, _extra_df in enumerate(_extra_dfs):
-                _join_df_name = self._get_df_name("df_agg_merge")
-                _pre_steps.append(ApplyLookupStep(
-                    step_name=f"join_{instance.name}_{_i}",
-                    df_input=_cur_df,
-                    df_output=_join_df_name,
-                    lookup_df=_extra_df,
-                    join_predicates=[],
-                    join_expr="__common_cols__",
-                    output_columns=[],
-                    lookup_type="left",
-                ))
-                _cur_df = _join_df_name
-            input_df = _cur_df
+        # All columns are available through the chain — no merge steps needed.
 
         df_output = self._get_df_name("df_agg", instance)
         self._register_df(instance, df_output)
@@ -1331,35 +1524,41 @@ class TransformHandlers:
 
         group_by = []
         aggregations = {}
+        _agg_literals: List[Dict] = []
 
         if transform:
             self.logger.log_transformation(instance.name, "Aggregator", f"Processing aggregator with {len(transform.fields)} fields", LogLevel.INFO)
 
             for field in transform.fields:
+                is_literal = bool(
+                    field.expression
+                    and (re.match(r"^'[^']*'$", field.expression)
+                         or re.match(r"^\d+(\.\d+)?$", field.expression))
+                )
                 if field.is_group_by or "GROUP BY" in field.port_type.upper():
-                    # Remap port name to upstream column name via connector field map
-                    # (e.g. TXN_DATE → TXN_DATE1 when connector maps TXN_DATE1→TXN_DATE)
-                    _remapped = _agg_field_remap.get(field.name, field.name)
-                    group_by.append(_remapped)
-                    if _remapped != field.name:
-                        self.logger.log_transformation(instance.name, "Aggregator", f"GROUP BY: {field.name} (remapped to {_remapped})", LogLevel.INFO)
-                    else:
-                        self.logger.log_transformation(instance.name, "Aggregator", f"GROUP BY: {field.name}", LogLevel.INFO)
+                    group_by.append(field.name)
+                    self.logger.log_transformation(instance.name, "Aggregator", f"GROUP BY: {field.name}", LogLevel.INFO)
+                    # Literal GROUPBY fields (e.g. 0 as DUMMY, 'U' as HSHLD_AEM_IND)
+                    # are kept in groupBy (so they survive agg()) AND added to the
+                    # select below so the column exists in _agg_input.
+                    if is_literal and "OUTPUT" in (field.port_type or "").upper():
+                        _agg_literals.append({
+                            "name": field.name,
+                            "expression": field.expression,
+                            "datatype": field.datatype,
+                        })
+                        self.logger.log_transformation(instance.name, "Aggregator", f"LITERAL: {field.name} = {field.expression}", LogLevel.INFO)
                 elif field.expression and "OUTPUT" in field.port_type.upper():
-                    # Remap INPUT port names to upstream column names
-                    expr_text = field.expression
                     # Replace $$ mapping variables with f-string placeholders
                     # (e.g. $$v_rpt_mth → {v_rpt_mth}) so they resolve at runtime
                     # from the Python variables loaded via job_params.
+                    expr_text = field.expression
                     has_agg_dollar = False
                     for _mv_name in plan.mapping_variables:
                         if _mv_name in expr_text:
                             _py_name = _mv_name.replace('$', '')
                             expr_text = expr_text.replace(_mv_name, '{' + _py_name + '}')
                             has_agg_dollar = True
-                    for _port, _col in _agg_field_remap.items():
-                        if _port != _col:
-                            expr_text = expr_text.replace(_port, _col)
                     # Signal to _translate_aggregation_expr to use f-string for expr()
                     pyspark_agg = self._translate_aggregation_expr(expr_text, field.name, use_fstr=has_agg_dollar)
                     if pyspark_agg:
@@ -1375,12 +1574,13 @@ class TransformHandlers:
             group_by=group_by,
             aggregations=aggregations
         )
+        if _agg_selects:
+            step.params["agg_selects"] = _agg_selects
+        if _agg_literals:
+            step.params["agg_literals"] = _agg_literals
         # Pass mapping variables so template can do runtime $$ substitution
         if plan.mapping_variables:
             step.params["mapping_variables"] = plan.mapping_variables
-        if _pre_steps:
-            _pre_steps.append(step)
-            return _pre_steps
         return step
 
     def _translate_aggregation_expr(self, expr: str, field_name: str, use_fstr: bool = False) -> str:
@@ -1421,7 +1621,7 @@ class TransformHandlers:
                         _cond_expr = inner_expr[_i + 1:].strip()
                         break
 
-                if _cond_expr and func_name in ('COUNT', 'SUM'):
+                if _cond_expr and func_name in ('COUNT', 'SUM', 'MIN', 'MAX'):
                     # Translate the condition part separately
                     _translated_cond = self.expr_translator.translate(
                         _cond_expr, "aggregation", field_name
@@ -1433,7 +1633,9 @@ class TransformHandlers:
                     if re.match(r'^[A-Za-z_]\w*$', _translated_col):
                         _col_ref = f'col("{_translated_col}")'
                     else:
-                        _col_ref = f'col("{_col_expr}")'
+                        # Complex expression (e.g. "MTH_RENT_AMT_IN - VOID_RENT_AMT_IN")
+                        # Use the translated expression with expr() instead of col()
+                        _col_ref = f'expr("{_translated_col}")'
                     if use_fstr:
                         return f'{pyspark_func}(when(expr(f"""{_translated_cond}"""), {_col_ref}))'
                     else:
@@ -1470,18 +1672,35 @@ class TransformHandlers:
 
         if transform:
             for field in transform.fields:
-                sort_dir = transform.table_attributes.get(f"{field.name} Sort Direction", "ASC")
+                if not field.is_sort_key:
+                    continue
+                _dir = field.sort_direction.upper()
+                if "DESC" in _dir:
+                    _dir = "DESC"
+                else:
+                    _dir = "ASC"
                 sort_columns.append({
                     "column": field.name,
-                    "direction": sort_dir
+                    "direction": _dir
+                })
+        # Collect connector field renames: upstream column -> Sorter port name
+        _sorter_renames = []
+        for conn in self.mapping.connectors:
+            if conn.to_instance == instance.name and conn.from_field != conn.to_field:
+                _sorter_renames.append({
+                    "from": conn.from_field,
+                    "to": conn.to_field,
                 })
 
-        return ApplySorterStep(
+        step = ApplySorterStep(
             step_name=f"apply_{instance.name}",
             df_input=input_df,
             df_output=df_output,
             sort_columns=sort_columns
         )
+        if _sorter_renames:
+            step.params["sorter_renames"] = _sorter_renames
+        return step
 
     def _handle_union(self, instance: Instance, plan: IRPlan) -> Optional[IRStep]:
         inputs = self._get_all_input_dfs(instance.name)
@@ -1505,25 +1724,23 @@ class TransformHandlers:
                     if 'del' in lower_name and ('ins' in lower_name or 'upd' in lower_name) and 'flag' in lower_name:
                         flag_column = field.name
 
-        # Build position-based input→output port mapping for union groups.
-        # Informatica Union maps input group ports to output group ports by
-        # position within each group.  Connectors map upstream columns to input
-        # group ports.  We chain: upstream_col → input_port → output_port.
-        _union_rename_map: Dict[str, Dict[str, str]] = {}  # df_name → {from_col: to_col}
+        # Build per-upstream-df select maps for the Union.
+        # For each upstream DataFrame that has connectors to this Union,
+        # determine which output columns it contributes and how to map its
+        # column names → output column names via select+alias.
+        _union_selects: List[Dict] = []
         if transform:
             # Collect output ports (ordered by definition order = position)
             _output_ports = [f.name for f in transform.fields
                            if f.group_name and f.group_name.upper() == 'OUTPUT']
             # Collect input ports per group, preserving position order
-            _group_ports: Dict[str, List[str]] = {}  # group_name → [port_names...]
+            _group_ports: Dict[str, List[str]] = {}
             for f in transform.fields:
                 if f.group_name and f.group_name.upper() != 'OUTPUT' and 'INPUT' in (f.port_type or '').upper():
                     _grp = f.group_name.upper()
-                    if _grp not in _group_ports:
-                        _group_ports[_grp] = []
-                    _group_ports[_grp].append(f.name)
+                    _group_ports.setdefault(_grp, []).append(f.name)
             # Build input_port → output_port map per group (by position)
-            _grp_port_map: Dict[str, Dict[str, str]] = {}  # group → {input_port: output_port}
+            _grp_port_map: Dict[str, Dict[str, str]] = {}
             for _grp, _ports in _group_ports.items():
                 _mapping = {}
                 for _i, _in_port in enumerate(_ports):
@@ -1532,25 +1749,73 @@ class TransformHandlers:
                 if _mapping:
                     _grp_port_map[_grp] = _mapping
 
-            # Now chain: connector.from_field → connector.to_field (input port)
-            # → output port.  We need to know which input group a connector feeds.
-            # Match connector.to_field against each group's input port names.
-            for conn in self.mapping.connectors:
-                if conn.to_instance == instance.name:
-                    _upstream_df = self.current_df_map.get(conn.from_instance)
-                    if not _upstream_df or _upstream_df not in inputs:
+            # For each input group, build ONE intermediate DF that selects+aliases
+            # the needed columns from the best available upstream DataFrame.
+            # Prefer downstream transformations (EXPTRANS, EXP_) over raw Router
+            # outputs, since they inherit all upstream columns plus computed ones.
+            _union_selects: List[Dict] = []
+            for _grp, _port_map in _grp_port_map.items():
+                # Collect connectors that feed this group
+                _grp_connectors = []
+                for conn in self.mapping.connectors:
+                    if conn.to_instance == instance.name and conn.to_field in _port_map:
+                        _grp_connectors.append(conn)
+                if not _grp_connectors:
+                    continue
+
+                # Group connectors by upstream DataFrame, with Router resolution
+                _up_entries: Dict[str, List[Dict]] = {}
+                for conn in _grp_connectors:
+                    _df = self.current_df_map.get(conn.from_instance)
+                    if not _df:
+                        _ii = self.instance_map.get(conn.from_instance)
+                        if _ii and _ii.transformation_type == 'Router':
+                            _rtr = self.transform_map.get(
+                                _ii.transformation_name or conn.from_instance)
+                            if _rtr:
+                                for _tf in _rtr.fields:
+                                    if _tf.name == conn.from_field and _tf.group_name:
+                                        _key = f"{conn.from_instance}_{_tf.group_name}"
+                                        _df = self.current_df_map.get(_key)
+                                        break
+                    if not _df:
                         continue
-                    # Find which group this connector's to_field belongs to
-                    _input_port = conn.to_field
-                    _output_port = None
-                    for _grp, _port_map in _grp_port_map.items():
-                        if _input_port in _port_map:
-                            _output_port = _port_map[_input_port]
+                    _up_entries.setdefault(_df, [])
+                    if not any(e["from"] == conn.from_field and e["to"] == _port_map[conn.to_field]
+                               for e in _up_entries[_df]):
+                        _up_entries[_df].append({
+                            "from": conn.from_field,
+                            "to": _port_map[conn.to_field]
+                        })
+
+                if not _up_entries:
+                    continue
+
+                # Pick the "best" upstream df: prefer EXPTRANS/EXP_ (downstream
+                # transformations that inherit all upstream columns), otherwise
+                # the one with the most connector mappings.
+                def _prefer_order(_name: str) -> int:
+                    return 0 if 'exptrans' in _name.lower() or '_exp_' in _name.lower() else 1
+                _best_df = max(_up_entries, key=lambda k: (-_prefer_order(k), -len(_up_entries[k])))
+
+                # Build the select from ALL connector mappings for this group
+                _selects = []
+                for _out_port in _output_ports:
+                    for _in_grp in _grp_connectors:
+                        _out = _port_map.get(_in_grp.to_field)
+                        if _out == _out_port:
+                            _selects.append({"from": _in_grp.from_field, "to": _out_port})
                             break
-                    if _output_port and conn.from_field != _output_port:
-                        if _upstream_df not in _union_rename_map:
-                            _union_rename_map[_upstream_df] = {}
-                        _union_rename_map[_upstream_df][conn.from_field] = _output_port
+
+                if _selects:
+                    _safe_inst = re.sub(r'[^a-zA-Z0-9_]', '_', instance.name)
+                    _intermediate_var = f"df_{_safe_inst}_{_grp.lower()}"
+                    _union_selects.append({
+                        "group_name": _grp,
+                        "df_input": _best_df,
+                        "selects": _selects,
+                        "intermediate_var": _intermediate_var
+                    })
 
         step = ApplyUnionStep(
             step_name=f"apply_{instance.name}",
@@ -1561,8 +1826,8 @@ class TransformHandlers:
 
         step.params["output_columns"] = output_columns
         step.params["flag_column"] = flag_column
-        if _union_rename_map:
-            step.params["union_rename_map"] = _union_rename_map
+        if _union_selects:
+            step.params["union_selects"] = _union_selects
 
         if flag_column:
             step.comments.append(f"Normalizing flag column to: {flag_column}")
@@ -1581,14 +1846,29 @@ class TransformHandlers:
             plan.add_warning(f"Router transformation not found: {instance.name}")
             return steps
 
+        # Build condition map from parsed GROUP elements (EXPRESSION attribute)
+        group_condition_map = {}
+        for g in transform.groups:
+            gtype = g.type.upper()
+            if gtype in ("OUTPUT", "OUTPUT/DEFAULT") and g.name.upper() != "INPUT":
+                group_condition_map[g.name] = g.expression or ""
+
         groups = []
         group_conditions = {}
+        discovered = set()
+        trans_name = instance.transformation_name or instance.name
 
         for field in transform.fields:
             if "OUTPUT" in field.port_type.upper():
                 group_name = field.group_name or "DEFAULT"
-                if group_name not in group_conditions:
-                    condition = ""
+                if group_name in discovered:
+                    continue
+                discovered.add(group_name)
+
+                # Get condition from parsed GROUP expressions first
+                condition = group_condition_map.get(group_name, "")
+                if not condition:
+                    # Fallback: existing table_attributes patterns
                     cond_patterns = [
                         f"{group_name} Group Filter Condition",
                         f"Router Group {group_name}",
@@ -1603,10 +1883,34 @@ class TransformHandlers:
                             break
                     if not condition and field.expression:
                         condition = field.expression
-                    group_conditions[group_name] = condition
+
+                group_conditions[group_name] = condition
+
+        # Build connector field remap: upstream column name → Router input port name.
+        # The actual DataFrame has upstream column names; REF_FIELD uses Router port names.
+        _rtr_field_remap = {}
+        for conn in self.mapping.connectors:
+            if conn.to_instance == instance.name:
+                _rtr_field_remap[conn.to_field] = conn.from_field
+
+        # Build column rename map per group: in Informatica, Router output fields
+        # get suffixed names (e.g. PRPL_CSSA_APLY_ID_TYPE_CODE1 / _CODE2) via REF_FIELD.
+        # PySpark .filter() preserves input column names, so we must rename after filter.
+        group_renames = {}  # group_name -> [{"from": actual_col_name, "to": output_name}, ...]
+        for field in transform.fields:
+            if "OUTPUT" in field.port_type.upper():
+                gname = field.group_name or "DEFAULT"
+                if gname not in group_renames:
+                    group_renames[gname] = []
+                if field.ref_field and field.name != field.ref_field:
+                    # REF_FIELD is the Router's input port name; map it to the actual upstream column
+                    actual_col = _rtr_field_remap.get(field.ref_field, field.ref_field)
+                    group_renames[gname].append({
+                        "from": actual_col,
+                        "to": field.name
+                    })
 
         all_conditions = []
-        trans_name = instance.transformation_name or instance.name
 
         for group_name, condition in group_conditions.items():
             df_output = self._get_df_name(f"df_rtr_{group_name.lower()}")
@@ -1627,7 +1931,8 @@ class TransformHandlers:
             groups.append({
                 "name": group_name,
                 "df_output": df_output,
-                "condition": translated
+                "condition": translated,
+                "renames": group_renames.get(group_name, [])
             })
 
         if groups:
@@ -1894,23 +2199,8 @@ class TransformHandlers:
             plan.add_warning(f"No input DataFrame found for target {instance.name}")
             input_df = "df_final"
         else:
-            # When a target has multiple upstream DataFrames, merge them
-            # so all mapped columns are available for the write.
-            _tgt_all_inputs = self._get_all_input_dfs(instance.name)
-            _tgt_extra = [df for df in _tgt_all_inputs if df != input_df]
-            for _i, _extra_df in enumerate(_tgt_extra):
-                _join_df = self._get_df_name("df_tgt_merge")
-                steps.append(ApplyLookupStep(
-                    step_name=f"join_target_{instance.name}_{_i}",
-                    df_input=input_df,
-                    df_output=_join_df,
-                    lookup_df=_extra_df,
-                    join_predicates=[],
-                    join_expr="__common_cols__",
-                    output_columns=[],
-                    lookup_type="left",
-                ))
-                input_df = _join_df
+            # Extra upstream DataFrames are already available via the chain.
+            pass
 
         target_name = instance.transformation_name or self._normalize_instance_to_object_name(instance.name)
         target = None
@@ -2065,23 +2355,68 @@ class TransformHandlers:
 
     def _get_input_df(self, instance_name: str) -> Optional[str]:
         upstream_instances = []
+        _upstream_fields: Dict[str, List[str]] = {}
         for connector in self.mapping.connectors:
             if connector.to_instance == instance_name:
                 upstream_instances.append(connector.from_instance)
+                _upstream_fields.setdefault(connector.from_instance, []).append(connector.from_field)
 
         _matched_df = None
+        _first_match = None
         _matched_values = []
         for from_inst in upstream_instances:
             if from_inst in self.current_df_map:
                 _v = self.current_df_map[from_inst]
                 _matched_values.append(_v)
+                if _first_match is None:
+                    _first_match = _v
                 _matched_df = _v
         if _matched_df:
             if len(_matched_values) > 1:
                 for _v in _matched_values:
                     if _v.startswith('df_lkp_result') or _v.startswith('df_jnr_result'):
                         return _v
+                # When multiple upstreams exist (e.g. both LKP_DDS_DMNS_PRPTY_TYPE
+                # and EXPTRANS1 feed into FILTRANS), prefer the most downstream
+                # DataFrame (the full transformation, not a raw chain/merge).
+                for _v in _matched_values:
+                    if not _v.startswith(('df_lkp_merge', 'df_merge', 'df_sq_')):
+                        # All matched non-chain values pass this check. If there's
+                        # only one, return it. If multiple, prefer the one whose
+                        # instance is fed by another upstream instance (downstream).
+                        _non_chain = [v for v in _matched_values
+                                      if not v.startswith(('df_lkp_merge', 'df_merge', 'df_sq_'))]
+                        if len(_non_chain) == 1:
+                            return _non_chain[0]
+                        # Multiple non-chain matches: prefer the downstream instance.
+                        # Check if any upstream instance feeds into another via connectors.
+                        _up_names = {inst: df for inst, df in zip(upstream_instances, _matched_values)}
+                        for _a in _up_names:
+                            for _b in _up_names:
+                                if _a != _b and any(
+                                    c.from_instance == _a and c.to_instance == _b
+                                    for c in self.mapping.connectors
+                                ):
+                                    return _up_names[_b]
+                        return _first_match
+                # Multiple non-special matches: return the first one (main pipeline)
+                return _first_match
             return _matched_df
+
+        # Router-aware resolution: if the upstream is a Router, use the
+        # connector's from_field to determine which output group to use.
+        for from_inst in upstream_instances:
+            _ii = self.instance_map.get(from_inst)
+            if _ii and _ii.transformation_type == 'Router':
+                _transform = self.transform_map.get(
+                    _ii.transformation_name or from_inst)
+                if _transform:
+                    for _fname in _upstream_fields.get(from_inst, []):
+                        for _tf in _transform.fields:
+                            if _tf.name == _fname and _tf.group_name:
+                                _key = f"{from_inst}_{_tf.group_name}"
+                                if _key in self.current_df_map:
+                                    return self.current_df_map[_key]
 
         for from_inst in upstream_instances:
             upstream_instance = self.instance_map.get(from_inst)

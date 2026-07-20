@@ -4,7 +4,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from .models import (
     SourceDefinition, SourceField, SourceType, FileFormat, FileLocation,
     TargetDefinition, TargetField,
-    Transformation, TransformField,
+    Transformation, TransformField, TransformGroup,
     Instance, Connector, MappingDefinition, MappingVariable,
     SourceConnectionInfo, ConnectorType
 )
@@ -227,6 +227,16 @@ class InfaXMLParser:
             attr_value = attr_elem.get("VALUE", "")
             transform.table_attributes[attr_name] = attr_value
 
+        for group_elem in transform_elem.findall("GROUP"):
+            group = TransformGroup(
+                name=group_elem.get("NAME", ""),
+                type=group_elem.get("TYPE", "OUTPUT"),
+                expression=group_elem.get("EXPRESSION", None),
+                order=int(group_elem.get("ORDER", "0")),
+                description=group_elem.get("DESCRIPTION", ""),
+            )
+            transform.groups.append(group)
+
         for field_elem in transform_elem.findall("TRANSFORMFIELD"):
             is_group_by = (field_elem.get("GROUPBY", "NO") == "YES"
                           or "GROUP BY" in field_elem.get("PORTTYPE", "").upper()
@@ -240,7 +250,10 @@ class InfaXMLParser:
                 expression=field_elem.get("EXPRESSION", None),
                 default_value=field_elem.get("DEFAULTVALUE", None),
                 group_name=field_elem.get("GROUP", None),
-                is_group_by=is_group_by
+                ref_field=field_elem.get("REF_FIELD", None),
+                is_group_by=is_group_by,
+                is_sort_key=field_elem.get("ISSORTKEY", "NO") == "YES",
+                sort_direction=field_elem.get("SORTDIRECTION", "ASCENDING"),
             )
             transform.fields.append(field)
 

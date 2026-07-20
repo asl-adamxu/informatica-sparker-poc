@@ -72,54 +72,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.warning("UTL_JOB_PARAM not found, using default values")
     
     try:
-        logger.info("Step: read_SOR_EMS_RFX_ALCT_STD_STS")
-        # Reading Data From Source - read_SOR_EMS_RFX_ALCT_STD_STS
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_1 = lib.read_sql(spark, _conn, table="SOR_EMS_RFX_ALCT_STD_STS")
-        
-        logger.info("Step: read_SOR_EMS_REF_QTA_CATG_USER_STS")
-        # Reading Data From Source - read_SOR_EMS_REF_QTA_CATG_USER_STS
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_2 = lib.read_sql(spark, _conn, table="SOR_EMS_REF_QTA_CATG_USER_STS")
-        
-        logger.info("Step: read_SOR_EMS_TAM_TNCY_AGRMT_STS")
-        # Reading Data From Source - read_SOR_EMS_TAM_TNCY_AGRMT_STS
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_3 = lib.read_sql(spark, _conn, table="SOR_EMS_TAM_TNCY_AGRMT_STS")
-        
-        logger.info("Step: read_SOR_EMS_CMM_HSE_SRVC_APLY_STS")
-        # Reading Data From Source - read_SOR_EMS_CMM_HSE_SRVC_APLY_STS
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_4 = lib.read_sql(spark, _conn, table="SOR_EMS_CMM_HSE_SRVC_APLY_STS")
-        
-        logger.info("Step: read_SOR_EMS_CPM_CUST_APLY_MBR")
-        # Reading Data From Source - read_SOR_EMS_CPM_CUST_APLY_MBR
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_5 = lib.read_sql(spark, _conn, table="SOR_EMS_CPM_CUST")
-        
-        logger.info("Step: read_SOR_EMS_PAL_PRH_INTK_SCHD_STS")
-        # Reading Data From Source - read_SOR_EMS_PAL_PRH_INTK_SCHD_STS
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_6 = lib.read_sql(spark, _conn, table="SOR_EMS_PAL_PRH_INTK_SCHD")
-        
-        logger.info("Step: read_SOR_HSM_UNIT")
-        # Reading Data From Source - read_SOR_HSM_UNIT
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_7 = lib.read_sql(spark, _conn, table="SOR_HSM_UNIT")
-        
-        logger.info("Step: read_SOR_EMS_SRF_RENT_FCTR_CODE")
-        # Reading Data From Source - read_SOR_EMS_SRF_RENT_FCTR_CODE
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_8 = lib.read_sql(spark, _conn, table="SOR_EMS_SRF_RENT_FCTR_CODE")
-        
         logger.info("Step: apply_SQ_DATA")
         # Source Qualifier: apply_SQ_DATA
         # SQL Pushdown - executes Informatica SQ SQL on source database
@@ -240,39 +192,38 @@ ORDER BY
         HSU.UNIT_ADDR_CODE"""
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         query = query.replace("$$v_snsh_date", v_snsh_date)
-        df_sq_9 = lib.read_sql(spark, _conn, query=query)
+        df_SQ_DATA = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_9.columns
+        _sql_cols = df_SQ_DATA.columns
         _port_cols = ["UNIT_ADDR_CODE", "HSE_SRVC_APLY_NUM", "CATG_USER_TYPE_CODE", "FMLY_SIZE_NUM", "MIN_UNIT_HEAD_CNT", "MAX_UNIT_HEAD_CNT", "UNIT_IFA_AREA", "RENT_FCTR_CODE", "RVS_INTK_DATE", "PREV_CODE_ADDR"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_9 = df_sq_9.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_SQ_DATA = df_SQ_DATA.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_9 = df_sq_9.select("UNIT_ADDR_CODE", "HSE_SRVC_APLY_NUM", "CATG_USER_TYPE_CODE", "FMLY_SIZE_NUM", "MIN_UNIT_HEAD_CNT", "MAX_UNIT_HEAD_CNT", "UNIT_IFA_AREA", "RENT_FCTR_CODE", "RVS_INTK_DATE", "PREV_CODE_ADDR")
+        df_SQ_DATA = df_SQ_DATA.select("UNIT_ADDR_CODE", "HSE_SRVC_APLY_NUM", "CATG_USER_TYPE_CODE", "FMLY_SIZE_NUM", "MIN_UNIT_HEAD_CNT", "MAX_UNIT_HEAD_CNT", "UNIT_IFA_AREA", "RENT_FCTR_CODE", "RVS_INTK_DATE", "PREV_CODE_ADDR")
         
-        ctx.register_df("df_sq_9", df_sq_9)
+        ctx.register_df("df_SQ_DATA", df_SQ_DATA)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_exp_10 = df_sq_9
-        df_exp_10 = df_exp_10.withColumn("FMLY_SIZE_NUM", expr("cast(FMLY_SIZE_NUM as string)"))
-        df_exp_10 = df_exp_10.withColumn("MIN_UNIT_HEAD_CNT", expr("cast(MIN_UNIT_HEAD_CNT as string)"))
-        df_exp_10 = df_exp_10.withColumn("MAX_UNIT_HEAD_CNT", expr("cast(MAX_UNIT_HEAD_CNT as string)"))
-        df_exp_10 = df_exp_10.withColumn("UNIT_IFA_AREA", expr("cast(UNIT_IFA_AREA as string)"))
-        df_exp_10 = df_exp_10.withColumn("RENT_FCTR_CODE", expr("cast(RENT_FCTR_CODE as string)"))
-        df_exp_10 = df_exp_10.withColumn("RVS_INTK_DATE", expr("cast(RVS_INTK_DATE as string)"))
-        df_exp_10 = df_exp_10.withColumn("EST_CODE", expr("substring(UNIT_ADDR_CODE,2,5)"))
+        df_EXPTRANS = df_SQ_DATA
+        df_EXPTRANS = df_EXPTRANS.withColumn("FMLY_SIZE_NUM", expr("cast(FMLY_SIZE_NUM as string)"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("MIN_UNIT_HEAD_CNT", expr("cast(MIN_UNIT_HEAD_CNT as string)"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("MAX_UNIT_HEAD_CNT", expr("cast(MAX_UNIT_HEAD_CNT as string)"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("UNIT_IFA_AREA", expr("cast(UNIT_IFA_AREA as string)"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("RENT_FCTR_CODE", expr("cast(RENT_FCTR_CODE as string)"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("RVS_INTK_DATE", expr("cast(RVS_INTK_DATE as string)"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("EST_CODE", expr("substring(UNIT_ADDR_CODE,2,5)"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["UNIT_ADDR_CODE", "HSE_SRVC_APLY_NUM", "CATG_USER_TYPE_CODE", "PREV_CODE_ADDR"]:
-            if _col not in df_exp_10.columns:
-                df_exp_10 = df_exp_10.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_10 = df_exp_10.select("EST_CODE", "UNIT_ADDR_CODE", "HSE_SRVC_APLY_NUM", "CATG_USER_TYPE_CODE", "FMLY_SIZE_NUM", "MIN_UNIT_HEAD_CNT", "MAX_UNIT_HEAD_CNT", "UNIT_IFA_AREA", "RENT_FCTR_CODE", "RVS_INTK_DATE", "PREV_CODE_ADDR")
-        ctx.register_df("df_exp_10", df_exp_10)
+            if _col not in df_EXPTRANS.columns:
+                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_FLAT_EMS_IH_HSE_CASE")
         # Write to Target: write_FLAT_EMS_IH_HSE_CASE
-        df_write = df_exp_10
+        df_write = df_EXPTRANS
         # Cast columns to match target schema data types
         if "estate_code" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

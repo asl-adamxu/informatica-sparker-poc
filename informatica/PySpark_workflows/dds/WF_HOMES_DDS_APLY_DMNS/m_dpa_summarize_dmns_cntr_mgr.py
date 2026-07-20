@@ -73,39 +73,33 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Reading Data From Source - read_SOR_HOM_PRG_SNSH
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "SOR")
-        df_src_1 = lib.read_sql(spark, _conn, table="SOR_HOM_PRG_SNSH")
+        df_SOR_HOM_PRG_SNSH = lib.read_sql(spark, _conn, table="SOR_HOM_PRG_SNSH")
         
         logger.info("Step: read_SOR_HOM_PRG_SNSH_CNTR")
         # Reading Data From Source - read_SOR_HOM_PRG_SNSH_CNTR
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "SOR")
-        df_src_2 = lib.read_sql(spark, _conn, table="SOR_HOM_PRG_SNSH_CNTR")
+        df_SOR_HOM_PRG_SNSH_CNTR = lib.read_sql(spark, _conn, table="SOR_HOM_PRG_SNSH_CNTR")
         
         logger.info("Step: read_SOR_HOM_PRG_SNSH_STS")
         # Reading Data From Source - read_SOR_HOM_PRG_SNSH_STS
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "SOR")
-        df_src_3 = lib.read_sql(spark, _conn, table="SOR_HOM_PRG_SNSH_STS")
+        df_SOR_HOM_PRG_SNSH_STS = lib.read_sql(spark, _conn, table="SOR_HOM_PRG_SNSH_STS")
         
         logger.info("Step: read_SOR_HOM_PRG_SNSH_CNTR_STS")
         # Reading Data From Source - read_SOR_HOM_PRG_SNSH_CNTR_STS
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "SOR")
-        df_src_4 = lib.read_sql(spark, _conn, table="SOR_HOM_PRG_SNSH_CNTR")
-        
-        logger.info("Step: read_SOR_HOM_CON_CNTR_REF")
-        # Reading Data From Source - read_SOR_HOM_CON_CNTR_REF
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_5 = lib.read_sql(spark, _conn, table="SOR_HOM_CON_CNTR_REF")
+        df_SOR_HOM_PRG_SNSH_CNTR_STS = lib.read_sql(spark, _conn, table="SOR_HOM_PRG_SNSH_CNTR")
         
         logger.info("Step: apply_SEQ_DMNS_CNTR_MGR_KEY")
         # Sequence Generator: apply_SEQ_DMNS_CNTR_MGR_KEY
-        df_seq_6 = df_input.withColumn(
+        df_SEQ_DMNS_CNTR_MGR_KEY = df_input.withColumn(
             "NEXTVAL", 
             monotonically_increasing_id() + 0
         )
-        ctx.register_df("df_seq_6", df_seq_6)
+        ctx.register_df("df_SEQ_DMNS_CNTR_MGR_KEY", df_SEQ_DMNS_CNTR_MGR_KEY)
         
         logger.info("Step: apply_SQ_SOR_HOM_CON_CNTR_REF")
         # Source Qualifier: apply_SQ_SOR_HOM_CON_CNTR_REF
@@ -142,79 +136,89 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
 select 'Others' cntr_mgr_post, 99999 cntr_mgr_disp_seq_num
   from dual"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
-        df_sq_7 = lib.read_sql(spark, _conn, query=query)
+        df_SQ_SOR_HOM_CON_CNTR_REF = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_7.columns
+        _sql_cols = df_SQ_SOR_HOM_CON_CNTR_REF.columns
         _port_cols = ["CNTR_MGR_POST_DESP", "DISP_CNTR_NUM"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_7 = df_sq_7.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_SQ_SOR_HOM_CON_CNTR_REF = df_SQ_SOR_HOM_CON_CNTR_REF.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_7 = df_sq_7.select("CNTR_MGR_POST_DESP", "DISP_CNTR_NUM")
+        df_SQ_SOR_HOM_CON_CNTR_REF = df_SQ_SOR_HOM_CON_CNTR_REF.select("CNTR_MGR_POST_DESP", "DISP_CNTR_NUM")
         
-        ctx.register_df("df_sq_7", df_sq_7)
+        ctx.register_df("df_SQ_SOR_HOM_CON_CNTR_REF", df_SQ_SOR_HOM_CON_CNTR_REF)
         
         logger.info("Step: read_LKP_DDS_DMNS_CNTR_MGR")
         # Reading Data From Source - read_LKP_DDS_DMNS_CNTR_MGR
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_lkp_8 = lib.read_sql(spark, _conn, table="DDS_DMNS_CNTR_MGR")
+        df_LKP_DDS_DMNS_CNTR_MGR = lib.read_sql(spark, _conn, table="DDS_DMNS_CNTR_MGR")
         
         logger.info("Step: apply_LKP_DDS_DMNS_CNTR_MGR")
         # Lookup: apply_LKP_DDS_DMNS_CNTR_MGR
-        # Join condition: IN_CNTR_MGR_POST_NAME=CNTR_MGR_POST_NAME        
-        df_lkp_result_9 = df_sq_7.join(
-            broadcast(df_lkp_8),
-            (df_sq_7["IN_CNTR_MGR_POST_NAME"] == df_lkp_8["CNTR_MGR_POST_NAME"]),
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_DDS_DMNS_CNTR_MGR = df_LKP_DDS_DMNS_CNTR_MGR.dropDuplicates(subset=["CNTR_MGR_POST_NAME"])
+        # Join condition: CNTR_MGR_POST_DESP=CNTR_MGR_POST_NAME
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_DDS_DMNS_CNTR_MGR
+        _lkp_right = _lkp_right.withColumnRenamed("CNTR_MGR_POST_NAME", "_lkp_CNTR_MGR_POST_NAME")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_SQ_SOR_HOM_CON_CNTR_REF.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_1 = df_SQ_SOR_HOM_CON_CNTR_REF.join(
+            broadcast(_lkp_right),
+            (df_SQ_SOR_HOM_CON_CNTR_REF["CNTR_MGR_POST_DESP"] == _lkp_right["_lkp_CNTR_MGR_POST_NAME"]),
             "left"
-        )
-        ctx.register_df("df_lkp_result_9", df_lkp_result_9)
-        
-        logger.info("Step: join_EXPTRANS_0")
-        # Lookup: join_EXPTRANS_0
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_lkp_result_9.columns if c in df_sq_7.columns]
-        df_exp_merge_11 = df_lkp_result_9.join(
-            df_sq_7,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_exp_merge_11", df_exp_merge_11)
+        ).drop("_lkp_CNTR_MGR_POST_NAME")
+
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_exp_10 = df_exp_merge_11
-        df_exp_10 = df_exp_10.withColumn("IN_CNTR_MGR_DISP_SEQ_NUM", expr("DISP_CNTR_NUM"))
-        df_exp_10 = df_exp_10.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_CNTR_MGR_KEY IS NULL) OR CASE WHEN CNTR_MGR_POST_NAME = IN_CNTR_MGR_POST_NAME THEN false ELSE true END OR CASE WHEN CNTR_MGR_DISP_SEQ_NUM = DISP_CNTR_NUM THEN false ELSE true END THEN 1 ELSE 0 END"))
+        df_EXPTRANS = df_lkp_merge_1
+        df_EXPTRANS = df_EXPTRANS.withColumn("IN_CNTR_MGR_DISP_SEQ_NUM", expr("DISP_CNTR_NUM"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_CNTR_MGR_KEY IS NULL) OR CASE WHEN CNTR_MGR_POST_NAME = IN_CNTR_MGR_POST_NAME THEN false ELSE true END OR CASE WHEN CNTR_MGR_DISP_SEQ_NUM = DISP_CNTR_NUM THEN false ELSE true END THEN 1 ELSE 0 END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["IN_CNTR_MGR_POST_NAME", "DMNS_CNTR_MGR_KEY"]:
-            if _col not in df_exp_10.columns:
-                df_exp_10 = df_exp_10.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_10 = df_exp_10.select("CHANGE_FLAG", "DMNS_CNTR_MGR_KEY", "IN_CNTR_MGR_POST_NAME", "IN_CNTR_MGR_DISP_SEQ_NUM")
-        ctx.register_df("df_exp_10", df_exp_10)
+            if _col not in df_EXPTRANS.columns:
+                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: apply_FIL_CHANGE")
         # Filter: apply_FIL_CHANGE
-        df_fil_12 = df_exp_10.filter(expr("CHANGE_FLAG = 1 AND ( NOT (DMNS_CNTR_MGR_KEY IS NULL))"))
-        ctx.register_df("df_fil_12", df_fil_12)
+        __fil_input = df_EXPTRANS
+        df_FIL_CHANGE = __fil_input.filter(expr("CHANGE_FLAG = 1 AND ( NOT (DMNS_CNTR_MGR_KEY IS NULL))"))
+        ctx.register_df("df_FIL_CHANGE", df_FIL_CHANGE)
         
         logger.info("Step: apply_FIL_NEW")
         # Filter: apply_FIL_NEW
-        df_fil_13 = df_seq_6.filter(expr("CHANGE_FLAG = 1 AND (DMNS_CNTR_MGR_KEY IS NULL)"))
-        ctx.register_df("df_fil_13", df_fil_13)
+        __fil_input = df_EXPTRANS
+        df_FIL_NEW = __fil_input.filter(expr("CHANGE_FLAG = 1 AND (DMNS_CNTR_MGR_KEY IS NULL)"))
+        ctx.register_df("df_FIL_NEW", df_FIL_NEW)
         
         logger.info("Step: apply_Union_Transformation")
         # Union: apply_Union_Transformation
-        df_un_14 = df_fil_12
-        df_un_14 = df_un_14.unionByName(df_fil_13, allowMissingColumns=True)
+        # Select + rename upstream columns per input, then union
+        df_Union_Transformation_change = df_FIL_CHANGE.select(
+            col("DMNS_CNTR_MGR_KEY").alias("DMNS_CNTR_MGR_KEY"),
+            col("IN_CNTR_MGR_POST_NAME").alias("IN_CNTR_MGR_POST_NAME"),
+            col("IN_CNTR_MGR_DISP_SEQ_NUM").alias("IN_CNTR_MGR_DISP_SEQ_NUM")        )
+        df_Union_Transformation_new = df_FIL_NEW.select(
+            col("NEXTVAL").alias("DMNS_CNTR_MGR_KEY"),
+            col("IN_CNTR_MGR_POST_NAME").alias("IN_CNTR_MGR_POST_NAME"),
+            col("IN_CNTR_MGR_DISP_SEQ_NUM").alias("IN_CNTR_MGR_DISP_SEQ_NUM")        )
+        df_Union_Transformation = df_Union_Transformation_change
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_new, allowMissingColumns=True)
         # Select only union output columns
-        df_un_14 = df_un_14.select("DMNS_CNTR_MGR_KEY", "IN_CNTR_MGR_POST_NAME", "IN_CNTR_MGR_DISP_SEQ_NUM")
-        ctx.register_df("df_un_14", df_un_14)
+        df_Union_Transformation = df_Union_Transformation.select("DMNS_CNTR_MGR_KEY", "IN_CNTR_MGR_POST_NAME", "IN_CNTR_MGR_DISP_SEQ_NUM")
+        ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
         logger.info("Step: write_DPA_DMNS_CNTR_MGR")
         # Write to Target: write_DPA_DMNS_CNTR_MGR
-        df_write = df_un_14
+        df_write = df_Union_Transformation
         # Cast columns to match target schema data types
         if "cntr_mgr_post_name" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

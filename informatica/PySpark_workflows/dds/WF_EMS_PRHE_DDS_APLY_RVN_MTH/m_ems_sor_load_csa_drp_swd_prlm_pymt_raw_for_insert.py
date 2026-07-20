@@ -67,16 +67,15 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
         df_EXPTRANS1 = df_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("PRLM_FILE_REC_KEY1_V", expr("CASE WHEN (PRLM_FILE_REC_KEY1_V IS NULL) THEN 1 ELSE PRLM_FILE_REC_KEY1_V+1 END"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("PRLM_FILE_REC_KEY1", expr("PRLM_FILE_REC_KEY1_V"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("PRLM_FILE_REC_KEY1_V", monotonically_increasing_id() + 1)
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("LAST_REC_TXN_TYPE_CODE", expr("'I'"))
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("LAST_REC_TXN_DATE", expr("current_timestamp()"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("PRLM_FILE_REC_KEY1", expr("PRLM_FILE_REC_KEY1_V"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["FILE_MTH", "VALUE_DATE", "REC_TYPE", "SEQ_NUM", "SWD_CASE_FILE_REF_NUM", "ADDR_ROOM", "ADDR_BLK", "ADDR_EST", "DRP_PYMT_AMT", "PYMT_FROM_DATE", "PYMT_TO_DATE", "ASGN_STF", "CUST_CNT", "CUST_ROLE_1", "CUST_ID_TYPE_1", "CUST_ID_NUM_1", "CUST_ENG_NAME_1", "CUST_ROLE_2", "CUST_ID_TYPE_2", "CUST_ID_NUM_2", "CUST_ENG_NAME_2", "CUST_ROLE_3", "CUST_ID_TYPE_3", "CUST_ID_NUM_3", "CUST_ENG_NAME_3", "CUST_ROLE_4", "CUST_ID_TYPE_4", "CUST_ID_NUM_4", "CUST_ENG_NAME_4", "CUST_ROLE_5", "CUST_ID_TYPE_5", "CUST_ID_NUM_5", "CUST_ENG_NAME_5", "CUST_ROLE_6", "CUST_ID_TYPE_6", "CUST_ID_NUM_6", "CUST_ENG_NAME_6", "CUST_ROLE_7", "CUST_ID_TYPE_7", "CUST_ID_NUM_7", "CUST_ENG_NAME_7", "CUST_ROLE_8", "CUST_ID_TYPE_8", "CUST_ID_NUM_8", "CUST_ENG_NAME_8", "CUST_ROLE_9", "CUST_ID_TYPE_9", "CUST_ID_NUM_9", "CUST_ENG_NAME_9", "CUST_ROLE_10", "CUST_ID_TYPE_10", "CUST_ID_NUM_10", "CUST_ENG_NAME_10", "CUST_ROLE_11", "CUST_ID_TYPE_11", "CUST_ID_NUM_11", "CUST_ENG_NAME_11", "CUST_ROLE_12", "CUST_ID_TYPE_12", "CUST_ID_NUM_12", "CUST_ENG_NAME_12", "CUST_ROLE_13", "CUST_ID_TYPE_13", "CUST_ID_NUM_13", "CUST_ENG_NAME_13", "CUST_ROLE_14", "CUST_ID_TYPE_14", "CUST_ID_NUM_14", "CUST_ENG_NAME_14", "CUST_ROLE_15", "CUST_ID_TYPE_15", "CUST_ID_NUM_15", "CUST_ENG_NAME_15", "CUST_ROLE_16", "CUST_ID_TYPE_16", "CUST_ID_NUM_16", "CUST_ENG_NAME_16", "CUST_ROLE_17", "CUST_ID_TYPE_17", "CUST_ID_NUM_17", "CUST_ENG_NAME_17", "CUST_ROLE_18", "CUST_ID_TYPE_18", "CUST_ID_NUM_18", "CUST_ENG_NAME_18", "CUST_ROLE_19", "CUST_ID_TYPE_19", "CUST_ID_NUM_19", "CUST_ENG_NAME_19", "CUST_ROLE_20", "CUST_ID_TYPE_20", "CUST_ID_NUM_20", "CUST_ENG_NAME_20"]:
             if _col not in df_EXPTRANS1.columns:
                 df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_EXPTRANS1 = df_EXPTRANS1.select("PRLM_FILE_REC_KEY1", "FILE_MTH", "VALUE_DATE", "REC_TYPE", "SEQ_NUM", "SWD_CASE_FILE_REF_NUM", "ADDR_ROOM", "ADDR_BLK", "ADDR_EST", "DRP_PYMT_AMT", "PYMT_FROM_DATE", "PYMT_TO_DATE", "ASGN_STF", "CUST_CNT", "CUST_ROLE_1", "CUST_ID_TYPE_1", "CUST_ID_NUM_1", "CUST_ENG_NAME_1", "CUST_ROLE_2", "CUST_ID_TYPE_2", "CUST_ID_NUM_2", "CUST_ENG_NAME_2", "CUST_ROLE_3", "CUST_ID_TYPE_3", "CUST_ID_NUM_3", "CUST_ENG_NAME_3", "CUST_ROLE_4", "CUST_ID_TYPE_4", "CUST_ID_NUM_4", "CUST_ENG_NAME_4", "CUST_ROLE_5", "CUST_ID_TYPE_5", "CUST_ID_NUM_5", "CUST_ENG_NAME_5", "CUST_ROLE_6", "CUST_ID_TYPE_6", "CUST_ID_NUM_6", "CUST_ENG_NAME_6", "CUST_ROLE_7", "CUST_ID_TYPE_7", "CUST_ID_NUM_7", "CUST_ENG_NAME_7", "CUST_ROLE_8", "CUST_ID_TYPE_8", "CUST_ID_NUM_8", "CUST_ENG_NAME_8", "CUST_ROLE_9", "CUST_ID_TYPE_9", "CUST_ID_NUM_9", "CUST_ENG_NAME_9", "CUST_ROLE_10", "CUST_ID_TYPE_10", "CUST_ID_NUM_10", "CUST_ENG_NAME_10", "CUST_ROLE_11", "CUST_ID_TYPE_11", "CUST_ID_NUM_11", "CUST_ENG_NAME_11", "CUST_ROLE_12", "CUST_ID_TYPE_12", "CUST_ID_NUM_12", "CUST_ENG_NAME_12", "CUST_ROLE_13", "CUST_ID_TYPE_13", "CUST_ID_NUM_13", "CUST_ENG_NAME_13", "CUST_ROLE_14", "CUST_ID_TYPE_14", "CUST_ID_NUM_14", "CUST_ENG_NAME_14", "CUST_ROLE_15", "CUST_ID_TYPE_15", "CUST_ID_NUM_15", "CUST_ENG_NAME_15", "CUST_ROLE_16", "CUST_ID_TYPE_16", "CUST_ID_NUM_16", "CUST_ENG_NAME_16", "CUST_ROLE_17", "CUST_ID_TYPE_17", "CUST_ID_NUM_17", "CUST_ENG_NAME_17", "CUST_ROLE_18", "CUST_ID_TYPE_18", "CUST_ID_NUM_18", "CUST_ENG_NAME_18", "CUST_ROLE_19", "CUST_ID_TYPE_19", "CUST_ID_NUM_19", "CUST_ENG_NAME_19", "CUST_ROLE_20", "CUST_ID_TYPE_20", "CUST_ID_NUM_20", "CUST_ENG_NAME_20", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE")
+        # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
         
         logger.info("Step: read_LKPTRANS")
@@ -91,29 +90,30 @@ FROM SOR_EMS_CSA_DRP_PRLM_PYMT_RAW"""
         
         logger.info("Step: apply_LKPTRANS")
         # Lookup: apply_LKPTRANS
-        # Join on common column: PRLM_FILE_REC_KEY1
+        # Report Error on multiple match: check for duplicate join keys
+        _dup_cnt = df_LKPTRANS.groupBy(col("PRLM_FILE_REC_KEY1")).count().filter(col("count") > 1).count()
+        if _dup_cnt > 0:
+            raise RuntimeError(f"Lookup apply_LKPTRANS: {_dup_cnt} duplicate keys found — Report Error policy")
+        # Join condition: PRLM_FILE_REC_KEY1=PRLM_FILE_REC_KEY1
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKPTRANS
+        _lkp_right = _lkp_right.withColumnRenamed("PRLM_FILE_REC_KEY1", "_lkp_PRLM_FILE_REC_KEY1")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_EXPTRANS1.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_1 = df_EXPTRANS1.join(
+            broadcast(_lkp_right),
+            (df_EXPTRANS1["PRLM_FILE_REC_KEY1"] == _lkp_right["_lkp_PRLM_FILE_REC_KEY1"]),
+            "left"
+        ).drop("_lkp_PRLM_FILE_REC_KEY1")
 
-        df_LKPTRANS = df_EXPTRANS1.join(
-            broadcast(df_LKPTRANS),
-            on="PRLM_FILE_REC_KEY1",
-            how="left"
-        )
-        ctx.register_df("df_LKPTRANS", df_LKPTRANS)
-        
-        logger.info("Step: join_target_SOR_EMS_CSA_DRP_PRLM_PYMT_RAW_0")
-        # Lookup: join_target_SOR_EMS_CSA_DRP_PRLM_PYMT_RAW_0
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_EXPTRANS1.columns if c in df_LKPTRANS.columns]
-        df_tgt_merge_1 = df_EXPTRANS1.join(
-            df_LKPTRANS,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_tgt_merge_1", df_tgt_merge_1)
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
         
         logger.info("Step: write_SOR_EMS_CSA_DRP_PRLM_PYMT_RAW")
         # Write to Target: write_SOR_EMS_CSA_DRP_PRLM_PYMT_RAW
-        df_write = df_tgt_merge_1
+        df_write = df_lkp_merge_1
         # Cast columns to match target schema data types
         if "rec_type_code" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

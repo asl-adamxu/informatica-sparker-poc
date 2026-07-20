@@ -104,8 +104,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_EXPTRANS = df_EXPTRANS.withColumn("PARAMETER", expr("CASE WHEN instr(SESSION, '=')=0 THEN SESSION ELSE substring(SESSION,1,instr(SESSION,'=')) END"))
         df_EXPTRANS = df_EXPTRANS.withColumn("PROPERTY", expr("CASE WHEN instr(SESSION, '=')=0 THEN NULL ELSE substring(SESSION,instr(SESSION,'=')+1) END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Select only mapping output ports (prevents column leakage)
-        df_EXPTRANS = df_EXPTRANS.select("PARAMETER", "PROPERTY")
+        # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: read_LKPTRANS")
@@ -119,32 +118,31 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         
         logger.info("Step: apply_LKPTRANS")
         # Lookup: apply_LKPTRANS
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKPTRANS = df_LKPTRANS.dropDuplicates(subset=["PRPTY"])
         # Join condition: PROPERTY=PRPTY
-        df_LKPTRANS = df_EXPTRANS.join(
-            broadcast(df_LKPTRANS),
-            (df_EXPTRANS["PROPERTY"] == df_LKPTRANS["PRPTY"]),
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKPTRANS
+        _lkp_right = _lkp_right.withColumnRenamed("PRPTY", "_lkp_PRPTY")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_EXPTRANS.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_1 = df_EXPTRANS.join(
+            broadcast(_lkp_right),
+            (df_EXPTRANS["PROPERTY"] == _lkp_right["_lkp_PRPTY"]),
             "left"
-        )
-        ctx.register_df("df_LKPTRANS", df_LKPTRANS)
-        
-        logger.info("Step: join_EXPTRANS1_0")
-        # Lookup: join_EXPTRANS1_0
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_LKPTRANS.columns if c in df_EXPTRANS.columns]
-        df_exp_merge_1 = df_LKPTRANS.join(
-            df_EXPTRANS,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_exp_merge_1", df_exp_merge_1)
+        ).drop("_lkp_PRPTY")
+
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
         
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
-        df_EXPTRANS1 = df_exp_merge_1
+        df_EXPTRANS1 = df_lkp_merge_1
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("LINE", expr("concat(PARAMETER,CASE WHEN (VAL IS NULL) THEN '' ELSE VAL END)"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Select only mapping output ports (prevents column leakage)
-        df_EXPTRANS1 = df_EXPTRANS1.select("LINE")
+        # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
         
         logger.info("Step: write_UTL_JOB_PARAM")

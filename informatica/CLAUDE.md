@@ -78,6 +78,13 @@ This file captures conventions, patterns, and rules established during developme
 - `execute_plan_step` handles both the standalone `"task"` type step AND tasks embedded inside `parallel_group` steps.
 - Tasks now log `"Task X completed: SUCCESS"` and add to the workflow's `completed` set, so they appear in final workflow counts.
 
+### `_get_input_df` Downstream Preference (v2026.07.20)
+- When multiple upstream instances connect to a component, `_get_input_df` prefers:
+  1. Special results (`df_lkp_result`, `df_jnr_result`)
+  2. Non-chain DataFrames (not `df_lkp_merge*`, `df_merge*`, `df_sq_*`)
+  3. Among non-chain matches, the instance that is downstream of another upstream (detected via connector edges)
+- This prevents selecting a raw chain/merge DF over the full transformation DF.
+
 ### Mapping Logging from Workflow Runtime
 - `run_sessions_sequential` and `run_sessions_parallel` log `"Start to run mapping X"` and `"Mapping X completed: SUCCESS"` for every mapping execution.
 - In `run_sessions_parallel`, `future_map` stores `(session_name, mapping_name)` tuples so each completion correctly reports the right mapping name regardless of completion order.
@@ -110,10 +117,67 @@ This file captures conventions, patterns, and rules established during developme
 - **Fix for main mapping**: Build `_agg_field_remap` / `_expr_field_remap` from main mapping connectors. Apply to aggregator and expression transformations.
 - **Entry-point remapping**: When a mapplet's external input columns differ from its INPUT port names, generate an `input_*` remap step that adds `withColumn("IN_PORT", expr("ACTUAL_COL"))`.
 
+### Router Transformation Support (v2026.07.20)
+- **`_handle_router`** (handlers.py): Parses GROUP elements for filter conditions per output group; builds rename maps from REF_FIELD attributes (e.g. `PRPL_CSSA_APLY_ID_TYPE_CODE` → `_CODE1`, `_CODE2` per group).
+- **Router output registration**: Each output group gets its own DataFrame (`df_rtr_<group>`) registered under multiple key patterns (`instance_group`, `trans_group`, etc.) for downstream connector resolution.
+- **DEFAULT group**: When conditions exist, the DEFAULT/else group gets the negated conjunction `~(cond1) & ~(cond2) & ...`.
+- **Template** (mapping.py.j2): Per-group `.filter(expr(...))` with `.withColumnRenamed()` for REF_FIELD suffix columns.
+- **BFS walk skip**: The lookup chain BFS walk skips Router instances (they have multiple outputs registered under suffixed keys).
+- **`expr("TRUE")`**: Bare `True`/`False` in filter conditions are wrapped as `expr("TRUE")`/`expr("FALSE")` to avoid `NameError` (Router templates).
+
+### Union Per-Group Select+Alias (v2026.07.20)
+- **Per-input-group intermediate DFs**: Each Union input group gets an intermediate DataFrame (`df_<union>_<group>`) that `select`s only the needed upstream columns with proper aliases.
+- **Router-aware upstream resolution**: When an upstream is a Router, resolves to the correct Router output group DataFrame using `from_field` and `group_name`.
+- **Best upstream DF selection**: Prefers `EXPTRANS`/`EXP_` (downstream transformations that inherit all columns) over raw chain/merge DFs.
+
+### Joiner Enhancements (v2026.07.20)
+- **Master/detail port detection**: Uses `PORTTYPE` markers (`INPUT/OUTPUT/MASTER`) on TRANSFORMFIELD elements to identify master vs detail, with fallback to exclusion when only MASTER is marked.
+- **Select+alias intermediate DFs**: For both master and detail sides, generates `select(col("upstream").alias("joiner_port"))` to avoid column conflicts.
+- **Join type mapping**: `Detail Outer` → `left`, `Master Outer` → `right`, `Full Outer` → `full`.
+- **Deferred processing**: Joiners whose inputs aren't ready are deferred and re-processed after all upstream transforms complete.
+
 ### Aggregator Enhancements
 - **GROUPBY detection**: Parser now detects `EXPRESSIONTYPE="GROUPBY"` (not just `GROUPBY="YES"`).
 - **Complex aggregation**: `_translate_aggregation_expr` now supports complex inner expressions (e.g. `SUM(DECODE(...))`) by translating the inner expression and wrapping with `expr()`. Simple column references use the short form `sum("col")`.
 - **Runtime $$ substitution**: Mapping variables (`$$v_rpt_mth`) in aggregate expressions use Python f-strings (`expr(f"""...{v_rpt_mth}...""")`) for runtime resolution from job_params.
+- **Literal GROUPBY fields**: Fields with `EXPRESSIONTYPE=GROUPBY` but constant expressions (e.g. `0 as DUMMY`, `'U' as HSHLD_AEM_IND`) are treated as literal columns — added to both `_agg_input.select()` via `expr("0").alias("DUMMY")` AND `groupBy()` to survive `agg()`.
+- **Conditional MIN/MAX**: `MIN(col, cond)` and `MAX(col, cond)` now use `when()` (previously only COUNT/SUM were supported).
+- **Complex agg column**: Non-simple column expressions in `FUNC(col_expr, cond)` use `expr("col_expr")` instead of `col("col_expr")` (e.g. `MTH_RENT_AMT_IN - VOID_RENT_AMT_IN`).
+
+### $$ Mapping Variable Handling (v2026.07.20)
+- **`translate_for_filter`** (expr_translator.py): Temporarily removes `$$` mapping variables from `pm_variables` during translation so functions are converted but `$$` variables are preserved (prevents double-quoting when variables appear inside SQL string literals).
+- **Filter template** (mapping.py.j2): Filter expressions with `$$` variables use `_filter_text` + `.replace()` runtime substitution pattern (same as Source Qualifier).
+- **Source Qualifier filter_inner**: Extracted from the translated result (not raw expression) to include function translation while preserving `$$` for runtime `.replace()`.
+
+### Filter & Sorter Connector Field Rename (v2026.07.20)
+- **Filter renames**: Connector mappings where `from_field ≠ to_field` (e.g. `CUST_TNT_CODE_OUT` → `CUST_TNT_CODE`) are applied via `drop("to").withColumnRenamed("from", "to")` before the filter condition.
+- **Sorter renames**: Same pattern for Sorter component; `ISSORTKEY="YES"` fields only in `orderBy()`.
+- **Duplicate protection**: All `withColumnRenamed` calls are preceded by `.drop(target)` to prevent duplicate columns after rename.
+
+### LOCAL VARIABLE Support (v2026.07.20)
+- **Counter pattern** (`IIF(ISNULL(X),1,X+1)`): Detected as self-referencing increment → converted to `monotonically_increasing_id() + 1` (partition-safe, no shuffle).
+- **Retain pattern** (`IIF(cond, val, X)`): Detected as self-referencing non-increment → converted to `last(when(cond, val), True).over(Window.orderBy(lit(1)))` (carries forward last non-null value).
+- Both patterns are promoted from LOCAL VARIABLE to computed columns; downstream OUTPUT ports referencing them work via `expr("var_name")`.
+
+### Topological Sort Fix (v2026.07.20)
+- **Word boundary dependency detection**: Changed from `_dep_name in expression` (substring match) to `re.search(r'\b' + re.escape(_dep_name) + r'\b', expression)` — prevents false dependencies when one column name is a substring of another (e.g. `FILE_MTH` falsely detected inside `FILE_MTH_V`).
+
+### `get_input_df` Downstream Preference (v2026.07.20)
+- When multiple upstream instances feed a component and all are non-chain DataFrames, prefers the instance that is downstream of another upstream instance (detected via connector graph). E.g., if `JNRTRANS → MPLT_LKP → AGG_SUM`, then `MPLT_LKP_RENT_ENQ_RMDR_SMRY` is preferred over `df_JNRTRANS`.
+
+### Expression Translation Fixes (v2026.07.20)
+- **REPLACECHR**: Custom handler `_translate_replacechr` converts 4-arg Informatica `REPLACECHR(start, str, from, to)` to 3-arg PySpark `translate(str, from, to)` (start_pos dropped, NULL→'').
+- **TO_NUMBER**: Added to FUNCTION_MAP as `cast({} as decimal)`.
+- **Date format patterns**: Rewritten `_translate_date_format_patterns` uses `_extract_function_args` (handles nested parentheses) instead of regex `[^)]*?`. Correctly converts `YYYYMMDD` to `yyyyMMdd` in complex `to_date(cast(...)||'01','YYYYMMDD')` expressions.
+- **`expr("TRUE")`**: `wrap_with_expr` wraps bare True/False as `expr("TRUE")`/`expr("FALSE")` instead of returning bare `True`/`False` (which caused `NameError` in Router templates).
+
+### Flat File config.yml Fix (v2026.07.20)
+- **`is_flat_file` flag**: Source table entries in service.py now include `"is_flat_file": is_flat` so flat file objects (e.g. `FLAT_DRP_MP`) are correctly emitted in config.yml's `objects:` section.
+
+### Template Jinja2 Patterns (v2026.07.20)
+- **`last(when(...))` direct API**: New check `'last(when(' in expr_str` to bypass `expr()` wrapping for PySpark API expressions.
+- **`monotonically_increasing_id()` direct API**: Template checks for `'monotonically_increasing_id' in expr_str` to avoid `expr()` wrapping.
+- **`drop + withColumnRenamed`**: All `withColumnRenamed` calls for Filter and Router component renames are preceded by `drop(target_name)` to prevent duplicate columns.
 
 ### Expression Translation: Bare function handling
 - `_translate_functions` now handles bare keywords without parentheses (e.g. bare `SYSDATE` → `current_timestamp()`), using a negative lookahead `(?!\s*\()` to avoid double-matching functions with parentheses.
@@ -209,6 +273,9 @@ use default python to run pyspark workflow or mapping
 - Use `| tojson` for simple dict/list embedding in Python files only when no booleans are present. Use `| topython` (custom filter) when booleans may appear.
 - The `topython` filter is registered in `codegen.py` and converts `true`/`false`/`null` to `True`/`False`/`None`.
 - All templates are in `templates/` directory: `mapping.py.j2`, `workflow_orchestration.py.j2`, `runtime_lib.py.j2`, `config.yml.j2`, `objects.yml.j2`, `job.py.j2`.
+- **`row_number()` / `last(when())` / `monotonically_increasing_id()`**: PySpark API expressions must NOT be wrapped in `expr()`. Template checks for `'row_number()' in expr_str`, `'monotonically_increasing_id' in expr_str`, and `'last(when(' in expr_str` to use direct `withColumn("col", expression)` instead of `withColumn("col", expr("expression"))`.
+- **`withColumnRenamed` with drop**: Always use `df.drop("target").withColumnRenamed("src", "target")` when renaming columns via connectors to prevent duplicates.
+- **`_filter_text` pattern**: Filter/Source Qualifier expressions with `$$` mapping variables use `_filter_text = """..."""; _filter_text = _filter_text.replace("$$var", var)` for runtime substitution.
 
 ### PySpark `max`/`min` Shadowing
 
@@ -223,7 +290,7 @@ use default python to run pyspark workflow or mapping
 
 ## Conversion Progress
 
-As of **2026-07-02** (version **v2026.07.02**), 10 workflows (~1,130 mappings) have been converted from Informatica PowerCenter XML to PySpark. All standard Informatica transformation types are supported except SAP R/3 source connections and Java/C-based Custom Transformations.
+As of **2026-07-20** (version **v2026.07.20**), 10 workflows (~1,130 mappings) have been converted from Informatica PowerCenter XML to PySpark.
 
 ### ✅ Runtime Verified
 | Workflow | Mappings | XML Size | Status |
@@ -252,26 +319,26 @@ As of **2026-07-02** (version **v2026.07.02**), 10 workflows (~1,130 mappings) h
 | Feature | Tested In | Status |
 |---------|-----------|--------|
 | Source Qualifier (DB) | All | ✅ |
-| Source Qualifier (File) | WF_EMS_TL | ✅ (basic) |
-| Expression / Filter | All | ✅ |
-| Aggregator (complex expr) | WF_CMS_DDS_APLY_MTH | ✅ |
-| Lookup Procedure | WF_CMS_DDS_APLY_MTH, WF_GMS_DDS_APLY_DLY | ✅ |
-| Joiner | WF_CMS_DDS_APLY_MTH | ✅ |
+| Source Qualifier (File / Flat File) | WF_EMS_TL, WF_EMS_PRHE_DDS_APLY_RVN_MTH | ✅ |
+| Expression / Filter (with $$ vars) | All | ✅ |
+| Aggregator (complex expr, literal GROUPBY, conditional MIN/MAX) | WF_CMS_DDS_APLY_MTH, WF_EMS_PRHE_DDS_APLY_RVN_MTH | ✅ |
+| Lookup Procedure (chain-join, dedup, merge dedup) | WF_CMS_DDS_APLY_MTH, WF_EMS_PRHE_DDS_APLY_RVN_MTH | ✅ |
+| Joiner (master/detail, join types, select+alias) | WF_CMS_DDS_APLY_MTH, WF_EMS_PRHE_DDS_APLY_RVN_MTH | ✅ |
 | Sequence Generator | WF_HOMES_DDS_APLY_DMNS | ✅ |
 | Mapplet (inline mini-DAG) | WF_CMS_DDS_APLY_MTH | ✅ |
 | Stored Procedure | WF_CMS_DDS_APLY_MTH | ✅ |
-| Update Strategy / Sorter | WF_CMS_DDS_APLY_MTH | ✅ |
+| Update Strategy / Sorter (ISSORTKEY, rename) | WF_CMS_DDS_APLY_MTH, WF_EMS_PRHE_DDS_APLY_RVN_MTH | ✅ |
 | Inline Lookup (`:LKP.xxx()`) | WF_CMS_DDS_APLY_MTH | ✅ |
 | Multi-input merge | WF_CMS_DDS_APLY_MTH | ✅ |
-| Mapping Variables ($$) | WF_CMS_DDS_APLY_MTH | ✅ |
+| Mapping Variables ($$) runtime replace | WF_CMS_DDS_APLY_MTH, WF_EMS_PRHE_DDS_APLY_RVN_MTH | ✅ |
 | Folder-level shared transforms | WF_CMS_DDS_APLY_MTH | ✅ |
 | Worklet / Parallel Sessions | WF_GMS_DDS_APLY_DLY | ✅ |
 | Email / Command Tasks | WF_GMS_DDS_APLY_DLY | ✅ |
-| Router | — | ✅ |
-| Normalizer | — | ✅ (posexplode with GENERATED_KEY) |
-| Rank | — | ✅ (Window with row_number) |
-| Transaction Control | — | ✅ (no-op, Spark batch-managed) |
-| Application Source Qualifier | — | ✅ (delegates to Source Qualifier) |
-| ODBC Source (→ JDBC) | — | ✅ (auto-resolve underlying DB) |
-| Custom Transformation | — | ⚠️ (routed to Union handler; Java/C sub-types need review) |
-| SAP R/3 Source | — | ❌ (SAP-specific connector not implemented) |
+| Router (filter groups, REF_FIELD rename) | WF_EMS_PRHE_DDS_APLY_RVN_MTH | ✅ |
+| Union (per-group select+alias) | WF_EMS_PRHE_DDS_APLY_RVN_MTH | ✅ |
+| LOCAL VARIABLE (counter + retain) | WF_EMS_PRHE_DDS_APLY_RVN_MTH | ✅ |
+| Filter / Sorter connector field rename | WF_EMS_PRHE_DDS_APLY_RVN_MTH | ✅ |
+| Flat File config.yml object registration | WF_EMS_PRHE_DDS_APLY_RVN_MTH | ✅ |
+| REPLACECHR, TO_NUMBER, date format | WF_EMS_PRHE_DDS_APLY_RVN_MTH | ✅ |
+| Source Filter table prefix stripping | WF_EMS_PRHE_DDS_APLY_RVN_MTH | ✅ |
+| Normalizer | — | ⏳ Pending |

@@ -69,49 +69,19 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.warning("UTL_JOB_PARAM not found, using default values")
     
     try:
-        logger.info("Step: read_SOR_HOM_PRG_SNSH_STS")
-        # Reading Data From Source - read_SOR_HOM_PRG_SNSH_STS
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_1 = lib.read_sql(spark, _conn, table="SOR_HOM_PRG_SNSH_STS")
-        
-        logger.info("Step: read_SOR_HOM_REF_DSTR")
-        # Reading Data From Source - read_SOR_HOM_REF_DSTR
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_2 = lib.read_sql(spark, _conn, table="SOR_HOM_REF_DSTR")
-        
-        logger.info("Step: read_SOR_HOM_PRJ_PROJ")
-        # Reading Data From Source - read_SOR_HOM_PRJ_PROJ
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_3 = lib.read_sql(spark, _conn, table="SOR_HOM_PRJ_PROJ")
-        
-        logger.info("Step: read_SOR_HOM_PRG_SNSH_PROJ_STS")
-        # Reading Data From Source - read_SOR_HOM_PRG_SNSH_PROJ_STS
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_4 = lib.read_sql(spark, _conn, table="SOR_HOM_PRG_SNSH_PROJ_STS")
-        
         logger.info("Step: apply_SEQ_DMNS_PROJ_KEY")
         # Sequence Generator: apply_SEQ_DMNS_PROJ_KEY
-        df_seq_5 = df_input.withColumn(
+        df_SEQ_DMNS_PROJ_KEY = df_input.withColumn(
             "NEXTVAL", 
             monotonically_increasing_id() + 0
         )
-        ctx.register_df("df_seq_5", df_seq_5)
+        ctx.register_df("df_SEQ_DMNS_PROJ_KEY", df_SEQ_DMNS_PROJ_KEY)
         
         logger.info("Step: read_SOR_HOM_PRG_SNSH_PROJ")
         # Reading Data From Source - read_SOR_HOM_PRG_SNSH_PROJ
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "SOR")
-        df_src_6 = lib.read_sql(spark, _conn, table="SOR_HOM_PRG_SNSH_PROJ")
-        
-        logger.info("Step: read_SOR_HOM_PRG_SNSH")
-        # Reading Data From Source - read_SOR_HOM_PRG_SNSH
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_7 = lib.read_sql(spark, _conn, table="SOR_HOM_PRG_SNSH")
+        df_SOR_HOM_PRG_SNSH_PROJ = lib.read_sql(spark, _conn, table="SOR_HOM_PRG_SNSH_PROJ")
         
         logger.info("Step: apply_SQ_SOR_HOM_PRG_SNSH_PROJ_STS")
         # Source Qualifier: apply_SQ_SOR_HOM_PRG_SNSH_PROJ_STS
@@ -144,95 +114,114 @@ and pj.proj_key = p.proj_key
 and TO_DATE ($$v_snsh_date, 'YYYYMMDD') BETWEEN pp.bgn_date AND pp.end_date
 and TO_DATE ($$v_snsh_date, 'YYYYMMDD') BETWEEN ss.bgn_date AND ss.end_date"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
-        df_sq_8 = lib.read_sql(spark, _conn, query=query)
+        df_SQ_SOR_HOM_PRG_SNSH_PROJ_STS = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_8.columns
+        _sql_cols = df_SQ_SOR_HOM_PRG_SNSH_PROJ_STS.columns
         _port_cols = ["PROJ_HOM_BK", "SNSH_KEY", "DSTR_CODE", "PROJ_NUM", "DEV_TYPE_CODE", "PHASE_CODE", "PROJ_TTL", "SNSH_PROJ_DISP_SEQ_NUM"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_8 = df_sq_8.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_SQ_SOR_HOM_PRG_SNSH_PROJ_STS = df_SQ_SOR_HOM_PRG_SNSH_PROJ_STS.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_8 = df_sq_8.select("PROJ_HOM_BK", "SNSH_KEY", "DSTR_CODE", "PROJ_NUM", "DEV_TYPE_CODE", "PHASE_CODE", "PROJ_TTL", "SNSH_PROJ_DISP_SEQ_NUM")
+        df_SQ_SOR_HOM_PRG_SNSH_PROJ_STS = df_SQ_SOR_HOM_PRG_SNSH_PROJ_STS.select("PROJ_HOM_BK", "SNSH_KEY", "DSTR_CODE", "PROJ_NUM", "DEV_TYPE_CODE", "PHASE_CODE", "PROJ_TTL", "SNSH_PROJ_DISP_SEQ_NUM")
         
-        ctx.register_df("df_sq_8", df_sq_8)
+        ctx.register_df("df_SQ_SOR_HOM_PRG_SNSH_PROJ_STS", df_SQ_SOR_HOM_PRG_SNSH_PROJ_STS)
         
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
-        df_exp_9 = df_sq_8
-        df_exp_9 = df_exp_9.withColumn("SNSH_HOM_KEY", expr("SNSH_KEY"))
+        df_EXPTRANS1 = df_SQ_SOR_HOM_PRG_SNSH_PROJ_STS
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("SNSH_HOM_KEY", expr("SNSH_KEY"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["PROJ_HOM_BK", "DSTR_CODE", "PROJ_NUM", "DEV_TYPE_CODE", "PHASE_CODE", "PROJ_TTL", "SNSH_PROJ_DISP_SEQ_NUM"]:
-            if _col not in df_exp_9.columns:
-                df_exp_9 = df_exp_9.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_9 = df_exp_9.select("PROJ_HOM_BK", "SNSH_HOM_KEY", "DSTR_CODE", "PROJ_NUM", "DEV_TYPE_CODE", "PHASE_CODE", "PROJ_TTL", "SNSH_PROJ_DISP_SEQ_NUM")
-        ctx.register_df("df_exp_9", df_exp_9)
+            if _col not in df_EXPTRANS1.columns:
+                df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
         
         logger.info("Step: read_LKP_DDS_DMNS_SNSH_PROJ1")
         # Reading Data From Source - read_LKP_DDS_DMNS_SNSH_PROJ1
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_lkp_10 = lib.read_sql(spark, _conn, table="DDS_DMNS_SNSH_PROJ")
+        df_LKP_DDS_DMNS_SNSH_PROJ1 = lib.read_sql(spark, _conn, table="DDS_DMNS_SNSH_PROJ")
         
         logger.info("Step: apply_LKP_DDS_DMNS_SNSH_PROJ1")
         # Lookup: apply_LKP_DDS_DMNS_SNSH_PROJ1
-        # Join condition: IN_PROJ_KEY=PROJ_KEY AND IN_SNSH_KEY=SNSH_KEY        
-        df_lkp_result_11 = df_exp_9.join(
-            broadcast(df_lkp_10),
-            (df_exp_9["IN_PROJ_KEY"] == df_lkp_10["PROJ_KEY"]) &             (df_exp_9["IN_SNSH_KEY"] == df_lkp_10["SNSH_KEY"]),
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_DDS_DMNS_SNSH_PROJ1 = df_LKP_DDS_DMNS_SNSH_PROJ1.dropDuplicates(subset=["PROJ_KEY", "SNSH_KEY"])
+        # Join condition: PROJ_HOM_BK=PROJ_KEY AND SNSH_HOM_KEY=SNSH_KEY
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_DDS_DMNS_SNSH_PROJ1
+        _lkp_right = _lkp_right.withColumnRenamed("PROJ_KEY", "_lkp_PROJ_KEY")
+        _lkp_right = _lkp_right.withColumnRenamed("SNSH_KEY", "_lkp_SNSH_KEY")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_EXPTRANS1.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_1 = df_EXPTRANS1.join(
+            broadcast(_lkp_right),
+            (df_EXPTRANS1["PROJ_HOM_BK"] == _lkp_right["_lkp_PROJ_KEY"]) &
+            (df_EXPTRANS1["SNSH_HOM_KEY"] == _lkp_right["_lkp_SNSH_KEY"]),
             "left"
-        )
-        ctx.register_df("df_lkp_result_11", df_lkp_result_11)
-        
-        logger.info("Step: join_EXPTRANS_0")
-        # Lookup: join_EXPTRANS_0
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_lkp_result_11.columns if c in df_exp_9.columns]
-        df_exp_merge_13 = df_lkp_result_11.join(
-            df_exp_9,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_exp_merge_13", df_exp_merge_13)
+        ).drop("_lkp_PROJ_KEY").drop("_lkp_SNSH_KEY")
+
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_exp_12 = df_exp_merge_13
-        df_exp_12 = df_exp_12.withColumn("PROJ_DISP_SEQ_NUM", expr("SNSH_PROJ_DISP_SEQ_NUM"))
-        df_exp_12 = df_exp_12.withColumn("IN_PHASE_CODE", expr("PHASE_CODE"))
-        df_exp_12 = df_exp_12.withColumn("IN_PROJ_TTL", expr("PROJ_TTL"))
-        df_exp_12 = df_exp_12.withColumn("IN_PROJ_NUM", expr("PROJ_NUM"))
-        df_exp_12 = df_exp_12.withColumn("IN_PROJ_DISP_SEQ_NUM", expr("IN_SNSH_PROJ_DISP_SEQ_NUM"))
-        df_exp_12 = df_exp_12.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_SNSH_PROJ_KEY IS NULL) OR CASE WHEN PROJ_NUM = PROJ_NUM THEN false ELSE true END OR CASE WHEN PHASE_CODE = PHASE_CODE THEN false ELSE true END OR CASE WHEN PROJ_TTL = PROJ_TTL THEN false ELSE true END THEN 1 ELSE 0 END"))
+        df_EXPTRANS = df_lkp_merge_1
+        df_EXPTRANS = df_EXPTRANS.withColumn("PROJ_DISP_SEQ_NUM", expr("SNSH_PROJ_DISP_SEQ_NUM"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("IN_PROJ_DISP_SEQ_NUM", expr("IN_SNSH_PROJ_DISP_SEQ_NUM"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("IN_PHASE_CODE", expr("PHASE_CODE"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("IN_PROJ_TTL", expr("PROJ_TTL"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_SNSH_PROJ_KEY IS NULL) OR CASE WHEN PROJ_NUM = PROJ_NUM THEN false ELSE true END OR CASE WHEN PHASE_CODE = PHASE_CODE THEN false ELSE true END OR CASE WHEN PROJ_TTL = PROJ_TTL THEN false ELSE true END THEN 1 ELSE 0 END"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("IN_PROJ_NUM", expr("PROJ_NUM"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["PROJ_KEY", "PHASE_CODE", "PROJ_TTL", "PROJ_NUM", "SNSH_KEY", "DMNS_SNSH_PROJ_KEY", "IN_PROJ_KEY", "IN_SNSH_KEY"]:
-            if _col not in df_exp_12.columns:
-                df_exp_12 = df_exp_12.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_12 = df_exp_12.select("CHANGE_FLAG", "DMNS_SNSH_PROJ_KEY", "PROJ_KEY", "SNSH_KEY", "PROJ_NUM", "PHASE_CODE", "PROJ_TTL", "PROJ_DISP_SEQ_NUM", "IN_PROJ_KEY", "IN_SNSH_KEY", "IN_PROJ_NUM", "IN_PHASE_CODE", "IN_PROJ_TTL", "IN_PROJ_DISP_SEQ_NUM")
-        ctx.register_df("df_exp_12", df_exp_12)
+        for _col in ["DMNS_SNSH_PROJ_KEY", "PHASE_CODE", "PROJ_TTL", "PROJ_NUM", "PROJ_KEY", "SNSH_KEY", "IN_PROJ_KEY", "IN_SNSH_KEY"]:
+            if _col not in df_EXPTRANS.columns:
+                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: apply_FIL_CHANGE")
         # Filter: apply_FIL_CHANGE
-        df_fil_14 = df_exp_12.filter(expr("CHANGE_FLAG = 1 AND ( NOT (DMNS_SNSH_PROJ_KEY IS NULL))"))
-        ctx.register_df("df_fil_14", df_fil_14)
+        __fil_input = df_EXPTRANS
+        df_FIL_CHANGE = __fil_input.filter(expr("CHANGE_FLAG = 1 AND ( NOT (DMNS_SNSH_PROJ_KEY IS NULL))"))
+        ctx.register_df("df_FIL_CHANGE", df_FIL_CHANGE)
         
         logger.info("Step: apply_FIL_NEW")
         # Filter: apply_FIL_NEW
-        df_fil_15 = df_exp_12.filter(expr("CHANGE_FLAG = 1 AND (DMNS_SNSH_PROJ_KEY IS NULL)"))
-        ctx.register_df("df_fil_15", df_fil_15)
+        __fil_input = df_SEQ_DMNS_PROJ_KEY
+        df_FIL_NEW = __fil_input.filter(expr("CHANGE_FLAG = 1 AND (DMNS_SNSH_PROJ_KEY IS NULL)"))
+        ctx.register_df("df_FIL_NEW", df_FIL_NEW)
         
         logger.info("Step: apply_Union_Transformation")
         # Union: apply_Union_Transformation
-        df_un_16 = df_fil_14
-        df_un_16 = df_un_16.unionByName(df_fil_15, allowMissingColumns=True)
+        # Select + rename upstream columns per input, then union
+        df_Union_Transformation_change = df_FIL_CHANGE.select(
+            col("DMNS_SNSH_PROJ_KEY").alias("DMNS_SNSH_PROJ_KEY"),
+            col("IN_PROJ_KEY").alias("IN_PROJ_KEY"),
+            col("IN_SNSH_KEY").alias("IN_SNSH_KEY"),
+            col("IN_PROJ_NUM").alias("IN_PROJ_NUM"),
+            col("IN_PHASE_CODE").alias("IN_PHASE_CODE"),
+            col("IN_PROJ_TTL").alias("IN_PROJ_TTL"),
+            col("IN_PROJ_DISP_SEQ_NUM").alias("IN_PROJ_DISP_SEQ_NUM")        )
+        df_Union_Transformation_new = df_FIL_NEW.select(
+            col("NEXTVAL").alias("DMNS_SNSH_PROJ_KEY"),
+            col("IN_PROJ_KEY").alias("IN_PROJ_KEY"),
+            col("IN_SNSH_KEY").alias("IN_SNSH_KEY"),
+            col("IN_PROJ_NUM").alias("IN_PROJ_NUM"),
+            col("IN_PHASE_CODE").alias("IN_PHASE_CODE"),
+            col("IN_PROJ_TTL").alias("IN_PROJ_TTL"),
+            col("IN_PROJ_DISP_SEQ_NUM").alias("IN_PROJ_DISP_SEQ_NUM")        )
+        df_Union_Transformation = df_Union_Transformation_change
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_new, allowMissingColumns=True)
         # Select only union output columns
-        df_un_16 = df_un_16.select("DMNS_SNSH_PROJ_KEY", "IN_PROJ_KEY", "IN_SNSH_KEY", "IN_PROJ_NUM", "IN_PHASE_CODE", "IN_PROJ_TTL", "IN_PROJ_DISP_SEQ_NUM")
-        ctx.register_df("df_un_16", df_un_16)
+        df_Union_Transformation = df_Union_Transformation.select("DMNS_SNSH_PROJ_KEY", "IN_PROJ_KEY", "IN_SNSH_KEY", "IN_PROJ_NUM", "IN_PHASE_CODE", "IN_PROJ_TTL", "IN_PROJ_DISP_SEQ_NUM")
+        ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
         logger.info("Step: write_DPA_DMNS_SNSH_PROJ")
         # Write to Target: write_DPA_DMNS_SNSH_PROJ
-        df_write = df_un_16
+        df_write = df_Union_Transformation
         # Cast columns to match target schema data types
         if "disp_fin_year_text" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

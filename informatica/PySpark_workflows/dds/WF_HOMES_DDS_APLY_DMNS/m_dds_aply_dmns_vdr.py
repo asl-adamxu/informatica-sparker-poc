@@ -51,12 +51,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
 
     
     try:
-        logger.info("Step: read_DPA_DMNS_VDR")
-        # Reading Data From Source - read_DPA_DMNS_VDR
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "DPA")
-        df_src_1 = lib.read_sql(spark, _conn, table="DPA_DMNS_VDR")
-        
         logger.info("Step: apply_SQ_DPA_DMNS_VDR")
         # Source Qualifier: apply_SQ_DPA_DMNS_VDR
         # SQL Pushdown - executes Informatica SQ SQL on source database
@@ -69,33 +63,32 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
        ) VDR_DISP_SEQ_NUM 
 FROM
  DPA_DMNS_VDR"""
-        df_sq_2 = lib.read_sql(spark, _conn, query=query)
+        df_SQ_DPA_DMNS_VDR = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_2.columns
+        _sql_cols = df_SQ_DPA_DMNS_VDR.columns
         _port_cols = ["DMNS_VDR_KEY", "VDR_NUM", "VDR_NAME", "VDR_DISP_SEQ_NUM"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_2 = df_sq_2.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_SQ_DPA_DMNS_VDR = df_SQ_DPA_DMNS_VDR.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_2 = df_sq_2.select("DMNS_VDR_KEY", "VDR_NUM", "VDR_NAME", "VDR_DISP_SEQ_NUM")
+        df_SQ_DPA_DMNS_VDR = df_SQ_DPA_DMNS_VDR.select("DMNS_VDR_KEY", "VDR_NUM", "VDR_NAME", "VDR_DISP_SEQ_NUM")
         
-        ctx.register_df("df_sq_2", df_sq_2)
+        ctx.register_df("df_SQ_DPA_DMNS_VDR", df_SQ_DPA_DMNS_VDR)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_exp_3 = df_sq_2
-        df_exp_3 = df_exp_3.withColumn("VDR_DISP_SEQ_NUM_OUT", expr("CASE WHEN VDR_NUM = '0' THEN 99999 ELSE VDR_DISP_SEQ_NUM -1 END"))
+        df_EXPTRANS = df_SQ_DPA_DMNS_VDR
+        df_EXPTRANS = df_EXPTRANS.withColumn("VDR_DISP_SEQ_NUM_OUT", expr("CASE WHEN VDR_NUM = '0' THEN 99999 ELSE VDR_DISP_SEQ_NUM -1 END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["DMNS_VDR_KEY", "VDR_NUM", "VDR_NAME"]:
-            if _col not in df_exp_3.columns:
-                df_exp_3 = df_exp_3.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_3 = df_exp_3.select("DMNS_VDR_KEY", "VDR_NUM", "VDR_NAME", "VDR_DISP_SEQ_NUM_OUT")
-        ctx.register_df("df_exp_3", df_exp_3)
+            if _col not in df_EXPTRANS.columns:
+                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_DDS_DMNS_VDR")
         # Write to Target: write_DDS_DMNS_VDR
-        df_write = df_exp_3
+        df_write = df_EXPTRANS
         # Cast columns to match target schema data types
         if "vdr_num" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

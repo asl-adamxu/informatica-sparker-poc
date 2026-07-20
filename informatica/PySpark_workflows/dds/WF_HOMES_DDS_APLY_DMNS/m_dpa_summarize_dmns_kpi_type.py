@@ -73,45 +73,21 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Reading Data From Source - read_SOR_HOM_SMT_KPI_INPT_MSR
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "SOR")
-        df_src_1 = lib.read_sql(spark, _conn, table="SOR_HOM_SMT_KPI_INPT_MSR")
+        df_SOR_HOM_SMT_KPI_INPT_MSR = lib.read_sql(spark, _conn, table="SOR_HOM_SMT_KPI_INPT_MSR")
         
         logger.info("Step: read_SOR_HOM_SMT_KPI_INPT_MSR_STS")
         # Reading Data From Source - read_SOR_HOM_SMT_KPI_INPT_MSR_STS
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "SOR")
-        df_src_2 = lib.read_sql(spark, _conn, table="SOR_HOM_SMT_KPI_INPT_MSR_STS")
-        
-        logger.info("Step: read_SOR_HOM_SMT_KPI_TYPE_CODE")
-        # Reading Data From Source - read_SOR_HOM_SMT_KPI_TYPE_CODE
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_3 = lib.read_sql(spark, _conn, table="SOR_HOM_SMT_KPI_TYPE_CODE")
-        
-        logger.info("Step: read_SOR_HOM_SMT_KPI_TYPE_CODE_STS")
-        # Reading Data From Source - read_SOR_HOM_SMT_KPI_TYPE_CODE_STS
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_4 = lib.read_sql(spark, _conn, table="SOR_HOM_SMT_KPI_TYPE_CODE_STS")
-        
-        logger.info("Step: read_SOR_HOM_SMT_KPI_TYPE_TAC")
-        # Reading Data From Source - read_SOR_HOM_SMT_KPI_TYPE_TAC
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_5 = lib.read_sql(spark, _conn, table="SOR_HOM_SMT_KPI_TYPE_TAC")
-        
-        logger.info("Step: read_SOR_HOM_SMT_KPI_TYPE_TAC_STS")
-        # Reading Data From Source - read_SOR_HOM_SMT_KPI_TYPE_TAC_STS
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_6 = lib.read_sql(spark, _conn, table="SOR_HOM_SMT_KPI_TYPE_TAC_STS")
+        df_SOR_HOM_SMT_KPI_INPT_MSR_STS = lib.read_sql(spark, _conn, table="SOR_HOM_SMT_KPI_INPT_MSR_STS")
         
         logger.info("Step: apply_SEQ_DMNS_KPI_TYPE_KEY")
         # Sequence Generator: apply_SEQ_DMNS_KPI_TYPE_KEY
-        df_seq_7 = df_input.withColumn(
+        df_SEQ_DMNS_KPI_TYPE_KEY = df_input.withColumn(
             "NEXTVAL", 
             monotonically_increasing_id() + 0
         )
-        ctx.register_df("df_seq_7", df_seq_7)
+        ctx.register_df("df_SEQ_DMNS_KPI_TYPE_KEY", df_SEQ_DMNS_KPI_TYPE_KEY)
         
         logger.info("Step: apply_SQ_SOR_HOM_SMT_KPI_TYPE_CODE")
         # Source Qualifier: apply_SQ_SOR_HOM_SMT_KPI_TYPE_CODE
@@ -140,80 +116,96 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
    and TO_DATE ($$v_snsh_date, 'YYYYMMDD') BETWEEN tt.bgn_date AND tt.end_date
    order by c.kpi_type_code, t.kpi_type_tac"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
-        df_sq_8 = lib.read_sql(spark, _conn, query=query)
+        df_SQ_SOR_HOM_SMT_KPI_TYPE_CODE = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_8.columns
+        _sql_cols = df_SQ_SOR_HOM_SMT_KPI_TYPE_CODE.columns
         _port_cols = ["KPI_TYPE_CODE", "KPI_TYPE_DESP", "KPI_TYPE_TAC", "KPI_TYPE_TRGT_ACTL_DESP"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_8 = df_sq_8.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_SQ_SOR_HOM_SMT_KPI_TYPE_CODE = df_SQ_SOR_HOM_SMT_KPI_TYPE_CODE.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_8 = df_sq_8.select("KPI_TYPE_CODE", "KPI_TYPE_DESP", "KPI_TYPE_TAC", "KPI_TYPE_TRGT_ACTL_DESP")
+        df_SQ_SOR_HOM_SMT_KPI_TYPE_CODE = df_SQ_SOR_HOM_SMT_KPI_TYPE_CODE.select("KPI_TYPE_CODE", "KPI_TYPE_DESP", "KPI_TYPE_TAC", "KPI_TYPE_TRGT_ACTL_DESP")
         
-        ctx.register_df("df_sq_8", df_sq_8)
+        ctx.register_df("df_SQ_SOR_HOM_SMT_KPI_TYPE_CODE", df_SQ_SOR_HOM_SMT_KPI_TYPE_CODE)
         
         logger.info("Step: read_LKP_DDS_DMNS_KPI_TYPE")
         # Reading Data From Source - read_LKP_DDS_DMNS_KPI_TYPE
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_lkp_9 = lib.read_sql(spark, _conn, table="DDS_DMNS_KPI_TYPE")
+        df_LKP_DDS_DMNS_KPI_TYPE = lib.read_sql(spark, _conn, table="DDS_DMNS_KPI_TYPE")
         
         logger.info("Step: apply_LKP_DDS_DMNS_KPI_TYPE")
         # Lookup: apply_LKP_DDS_DMNS_KPI_TYPE
-        # Join condition: IN_KPI_TYPE_CODE=KPI_TYPE_CODE AND IN_KPI_TYPE_TRGT_ACTL_CODE=KPI_TYPE_TRGT_ACTL_CODE        
-        df_lkp_result_10 = df_sq_8.join(
-            broadcast(df_lkp_9),
-            (df_sq_8["IN_KPI_TYPE_CODE"] == df_lkp_9["KPI_TYPE_CODE"]) &             (df_sq_8["IN_KPI_TYPE_TRGT_ACTL_CODE"] == df_lkp_9["KPI_TYPE_TRGT_ACTL_CODE"]),
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_DDS_DMNS_KPI_TYPE = df_LKP_DDS_DMNS_KPI_TYPE.dropDuplicates(subset=["KPI_TYPE_CODE", "KPI_TYPE_TRGT_ACTL_CODE"])
+        # Join condition: KPI_TYPE_CODE=KPI_TYPE_CODE AND KPI_TYPE_TAC=KPI_TYPE_TRGT_ACTL_CODE
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_DDS_DMNS_KPI_TYPE
+        _lkp_right = _lkp_right.withColumnRenamed("KPI_TYPE_CODE", "_lkp_KPI_TYPE_CODE")
+        _lkp_right = _lkp_right.withColumnRenamed("KPI_TYPE_TRGT_ACTL_CODE", "_lkp_KPI_TYPE_TRGT_ACTL_CODE")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_SQ_SOR_HOM_SMT_KPI_TYPE_CODE.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_1 = df_SQ_SOR_HOM_SMT_KPI_TYPE_CODE.join(
+            broadcast(_lkp_right),
+            (df_SQ_SOR_HOM_SMT_KPI_TYPE_CODE["KPI_TYPE_CODE"] == _lkp_right["_lkp_KPI_TYPE_CODE"]) &
+            (df_SQ_SOR_HOM_SMT_KPI_TYPE_CODE["KPI_TYPE_TAC"] == _lkp_right["_lkp_KPI_TYPE_TRGT_ACTL_CODE"]),
             "left"
-        )
-        ctx.register_df("df_lkp_result_10", df_lkp_result_10)
-        
-        logger.info("Step: join_EXPTRANS_0")
-        # Lookup: join_EXPTRANS_0
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_lkp_result_10.columns if c in df_sq_8.columns]
-        df_exp_merge_12 = df_lkp_result_10.join(
-            df_sq_8,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_exp_merge_12", df_exp_merge_12)
+        ).drop("_lkp_KPI_TYPE_CODE").drop("_lkp_KPI_TYPE_TRGT_ACTL_CODE")
+
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_exp_11 = df_exp_merge_12
-        df_exp_11 = df_exp_11.withColumn("IN_KPI_TYPE_DESP", expr("KPI_TYPE_DESP"))
-        df_exp_11 = df_exp_11.withColumn("IN_KPI_TYPE_TRGT_ACTL_DESP", expr("KPI_TYPE_TRGT_ACTL_DESP"))
-        df_exp_11 = df_exp_11.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_KPI_TYPE_KEY IS NULL) OR CASE WHEN KPI_TYPE_DESP = KPI_TYPE_DESP THEN false ELSE true END OR CASE WHEN KPI_TYPE_TRGT_ACTL_DESP = KPI_TYPE_TRGT_ACTL_DESP THEN false ELSE true END THEN 1 ELSE 0 END"))
+        df_EXPTRANS = df_lkp_merge_1
+        df_EXPTRANS = df_EXPTRANS.withColumn("IN_KPI_TYPE_TRGT_ACTL_DESP", expr("KPI_TYPE_TRGT_ACTL_DESP"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("IN_KPI_TYPE_DESP", expr("KPI_TYPE_DESP"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_KPI_TYPE_KEY IS NULL) OR CASE WHEN KPI_TYPE_DESP = KPI_TYPE_DESP THEN false ELSE true END OR CASE WHEN KPI_TYPE_TRGT_ACTL_DESP = KPI_TYPE_TRGT_ACTL_DESP THEN false ELSE true END THEN 1 ELSE 0 END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["KPI_TYPE_DESP", "KPI_TYPE_TRGT_ACTL_DESP", "DMNS_KPI_TYPE_KEY", "KPI_TYPE_CODE", "KPI_TYPE_TRGT_ACTL_CODE", "DISP_KPI_TYPE_TEXT", "KPI_TYPE_DISP_SEQ_NUM", "IN_KPI_TYPE_CODE", "IN_KPI_TYPE_TRGT_ACTL_CODE"]:
-            if _col not in df_exp_11.columns:
-                df_exp_11 = df_exp_11.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_11 = df_exp_11.select("CHANGE_FLAG", "DMNS_KPI_TYPE_KEY", "KPI_TYPE_CODE", "KPI_TYPE_DESP", "KPI_TYPE_TRGT_ACTL_CODE", "KPI_TYPE_TRGT_ACTL_DESP", "DISP_KPI_TYPE_TEXT", "KPI_TYPE_DISP_SEQ_NUM", "IN_KPI_TYPE_CODE", "IN_KPI_TYPE_TRGT_ACTL_CODE", "IN_KPI_TYPE_DESP", "IN_KPI_TYPE_TRGT_ACTL_DESP")
-        ctx.register_df("df_exp_11", df_exp_11)
+        for _col in ["KPI_TYPE_TRGT_ACTL_DESP", "KPI_TYPE_DESP", "DMNS_KPI_TYPE_KEY", "KPI_TYPE_CODE", "KPI_TYPE_TRGT_ACTL_CODE", "DISP_KPI_TYPE_TEXT", "KPI_TYPE_DISP_SEQ_NUM", "IN_KPI_TYPE_CODE", "IN_KPI_TYPE_TRGT_ACTL_CODE"]:
+            if _col not in df_EXPTRANS.columns:
+                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: apply_FIL_CHANGE")
         # Filter: apply_FIL_CHANGE
-        df_fil_13 = df_exp_11.filter(expr("CHANGE_FLAG = 1 AND ( NOT (DMNS_KPI_TYPE_KEY IS NULL))"))
-        ctx.register_df("df_fil_13", df_fil_13)
+        __fil_input = df_EXPTRANS
+        df_FIL_CHANGE = __fil_input.filter(expr("CHANGE_FLAG = 1 AND ( NOT (DMNS_KPI_TYPE_KEY IS NULL))"))
+        ctx.register_df("df_FIL_CHANGE", df_FIL_CHANGE)
         
         logger.info("Step: apply_FIL_NEW")
         # Filter: apply_FIL_NEW
-        df_fil_14 = df_seq_7.filter(expr("CHANGE_FLAG = 1 AND (DMNS_KPI_TYPE_KEY IS NULL)"))
-        ctx.register_df("df_fil_14", df_fil_14)
+        __fil_input = df_EXPTRANS
+        df_FIL_NEW = __fil_input.filter(expr("CHANGE_FLAG = 1 AND (DMNS_KPI_TYPE_KEY IS NULL)"))
+        ctx.register_df("df_FIL_NEW", df_FIL_NEW)
         
         logger.info("Step: apply_Union_Transformation")
         # Union: apply_Union_Transformation
-        df_un_15 = df_fil_13
-        df_un_15 = df_un_15.unionByName(df_fil_14, allowMissingColumns=True)
+        # Select + rename upstream columns per input, then union
+        df_Union_Transformation_change = df_FIL_CHANGE.select(
+            col("DMNS_KPI_TYPE_KEY").alias("DMNS_KPI_TYPE_KEY"),
+            col("IN_KPI_TYPE_CODE").alias("IN_KPI_TYPE_CODE"),
+            col("IN_KPI_TYPE_TRGT_ACTL_CODE").alias("IN_KPI_TYPE_TRGT_ACTL_CODE"),
+            col("IN_KPI_TYPE_DESP").alias("IN_KPI_TYPE_DESP"),
+            col("IN_KPI_TYPE_TRGT_ACTL_DESP").alias("IN_KPI_TYPE_TRGT_ACTL_DESP")        )
+        df_Union_Transformation_new = df_FIL_NEW.select(
+            col("NEXTVAL").alias("DMNS_KPI_TYPE_KEY"),
+            col("IN_KPI_TYPE_CODE").alias("IN_KPI_TYPE_CODE"),
+            col("IN_KPI_TYPE_TRGT_ACTL_CODE").alias("IN_KPI_TYPE_TRGT_ACTL_CODE"),
+            col("IN_KPI_TYPE_DESP").alias("IN_KPI_TYPE_DESP"),
+            col("IN_KPI_TYPE_TRGT_ACTL_DESP").alias("IN_KPI_TYPE_TRGT_ACTL_DESP")        )
+        df_Union_Transformation = df_Union_Transformation_change
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_new, allowMissingColumns=True)
         # Select only union output columns
-        df_un_15 = df_un_15.select("DMNS_KPI_TYPE_KEY", "IN_KPI_TYPE_CODE", "IN_KPI_TYPE_TRGT_ACTL_CODE", "IN_KPI_TYPE_DESP", "IN_KPI_TYPE_TRGT_ACTL_DESP")
-        ctx.register_df("df_un_15", df_un_15)
+        df_Union_Transformation = df_Union_Transformation.select("DMNS_KPI_TYPE_KEY", "IN_KPI_TYPE_CODE", "IN_KPI_TYPE_TRGT_ACTL_CODE", "IN_KPI_TYPE_DESP", "IN_KPI_TYPE_TRGT_ACTL_DESP")
+        ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
         logger.info("Step: write_DPA_DMNS_KPI_TYPE")
         # Write to Target: write_DPA_DMNS_KPI_TYPE
-        df_write = df_un_15
+        df_write = df_Union_Transformation
         # Cast columns to match target schema data types
         if "kpi_type_code" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

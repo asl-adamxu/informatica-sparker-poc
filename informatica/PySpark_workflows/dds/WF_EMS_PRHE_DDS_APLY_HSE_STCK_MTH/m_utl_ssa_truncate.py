@@ -71,50 +71,49 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         if not _file_path:
             # No file path found in config.yml or step params — fail fast so generator users must provide paths
             raise RuntimeError(f"Missing file path for object '{_obj_name}' in config.yml or step params for mapping 'M_UTL_SSA_TRUNCATE'. Please define the file.path for this object.")
-        df_src_1 = lib.read_file(
+        df_UTL_SSA_TBL_LIST = lib.read_file(
             spark,
             _file_path,
             format=_file_format,
             options=_file_options
         )
-        _csv_cols = df_src_1.columns
+        _csv_cols = df_UTL_SSA_TBL_LIST.columns
         if _csv_cols:
             # Rename CSV columns by position to match Informatica source definition field names
             _src_cols = ["TABLE"]
             for _i in range(_builtin_min([len(_csv_cols), len(_src_cols)])):
                 if _csv_cols[_i].lower() != _src_cols[_i].lower():
-                    df_src_1 = df_src_1.withColumnRenamed(_csv_cols[_i], _src_cols[_i])
+                    df_UTL_SSA_TBL_LIST = df_UTL_SSA_TBL_LIST.withColumnRenamed(_csv_cols[_i], _src_cols[_i])
         else:
             logger.warning("Source file '%s' is empty or has no columns", _file_path)
-            df_src_1 = spark.createDataFrame([], StructType([
+            df_UTL_SSA_TBL_LIST = spark.createDataFrame([], StructType([
                 StructField("TABLE", StringType(), True)
             ]))
-        ctx.register_df("df_src_1", df_src_1)
+        ctx.register_df("df_UTL_SSA_TBL_LIST", df_UTL_SSA_TBL_LIST)
         
         logger.info("Step: apply_SQ_UTL_SSA_TBL_LIST")
         # Source Qualifier: apply_SQ_UTL_SSA_TBL_LIST
-        df_sq_2 = df_src_1
+        df_SQ_UTL_SSA_TBL_LIST = df_UTL_SSA_TBL_LIST
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_2 = df_sq_2.select("TABLE")
-        ctx.register_df("df_sq_2", df_sq_2)
+        df_SQ_UTL_SSA_TBL_LIST = df_SQ_UTL_SSA_TBL_LIST.select("TABLE")
+        ctx.register_df("df_SQ_UTL_SSA_TBL_LIST", df_SQ_UTL_SSA_TBL_LIST)
         
         logger.info("Step: apply_EXPTRANS2")
         # Expression: apply_EXPTRANS2
-        df_exp_3 = df_sq_2
+        df_EXPTRANS2 = df_SQ_UTL_SSA_TBL_LIST
         # Execute stored procedure for each input value via JDBC
         _sp_conn = conn_oracle
-        _input_vals = [row["TABLE"] for row in df_sq_2.select("TABLE").collect()]
+        _input_vals = [row["TABLE"] for row in df_SQ_UTL_SSA_TBL_LIST.select("TABLE").collect()]
         for _val in _input_vals:
             lib.execute_sql(spark, _sp_conn,
                 "BEGIN PKG_CDI_UTIL.SP_TRUNCATE('" + _val + "'); END;")
-        df_exp_3 = df_exp_3.withColumn("OUTPUT", lit("SUCCESS"))
+        df_EXPTRANS2 = df_EXPTRANS2.withColumn("OUTPUT", lit("SUCCESS"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["TABLE"]:
-            if _col not in df_exp_3.columns:
-                df_exp_3 = df_exp_3.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_3 = df_exp_3.select("TABLE", "OUTPUT")
-        ctx.register_df("df_exp_3", df_exp_3)
+            if _col not in df_EXPTRANS2.columns:
+                df_EXPTRANS2 = df_EXPTRANS2.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS2", df_EXPTRANS2)
         
         logger.info("Step: write_UTL_DEV_NULL")
         # Write to Target: write_UTL_DEV_NULL
