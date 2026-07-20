@@ -55,18 +55,18 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Reading Data From Source - read_DPA_DMNS_FLATMIX
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_src_1 = lib.read_sql(spark, _conn, table="DPA_DMNS_FLATMIX")
+        df_DPA_DMNS_FLATMIX = lib.read_sql(spark, _conn, table="DPA_DMNS_FLATMIX")
         
         logger.info("Step: apply_SQ_DPA_DMNS_FLATMIX")
         # Source Qualifier: apply_SQ_DPA_DMNS_FLATMIX
-        df_sq_2 = df_src_1
+        df_SQ_DPA_DMNS_FLATMIX = df_DPA_DMNS_FLATMIX
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_2 = df_sq_2.select("DMNS_FLATMIX_KEY", "FLATMIX_TYPE_CODE", "FLATMIX_TYPE_DESP", "DISP_SEQ_NUM")
-        ctx.register_df("df_sq_2", df_sq_2)
+        df_SQ_DPA_DMNS_FLATMIX = df_SQ_DPA_DMNS_FLATMIX.select("DMNS_FLATMIX_KEY", "FLATMIX_TYPE_CODE", "FLATMIX_TYPE_DESP", "DISP_SEQ_NUM")
+        ctx.register_df("df_SQ_DPA_DMNS_FLATMIX", df_SQ_DPA_DMNS_FLATMIX)
         
         logger.info("Step: write_DDS_DMNS_FLATMIX")
         # Write to Target: write_DDS_DMNS_FLATMIX
-        df_write = df_sq_2
+        df_write = df_SQ_DPA_DMNS_FLATMIX
         # Cast columns to match target schema data types
         if "flatmix_type_code" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

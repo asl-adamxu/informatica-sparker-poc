@@ -51,12 +51,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
 
     
     try:
-        logger.info("Step: read_DPA_DMNS_CNTR")
-        # Reading Data From Source - read_DPA_DMNS_CNTR
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "DPA")
-        df_src_1 = lib.read_sql(spark, _conn, table="DPA_DMNS_CNTR")
-        
         logger.info("Step: apply_SQ_DPA_DMNS_CNTR")
         # Source Qualifier: apply_SQ_DPA_DMNS_CNTR
         # SQL Pushdown - executes Informatica SQ SQL on source database
@@ -69,21 +63,21 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
        ) CNTR_DISP_SEQ_NUM 
 FROM
  DPA_DMNS_CNTR"""
-        df_sq_2 = lib.read_sql(spark, _conn, query=query)
+        df_SQ_DPA_DMNS_CNTR = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_2.columns
+        _sql_cols = df_SQ_DPA_DMNS_CNTR.columns
         _port_cols = ["DMNS_CNTR_KEY", "CNTR_KEY", "CNTR_NUM", "CNTR_TTL", "TNDR_NUM", "CNTR_DISP_SEQ_NUM"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_2 = df_sq_2.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_SQ_DPA_DMNS_CNTR = df_SQ_DPA_DMNS_CNTR.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_2 = df_sq_2.select("DMNS_CNTR_KEY", "CNTR_KEY", "CNTR_NUM", "CNTR_TTL", "TNDR_NUM", "CNTR_DISP_SEQ_NUM")
+        df_SQ_DPA_DMNS_CNTR = df_SQ_DPA_DMNS_CNTR.select("DMNS_CNTR_KEY", "CNTR_KEY", "CNTR_NUM", "CNTR_TTL", "TNDR_NUM", "CNTR_DISP_SEQ_NUM")
         
-        ctx.register_df("df_sq_2", df_sq_2)
+        ctx.register_df("df_SQ_DPA_DMNS_CNTR", df_SQ_DPA_DMNS_CNTR)
         
         logger.info("Step: write_DDS_DMNS_CNTR")
         # Write to Target: write_DDS_DMNS_CNTR
-        df_write = df_sq_2
+        df_write = df_SQ_DPA_DMNS_CNTR
         # Cast columns to match target schema data types
         if "cntr_num" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

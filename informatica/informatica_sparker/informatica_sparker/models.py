@@ -164,6 +164,14 @@ class TargetDefinition(BaseModel):
     fields: List[TargetField] = Field(default_factory=list)
 
 
+class TransformGroup(BaseModel):
+    name: str
+    type: str = "OUTPUT"
+    expression: Optional[str] = None
+    order: int = 0
+    description: str = ""
+
+
 class TransformField(BaseModel):
     name: str
     datatype: str
@@ -173,7 +181,10 @@ class TransformField(BaseModel):
     expression: Optional[str] = None
     default_value: Optional[str] = None
     group_name: Optional[str] = None
+    ref_field: Optional[str] = None
     is_group_by: bool = False
+    is_sort_key: bool = False
+    sort_direction: str = "ASC"
 
 
 class Transformation(BaseModel):
@@ -182,6 +193,7 @@ class Transformation(BaseModel):
     description: str = ""
     reusable: bool = False
     fields: List[TransformField] = Field(default_factory=list)
+    groups: List[TransformGroup] = Field(default_factory=list)
     table_attributes: Dict[str, str] = Field(default_factory=dict)
 
 

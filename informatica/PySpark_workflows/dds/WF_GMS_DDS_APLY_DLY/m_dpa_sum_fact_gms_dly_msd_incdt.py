@@ -46,7 +46,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
     metrics.start()
 
     conn_oracle = lib.get_db_config(config, "oracle-defaults")
-    conn_source = lib.get_db_config(config, "DPA")
+    conn_source = lib.get_db_config(config, "source")
     conn_target = lib.get_db_config(config, "DPA")
 
     v_snsh_date = ""
@@ -69,16 +69,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.warning("UTL_JOB_PARAM not found, using default values")
     
     try:
-        logger.info("Step: read_DPA_FACT_GMS_DLY_MSD_INCDT1")
-        # Reading Data From Source - read_DPA_FACT_GMS_DLY_MSD_INCDT1
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "DPA")
-        df_src_1 = lib.read_sql(spark, _conn, table="DPA_FACT_GMS_DLY_MSD_INCDT")
-        
         logger.info("Step: apply_SQ_DPA_FACT_GMS_DLY_MSD_INCDT")
         # Source Qualifier: apply_SQ_DPA_FACT_GMS_DLY_MSD_INCDT
         # SQL Pushdown - executes Informatica SQ SQL on source database
-        _conn = lib.get_db_config(config, "DPA")
+        _conn = lib.get_db_config(config, "source")
         query = f"""select msd_incdt_date_dmns_key, msd_cre_date_dmns_key,
 nvl(est_scd_key,0), ofcr_type_dmns_key, hshld_size_dmns_key, msd_code_scd_key, gndr_dmns_key, age_grp_dmns_key, score_grp_dmns_key,
 count(distinct aft_cmlt_wrt_warn_case) aft_cmlt_wrt_warn_case_cnt,
@@ -169,32 +163,31 @@ and b.msd_txn_cre_date=t2.time_val_date and t2.time_dmns_key<200000000
 ) group by msd_incdt_date_dmns_key, msd_cre_date_dmns_key,
 est_scd_key, ofcr_type_dmns_key, hshld_size_dmns_key, msd_code_scd_key, gndr_dmns_key, age_grp_dmns_key, score_grp_dmns_key"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
-        df_sq_2 = lib.read_sql(spark, _conn, query=query)
+        df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_2.columns
+        _sql_cols = df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT.columns
         _port_cols = ["MSD_INCDT_DATE_DMNS_KEY", "MSD_CRE_DATE_DMNS_KEY", "EST_SCD_KEY", "OFCR_TYPE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MSD_CODE_SCD_KEY", "OFNDR_GNDR_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY", "AFT_CMLT_WRT_WARN_CASE_CNT", "CMLT_PNT_ALLT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_2 = df_sq_2.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT = df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_2 = df_sq_2.select("MSD_INCDT_DATE_DMNS_KEY", "MSD_CRE_DATE_DMNS_KEY", "EST_SCD_KEY", "OFCR_TYPE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MSD_CODE_SCD_KEY", "OFNDR_GNDR_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY", "AFT_CMLT_WRT_WARN_CASE_CNT", "CMLT_PNT_ALLT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE")
+        df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT = df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT.select("MSD_INCDT_DATE_DMNS_KEY", "MSD_CRE_DATE_DMNS_KEY", "EST_SCD_KEY", "OFCR_TYPE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MSD_CODE_SCD_KEY", "OFNDR_GNDR_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY", "AFT_CMLT_WRT_WARN_CASE_CNT", "CMLT_PNT_ALLT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE")
         
-        ctx.register_df("df_sq_2", df_sq_2)
+        ctx.register_df("df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT", df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_exp_3 = df_sq_2
+        df_EXPTRANS = df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["MSD_INCDT_DATE_DMNS_KEY", "MSD_CRE_DATE_DMNS_KEY", "EST_SCD_KEY", "OFCR_TYPE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MSD_CODE_SCD_KEY", "OFNDR_GNDR_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY", "AFT_CMLT_WRT_WARN_CASE_CNT", "CMLT_PNT_ALLT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE"]:
-            if _col not in df_exp_3.columns:
-                df_exp_3 = df_exp_3.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_3 = df_exp_3.select("MSD_INCDT_DATE_DMNS_KEY", "MSD_CRE_DATE_DMNS_KEY", "EST_SCD_KEY", "OFCR_TYPE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MSD_CODE_SCD_KEY", "OFNDR_GNDR_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY", "AFT_CMLT_WRT_WARN_CASE_CNT", "CMLT_PNT_ALLT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE")
-        ctx.register_df("df_exp_3", df_exp_3)
+            if _col not in df_EXPTRANS.columns:
+                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_DPA_FACT_GMS_DLY_MSD_INCDT")
         # Write to Target: write_DPA_FACT_GMS_DLY_MSD_INCDT
-        df_write = df_exp_3
+        df_write = df_EXPTRANS
         # Cast columns to match target schema data types
         if "rec_rls_ind" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

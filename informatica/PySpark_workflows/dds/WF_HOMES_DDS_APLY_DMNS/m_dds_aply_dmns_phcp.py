@@ -55,18 +55,18 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Reading Data From Source - read_DPA_DMNS_PHCP
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_src_1 = lib.read_sql(spark, _conn, table="DPA_DMNS_PHCP")
+        df_DPA_DMNS_PHCP = lib.read_sql(spark, _conn, table="DPA_DMNS_PHCP")
         
         logger.info("Step: apply_SQ_DPA_DMNS_PHCP")
         # Source Qualifier: apply_SQ_DPA_DMNS_PHCP
-        df_sq_2 = df_src_1
+        df_SQ_DPA_DMNS_PHCP = df_DPA_DMNS_PHCP
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_2 = df_sq_2.select("DMNS_PHCP_KEY", "PHCP_IND", "PHCP_DESP_TEXT", "PHCP_DISP_SEQ_NUM")
-        ctx.register_df("df_sq_2", df_sq_2)
+        df_SQ_DPA_DMNS_PHCP = df_SQ_DPA_DMNS_PHCP.select("DMNS_PHCP_KEY", "PHCP_IND", "PHCP_DESP_TEXT", "PHCP_DISP_SEQ_NUM")
+        ctx.register_df("df_SQ_DPA_DMNS_PHCP", df_SQ_DPA_DMNS_PHCP)
         
         logger.info("Step: write_DDS_DMNS_PHCP")
         # Write to Target: write_DDS_DMNS_PHCP
-        df_write = df_sq_2
+        df_write = df_SQ_DPA_DMNS_PHCP
         # Cast columns to match target schema data types
         if "phcp_ind" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

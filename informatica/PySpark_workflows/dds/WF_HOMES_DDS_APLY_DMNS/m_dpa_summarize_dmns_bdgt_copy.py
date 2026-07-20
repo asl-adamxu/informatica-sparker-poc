@@ -69,31 +69,19 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.warning("UTL_JOB_PARAM not found, using default values")
     
     try:
-        logger.info("Step: read_SOR_HOM_BUD_COPY")
-        # Reading Data From Source - read_SOR_HOM_BUD_COPY
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_1 = lib.read_sql(spark, _conn, table="SOR_HOM_BUD_COPY")
-        
         logger.info("Step: read_SOR_HOM_SMT_BDGT_PARM")
         # Reading Data From Source - read_SOR_HOM_SMT_BDGT_PARM
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "SOR")
-        df_src_2 = lib.read_sql(spark, _conn, table="SOR_HOM_SMT_BDGT_PARM")
-        
-        logger.info("Step: read_SOR_HOM_SMT_BDGT_PARM_STS")
-        # Reading Data From Source - read_SOR_HOM_SMT_BDGT_PARM_STS
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_3 = lib.read_sql(spark, _conn, table="SOR_HOM_SMT_BDGT_PARM")
+        df_SOR_HOM_SMT_BDGT_PARM = lib.read_sql(spark, _conn, table="SOR_HOM_SMT_BDGT_PARM")
         
         logger.info("Step: apply_SEQ_DMNS_BDGT_COPY_KEY")
         # Sequence Generator: apply_SEQ_DMNS_BDGT_COPY_KEY
-        df_seq_4 = df_input.withColumn(
+        df_SEQ_DMNS_BDGT_COPY_KEY = df_input.withColumn(
             "NEXTVAL", 
             monotonically_increasing_id() + 0
         )
-        ctx.register_df("df_seq_4", df_seq_4)
+        ctx.register_df("df_SEQ_DMNS_BDGT_COPY_KEY", df_SEQ_DMNS_BDGT_COPY_KEY)
         
         logger.info("Step: apply_SQ_SOR_HOM_BUD_COPY")
         # Source Qualifier: apply_SQ_SOR_HOM_BUD_COPY
@@ -143,80 +131,100 @@ and		c.prcs_year||c.copy_code||c.copy_ver_num = mm.bdgt_parm_val_text
 and  TO_DATE ($$v_snsh_date, 'YYYYMMDD') BETWEEN mm.bgn_date AND mm.end_date
 ) v"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
-        df_sq_5 = lib.read_sql(spark, _conn, query=query)
+        df_SQ_SOR_HOM_BUD_COPY = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_5.columns
+        _sql_cols = df_SQ_SOR_HOM_BUD_COPY.columns
         _port_cols = ["PRCS_YEAR", "COPY_CODE", "COPY_VER_NUM", "bdgt_copy_desp", "mth_bdgt_copy"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_5 = df_sq_5.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_SQ_SOR_HOM_BUD_COPY = df_SQ_SOR_HOM_BUD_COPY.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_5 = df_sq_5.select("PRCS_YEAR", "COPY_CODE", "COPY_VER_NUM", "bdgt_copy_desp", "mth_bdgt_copy")
+        df_SQ_SOR_HOM_BUD_COPY = df_SQ_SOR_HOM_BUD_COPY.select("PRCS_YEAR", "COPY_CODE", "COPY_VER_NUM", "bdgt_copy_desp", "mth_bdgt_copy")
         
-        ctx.register_df("df_sq_5", df_sq_5)
+        ctx.register_df("df_SQ_SOR_HOM_BUD_COPY", df_SQ_SOR_HOM_BUD_COPY)
         
         logger.info("Step: read_LKP_DDS_DMNS_BUG_COPY")
         # Reading Data From Source - read_LKP_DDS_DMNS_BUG_COPY
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_lkp_6 = lib.read_sql(spark, _conn, table="DDS_DMNS_BDGT_COPY")
+        df_LKP_DDS_DMNS_BUG_COPY = lib.read_sql(spark, _conn, table="DDS_DMNS_BDGT_COPY")
         
         logger.info("Step: apply_LKP_DDS_DMNS_BUG_COPY")
         # Lookup: apply_LKP_DDS_DMNS_BUG_COPY
-        # Join condition: IN_BDGT_PRCS_YEAR=BDGT_PRCS_YEAR AND IN_COPY_CODE=COPY_CODE AND IN_COPY_VER_NUM=COPY_VER_NUM        
-        df_lkp_result_7 = df_sq_5.join(
-            broadcast(df_lkp_6),
-            (df_sq_5["IN_BDGT_PRCS_YEAR"] == df_lkp_6["BDGT_PRCS_YEAR"]) &             (df_sq_5["IN_COPY_CODE"] == df_lkp_6["COPY_CODE"]) &             (df_sq_5["IN_COPY_VER_NUM"] == df_lkp_6["COPY_VER_NUM"]),
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_DDS_DMNS_BUG_COPY = df_LKP_DDS_DMNS_BUG_COPY.dropDuplicates(subset=["BDGT_PRCS_YEAR", "COPY_CODE", "COPY_VER_NUM"])
+        # Join condition: PRCS_YEAR=BDGT_PRCS_YEAR AND COPY_CODE=COPY_CODE AND COPY_VER_NUM=COPY_VER_NUM
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_DDS_DMNS_BUG_COPY
+        _lkp_right = _lkp_right.withColumnRenamed("BDGT_PRCS_YEAR", "_lkp_BDGT_PRCS_YEAR")
+        _lkp_right = _lkp_right.withColumnRenamed("COPY_CODE", "_lkp_COPY_CODE")
+        _lkp_right = _lkp_right.withColumnRenamed("COPY_VER_NUM", "_lkp_COPY_VER_NUM")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_SQ_SOR_HOM_BUD_COPY.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_1 = df_SQ_SOR_HOM_BUD_COPY.join(
+            broadcast(_lkp_right),
+            (df_SQ_SOR_HOM_BUD_COPY["PRCS_YEAR"] == _lkp_right["_lkp_BDGT_PRCS_YEAR"]) &
+            (df_SQ_SOR_HOM_BUD_COPY["COPY_CODE"] == _lkp_right["_lkp_COPY_CODE"]) &
+            (df_SQ_SOR_HOM_BUD_COPY["COPY_VER_NUM"] == _lkp_right["_lkp_COPY_VER_NUM"]),
             "left"
-        )
-        ctx.register_df("df_lkp_result_7", df_lkp_result_7)
-        
-        logger.info("Step: join_EXPTRANS_0")
-        # Lookup: join_EXPTRANS_0
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_lkp_result_7.columns if c in df_sq_5.columns]
-        df_exp_merge_9 = df_lkp_result_7.join(
-            df_sq_5,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_exp_merge_9", df_exp_merge_9)
+        ).drop("_lkp_BDGT_PRCS_YEAR").drop("_lkp_COPY_CODE").drop("_lkp_COPY_VER_NUM")
+
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_exp_8 = df_exp_merge_9
-        df_exp_8 = df_exp_8.withColumn("IN_BDGT_COPY_DESP", expr("bdgt_copy_desp"))
-        df_exp_8 = df_exp_8.withColumn("IN_mth_bdgt_copy", expr("mth_bdgt_copy"))
-        df_exp_8 = df_exp_8.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_BDGT_COPY_KEY IS NULL) OR CASE WHEN BDGT_PRCS_YEAR = IN_BDGT_PRCS_YEAR THEN false ELSE true END OR CASE WHEN COPY_CODE = IN_COPY_CODE THEN false ELSE true END OR CASE WHEN COPY_VER_NUM = IN_COPY_VER_NUM THEN false ELSE true END THEN 1 ELSE 0 END"))
+        df_EXPTRANS = df_lkp_merge_1
+        df_EXPTRANS = df_EXPTRANS.withColumn("IN_BDGT_COPY_DESP", expr("bdgt_copy_desp"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("IN_mth_bdgt_copy", expr("mth_bdgt_copy"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_BDGT_COPY_KEY IS NULL) OR CASE WHEN BDGT_PRCS_YEAR = IN_BDGT_PRCS_YEAR THEN false ELSE true END OR CASE WHEN COPY_CODE = IN_COPY_CODE THEN false ELSE true END OR CASE WHEN COPY_VER_NUM = IN_COPY_VER_NUM THEN false ELSE true END THEN 1 ELSE 0 END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["DMNS_BDGT_COPY_KEY", "COPY_VER_NUM", "BDGT_PRCS_YEAR", "COPY_CODE", "BDGT_COPY_DESP", "BDGT_COPY_DISP_SEQ_NUM", "IN_COPY_VER_NUM", "IN_BDGT_PRCS_YEAR", "IN_COPY_CODE"]:
-            if _col not in df_exp_8.columns:
-                df_exp_8 = df_exp_8.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_8 = df_exp_8.select("CHANGE_FLAG", "DMNS_BDGT_COPY_KEY", "BDGT_PRCS_YEAR", "COPY_CODE", "COPY_VER_NUM", "BDGT_COPY_DESP", "BDGT_COPY_DISP_SEQ_NUM", "IN_BDGT_PRCS_YEAR", "IN_COPY_CODE", "IN_COPY_VER_NUM", "IN_BDGT_COPY_DESP", "IN_mth_bdgt_copy")
-        ctx.register_df("df_exp_8", df_exp_8)
+        for _col in ["IN_COPY_VER_NUM", "IN_BDGT_PRCS_YEAR", "COPY_VER_NUM", "IN_COPY_CODE", "COPY_CODE", "BDGT_PRCS_YEAR", "DMNS_BDGT_COPY_KEY", "BDGT_COPY_DESP", "BDGT_COPY_DISP_SEQ_NUM"]:
+            if _col not in df_EXPTRANS.columns:
+                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: apply_FIL_CHANGE")
         # Filter: apply_FIL_CHANGE
-        df_fil_10 = df_exp_8.filter(expr("CHANGE_FLAG = 1 AND ( NOT (DMNS_BDGT_COPY_KEY IS NULL))"))
-        ctx.register_df("df_fil_10", df_fil_10)
+        __fil_input = df_EXPTRANS
+        df_FIL_CHANGE = __fil_input.filter(expr("CHANGE_FLAG = 1 AND ( NOT (DMNS_BDGT_COPY_KEY IS NULL))"))
+        ctx.register_df("df_FIL_CHANGE", df_FIL_CHANGE)
         
         logger.info("Step: apply_FIL_NEW")
         # Filter: apply_FIL_NEW
-        df_fil_11 = df_exp_8.filter(expr("CHANGE_FLAG = 1 AND (DMNS_BDGT_COPY_KEY IS NULL)"))
-        ctx.register_df("df_fil_11", df_fil_11)
+        __fil_input = df_EXPTRANS
+        df_FIL_NEW = __fil_input.filter(expr("CHANGE_FLAG = 1 AND (DMNS_BDGT_COPY_KEY IS NULL)"))
+        ctx.register_df("df_FIL_NEW", df_FIL_NEW)
         
         logger.info("Step: apply_Union_Transformation")
         # Union: apply_Union_Transformation
-        df_un_12 = df_fil_10
-        df_un_12 = df_un_12.unionByName(df_fil_11, allowMissingColumns=True)
+        # Select + rename upstream columns per input, then union
+        df_Union_Transformation_change = df_FIL_CHANGE.select(
+            col("DMNS_BDGT_COPY_KEY").alias("DMNS_BDGT_COPY_KEY"),
+            col("IN_BDGT_PRCS_YEAR").alias("IN_BDGT_PRCS_YEAR"),
+            col("IN_COPY_CODE").alias("IN_COPY_CODE"),
+            col("IN_COPY_VER_NUM").alias("IN_COPY_VER_NUM"),
+            col("IN_BDGT_COPY_DESP").alias("IN_BDGT_COPY_DESP"),
+            col("IN_mth_bdgt_copy").alias("IN_mth_bdgt_copy")        )
+        df_Union_Transformation_new = df_FIL_NEW.select(
+            col("NEXTVAL").alias("DMNS_BDGT_COPY_KEY"),
+            col("IN_BDGT_PRCS_YEAR").alias("IN_BDGT_PRCS_YEAR"),
+            col("IN_COPY_CODE").alias("IN_COPY_CODE"),
+            col("IN_COPY_VER_NUM").alias("IN_COPY_VER_NUM"),
+            col("IN_BDGT_COPY_DESP").alias("IN_BDGT_COPY_DESP"),
+            col("IN_mth_bdgt_copy").alias("IN_mth_bdgt_copy")        )
+        df_Union_Transformation = df_Union_Transformation_change
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_new, allowMissingColumns=True)
         # Select only union output columns
-        df_un_12 = df_un_12.select("DMNS_BDGT_COPY_KEY", "IN_BDGT_PRCS_YEAR", "IN_COPY_CODE", "IN_COPY_VER_NUM", "IN_BDGT_COPY_DESP", "IN_mth_bdgt_copy")
-        ctx.register_df("df_un_12", df_un_12)
+        df_Union_Transformation = df_Union_Transformation.select("DMNS_BDGT_COPY_KEY", "IN_BDGT_PRCS_YEAR", "IN_COPY_CODE", "IN_COPY_VER_NUM", "IN_BDGT_COPY_DESP", "IN_mth_bdgt_copy")
+        ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
         logger.info("Step: write_DPA_DMNS_BDGT_COPY")
         # Write to Target: write_DPA_DMNS_BDGT_COPY
-        df_write = df_un_12
+        df_write = df_Union_Transformation
         # Cast columns to match target schema data types
         if "copy_code" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

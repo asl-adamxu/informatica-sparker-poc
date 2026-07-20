@@ -1,6 +1,6 @@
 # informatica-sparker
 
-**Version v2026.07.02** — A Python framework that converts Informatica PowerCenter workflow/mapping XML exports into PySpark code deployable to Databricks or YARN Spark clusters. **Tested against Informatica output — data results match.**
+**Version v2026.07.20** — A Python framework that converts Informatica PowerCenter workflow/mapping XML exports into PySpark code deployable to Databricks or YARN Spark clusters. **Tested against Informatica output — data results match.**
 
 Conversion pipeline: **XML → Models → IR Plan → Jinja2 Templates → Generated Python Files**
 
@@ -14,13 +14,14 @@ Conversion pipeline: **XML → Models → IR Plan → Jinja2 Templates → Gener
   - JDBC/ODBC connections with driver JAR detection
   - File location detection: Local, S3, ADLS, GCS, DBFS
 - **Expression Translation**: Comprehensive Informatica-to-PySpark function mapping (60+ functions):
-  - String: `SUBSTR`, `INSTR`, `CONCAT`, `REPLACE`, `REG_REPLACE`, `LPAD`, `RPAD`, `TRIM`, `UPPER`, `LOWER`, `INITCAP`, `REVERSE`, `SOUNDEX`, `REPLACESTR`, `REPLACECHR`
+  - String: `SUBSTR`, `INSTR`, `CONCAT`, `REPLACE`, `REG_REPLACE`, `LPAD`, `RPAD`, `TRIM`, `UPPER`, `LOWER`, `INITCAP`, `REVERSE`, `SOUNDEX`, `REPLACESTR`, `REPLACECHR` (4-arg start_pos → 3-arg translate, NULL → '')
   - Numeric: `ROUND`, `TRUNC`, `ABS`, `MOD`, `POWER`, `SQRT`, `FLOOR`, `CEIL`, `LOG`, `LN`, `EXP`, `SIGN`, `GREATEST`, `LEAST`
-  - Date: `SYSDATE`, `TO_DATE`, `ADD_TO_DATE`, `DATE_DIFF`, `GET_DATE_PART`, `SET_DATE_PART`, `LAST_DAY`, `NEXT_DAY`, `MONTHS_BETWEEN`, `ADD_MONTHS`, `MAKE_DATE_TIME`
-  - Conversion: `TO_CHAR`, `TO_DECIMAL`, `TO_INTEGER`, `TO_BIGINT`, `TO_FLOAT`, `IS_NUMBER`, `IS_DATE`
+  - Date: `SYSDATE`, `TO_DATE`, `ADD_TO_DATE`, `DATE_DIFF`, `GET_DATE_PART`, `SET_DATE_PART`, `LAST_DAY`, `NEXT_DAY`, `MONTHS_BETWEEN`, `ADD_MONTHS`, `MAKE_DATE_TIME`; date format patterns translated (`YYYY`→`yyyy`, `DD`→`dd`, `MI`→`mm`); nested-paren `to_date()` supported
+  - Conversion: `TO_CHAR`, `TO_DECIMAL`, `TO_INTEGER`, `TO_BIGINT`, `TO_FLOAT`, `TO_NUMBER`→`cast(... as decimal)`, `IS_NUMBER`, `IS_DATE`
   - Conditional: `IIF`, `DECODE`, `NVL`, `NVL2`, `COALESCE`, `NULLIF`, `ISNULL`
-  - Aggregate: `SUM`, `COUNT`, `AVG`, `MIN`, `MAX`, `FIRST`, `LAST`, `MEDIAN`, `STDDEV`, `VARIANCE`
+  - Aggregate: `SUM`, `COUNT`, `AVG`, `MIN`, `MAX` (conditional `FUNC(col, cond)`→`when`), `FIRST`, `LAST`, `MEDIAN`, `STDDEV`, `VARIANCE`
   - Window: `CUME`, `MOVINGSUM`, `MOVINGAVG`
+  - Local Variable: Counter pattern `X+1`→`monotonically_increasing_id()+1`; retain pattern `IIF(cond,val,X)`→`last(when(...),True).over(Window.orderBy(...))`
 - **SQL Dialect Translation**: Module `utils/sql_dialect.py` provides Oracle-to-Spark SQL translation:
   - `DECODE()` → `CASE WHEN` conversion
   - Dialect detection (`auto`, `oracle`, `sqlserver`, `spark`)
@@ -33,7 +34,7 @@ Conversion pipeline: **XML → Models → IR Plan → Jinja2 Templates → Gener
   - `env/runtime_lib.py` — Shared runtime library (Spark session, JDBC helpers, metrics, workflow runner)
   - `env/all_sql_queries.sql` — All extracted SQL queries organized by mapping
   - `env/conversion_log.txt` — Detailed conversion log with warnings, errors, and source detection results
-- **Transformation Coverage**: Source Qualifier, Application Source Qualifier, Expression, Filter, Lookup Procedure, Joiner, Aggregator, Sorter, Union, Router, Sequence Generator, Update Strategy (DD_INSERT/UPDATE/DELETE), Normalizer (posexplode with GENERATED_KEY), Rank (Window row_number/dense_rank), Stored Procedure (inline via `:SP.` pattern in Expression), Transaction Control (no-op), Mapplet (with mini-DAG inlining), ODBC→JDBC auto-conversion
+- **Transformation Coverage**: Source Qualifier, Application Source Qualifier, Expression, Filter, Lookup Procedure, Joiner (inner/left/right/full with MASTER/DETAIL detection), Aggregator (with literal GROUPBY fields and conditional MIN/MAX/SUM/COUNT), Sorter (ISSORTKEY filtered, connector field rename), Union (per-input-group select+alias), Router (filter conditions, per-group output renaming), Sequence Generator, Update Strategy (DD_INSERT/UPDATE/DELETE), Normalizer (posexplode with GENERATED_KEY), Rank (Window row_number/dense_rank), Stored Procedure (inline via `:SP.` pattern), Transaction Control (no-op), Mapplet (mini-DAG inlining), ODBC→JDBC auto-conversion
 - **Workflow DAG Orchestration**: Supports nested execution plans with:
   - `session` — single mapping execution
   - `parallel_group` — concurrent execution using `ThreadPoolExecutor`
@@ -173,18 +174,18 @@ Connection details (JDBC URLs, driver JARs, host/port) are automatically extract
 |----------------------|-------------------|
 | Source Qualifier | `spark.read.format("jdbc")` / `spark.read.csv()` etc. (with SQL override support) |
 | Expression | `.withColumn()` / `.select()` with `expr()` for translated expressions |
-| Filter | `.filter()` / `.where()` |
-| Lookup | `.join()` with `broadcast()` hint (equi-join or complex expression) |
-| Joiner | `.join()` (inner, left, right, full) with MASTER/DETAIL port detection |
-| Aggregator | `.groupBy().agg()` |
-| Sorter | `.orderBy()` (asc/desc per column) |
-| Union | `.unionByName()` with optional flag column normalization |
-| Router | Multiple `.filter()` branches per output group |
+| Filter | `.filter()` / `.where()` with connector-based field rename and `$$` variable runtime replacement |
+| Lookup | `.join()` with `broadcast()` hint (equi-join or complex expression); chain-join multiple lookups onto accumulating DF; dedup by join keys; merge with non-key column dedup |
+| Joiner | `.join()` (inner, left/right/full outer) with MASTER/DETAIL port detection; select+alias for upstream columns; connector field rename |
+| Aggregator | `.groupBy().agg()` with select+alias for upstream columns; literal GROUPBY fields (`0 as DUMMY`) via `expr()`; conditional MIN/MAX/SUM/COUNT with `when()` |
+| Sorter | `.orderBy()` filtered by `ISSORTKEY="YES"`; connector field rename with `drop+rename`; ASC/DESC per sort key |
+| Union | `.unionByName()` with per-input-group intermediate DataFrames and select+alias; Router-aware upstream resolution |
+| Router | Multiple `.filter()` branches per output group; REF_FIELD suffix rename; negated DEFAULT group |
 | Sequence Generator | `monotonically_increasing_id()` |
 | Update Strategy | Insert/Update/Delete flags with `_update_flag` column |
-| Stored Procedure | Inline via Expression `:SP.` pattern — qualified procedure name resolved from `Stored Procedure Name` attribute (e.g. `PKG_CDI_UTIL.SP_TRUNCATE`) |
-| Mapplet | Inlined mini-DAG with topological sort (supports Lookup Procedure, Expression, Input/Output port mapping) |
-| Target | `.write.format("jdbc")` / `.write.format("delta")` with type casting and column mapping |
+| Stored Procedure | Inline via Expression `:SP.` pattern — qualified procedure name (e.g. `PKG_CDI_UTIL.SP_TRUNCATE`) |
+| Mapplet | Inlined mini-DAG with topological sort (includes Lookup Procedure, Expression, Input/Output port mapping) |
+| Target | `.write.format("jdbc")` / `.write.format("delta")` with type casting, column mapping, and DD_DELETE support |
 
 ## Workflow Execution Plan
 

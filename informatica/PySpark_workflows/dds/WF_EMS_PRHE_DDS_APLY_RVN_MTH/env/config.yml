@@ -23,8 +23,8 @@ spark:
   # Common spark config shared across all profiles (profile-specific overrides below)
   config:
     spark.ui.port: "4040"
-    spark.driver.memory: "16g"
-    spark.executor.memory: "16g"
+    spark.driver.memory: "8g"
+    spark.executor.memory: "8g"
     spark.sql.shuffle.partitions: "50"
     spark.default.parallelism: "50"
     spark.sql.debug.maxToStringFields: "100"
@@ -150,6 +150,11 @@ objects:
   UTL_SESSION_LIST:
     format: "csv"
     path: "${PMSOURCE_FILE_DIR:/tmp}/PCIS01/scripts/EMS_PRHE_RVN_MTH_ETL_SESSION_LIST"
+    delimiter: ","
+    header: "true"  
+  FLAT_DRP_MP:
+    format: "csv"
+    path: "${PMSOURCE_FILE_DIR:/tmp}/PCIS01/PRHE/DRP-MP.DAT"
     delimiter: ","
     header: "true"  
   UTL_DEV_NULL:

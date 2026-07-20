@@ -73,24 +73,24 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Reading Data From Source - read_DPA_FACT_GMS_DLY_MSD_INCDT
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_src_1 = lib.read_sql(spark, _conn, table="DPA_FACT_GMS_DLY_MSD_INCDT")
+        df_DPA_FACT_GMS_DLY_MSD_INCDT = lib.read_sql(spark, _conn, table="DPA_FACT_GMS_DLY_MSD_INCDT")
         
         logger.info("Step: apply_SQ_DPA_FACT_GMS_DLY_MSD_INCDT")
         # Source Qualifier: apply_SQ_DPA_FACT_GMS_DLY_MSD_INCDT
-        df_sq_2 = df_src_1
+        df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT = df_DPA_FACT_GMS_DLY_MSD_INCDT
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_2 = df_sq_2.select("MSD_INCDT_DATE_DMNS_KEY", "MSD_CRE_DATE_DMNS_KEY", "EST_SCD_KEY", "OFCR_TYPE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MSD_CODE_SCD_KEY", "OFNDR_GNDR_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY", "AFT_CMLT_WRT_WARN_CASE_CNT", "CMLT_PNT_ALLT_CASE_CNT", "CMLT_MSD_TOT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE")
-        ctx.register_df("df_sq_2", df_sq_2)
+        df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT = df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT.select("MSD_INCDT_DATE_DMNS_KEY", "MSD_CRE_DATE_DMNS_KEY", "EST_SCD_KEY", "OFCR_TYPE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MSD_CODE_SCD_KEY", "OFNDR_GNDR_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY", "AFT_CMLT_WRT_WARN_CASE_CNT", "CMLT_PNT_ALLT_CASE_CNT", "CMLT_MSD_TOT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE")
+        ctx.register_df("df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT", df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT)
         
         logger.info("Step: apply_UPDTRANS")
         # Update Strategy: apply_UPDTRANS
         # Strategy: DD_INSERT
-        df_upd_3 = df_sq_2.withColumn("_update_strategy", lit("INSERT"))
-        ctx.register_df("df_upd_3", df_upd_3)
+        df_UPDTRANS = df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT.withColumn("_update_strategy", lit("INSERT"))
+        ctx.register_df("df_UPDTRANS", df_UPDTRANS)
         
         logger.info("Step: write_DDS_FACT_GMS_DLY_MSD_INCDT")
         # Write to Target: write_DDS_FACT_GMS_DLY_MSD_INCDT
-        df_write = df_upd_3
+        df_write = df_UPDTRANS
         # Cast columns to match target schema data types
         if "rec_rls_ind" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

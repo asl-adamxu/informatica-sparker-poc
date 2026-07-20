@@ -218,7 +218,16 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% else %}
         {{ step.df_output }} = {{ step.df_input }}
         {% if step.params.get('filter_condition') %}
+        {% if mapping_variables and step.params.get('filter_inner') and '$$' in step.params.get('filter_inner') %}
+        _filter_text = """{{ step.params.get('filter_inner') }}"""
+        {% for var_name, var_default in mapping_variables.items() %}
+        {% set clean_name = var_name | replace('$', '') %}
+        _filter_text = _filter_text.replace("{{ var_name }}", {{ clean_name }})
+        {% endfor %}
+        {{ step.df_output }} = {{ step.df_output }}.filter(expr(_filter_text))
+        {% else %}
         {{ step.df_output }} = {{ step.df_output }}.filter({{ step.params.get('filter_condition') }})
+        {% endif %}
         {% endif %}
         {% if step.params.get('distinct') %}
         {{ step.df_output }} = {{ step.df_output }}.distinct()
@@ -232,11 +241,32 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         
         {% elif step.step_type == IRStepType.APPLY_FILTER %}
         # Filter: {{ step.step_name }}
-        {{ step.df_output }} = {{ step.df_input }}.filter({{ step.params.get('condition', 'True') }})
+        {% set filter_renames = step.params.get('filter_renames', []) %}
+        {% if filter_renames %}
+        __fil_input = {{ step.df_input }}
+        {% for r in filter_renames %}
+        __fil_input = __fil_input.drop("{{ r.to }}").withColumnRenamed("{{ r.from }}", "{{ r.to }}")
+        {% endfor %}
+        {% else %}
+        __fil_input = {{ step.df_input }}
+        {% endif %}
+        {% if mapping_variables and step.params.get('filter_inner') and '$$' in step.params.get('filter_inner') %}
+        _filter_text = """{{ step.params.get('filter_inner') }}"""
+        {% for var_name, var_default in mapping_variables.items() %}
+        {% set clean_name = var_name | replace('$', '') %}
+        _filter_text = _filter_text.replace("{{ var_name }}", {{ clean_name }})
+        {% endfor %}
+        {{ step.df_output }} = __fil_input.filter(expr(_filter_text))
+        {% else %}
+        {{ step.df_output }} = __fil_input.filter({{ step.params.get('condition', 'True') }})
+        {% endif %}
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
         
         {% elif step.step_type == IRStepType.APPLY_EXPRESSION %}
         # Expression: {{ step.step_name }}
+        {% if step.params.get('window_imports') %}
+        from pyspark.sql.window import Window
+        {% endif %}
         {{ step.df_output }} = {{ step.df_input }}
         {% for lkp_join in step.params.get('inline_lookup_joins', []) %}
         # Inline lookup join: {{ lkp_join.lookup_name }} (return column: {{ lkp_join.return_port }})
@@ -251,7 +281,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {{ step.df_output }} = {{ step.df_output }}.join(
             broadcast(_lkp_sub),
         {% for jp in lkp_join.join_predicates %}
-            ({{ step.df_output }}["{{ jp.source_col }}"] == _lkp_sub["_lkp_jk_{{ jp.lookup_col }}"]){% if not loop.last %} & {% endif %}
+            ({{ step.df_output }}["{{ jp.source_col }}"] == _lkp_sub["_lkp_jk_{{ jp.lookup_col }}"]){% if not loop.last %} &{{ '\n' }}{% endif %}
         {% endfor %},
             "left"
         ).drop({% for jp in lkp_join.join_predicates %}"_lkp_jk_{{ jp.lookup_col }}"{% if not loop.last %}, {% endif %}{% endfor %})
@@ -284,7 +314,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% endif %}
         {{ step.df_output }} = {{ step.df_output }}.withColumn("{{ col.get('name', 'col') }}", lit("SUCCESS"))
         {% elif expr_str | trim != col.get('name', 'col') %}
-        {% if mapping_variables and '$$' in expr_str %}
+        {% if 'row_number()' in expr_str or 'monotonically_increasing_id' in expr_str or 'last(when(' in expr_str %}
+        {{ step.df_output }} = {{ step.df_output }}.withColumn("{{ col.get('name', 'col') }}", {{ expr_str }})
+        {% elif mapping_variables and '$$' in expr_str %}
         _expr = """{{ expr_str }}"""
         {% for var_name, var_default in mapping_variables.items() %}
         {% set clean_name = var_name | replace('$', '') %}
@@ -309,8 +341,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             if _col not in {{ step.df_output }}.columns:
                 {{ step.df_output }} = {{ step.df_output }}.withColumn(_col, lit(None))
         {% endif %}
-        # Select only mapping output ports (prevents column leakage)
-        {{ step.df_output }} = {{ step.df_output }}.select({% for c in output_columns %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %})
+        # Keep all upstream columns + computed columns (no select filtering)
         {% endif %}
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
         
@@ -320,51 +351,59 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% set join_predicates = step.params.get('join_predicates', []) %}
         {% set join_expr = step.params.get('join_expr') %}
         {% if join_expr == '__common_cols__' %}
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in {{ step.df_input }}.columns if c in {{ lookup_df_name }}.columns]
-        {{ step.df_output }} = {{ step.df_input }}.join(
-            {{ lookup_df_name }},
-            on=_common_cols,
-            how="left"
-        )
+        # Merge on common columns — drop lookup columns that duplicate non-key
+        # input columns (e.g. EST_KEY from both sides → ambiguity).
+        _cc = list(dict.fromkeys(c for c in {{ step.df_input }}.columns if c in {{ lookup_df_name }}.columns))
+        if _cc:
+            __lkp_dup = [c for c in {{ lookup_df_name }}.columns if c in {{ step.df_input }}.columns and c not in _cc]
+            {{ step.df_output }} = {{ step.df_input }}.join(
+                {{ lookup_df_name }}.drop(*__lkp_dup) if __lkp_dup else {{ lookup_df_name }},
+                on=_cc, how="left"
+            )
+        else:
+            logger.warning("No common columns between {{ step.df_input }} and {{ lookup_df_name }} — using synthetic key join")
+            {{ step.df_output }} = {{ step.df_input }}.withColumn("_join_key", lit(1)).join(
+                {{ lookup_df_name }}.withColumn("_join_key", lit(1)),
+                on="_join_key", how="left").drop("_join_key")
+        ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
         {% elif join_predicates %}
-        {% set all_same = namespace(value=true) %}
-        {% for jp in join_predicates %}
-        {% if jp.source_col != jp.lookup_col %}{% set all_same.value = false %}{% endif %}
-        {% endfor %}
-        {% if all_same.value and join_predicates | length == 1 %}
-        # Join on common column: {{ join_predicates[0].source_col }}
-
-        {{ step.df_output }} = {{ step.df_input }}.join(
-            {% if step.params.get('broadcast', True) %}
-            broadcast({{ lookup_df_name }}){% else %}{{ lookup_df_name }}
-            {% endif %},
-            on="{{ join_predicates[0].source_col }}",
-            how="{{ step.params.get('lookup_type', 'left') }}"
-        )
-        {% elif all_same.value and join_predicates | length > 1 %}
-        # Join on common columns: {% for jp in join_predicates %}{{ jp.source_col }}{% if not loop.last %}, {% endif %}{% endfor %}
-
-        {{ step.df_output }} = {{ step.df_input }}.join(
-            {% if step.params.get('broadcast', True) %}
-            broadcast({{ lookup_df_name }}){% else %}{{ lookup_df_name }}
-            {% endif %},
-            on=[{% for jp in join_predicates %}"{{ jp.source_col }}"{% if not loop.last %}, {% endif %}{% endfor %}],
-            how="{{ step.params.get('lookup_type', 'left') }}"
-        )
+        {% if step.params.get('dedup_lookup') %}
+        {% set dedup_keys = step.params.get('dedup_lookup_keys', []) %}
+        {% if step.params.get('dedup_lookup_error') %}
+        # Report Error on multiple match: check for duplicate join keys
+        _dup_cnt = {{ lookup_df_name }}.groupBy({% for k in dedup_keys %}col("{{ k }}"){% if not loop.last %}, {% endif %}{% endfor %}).count().filter(col("count") > 1).count()
+        if _dup_cnt > 0:
+            raise RuntimeError(f"Lookup {{ step.step_name }}: {_dup_cnt} duplicate keys found — Report Error policy")
+        {% elif step.params.get('dedup_lookup_last') %}
+        # Use Last Value: keep last row per join key via window function
+        from pyspark.sql.window import Window as _Window
+        _w = _Window.partitionBy({% for k in dedup_keys %}col("{{ k }}"){% if not loop.last %}, {% endif %}{% endfor %}).orderBy(lit(0).desc())
+        {{ lookup_df_name }} = {{ lookup_df_name }}.withColumn("_rn", row_number().over(_w)).filter(col("_rn") == 1).drop("_rn")
         {% else %}
-        # Join condition: {% for jp in join_predicates %}{{ jp.source_col }}={{ jp.lookup_col }}{% if not loop.last %} AND {% endif %}{% endfor %}
-
+        # Use First Value / Use Any Value: dedup by join keys
+        {{ lookup_df_name }} = {{ lookup_df_name }}.dropDuplicates(subset=[{% for k in dedup_keys %}"{{ k }}"{% if not loop.last %}, {% endif %}{% endfor %}])
+        {% endif %}
+        {% endif %}
+        # Join condition: {% for jp in join_predicates %}{{ jp.source_col }}={{ jp.lookup_col }}{% if not loop.last %} AND {% endif %}{% endfor %}{{ '\n' }}        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = {{ lookup_df_name }}
+        {% for jp in join_predicates %}
+        _lkp_right = _lkp_right.withColumnRenamed("{{ jp.lookup_col }}", "_lkp_{{ jp.lookup_col }}")
+        {% endfor %}
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in {{ step.df_input }}.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
         {{ step.df_output }} = {{ step.df_input }}.join(
             {% if step.params.get('broadcast', True) %}
-            broadcast({{ lookup_df_name }}){% else %}{{ lookup_df_name }}
+            broadcast(_lkp_right){% else %}_lkp_right
             {% endif %},
             {% for jp in join_predicates %}
-            ({{ step.df_input }}["{{ jp.source_col }}"] == {{ lookup_df_name }}["{{ jp.lookup_col }}"]){% if not loop.last %} & {% endif %}
+            ({{ step.df_input }}["{{ jp.source_col }}"] == _lkp_right["_lkp_{{ jp.lookup_col }}"]){% if not loop.last %} &{{ '\n' }}{% endif %}
             {% endfor %},
             "{{ step.params.get('lookup_type', 'left') }}"
-        )
-        {% endif %}
+        ){% for jp in join_predicates %}.drop("_lkp_{{ jp.lookup_col }}"){% endfor %}{{ '\n' }}
+        ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
         {% elif join_expr %}
         {{ step.df_output }} = {{ step.df_input }}.join(
             {% if step.params.get('broadcast', True) %}
@@ -373,6 +412,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             expr("{{ join_expr }}"),
             "{{ step.params.get('lookup_type', 'left') }}"
         )
+        ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
         {% else %}
         {{ step.df_output }} = {{ step.df_input }}.join(
             {% if step.params.get('broadcast', True) %}
@@ -381,8 +421,8 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             lit(True),
             "{{ step.params.get('lookup_type', 'left') }}"
         )
-        {% endif %}
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
+        {% endif %}
         
         {% elif step.step_type == IRStepType.APPLY_JOINER %}
         # Joiner: {{ step.step_name }}
@@ -392,19 +432,54 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% set raw_condition = step.params.get('raw_condition', '') %}
         {% set use_fallback = step.params.get('use_fallback', False) %}
         {% set join_type = step.params.get('join_type', 'inner') %}
+        {% set master_selects = step.params.get('master_selects', []) %}
+        {% set detail_selects = step.params.get('detail_selects', []) %}
+        {% if master_selects or detail_selects %}
+        # Select + rename upstream columns to Joiner port names
+        {% if master_selects %}
+        {% set _ms_var = step.df_output + '_master' %}
+        {{ _ms_var }} = {{ df_master }}.select(
+            {% for s in master_selects %}
+            {% if s.from == s.to %}
+            col("{{ s.from }}"){% if not loop.last %},{{ '
+' }}{% endif %}
+            {% else %}
+            col("{{ s.from }}").alias("{{ s.to }}"){% if not loop.last %},{{ '
+' }}{% endif %}
+            {% endif %}
+            {% endfor %}
+        )
+        {% set df_master = _ms_var %}
+        {% endif %}
+        {% if detail_selects %}
+        {% set _ds_var = step.df_output + '_detail' %}
+        {{ _ds_var }} = {{ df_detail }}.select(
+            {% for s in detail_selects %}
+            {% if s.from == s.to %}
+            col("{{ s.from }}"){% if not loop.last %},{{ '
+' }}{% endif %}
+            {% else %}
+            col("{{ s.from }}").alias("{{ s.to }}"){% if not loop.last %},{{ '
+' }}{% endif %}
+            {% endif %}
+            {% endfor %}
+        )
+        {% set df_detail = _ds_var %}
+        {% endif %}
+        {% endif %}
         {% if join_predicates and not use_fallback %}
         # Pure equi-join on: {% for jp in join_predicates %}{{ jp.master_col }}={{ jp.detail_col }}{% if not loop.last %}, {% endif %}{% endfor %}
         {{ step.df_output }} = {{ df_master }}.join(
             {{ df_detail }},
-            {% for jp in join_predicates %}({{ df_master }}["{{ jp.master_col }}"] == {{ df_detail }}["{{ jp.detail_col }}"]){% if not loop.last %} & {% endif %}{% endfor %},
+            {% for jp in join_predicates %}
+            ({{ df_master }}["{{ jp.master_col }}"] == {{ df_detail }}["{{ jp.detail_col }}"]){% if not loop.last %} &{{ '\n' }}{% endif %}
+            {% endfor %},
             "{{ join_type }}"
         )
         {% elif raw_condition %}
-        # Complex join condition - using aliases for unambiguous column references
-        _master = {{ df_master }}.alias("MASTER")
-        _detail = {{ df_detail }}.alias("DETAIL")
-        {{ step.df_output }} = _master.join(
-            _detail,
+        # Complex join condition
+        {{ step.df_output }} = {{ df_master }}.join(
+            {{ df_detail }},
             expr("{{ raw_condition | replace('"', '\\"') }}"),
             "{{ join_type }}"
         )
@@ -421,8 +496,28 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Aggregator: {{ step.step_name }}
         {% set group_by = step.params.get('group_by', []) %}
         {% set aggs = step.params.get('aggregations', {}) %}
+        {% set agg_selects = step.params.get('agg_selects', []) %}
+        {% set agg_literals = step.params.get('agg_literals', []) %}
         {% if group_by and aggs %}
+        {% if agg_selects or agg_literals %}
+        # Select only mapped upstream columns with correct port names
+        _agg_input = {{ step.df_input }}.select(
+            {% for s in agg_selects %}
+            {% if s.from == s.to %}
+            col("{{ s.from }}"){% if not loop.last %},{{ '\n' }}{% endif %}
+            {% else %}
+            col("{{ s.from }}").alias("{{ s.to }}"){% if not loop.last %},{{ '\n' }}{% endif %}
+            {% endif %}
+            {% endfor %}
+            {%- if agg_selects and agg_literals %},{{ '\n' }}{% endif %}
+            {% for l in agg_literals %}
+            expr("{{ l.expression }}").alias("{{ l.name }}"){% if not loop.last %},{{ '\n' }}{% endif %}
+            {% endfor %}
+        )
+        {{ step.df_output }} = _agg_input.groupBy({{ group_by | map('tojson') | join(', ') }})
+        {% else %}
         {{ step.df_output }} = {{ step.df_input }}.groupBy({{ group_by | map('tojson') | join(', ') }})
+        {% endif %}
         {{ step.df_output }} = {{ step.df_output }}.agg(
             {% for col_name, agg_expr in aggs.items() %}
             {{ agg_expr }}.alias("{{ col_name }}"){{ "," if not loop.last else "" }}
@@ -438,9 +533,18 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         
         {% elif step.step_type == IRStepType.APPLY_SORTER %}
         # Sorter: {{ step.step_name }}
+        {% set sorter_renames = step.params.get('sorter_renames', []) %}
         {% set sort_cols = step.params.get('sort_columns', []) %}
+        {% if sorter_renames %}
+        __srt_input = {{ step.df_input }}
+        {% for r in sorter_renames %}
+        __srt_input = __srt_input.drop("{{ r.to }}").withColumnRenamed("{{ r.from }}", "{{ r.to }}")
+        {% endfor %}
+        {% else %}
+        __srt_input = {{ step.df_input }}
+        {% endif %}
         {% if sort_cols %}
-        {{ step.df_output }} = {{ step.df_input }}.orderBy(
+        {{ step.df_output }} = __srt_input.orderBy(
             {% for sc in sort_cols %}
             {% if sc.get('direction', 'ASC').upper() == 'DESC' %}
             desc("{{ sc.get('column', '') }}"){{ "," if not loop.last else "" }}
@@ -450,7 +554,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             {% endfor %}
         )
         {% else %}
-        {{ step.df_output }} = {{ step.df_input }}
+        {{ step.df_output }} = __srt_input
         {% endif %}
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
         
@@ -470,19 +574,25 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {{ step.df_output }} = {{ step.df_output }}.unionByName({{ df }}_norm, allowMissingColumns=True)
         {% endfor %}
         {% else %}
-        {% set union_rename_map = step.params.get('union_rename_map', {}) %}
-        {% if union_rename_map %}
-        # Rename upstream columns to match union output port names
-        {% for _df_name, _renames in union_rename_map.items() %}
-        {% for _from_col, _to_col in _renames.items() %}
-        {{ _df_name }} = {{ _df_name }}.withColumnRenamed("{{ _from_col }}", "{{ _to_col }}")
+        {% set union_selects = step.params.get('union_selects', []) %}
+        {% if union_selects %}
+        # Select + rename upstream columns per input, then union
+        {% for us in union_selects %}
+        {{ us.intermediate_var }} = {{ us.df_input }}.select(
+            {% for s in us.selects %}
+            col("{{ s.from }}").alias("{{ s.to }}"){% if not loop.last %},{{ '\n' }}{% endif %}{% endfor %}
+        )
         {% endfor %}
+        {{ step.df_output }} = {{ union_selects[0].intermediate_var }}
+        {% for us in union_selects[1:] %}
+        {{ step.df_output }} = {{ step.df_output }}.unionByName({{ us.intermediate_var }}, allowMissingColumns=True)
         {% endfor %}
-        {% endif %}
+        {% elif df_inputs %}
         {{ step.df_output }} = {{ df_inputs[0] }}
         {% for df in df_inputs[1:] %}
         {{ step.df_output }} = {{ step.df_output }}.unionByName({{ df }}, allowMissingColumns=True)
         {% endfor %}
+        {% endif %}
         {% endif %}
         {% else %}
         {{ step.df_output }} = {{ step.df_input }}
@@ -501,6 +611,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% else %}
         {{ group.get('df_output', 'df_group') }} = {{ step.df_input }}  # Default group
         {% endif %}
+        {% for rename in group.get('renames', []) %}
+        {{ group.get('df_output', 'df_group') }} = {{ group.get('df_output', 'df_group') }}.drop("{{ rename.to }}").withColumnRenamed("{{ rename.from }}", "{{ rename.to }}")
+        {% endfor %}
         ctx.register_df("{{ group.get('df_output', 'df_group') }}", {{ group.get('df_output', 'df_group') }})
         {% endfor %}
         

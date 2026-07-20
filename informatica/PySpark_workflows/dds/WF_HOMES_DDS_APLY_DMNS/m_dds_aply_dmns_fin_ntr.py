@@ -55,18 +55,18 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Reading Data From Source - read_DPA_DMNS_FIN_NTR
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_src_1 = lib.read_sql(spark, _conn, table="DPA_DMNS_FIN_NTR")
+        df_DPA_DMNS_FIN_NTR = lib.read_sql(spark, _conn, table="DPA_DMNS_FIN_NTR")
         
         logger.info("Step: apply_SQ_DPA_DMNS_FIN_NTR")
         # Source Qualifier: apply_SQ_DPA_DMNS_FIN_NTR
-        df_sq_2 = df_src_1
+        df_SQ_DPA_DMNS_FIN_NTR = df_DPA_DMNS_FIN_NTR
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_2 = df_sq_2.select("DMNS_FIN_NTR_KEY", "FIN_NTR_CODE", "FIN_NTR_DESP", "FIN_NTR_DISP_SEQ_NUM")
-        ctx.register_df("df_sq_2", df_sq_2)
+        df_SQ_DPA_DMNS_FIN_NTR = df_SQ_DPA_DMNS_FIN_NTR.select("DMNS_FIN_NTR_KEY", "FIN_NTR_CODE", "FIN_NTR_DESP", "FIN_NTR_DISP_SEQ_NUM")
+        ctx.register_df("df_SQ_DPA_DMNS_FIN_NTR", df_SQ_DPA_DMNS_FIN_NTR)
         
         logger.info("Step: write_DDS_DMNS_FIN_NTR")
         # Write to Target: write_DDS_DMNS_FIN_NTR
-        df_write = df_sq_2
+        df_write = df_SQ_DPA_DMNS_FIN_NTR
         # Cast columns to match target schema data types
         if "fin_ntr_code" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

@@ -1,14 +1,14 @@
 ================================================================================
 INFORMATICA-SPARKER CONVERSION LOG
-Generated: 2026-07-10 16:35:45
+Generated: 2026-07-20 18:03:33
 ================================================================================
 
 SUMMARY
 ----------------------------------------
 Total Mappings: 10
-Successful: 6
-Failed: 4
-Total Warnings: 5
+Successful: 10
+Failed: 0
+Total Warnings: 0
 Total Errors: 0
 
 SOURCE DETECTION RESULTS
@@ -951,29 +951,20 @@ MAPPING: M_DDS_APLY_FACT_CMS_CASE_PRNT_SMRY
   Generated Files: m_dds_aply_fact_cms_case_prnt_smry.py
 
 MAPPING: M_DPA_SUMMARIZE_FACT_CMS_CASE_SMRY
-  Status: FAILED
+  Status: SUCCESS
   Generated Files: m_dpa_summarize_fact_cms_case_smry.py
-  Warnings (1):
-    [WARN] No input DataFrame found for SQ_SOR_CMS_CASE
 
 MAPPING: M_DPA_SUMMARIZE_FACT_CMS_CASE_OSTD_SMRY
-  Status: FAILED
+  Status: SUCCESS
   Generated Files: m_dpa_summarize_fact_cms_case_ostd_smry.py
-  Warnings (1):
-    [WARN] No input DataFrame found for SQ_SOR_CMS_CASE
 
 MAPPING: M_DPA_SUMMARIZE_FACT_CMS_ORD_SMRY
-  Status: FAILED
+  Status: SUCCESS
   Generated Files: m_dpa_summarize_fact_cms_ord_smry.py
-  Warnings (2):
-    [WARN] No input DataFrame found for SQ_SOR_CMS_CASE
-    [WARN] No input DataFrame found for SQ_SOR_CMS_CASE_ARTSN_ORD_STS
 
 MAPPING: M_DPA_SUMMARIZE_FACT_CMS_CASE_PRNT_SMRY
-  Status: FAILED
+  Status: SUCCESS
   Generated Files: m_dpa_summarize_fact_cms_case_prnt_smry.py
-  Warnings (1):
-    [WARN] No input DataFrame found for SQ_DPA_FACT_CMS_CASE_PRNT_SMRY
 
 MAPPING: M_UTL_DPA_TRUNCATE
   Status: SUCCESS
@@ -982,11 +973,3 @@ MAPPING: M_UTL_DPA_TRUNCATE
 MAPPING: M_UTL_PARAM_SETUP
   Status: SUCCESS
   Generated Files: m_utl_param_setup.py
-
-ALL WARNINGS
-----------------------------------------
-  [WARN] No input DataFrame found for SQ_SOR_CMS_CASE
-  [WARN] No input DataFrame found for SQ_SOR_CMS_CASE
-  [WARN] No input DataFrame found for SQ_SOR_CMS_CASE
-  [WARN] No input DataFrame found for SQ_SOR_CMS_CASE_ARTSN_ORD_STS
-  [WARN] No input DataFrame found for SQ_DPA_FACT_CMS_CASE_PRNT_SMRY

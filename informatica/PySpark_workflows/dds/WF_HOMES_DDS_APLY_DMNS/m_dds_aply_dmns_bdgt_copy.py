@@ -51,12 +51,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
 
     
     try:
-        logger.info("Step: read_DPA_DMNS_BDGT_COPY")
-        # Reading Data From Source - read_DPA_DMNS_BDGT_COPY
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "DPA")
-        df_src_1 = lib.read_sql(spark, _conn, table="DPA_DMNS_BDGT_COPY")
-        
         logger.info("Step: apply_SQ_DPA_DMNS_BDGT_COPY")
         # Source Qualifier: apply_SQ_DPA_DMNS_BDGT_COPY
         # SQL Pushdown - executes Informatica SQ SQL on source database
@@ -66,21 +60,21 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         query = f"""SELECT DMNS_BDGT_COPY_KEY, BDGT_PRCS_YEAR, COPY_CODE, COPY_VER_NUM, BDGT_COPY_DESP,  dense_rank() over (order by bdgt_prcs_year, copy_code, copy_ver_num) BDGT_COPY_DISP_SEQ_NUM 
 FROM
  DPA_DMNS_BDGT_COPY"""
-        df_sq_2 = lib.read_sql(spark, _conn, query=query)
+        df_SQ_DPA_DMNS_BDGT_COPY = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_2.columns
+        _sql_cols = df_SQ_DPA_DMNS_BDGT_COPY.columns
         _port_cols = ["DMNS_BDGT_COPY_KEY", "BDGT_PRCS_YEAR", "COPY_CODE", "COPY_VER_NUM", "BDGT_COPY_DESP", "BDGT_COPY_DISP_SEQ_NUM"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_2 = df_sq_2.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_SQ_DPA_DMNS_BDGT_COPY = df_SQ_DPA_DMNS_BDGT_COPY.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_2 = df_sq_2.select("DMNS_BDGT_COPY_KEY", "BDGT_PRCS_YEAR", "COPY_CODE", "COPY_VER_NUM", "BDGT_COPY_DESP", "BDGT_COPY_DISP_SEQ_NUM")
+        df_SQ_DPA_DMNS_BDGT_COPY = df_SQ_DPA_DMNS_BDGT_COPY.select("DMNS_BDGT_COPY_KEY", "BDGT_PRCS_YEAR", "COPY_CODE", "COPY_VER_NUM", "BDGT_COPY_DESP", "BDGT_COPY_DISP_SEQ_NUM")
         
-        ctx.register_df("df_sq_2", df_sq_2)
+        ctx.register_df("df_SQ_DPA_DMNS_BDGT_COPY", df_SQ_DPA_DMNS_BDGT_COPY)
         
         logger.info("Step: write_DDS_DMNS_BDGT_COPY")
         # Write to Target: write_DDS_DMNS_BDGT_COPY
-        df_write = df_sq_2
+        df_write = df_SQ_DPA_DMNS_BDGT_COPY
         # Cast columns to match target schema data types
         if "copy_code" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

@@ -72,18 +72,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.warning("UTL_JOB_PARAM not found, using default values")
     
     try:
-        logger.info("Step: read_SOR_EMS_HSM_EST")
-        # Reading Data From Source - read_SOR_EMS_HSM_EST
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_1 = lib.read_sql(spark, _conn, table="SOR_EMS_HSM_EST")
-        
-        logger.info("Step: read_SOR_EMS_CPM_PTCL_STS")
-        # Reading Data From Source - read_SOR_EMS_CPM_PTCL_STS
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_2 = lib.read_sql(spark, _conn, table="SOR_EMS_CPM_PTCL")
-        
         logger.info("Step: apply_SQ_SOR_EMS_HSM_EST")
         # Source Qualifier: apply_SQ_SOR_EMS_HSM_EST
         # SQL Pushdown - executes Informatica SQ SQL on source database
@@ -119,749 +107,1044 @@ AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN tncy_sts.BGN_DATE AND tncy_sts.EN
 AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.END_DATE"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_sq_3 = lib.read_sql(spark, _conn, query=query)
+        df_SQ_SOR_EMS_HSM_EST = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_3.columns
+        _sql_cols = df_SQ_SOR_EMS_HSM_EST.columns
         _port_cols = ["EST_CODE", "AGE_GRP", "CUST_MBR_GNDR_CODE", "BLK_CODE"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_3 = df_sq_3.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_SQ_SOR_EMS_HSM_EST = df_SQ_SOR_EMS_HSM_EST.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_3 = df_sq_3.select("EST_CODE", "AGE_GRP", "CUST_MBR_GNDR_CODE", "BLK_CODE")
+        df_SQ_SOR_EMS_HSM_EST = df_SQ_SOR_EMS_HSM_EST.select("EST_CODE", "AGE_GRP", "CUST_MBR_GNDR_CODE", "BLK_CODE")
         
-        ctx.register_df("df_sq_3", df_sq_3)
+        ctx.register_df("df_SQ_SOR_EMS_HSM_EST", df_SQ_SOR_EMS_HSM_EST)
         
         logger.info("Step: apply_RTRTRANS")
         # Router: apply_RTRTRANS - splits into multiple output groups
-        df_rtr_newgroup0_4 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup0_4", df_rtr_newgroup0_4)
-        df_rtr_newgroup1_5 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup1_5", df_rtr_newgroup1_5)
-        df_rtr_newgroup2_6 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup2_6", df_rtr_newgroup2_6)
-        df_rtr_newgroup3_7 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup3_7", df_rtr_newgroup3_7)
-        df_rtr_newgroup4_8 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup4_8", df_rtr_newgroup4_8)
-        df_rtr_newgroup5_9 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup5_9", df_rtr_newgroup5_9)
-        df_rtr_newgroup6_10 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup6_10", df_rtr_newgroup6_10)
-        df_rtr_newgroup7_11 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup7_11", df_rtr_newgroup7_11)
-        df_rtr_newgroup8_12 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup8_12", df_rtr_newgroup8_12)
-        df_rtr_newgroup9_13 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup9_13", df_rtr_newgroup9_13)
-        df_rtr_newgroup10_14 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup10_14", df_rtr_newgroup10_14)
-        df_rtr_newgroup11_15 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup11_15", df_rtr_newgroup11_15)
-        df_rtr_newgroup12_16 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup12_16", df_rtr_newgroup12_16)
-        df_rtr_newgroup13_17 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup13_17", df_rtr_newgroup13_17)
-        df_rtr_newgroup14_18 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup14_18", df_rtr_newgroup14_18)
-        df_rtr_newgroup15_19 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup15_19", df_rtr_newgroup15_19)
-        df_rtr_newgroup16_20 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup16_20", df_rtr_newgroup16_20)
-        df_rtr_newgroup17_21 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup17_21", df_rtr_newgroup17_21)
-        df_rtr_newgroup18_22 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup18_22", df_rtr_newgroup18_22)
-        df_rtr_newgroup19_23 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup19_23", df_rtr_newgroup19_23)
-        df_rtr_newgroup20_24 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup20_24", df_rtr_newgroup20_24)
-        df_rtr_newgroup25_25 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup25_25", df_rtr_newgroup25_25)
-        df_rtr_newgroup30_26 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup30_26", df_rtr_newgroup30_26)
-        df_rtr_newgroup35_27 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup35_27", df_rtr_newgroup35_27)
-        df_rtr_newgroup40_28 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup40_28", df_rtr_newgroup40_28)
-        df_rtr_newgroup45_29 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup45_29", df_rtr_newgroup45_29)
-        df_rtr_newgroup50_30 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup50_30", df_rtr_newgroup50_30)
-        df_rtr_newgroup55_31 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup55_31", df_rtr_newgroup55_31)
-        df_rtr_newgroup60_32 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup60_32", df_rtr_newgroup60_32)
-        df_rtr_newgroup65_33 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup65_33", df_rtr_newgroup65_33)
-        df_rtr_newgroup70_34 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_newgroup70_34", df_rtr_newgroup70_34)
-        df_rtr_default_35 = df_sq_3  # Default group
-        ctx.register_df("df_rtr_default_35", df_rtr_default_35)
+        df_rtr_newgroup0_1 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP = 0"))
+        df_rtr_newgroup0_1 = df_rtr_newgroup0_1.drop("EST_CODE1").withColumnRenamed("EST_CODE", "EST_CODE1")
+        df_rtr_newgroup0_1 = df_rtr_newgroup0_1.drop("AGE_GRP1").withColumnRenamed("AGE_GRP", "AGE_GRP1")
+        df_rtr_newgroup0_1 = df_rtr_newgroup0_1.drop("CUST_MBR_GNDR_CODE1").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE1")
+        df_rtr_newgroup0_1 = df_rtr_newgroup0_1.drop("BLK_CODE1").withColumnRenamed("BLK_CODE", "BLK_CODE1")
+        ctx.register_df("df_rtr_newgroup0_1", df_rtr_newgroup0_1)
+        df_rtr_newgroup1_2 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP = 1"))
+        df_rtr_newgroup1_2 = df_rtr_newgroup1_2.drop("EST_CODE3").withColumnRenamed("EST_CODE", "EST_CODE3")
+        df_rtr_newgroup1_2 = df_rtr_newgroup1_2.drop("AGE_GRP3").withColumnRenamed("AGE_GRP", "AGE_GRP3")
+        df_rtr_newgroup1_2 = df_rtr_newgroup1_2.drop("CUST_MBR_GNDR_CODE3").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE3")
+        df_rtr_newgroup1_2 = df_rtr_newgroup1_2.drop("BLK_CODE3").withColumnRenamed("BLK_CODE", "BLK_CODE3")
+        ctx.register_df("df_rtr_newgroup1_2", df_rtr_newgroup1_2)
+        df_rtr_newgroup2_3 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP = 2"))
+        df_rtr_newgroup2_3 = df_rtr_newgroup2_3.drop("EST_CODE4").withColumnRenamed("EST_CODE", "EST_CODE4")
+        df_rtr_newgroup2_3 = df_rtr_newgroup2_3.drop("AGE_GRP4").withColumnRenamed("AGE_GRP", "AGE_GRP4")
+        df_rtr_newgroup2_3 = df_rtr_newgroup2_3.drop("CUST_MBR_GNDR_CODE4").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE4")
+        df_rtr_newgroup2_3 = df_rtr_newgroup2_3.drop("BLK_CODE4").withColumnRenamed("BLK_CODE", "BLK_CODE4")
+        ctx.register_df("df_rtr_newgroup2_3", df_rtr_newgroup2_3)
+        df_rtr_newgroup3_4 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP = 3"))
+        df_rtr_newgroup3_4 = df_rtr_newgroup3_4.drop("EST_CODE5").withColumnRenamed("EST_CODE", "EST_CODE5")
+        df_rtr_newgroup3_4 = df_rtr_newgroup3_4.drop("AGE_GRP5").withColumnRenamed("AGE_GRP", "AGE_GRP5")
+        df_rtr_newgroup3_4 = df_rtr_newgroup3_4.drop("CUST_MBR_GNDR_CODE5").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE5")
+        df_rtr_newgroup3_4 = df_rtr_newgroup3_4.drop("BLK_CODE5").withColumnRenamed("BLK_CODE", "BLK_CODE5")
+        ctx.register_df("df_rtr_newgroup3_4", df_rtr_newgroup3_4)
+        df_rtr_newgroup4_5 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP = 4"))
+        df_rtr_newgroup4_5 = df_rtr_newgroup4_5.drop("EST_CODE6").withColumnRenamed("EST_CODE", "EST_CODE6")
+        df_rtr_newgroup4_5 = df_rtr_newgroup4_5.drop("AGE_GRP6").withColumnRenamed("AGE_GRP", "AGE_GRP6")
+        df_rtr_newgroup4_5 = df_rtr_newgroup4_5.drop("CUST_MBR_GNDR_CODE6").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE6")
+        df_rtr_newgroup4_5 = df_rtr_newgroup4_5.drop("BLK_CODE6").withColumnRenamed("BLK_CODE", "BLK_CODE6")
+        ctx.register_df("df_rtr_newgroup4_5", df_rtr_newgroup4_5)
+        df_rtr_newgroup5_6 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP = 5"))
+        df_rtr_newgroup5_6 = df_rtr_newgroup5_6.drop("EST_CODE7").withColumnRenamed("EST_CODE", "EST_CODE7")
+        df_rtr_newgroup5_6 = df_rtr_newgroup5_6.drop("AGE_GRP7").withColumnRenamed("AGE_GRP", "AGE_GRP7")
+        df_rtr_newgroup5_6 = df_rtr_newgroup5_6.drop("CUST_MBR_GNDR_CODE7").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE7")
+        df_rtr_newgroup5_6 = df_rtr_newgroup5_6.drop("BLK_CODE7").withColumnRenamed("BLK_CODE", "BLK_CODE7")
+        ctx.register_df("df_rtr_newgroup5_6", df_rtr_newgroup5_6)
+        df_rtr_newgroup6_7 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP = 6"))
+        df_rtr_newgroup6_7 = df_rtr_newgroup6_7.drop("EST_CODE8").withColumnRenamed("EST_CODE", "EST_CODE8")
+        df_rtr_newgroup6_7 = df_rtr_newgroup6_7.drop("AGE_GRP8").withColumnRenamed("AGE_GRP", "AGE_GRP8")
+        df_rtr_newgroup6_7 = df_rtr_newgroup6_7.drop("CUST_MBR_GNDR_CODE8").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE8")
+        df_rtr_newgroup6_7 = df_rtr_newgroup6_7.drop("BLK_CODE8").withColumnRenamed("BLK_CODE", "BLK_CODE8")
+        ctx.register_df("df_rtr_newgroup6_7", df_rtr_newgroup6_7)
+        df_rtr_newgroup7_8 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP = 7"))
+        df_rtr_newgroup7_8 = df_rtr_newgroup7_8.drop("EST_CODE9").withColumnRenamed("EST_CODE", "EST_CODE9")
+        df_rtr_newgroup7_8 = df_rtr_newgroup7_8.drop("AGE_GRP9").withColumnRenamed("AGE_GRP", "AGE_GRP9")
+        df_rtr_newgroup7_8 = df_rtr_newgroup7_8.drop("CUST_MBR_GNDR_CODE9").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE9")
+        df_rtr_newgroup7_8 = df_rtr_newgroup7_8.drop("BLK_CODE9").withColumnRenamed("BLK_CODE", "BLK_CODE9")
+        ctx.register_df("df_rtr_newgroup7_8", df_rtr_newgroup7_8)
+        df_rtr_newgroup8_9 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP = 8"))
+        df_rtr_newgroup8_9 = df_rtr_newgroup8_9.drop("EST_CODE10").withColumnRenamed("EST_CODE", "EST_CODE10")
+        df_rtr_newgroup8_9 = df_rtr_newgroup8_9.drop("AGE_GRP10").withColumnRenamed("AGE_GRP", "AGE_GRP10")
+        df_rtr_newgroup8_9 = df_rtr_newgroup8_9.drop("CUST_MBR_GNDR_CODE10").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE10")
+        df_rtr_newgroup8_9 = df_rtr_newgroup8_9.drop("BLK_CODE10").withColumnRenamed("BLK_CODE", "BLK_CODE10")
+        ctx.register_df("df_rtr_newgroup8_9", df_rtr_newgroup8_9)
+        df_rtr_newgroup9_10 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP = 9"))
+        df_rtr_newgroup9_10 = df_rtr_newgroup9_10.drop("EST_CODE11").withColumnRenamed("EST_CODE", "EST_CODE11")
+        df_rtr_newgroup9_10 = df_rtr_newgroup9_10.drop("AGE_GRP11").withColumnRenamed("AGE_GRP", "AGE_GRP11")
+        df_rtr_newgroup9_10 = df_rtr_newgroup9_10.drop("CUST_MBR_GNDR_CODE11").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE11")
+        df_rtr_newgroup9_10 = df_rtr_newgroup9_10.drop("BLK_CODE11").withColumnRenamed("BLK_CODE", "BLK_CODE11")
+        ctx.register_df("df_rtr_newgroup9_10", df_rtr_newgroup9_10)
+        df_rtr_newgroup10_11 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP = 10"))
+        df_rtr_newgroup10_11 = df_rtr_newgroup10_11.drop("EST_CODE12").withColumnRenamed("EST_CODE", "EST_CODE12")
+        df_rtr_newgroup10_11 = df_rtr_newgroup10_11.drop("AGE_GRP12").withColumnRenamed("AGE_GRP", "AGE_GRP12")
+        df_rtr_newgroup10_11 = df_rtr_newgroup10_11.drop("CUST_MBR_GNDR_CODE12").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE12")
+        df_rtr_newgroup10_11 = df_rtr_newgroup10_11.drop("BLK_CODE12").withColumnRenamed("BLK_CODE", "BLK_CODE12")
+        ctx.register_df("df_rtr_newgroup10_11", df_rtr_newgroup10_11)
+        df_rtr_newgroup11_12 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP = 11"))
+        df_rtr_newgroup11_12 = df_rtr_newgroup11_12.drop("EST_CODE13").withColumnRenamed("EST_CODE", "EST_CODE13")
+        df_rtr_newgroup11_12 = df_rtr_newgroup11_12.drop("AGE_GRP13").withColumnRenamed("AGE_GRP", "AGE_GRP13")
+        df_rtr_newgroup11_12 = df_rtr_newgroup11_12.drop("CUST_MBR_GNDR_CODE13").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE13")
+        df_rtr_newgroup11_12 = df_rtr_newgroup11_12.drop("BLK_CODE13").withColumnRenamed("BLK_CODE", "BLK_CODE13")
+        ctx.register_df("df_rtr_newgroup11_12", df_rtr_newgroup11_12)
+        df_rtr_newgroup12_13 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP = 12"))
+        df_rtr_newgroup12_13 = df_rtr_newgroup12_13.drop("EST_CODE14").withColumnRenamed("EST_CODE", "EST_CODE14")
+        df_rtr_newgroup12_13 = df_rtr_newgroup12_13.drop("AGE_GRP14").withColumnRenamed("AGE_GRP", "AGE_GRP14")
+        df_rtr_newgroup12_13 = df_rtr_newgroup12_13.drop("CUST_MBR_GNDR_CODE14").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE14")
+        df_rtr_newgroup12_13 = df_rtr_newgroup12_13.drop("BLK_CODE14").withColumnRenamed("BLK_CODE", "BLK_CODE14")
+        ctx.register_df("df_rtr_newgroup12_13", df_rtr_newgroup12_13)
+        df_rtr_newgroup13_14 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP = 13"))
+        df_rtr_newgroup13_14 = df_rtr_newgroup13_14.drop("EST_CODE15").withColumnRenamed("EST_CODE", "EST_CODE15")
+        df_rtr_newgroup13_14 = df_rtr_newgroup13_14.drop("AGE_GRP15").withColumnRenamed("AGE_GRP", "AGE_GRP15")
+        df_rtr_newgroup13_14 = df_rtr_newgroup13_14.drop("CUST_MBR_GNDR_CODE15").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE15")
+        df_rtr_newgroup13_14 = df_rtr_newgroup13_14.drop("BLK_CODE15").withColumnRenamed("BLK_CODE", "BLK_CODE15")
+        ctx.register_df("df_rtr_newgroup13_14", df_rtr_newgroup13_14)
+        df_rtr_newgroup14_15 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP = 14"))
+        df_rtr_newgroup14_15 = df_rtr_newgroup14_15.drop("EST_CODE16").withColumnRenamed("EST_CODE", "EST_CODE16")
+        df_rtr_newgroup14_15 = df_rtr_newgroup14_15.drop("AGE_GRP16").withColumnRenamed("AGE_GRP", "AGE_GRP16")
+        df_rtr_newgroup14_15 = df_rtr_newgroup14_15.drop("CUST_MBR_GNDR_CODE16").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE16")
+        df_rtr_newgroup14_15 = df_rtr_newgroup14_15.drop("BLK_CODE16").withColumnRenamed("BLK_CODE", "BLK_CODE16")
+        ctx.register_df("df_rtr_newgroup14_15", df_rtr_newgroup14_15)
+        df_rtr_newgroup15_16 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP = 15"))
+        df_rtr_newgroup15_16 = df_rtr_newgroup15_16.drop("EST_CODE17").withColumnRenamed("EST_CODE", "EST_CODE17")
+        df_rtr_newgroup15_16 = df_rtr_newgroup15_16.drop("AGE_GRP17").withColumnRenamed("AGE_GRP", "AGE_GRP17")
+        df_rtr_newgroup15_16 = df_rtr_newgroup15_16.drop("CUST_MBR_GNDR_CODE17").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE17")
+        df_rtr_newgroup15_16 = df_rtr_newgroup15_16.drop("BLK_CODE17").withColumnRenamed("BLK_CODE", "BLK_CODE17")
+        ctx.register_df("df_rtr_newgroup15_16", df_rtr_newgroup15_16)
+        df_rtr_newgroup16_17 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP = 16"))
+        df_rtr_newgroup16_17 = df_rtr_newgroup16_17.drop("EST_CODE18").withColumnRenamed("EST_CODE", "EST_CODE18")
+        df_rtr_newgroup16_17 = df_rtr_newgroup16_17.drop("AGE_GRP18").withColumnRenamed("AGE_GRP", "AGE_GRP18")
+        df_rtr_newgroup16_17 = df_rtr_newgroup16_17.drop("CUST_MBR_GNDR_CODE18").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE18")
+        df_rtr_newgroup16_17 = df_rtr_newgroup16_17.drop("BLK_CODE18").withColumnRenamed("BLK_CODE", "BLK_CODE18")
+        ctx.register_df("df_rtr_newgroup16_17", df_rtr_newgroup16_17)
+        df_rtr_newgroup17_18 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP = 17"))
+        df_rtr_newgroup17_18 = df_rtr_newgroup17_18.drop("EST_CODE19").withColumnRenamed("EST_CODE", "EST_CODE19")
+        df_rtr_newgroup17_18 = df_rtr_newgroup17_18.drop("AGE_GRP19").withColumnRenamed("AGE_GRP", "AGE_GRP19")
+        df_rtr_newgroup17_18 = df_rtr_newgroup17_18.drop("CUST_MBR_GNDR_CODE19").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE19")
+        df_rtr_newgroup17_18 = df_rtr_newgroup17_18.drop("BLK_CODE19").withColumnRenamed("BLK_CODE", "BLK_CODE19")
+        ctx.register_df("df_rtr_newgroup17_18", df_rtr_newgroup17_18)
+        df_rtr_newgroup18_19 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP = 18"))
+        df_rtr_newgroup18_19 = df_rtr_newgroup18_19.drop("EST_CODE20").withColumnRenamed("EST_CODE", "EST_CODE20")
+        df_rtr_newgroup18_19 = df_rtr_newgroup18_19.drop("AGE_GRP20").withColumnRenamed("AGE_GRP", "AGE_GRP20")
+        df_rtr_newgroup18_19 = df_rtr_newgroup18_19.drop("CUST_MBR_GNDR_CODE20").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE20")
+        df_rtr_newgroup18_19 = df_rtr_newgroup18_19.drop("BLK_CODE20").withColumnRenamed("BLK_CODE", "BLK_CODE20")
+        ctx.register_df("df_rtr_newgroup18_19", df_rtr_newgroup18_19)
+        df_rtr_newgroup19_20 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP = 19"))
+        df_rtr_newgroup19_20 = df_rtr_newgroup19_20.drop("EST_CODE21").withColumnRenamed("EST_CODE", "EST_CODE21")
+        df_rtr_newgroup19_20 = df_rtr_newgroup19_20.drop("AGE_GRP21").withColumnRenamed("AGE_GRP", "AGE_GRP21")
+        df_rtr_newgroup19_20 = df_rtr_newgroup19_20.drop("CUST_MBR_GNDR_CODE21").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE21")
+        df_rtr_newgroup19_20 = df_rtr_newgroup19_20.drop("BLK_CODE21").withColumnRenamed("BLK_CODE", "BLK_CODE21")
+        ctx.register_df("df_rtr_newgroup19_20", df_rtr_newgroup19_20)
+        df_rtr_newgroup20_21 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP >= 20 AND AGE_GRP <= 24"))
+        df_rtr_newgroup20_21 = df_rtr_newgroup20_21.drop("EST_CODE22").withColumnRenamed("EST_CODE", "EST_CODE22")
+        df_rtr_newgroup20_21 = df_rtr_newgroup20_21.drop("AGE_GRP22").withColumnRenamed("AGE_GRP", "AGE_GRP22")
+        df_rtr_newgroup20_21 = df_rtr_newgroup20_21.drop("CUST_MBR_GNDR_CODE22").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE22")
+        df_rtr_newgroup20_21 = df_rtr_newgroup20_21.drop("BLK_CODE22").withColumnRenamed("BLK_CODE", "BLK_CODE22")
+        ctx.register_df("df_rtr_newgroup20_21", df_rtr_newgroup20_21)
+        df_rtr_newgroup25_22 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP >= 25 AND AGE_GRP <= 29"))
+        df_rtr_newgroup25_22 = df_rtr_newgroup25_22.drop("EST_CODE23").withColumnRenamed("EST_CODE", "EST_CODE23")
+        df_rtr_newgroup25_22 = df_rtr_newgroup25_22.drop("AGE_GRP23").withColumnRenamed("AGE_GRP", "AGE_GRP23")
+        df_rtr_newgroup25_22 = df_rtr_newgroup25_22.drop("CUST_MBR_GNDR_CODE23").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE23")
+        df_rtr_newgroup25_22 = df_rtr_newgroup25_22.drop("BLK_CODE23").withColumnRenamed("BLK_CODE", "BLK_CODE23")
+        ctx.register_df("df_rtr_newgroup25_22", df_rtr_newgroup25_22)
+        df_rtr_newgroup30_23 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP >= 30 AND AGE_GRP <= 34"))
+        df_rtr_newgroup30_23 = df_rtr_newgroup30_23.drop("EST_CODE24").withColumnRenamed("EST_CODE", "EST_CODE24")
+        df_rtr_newgroup30_23 = df_rtr_newgroup30_23.drop("AGE_GRP24").withColumnRenamed("AGE_GRP", "AGE_GRP24")
+        df_rtr_newgroup30_23 = df_rtr_newgroup30_23.drop("CUST_MBR_GNDR_CODE24").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE24")
+        df_rtr_newgroup30_23 = df_rtr_newgroup30_23.drop("BLK_CODE24").withColumnRenamed("BLK_CODE", "BLK_CODE24")
+        ctx.register_df("df_rtr_newgroup30_23", df_rtr_newgroup30_23)
+        df_rtr_newgroup35_24 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP >= 35 AND AGE_GRP <= 39"))
+        df_rtr_newgroup35_24 = df_rtr_newgroup35_24.drop("EST_CODE25").withColumnRenamed("EST_CODE", "EST_CODE25")
+        df_rtr_newgroup35_24 = df_rtr_newgroup35_24.drop("AGE_GRP25").withColumnRenamed("AGE_GRP", "AGE_GRP25")
+        df_rtr_newgroup35_24 = df_rtr_newgroup35_24.drop("CUST_MBR_GNDR_CODE25").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE25")
+        df_rtr_newgroup35_24 = df_rtr_newgroup35_24.drop("BLK_CODE25").withColumnRenamed("BLK_CODE", "BLK_CODE25")
+        ctx.register_df("df_rtr_newgroup35_24", df_rtr_newgroup35_24)
+        df_rtr_newgroup40_25 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP >= 40 AND AGE_GRP <= 44"))
+        df_rtr_newgroup40_25 = df_rtr_newgroup40_25.drop("EST_CODE26").withColumnRenamed("EST_CODE", "EST_CODE26")
+        df_rtr_newgroup40_25 = df_rtr_newgroup40_25.drop("AGE_GRP26").withColumnRenamed("AGE_GRP", "AGE_GRP26")
+        df_rtr_newgroup40_25 = df_rtr_newgroup40_25.drop("CUST_MBR_GNDR_CODE26").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE26")
+        df_rtr_newgroup40_25 = df_rtr_newgroup40_25.drop("BLK_CODE26").withColumnRenamed("BLK_CODE", "BLK_CODE26")
+        ctx.register_df("df_rtr_newgroup40_25", df_rtr_newgroup40_25)
+        df_rtr_newgroup45_26 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP >= 45 AND AGE_GRP <= 49"))
+        df_rtr_newgroup45_26 = df_rtr_newgroup45_26.drop("EST_CODE27").withColumnRenamed("EST_CODE", "EST_CODE27")
+        df_rtr_newgroup45_26 = df_rtr_newgroup45_26.drop("AGE_GRP27").withColumnRenamed("AGE_GRP", "AGE_GRP27")
+        df_rtr_newgroup45_26 = df_rtr_newgroup45_26.drop("CUST_MBR_GNDR_CODE27").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE27")
+        df_rtr_newgroup45_26 = df_rtr_newgroup45_26.drop("BLK_CODE27").withColumnRenamed("BLK_CODE", "BLK_CODE27")
+        ctx.register_df("df_rtr_newgroup45_26", df_rtr_newgroup45_26)
+        df_rtr_newgroup50_27 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP >= 50 AND AGE_GRP <= 54"))
+        df_rtr_newgroup50_27 = df_rtr_newgroup50_27.drop("EST_CODE28").withColumnRenamed("EST_CODE", "EST_CODE28")
+        df_rtr_newgroup50_27 = df_rtr_newgroup50_27.drop("AGE_GRP28").withColumnRenamed("AGE_GRP", "AGE_GRP28")
+        df_rtr_newgroup50_27 = df_rtr_newgroup50_27.drop("CUST_MBR_GNDR_CODE28").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE28")
+        df_rtr_newgroup50_27 = df_rtr_newgroup50_27.drop("BLK_CODE28").withColumnRenamed("BLK_CODE", "BLK_CODE28")
+        ctx.register_df("df_rtr_newgroup50_27", df_rtr_newgroup50_27)
+        df_rtr_newgroup55_28 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP >= 55 AND AGE_GRP <= 59"))
+        df_rtr_newgroup55_28 = df_rtr_newgroup55_28.drop("EST_CODE29").withColumnRenamed("EST_CODE", "EST_CODE29")
+        df_rtr_newgroup55_28 = df_rtr_newgroup55_28.drop("AGE_GRP29").withColumnRenamed("AGE_GRP", "AGE_GRP29")
+        df_rtr_newgroup55_28 = df_rtr_newgroup55_28.drop("CUST_MBR_GNDR_CODE29").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE29")
+        df_rtr_newgroup55_28 = df_rtr_newgroup55_28.drop("BLK_CODE29").withColumnRenamed("BLK_CODE", "BLK_CODE29")
+        ctx.register_df("df_rtr_newgroup55_28", df_rtr_newgroup55_28)
+        df_rtr_newgroup60_29 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP >= 60 AND AGE_GRP <= 64"))
+        df_rtr_newgroup60_29 = df_rtr_newgroup60_29.drop("EST_CODE30").withColumnRenamed("EST_CODE", "EST_CODE30")
+        df_rtr_newgroup60_29 = df_rtr_newgroup60_29.drop("AGE_GRP30").withColumnRenamed("AGE_GRP", "AGE_GRP30")
+        df_rtr_newgroup60_29 = df_rtr_newgroup60_29.drop("CUST_MBR_GNDR_CODE30").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE30")
+        df_rtr_newgroup60_29 = df_rtr_newgroup60_29.drop("BLK_CODE30").withColumnRenamed("BLK_CODE", "BLK_CODE30")
+        ctx.register_df("df_rtr_newgroup60_29", df_rtr_newgroup60_29)
+        df_rtr_newgroup65_30 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP >= 65 AND AGE_GRP <= 69"))
+        df_rtr_newgroup65_30 = df_rtr_newgroup65_30.drop("EST_CODE31").withColumnRenamed("EST_CODE", "EST_CODE31")
+        df_rtr_newgroup65_30 = df_rtr_newgroup65_30.drop("AGE_GRP31").withColumnRenamed("AGE_GRP", "AGE_GRP31")
+        df_rtr_newgroup65_30 = df_rtr_newgroup65_30.drop("CUST_MBR_GNDR_CODE31").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE31")
+        df_rtr_newgroup65_30 = df_rtr_newgroup65_30.drop("BLK_CODE31").withColumnRenamed("BLK_CODE", "BLK_CODE31")
+        ctx.register_df("df_rtr_newgroup65_30", df_rtr_newgroup65_30)
+        df_rtr_newgroup70_31 = df_SQ_SOR_EMS_HSM_EST.filter(expr("AGE_GRP >= 70"))
+        df_rtr_newgroup70_31 = df_rtr_newgroup70_31.drop("EST_CODE32").withColumnRenamed("EST_CODE", "EST_CODE32")
+        df_rtr_newgroup70_31 = df_rtr_newgroup70_31.drop("AGE_GRP32").withColumnRenamed("AGE_GRP", "AGE_GRP32")
+        df_rtr_newgroup70_31 = df_rtr_newgroup70_31.drop("CUST_MBR_GNDR_CODE32").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE32")
+        df_rtr_newgroup70_31 = df_rtr_newgroup70_31.drop("BLK_CODE32").withColumnRenamed("BLK_CODE", "BLK_CODE32")
+        ctx.register_df("df_rtr_newgroup70_31", df_rtr_newgroup70_31)
+        df_rtr_default_32 = df_SQ_SOR_EMS_HSM_EST.filter(~(expr("AGE_GRP = 0")) & ~(expr("AGE_GRP = 1")) & ~(expr("AGE_GRP = 2")) & ~(expr("AGE_GRP = 3")) & ~(expr("AGE_GRP = 4")) & ~(expr("AGE_GRP = 5")) & ~(expr("AGE_GRP = 6")) & ~(expr("AGE_GRP = 7")) & ~(expr("AGE_GRP = 8")) & ~(expr("AGE_GRP = 9")) & ~(expr("AGE_GRP = 10")) & ~(expr("AGE_GRP = 11")) & ~(expr("AGE_GRP = 12")) & ~(expr("AGE_GRP = 13")) & ~(expr("AGE_GRP = 14")) & ~(expr("AGE_GRP = 15")) & ~(expr("AGE_GRP = 16")) & ~(expr("AGE_GRP = 17")) & ~(expr("AGE_GRP = 18")) & ~(expr("AGE_GRP = 19")) & ~(expr("AGE_GRP >= 20 AND AGE_GRP <= 24")) & ~(expr("AGE_GRP >= 25 AND AGE_GRP <= 29")) & ~(expr("AGE_GRP >= 30 AND AGE_GRP <= 34")) & ~(expr("AGE_GRP >= 35 AND AGE_GRP <= 39")) & ~(expr("AGE_GRP >= 40 AND AGE_GRP <= 44")) & ~(expr("AGE_GRP >= 45 AND AGE_GRP <= 49")) & ~(expr("AGE_GRP >= 50 AND AGE_GRP <= 54")) & ~(expr("AGE_GRP >= 55 AND AGE_GRP <= 59")) & ~(expr("AGE_GRP >= 60 AND AGE_GRP <= 64")) & ~(expr("AGE_GRP >= 65 AND AGE_GRP <= 69")) & ~(expr("AGE_GRP >= 70")))
+        df_rtr_default_32 = df_rtr_default_32.drop("EST_CODE2").withColumnRenamed("EST_CODE", "EST_CODE2")
+        df_rtr_default_32 = df_rtr_default_32.drop("AGE_GRP2").withColumnRenamed("AGE_GRP", "AGE_GRP2")
+        df_rtr_default_32 = df_rtr_default_32.drop("CUST_MBR_GNDR_CODE2").withColumnRenamed("CUST_MBR_GNDR_CODE", "CUST_MBR_GNDR_CODE2")
+        df_rtr_default_32 = df_rtr_default_32.drop("BLK_CODE2").withColumnRenamed("BLK_CODE", "BLK_CODE2")
+        ctx.register_df("df_rtr_default_32", df_rtr_default_32)
         
         logger.info("Step: apply_EXPTRANS1111111111111111111111111111")
         # Expression: apply_EXPTRANS1111111111111111111111111111
-        df_exp_36 = df_rtr_newgroup0_4
-        df_exp_36 = df_exp_36.withColumn("EST_CODE1", expr("EST_CODE29"))
-        df_exp_36 = df_exp_36.withColumn("AGE_GRP1", expr("AGE_GRP29"))
-        df_exp_36 = df_exp_36.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE29"))
-        df_exp_36 = df_exp_36.withColumn("AGE_GRP_CODE", expr("'55 - 59'"))
+        df_EXPTRANS1111111111111111111111111111 = df_rtr_newgroup55_28
+        df_EXPTRANS1111111111111111111111111111 = df_EXPTRANS1111111111111111111111111111.withColumn("EST_CODE1", expr("EST_CODE29"))
+        df_EXPTRANS1111111111111111111111111111 = df_EXPTRANS1111111111111111111111111111.withColumn("AGE_GRP1", expr("AGE_GRP29"))
+        df_EXPTRANS1111111111111111111111111111 = df_EXPTRANS1111111111111111111111111111.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE29"))
+        df_EXPTRANS1111111111111111111111111111 = df_EXPTRANS1111111111111111111111111111.withColumn("AGE_GRP_CODE", expr("'55 - 59'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE29"]:
-            if _col not in df_exp_36.columns:
-                df_exp_36 = df_exp_36.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_36 = df_exp_36.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE29")
-        ctx.register_df("df_exp_36", df_exp_36)
+            if _col not in df_EXPTRANS1111111111111111111111111111.columns:
+                df_EXPTRANS1111111111111111111111111111 = df_EXPTRANS1111111111111111111111111111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS1111111111111111111111111111", df_EXPTRANS1111111111111111111111111111)
         
         logger.info("Step: apply_EXPTRANS111111111111111111111111111")
         # Expression: apply_EXPTRANS111111111111111111111111111
-        df_exp_37 = df_rtr_newgroup0_4
-        df_exp_37 = df_exp_37.withColumn("EST_CODE1", expr("EST_CODE28"))
-        df_exp_37 = df_exp_37.withColumn("AGE_GRP1", expr("AGE_GRP28"))
-        df_exp_37 = df_exp_37.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE28"))
-        df_exp_37 = df_exp_37.withColumn("AGE_GRP_CODE", expr("'50 - 54'"))
+        df_EXPTRANS111111111111111111111111111 = df_rtr_newgroup50_27
+        df_EXPTRANS111111111111111111111111111 = df_EXPTRANS111111111111111111111111111.withColumn("EST_CODE1", expr("EST_CODE28"))
+        df_EXPTRANS111111111111111111111111111 = df_EXPTRANS111111111111111111111111111.withColumn("AGE_GRP1", expr("AGE_GRP28"))
+        df_EXPTRANS111111111111111111111111111 = df_EXPTRANS111111111111111111111111111.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE28"))
+        df_EXPTRANS111111111111111111111111111 = df_EXPTRANS111111111111111111111111111.withColumn("AGE_GRP_CODE", expr("'50 - 54'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE28"]:
-            if _col not in df_exp_37.columns:
-                df_exp_37 = df_exp_37.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_37 = df_exp_37.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE28")
-        ctx.register_df("df_exp_37", df_exp_37)
+            if _col not in df_EXPTRANS111111111111111111111111111.columns:
+                df_EXPTRANS111111111111111111111111111 = df_EXPTRANS111111111111111111111111111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS111111111111111111111111111", df_EXPTRANS111111111111111111111111111)
         
         logger.info("Step: apply_EXPTRANS11111111111111111111111111")
         # Expression: apply_EXPTRANS11111111111111111111111111
-        df_exp_38 = df_rtr_newgroup0_4
-        df_exp_38 = df_exp_38.withColumn("EST_CODE1", expr("EST_CODE27"))
-        df_exp_38 = df_exp_38.withColumn("AGE_GRP1", expr("AGE_GRP27"))
-        df_exp_38 = df_exp_38.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE27"))
-        df_exp_38 = df_exp_38.withColumn("AGE_GRP_CODE", expr("'45 - 49'"))
+        df_EXPTRANS11111111111111111111111111 = df_rtr_newgroup45_26
+        df_EXPTRANS11111111111111111111111111 = df_EXPTRANS11111111111111111111111111.withColumn("EST_CODE1", expr("EST_CODE27"))
+        df_EXPTRANS11111111111111111111111111 = df_EXPTRANS11111111111111111111111111.withColumn("AGE_GRP1", expr("AGE_GRP27"))
+        df_EXPTRANS11111111111111111111111111 = df_EXPTRANS11111111111111111111111111.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE27"))
+        df_EXPTRANS11111111111111111111111111 = df_EXPTRANS11111111111111111111111111.withColumn("AGE_GRP_CODE", expr("'45 - 49'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE27"]:
-            if _col not in df_exp_38.columns:
-                df_exp_38 = df_exp_38.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_38 = df_exp_38.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE27")
-        ctx.register_df("df_exp_38", df_exp_38)
+            if _col not in df_EXPTRANS11111111111111111111111111.columns:
+                df_EXPTRANS11111111111111111111111111 = df_EXPTRANS11111111111111111111111111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS11111111111111111111111111", df_EXPTRANS11111111111111111111111111)
         
         logger.info("Step: apply_EXPTRANS1111111111111111111111111")
         # Expression: apply_EXPTRANS1111111111111111111111111
-        df_exp_39 = df_rtr_newgroup0_4
-        df_exp_39 = df_exp_39.withColumn("EST_CODE1", expr("EST_CODE26"))
-        df_exp_39 = df_exp_39.withColumn("AGE_GRP1", expr("AGE_GRP26"))
-        df_exp_39 = df_exp_39.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE26"))
-        df_exp_39 = df_exp_39.withColumn("AGE_GRP_CODE", expr("'40 - 44'"))
+        df_EXPTRANS1111111111111111111111111 = df_rtr_newgroup40_25
+        df_EXPTRANS1111111111111111111111111 = df_EXPTRANS1111111111111111111111111.withColumn("EST_CODE1", expr("EST_CODE26"))
+        df_EXPTRANS1111111111111111111111111 = df_EXPTRANS1111111111111111111111111.withColumn("AGE_GRP1", expr("AGE_GRP26"))
+        df_EXPTRANS1111111111111111111111111 = df_EXPTRANS1111111111111111111111111.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE26"))
+        df_EXPTRANS1111111111111111111111111 = df_EXPTRANS1111111111111111111111111.withColumn("AGE_GRP_CODE", expr("'40 - 44'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE26"]:
-            if _col not in df_exp_39.columns:
-                df_exp_39 = df_exp_39.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_39 = df_exp_39.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE26")
-        ctx.register_df("df_exp_39", df_exp_39)
+            if _col not in df_EXPTRANS1111111111111111111111111.columns:
+                df_EXPTRANS1111111111111111111111111 = df_EXPTRANS1111111111111111111111111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS1111111111111111111111111", df_EXPTRANS1111111111111111111111111)
         
         logger.info("Step: apply_EXPTRANS111111111111111111111111")
         # Expression: apply_EXPTRANS111111111111111111111111
-        df_exp_40 = df_rtr_newgroup0_4
-        df_exp_40 = df_exp_40.withColumn("EST_CODE1", expr("EST_CODE25"))
-        df_exp_40 = df_exp_40.withColumn("AGE_GRP1", expr("AGE_GRP25"))
-        df_exp_40 = df_exp_40.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE25"))
-        df_exp_40 = df_exp_40.withColumn("AGE_GRP_CODE", expr("'35 - 39'"))
+        df_EXPTRANS111111111111111111111111 = df_rtr_newgroup35_24
+        df_EXPTRANS111111111111111111111111 = df_EXPTRANS111111111111111111111111.withColumn("EST_CODE1", expr("EST_CODE25"))
+        df_EXPTRANS111111111111111111111111 = df_EXPTRANS111111111111111111111111.withColumn("AGE_GRP1", expr("AGE_GRP25"))
+        df_EXPTRANS111111111111111111111111 = df_EXPTRANS111111111111111111111111.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE25"))
+        df_EXPTRANS111111111111111111111111 = df_EXPTRANS111111111111111111111111.withColumn("AGE_GRP_CODE", expr("'35 - 39'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE25"]:
-            if _col not in df_exp_40.columns:
-                df_exp_40 = df_exp_40.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_40 = df_exp_40.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE25")
-        ctx.register_df("df_exp_40", df_exp_40)
+            if _col not in df_EXPTRANS111111111111111111111111.columns:
+                df_EXPTRANS111111111111111111111111 = df_EXPTRANS111111111111111111111111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS111111111111111111111111", df_EXPTRANS111111111111111111111111)
         
         logger.info("Step: apply_EXPTRANS11111111111111111111111")
         # Expression: apply_EXPTRANS11111111111111111111111
-        df_exp_41 = df_rtr_newgroup0_4
-        df_exp_41 = df_exp_41.withColumn("EST_CODE1", expr("EST_CODE24"))
-        df_exp_41 = df_exp_41.withColumn("AGE_GRP1", expr("AGE_GRP24"))
-        df_exp_41 = df_exp_41.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE24"))
-        df_exp_41 = df_exp_41.withColumn("AGE_GRP_CODE", expr("'30 - 34'"))
+        df_EXPTRANS11111111111111111111111 = df_rtr_newgroup30_23
+        df_EXPTRANS11111111111111111111111 = df_EXPTRANS11111111111111111111111.withColumn("EST_CODE1", expr("EST_CODE24"))
+        df_EXPTRANS11111111111111111111111 = df_EXPTRANS11111111111111111111111.withColumn("AGE_GRP1", expr("AGE_GRP24"))
+        df_EXPTRANS11111111111111111111111 = df_EXPTRANS11111111111111111111111.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE24"))
+        df_EXPTRANS11111111111111111111111 = df_EXPTRANS11111111111111111111111.withColumn("AGE_GRP_CODE", expr("'30 - 34'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE24"]:
-            if _col not in df_exp_41.columns:
-                df_exp_41 = df_exp_41.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_41 = df_exp_41.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE24")
-        ctx.register_df("df_exp_41", df_exp_41)
+            if _col not in df_EXPTRANS11111111111111111111111.columns:
+                df_EXPTRANS11111111111111111111111 = df_EXPTRANS11111111111111111111111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS11111111111111111111111", df_EXPTRANS11111111111111111111111)
         
         logger.info("Step: apply_EXPTRANS1111111111111111111111")
         # Expression: apply_EXPTRANS1111111111111111111111
-        df_exp_42 = df_rtr_newgroup0_4
-        df_exp_42 = df_exp_42.withColumn("EST_CODE1", expr("EST_CODE23"))
-        df_exp_42 = df_exp_42.withColumn("AGE_GRP1", expr("AGE_GRP23"))
-        df_exp_42 = df_exp_42.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE23"))
-        df_exp_42 = df_exp_42.withColumn("AGE_GRP_CODE", expr("'25 - 29'"))
+        df_EXPTRANS1111111111111111111111 = df_rtr_newgroup25_22
+        df_EXPTRANS1111111111111111111111 = df_EXPTRANS1111111111111111111111.withColumn("EST_CODE1", expr("EST_CODE23"))
+        df_EXPTRANS1111111111111111111111 = df_EXPTRANS1111111111111111111111.withColumn("AGE_GRP1", expr("AGE_GRP23"))
+        df_EXPTRANS1111111111111111111111 = df_EXPTRANS1111111111111111111111.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE23"))
+        df_EXPTRANS1111111111111111111111 = df_EXPTRANS1111111111111111111111.withColumn("AGE_GRP_CODE", expr("'25 - 29'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE23"]:
-            if _col not in df_exp_42.columns:
-                df_exp_42 = df_exp_42.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_42 = df_exp_42.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE23")
-        ctx.register_df("df_exp_42", df_exp_42)
+            if _col not in df_EXPTRANS1111111111111111111111.columns:
+                df_EXPTRANS1111111111111111111111 = df_EXPTRANS1111111111111111111111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS1111111111111111111111", df_EXPTRANS1111111111111111111111)
         
         logger.info("Step: apply_EXPTRANS111111111111111111111")
         # Expression: apply_EXPTRANS111111111111111111111
-        df_exp_43 = df_rtr_newgroup0_4
-        df_exp_43 = df_exp_43.withColumn("EST_CODE1", expr("EST_CODE22"))
-        df_exp_43 = df_exp_43.withColumn("AGE_GRP1", expr("AGE_GRP22"))
-        df_exp_43 = df_exp_43.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE22"))
-        df_exp_43 = df_exp_43.withColumn("AGE_GRP_CODE", expr("'20 - 24'"))
+        df_EXPTRANS111111111111111111111 = df_rtr_newgroup20_21
+        df_EXPTRANS111111111111111111111 = df_EXPTRANS111111111111111111111.withColumn("EST_CODE1", expr("EST_CODE22"))
+        df_EXPTRANS111111111111111111111 = df_EXPTRANS111111111111111111111.withColumn("AGE_GRP1", expr("AGE_GRP22"))
+        df_EXPTRANS111111111111111111111 = df_EXPTRANS111111111111111111111.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE22"))
+        df_EXPTRANS111111111111111111111 = df_EXPTRANS111111111111111111111.withColumn("AGE_GRP_CODE", expr("'20 - 24'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE22"]:
-            if _col not in df_exp_43.columns:
-                df_exp_43 = df_exp_43.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_43 = df_exp_43.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE22")
-        ctx.register_df("df_exp_43", df_exp_43)
+            if _col not in df_EXPTRANS111111111111111111111.columns:
+                df_EXPTRANS111111111111111111111 = df_EXPTRANS111111111111111111111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS111111111111111111111", df_EXPTRANS111111111111111111111)
         
         logger.info("Step: apply_EXPTRANS11111111111111111111")
         # Expression: apply_EXPTRANS11111111111111111111
-        df_exp_44 = df_rtr_newgroup0_4
-        df_exp_44 = df_exp_44.withColumn("EST_CODE1", expr("EST_CODE21"))
-        df_exp_44 = df_exp_44.withColumn("AGE_GRP1", expr("AGE_GRP21"))
-        df_exp_44 = df_exp_44.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE21"))
-        df_exp_44 = df_exp_44.withColumn("AGE_GRP_CODE", expr("'19'"))
+        df_EXPTRANS11111111111111111111 = df_rtr_newgroup19_20
+        df_EXPTRANS11111111111111111111 = df_EXPTRANS11111111111111111111.withColumn("EST_CODE1", expr("EST_CODE21"))
+        df_EXPTRANS11111111111111111111 = df_EXPTRANS11111111111111111111.withColumn("AGE_GRP1", expr("AGE_GRP21"))
+        df_EXPTRANS11111111111111111111 = df_EXPTRANS11111111111111111111.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE21"))
+        df_EXPTRANS11111111111111111111 = df_EXPTRANS11111111111111111111.withColumn("AGE_GRP_CODE", expr("'19'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE21"]:
-            if _col not in df_exp_44.columns:
-                df_exp_44 = df_exp_44.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_44 = df_exp_44.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE21")
-        ctx.register_df("df_exp_44", df_exp_44)
+            if _col not in df_EXPTRANS11111111111111111111.columns:
+                df_EXPTRANS11111111111111111111 = df_EXPTRANS11111111111111111111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS11111111111111111111", df_EXPTRANS11111111111111111111)
         
         logger.info("Step: apply_EXPTRANS1111111111111111111")
         # Expression: apply_EXPTRANS1111111111111111111
-        df_exp_45 = df_rtr_newgroup0_4
-        df_exp_45 = df_exp_45.withColumn("EST_CODE1", expr("EST_CODE20"))
-        df_exp_45 = df_exp_45.withColumn("AGE_GRP1", expr("AGE_GRP20"))
-        df_exp_45 = df_exp_45.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE20"))
-        df_exp_45 = df_exp_45.withColumn("AGE_GRP_CODE", expr("'18'"))
+        df_EXPTRANS1111111111111111111 = df_rtr_newgroup18_19
+        df_EXPTRANS1111111111111111111 = df_EXPTRANS1111111111111111111.withColumn("EST_CODE1", expr("EST_CODE20"))
+        df_EXPTRANS1111111111111111111 = df_EXPTRANS1111111111111111111.withColumn("AGE_GRP1", expr("AGE_GRP20"))
+        df_EXPTRANS1111111111111111111 = df_EXPTRANS1111111111111111111.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE20"))
+        df_EXPTRANS1111111111111111111 = df_EXPTRANS1111111111111111111.withColumn("AGE_GRP_CODE", expr("'18'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE20"]:
-            if _col not in df_exp_45.columns:
-                df_exp_45 = df_exp_45.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_45 = df_exp_45.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE20")
-        ctx.register_df("df_exp_45", df_exp_45)
+            if _col not in df_EXPTRANS1111111111111111111.columns:
+                df_EXPTRANS1111111111111111111 = df_EXPTRANS1111111111111111111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS1111111111111111111", df_EXPTRANS1111111111111111111)
         
         logger.info("Step: apply_EXPTRANS111111111111111111")
         # Expression: apply_EXPTRANS111111111111111111
-        df_exp_46 = df_rtr_newgroup0_4
-        df_exp_46 = df_exp_46.withColumn("EST_CODE1", expr("EST_CODE19"))
-        df_exp_46 = df_exp_46.withColumn("AGE_GRP1", expr("AGE_GRP19"))
-        df_exp_46 = df_exp_46.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE19"))
-        df_exp_46 = df_exp_46.withColumn("AGE_GRP_CODE", expr("'17'"))
+        df_EXPTRANS111111111111111111 = df_rtr_newgroup17_18
+        df_EXPTRANS111111111111111111 = df_EXPTRANS111111111111111111.withColumn("EST_CODE1", expr("EST_CODE19"))
+        df_EXPTRANS111111111111111111 = df_EXPTRANS111111111111111111.withColumn("AGE_GRP1", expr("AGE_GRP19"))
+        df_EXPTRANS111111111111111111 = df_EXPTRANS111111111111111111.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE19"))
+        df_EXPTRANS111111111111111111 = df_EXPTRANS111111111111111111.withColumn("AGE_GRP_CODE", expr("'17'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE19"]:
-            if _col not in df_exp_46.columns:
-                df_exp_46 = df_exp_46.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_46 = df_exp_46.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE19")
-        ctx.register_df("df_exp_46", df_exp_46)
+            if _col not in df_EXPTRANS111111111111111111.columns:
+                df_EXPTRANS111111111111111111 = df_EXPTRANS111111111111111111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS111111111111111111", df_EXPTRANS111111111111111111)
         
         logger.info("Step: apply_EXPTRANS11111111111111111")
         # Expression: apply_EXPTRANS11111111111111111
-        df_exp_47 = df_rtr_newgroup0_4
-        df_exp_47 = df_exp_47.withColumn("EST_CODE1", expr("EST_CODE18"))
-        df_exp_47 = df_exp_47.withColumn("AGE_GRP1", expr("AGE_GRP18"))
-        df_exp_47 = df_exp_47.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE18"))
-        df_exp_47 = df_exp_47.withColumn("AGE_GRP_CODE", expr("'16'"))
+        df_EXPTRANS11111111111111111 = df_rtr_newgroup16_17
+        df_EXPTRANS11111111111111111 = df_EXPTRANS11111111111111111.withColumn("EST_CODE1", expr("EST_CODE18"))
+        df_EXPTRANS11111111111111111 = df_EXPTRANS11111111111111111.withColumn("AGE_GRP1", expr("AGE_GRP18"))
+        df_EXPTRANS11111111111111111 = df_EXPTRANS11111111111111111.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE18"))
+        df_EXPTRANS11111111111111111 = df_EXPTRANS11111111111111111.withColumn("AGE_GRP_CODE", expr("'16'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE18"]:
-            if _col not in df_exp_47.columns:
-                df_exp_47 = df_exp_47.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_47 = df_exp_47.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE18")
-        ctx.register_df("df_exp_47", df_exp_47)
+            if _col not in df_EXPTRANS11111111111111111.columns:
+                df_EXPTRANS11111111111111111 = df_EXPTRANS11111111111111111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS11111111111111111", df_EXPTRANS11111111111111111)
         
         logger.info("Step: apply_EXPTRANS1111111111111111")
         # Expression: apply_EXPTRANS1111111111111111
-        df_exp_48 = df_rtr_newgroup0_4
-        df_exp_48 = df_exp_48.withColumn("EST_CODE1", expr("EST_CODE17"))
-        df_exp_48 = df_exp_48.withColumn("AGE_GRP1", expr("AGE_GRP17"))
-        df_exp_48 = df_exp_48.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE17"))
-        df_exp_48 = df_exp_48.withColumn("AGE_GRP_CODE", expr("'15'"))
+        df_EXPTRANS1111111111111111 = df_rtr_newgroup15_16
+        df_EXPTRANS1111111111111111 = df_EXPTRANS1111111111111111.withColumn("EST_CODE1", expr("EST_CODE17"))
+        df_EXPTRANS1111111111111111 = df_EXPTRANS1111111111111111.withColumn("AGE_GRP1", expr("AGE_GRP17"))
+        df_EXPTRANS1111111111111111 = df_EXPTRANS1111111111111111.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE17"))
+        df_EXPTRANS1111111111111111 = df_EXPTRANS1111111111111111.withColumn("AGE_GRP_CODE", expr("'15'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE17"]:
-            if _col not in df_exp_48.columns:
-                df_exp_48 = df_exp_48.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_48 = df_exp_48.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE17")
-        ctx.register_df("df_exp_48", df_exp_48)
+            if _col not in df_EXPTRANS1111111111111111.columns:
+                df_EXPTRANS1111111111111111 = df_EXPTRANS1111111111111111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS1111111111111111", df_EXPTRANS1111111111111111)
         
         logger.info("Step: apply_EXPTRANS111111111111111")
         # Expression: apply_EXPTRANS111111111111111
-        df_exp_49 = df_rtr_newgroup0_4
-        df_exp_49 = df_exp_49.withColumn("EST_CODE1", expr("EST_CODE16"))
-        df_exp_49 = df_exp_49.withColumn("AGE_GRP1", expr("AGE_GRP16"))
-        df_exp_49 = df_exp_49.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE16"))
-        df_exp_49 = df_exp_49.withColumn("AGE_GRP_CODE", expr("'14'"))
+        df_EXPTRANS111111111111111 = df_rtr_newgroup14_15
+        df_EXPTRANS111111111111111 = df_EXPTRANS111111111111111.withColumn("EST_CODE1", expr("EST_CODE16"))
+        df_EXPTRANS111111111111111 = df_EXPTRANS111111111111111.withColumn("AGE_GRP1", expr("AGE_GRP16"))
+        df_EXPTRANS111111111111111 = df_EXPTRANS111111111111111.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE16"))
+        df_EXPTRANS111111111111111 = df_EXPTRANS111111111111111.withColumn("AGE_GRP_CODE", expr("'14'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE16"]:
-            if _col not in df_exp_49.columns:
-                df_exp_49 = df_exp_49.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_49 = df_exp_49.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE16")
-        ctx.register_df("df_exp_49", df_exp_49)
+            if _col not in df_EXPTRANS111111111111111.columns:
+                df_EXPTRANS111111111111111 = df_EXPTRANS111111111111111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS111111111111111", df_EXPTRANS111111111111111)
         
         logger.info("Step: apply_EXPTRANS11111111111111")
         # Expression: apply_EXPTRANS11111111111111
-        df_exp_50 = df_rtr_newgroup0_4
-        df_exp_50 = df_exp_50.withColumn("EST_CODE1", expr("EST_CODE15"))
-        df_exp_50 = df_exp_50.withColumn("AGE_GRP1", expr("AGE_GRP15"))
-        df_exp_50 = df_exp_50.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE15"))
-        df_exp_50 = df_exp_50.withColumn("AGE_GRP_CODE", expr("'13'"))
+        df_EXPTRANS11111111111111 = df_rtr_newgroup13_14
+        df_EXPTRANS11111111111111 = df_EXPTRANS11111111111111.withColumn("EST_CODE1", expr("EST_CODE15"))
+        df_EXPTRANS11111111111111 = df_EXPTRANS11111111111111.withColumn("AGE_GRP1", expr("AGE_GRP15"))
+        df_EXPTRANS11111111111111 = df_EXPTRANS11111111111111.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE15"))
+        df_EXPTRANS11111111111111 = df_EXPTRANS11111111111111.withColumn("AGE_GRP_CODE", expr("'13'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE15"]:
-            if _col not in df_exp_50.columns:
-                df_exp_50 = df_exp_50.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_50 = df_exp_50.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE15")
-        ctx.register_df("df_exp_50", df_exp_50)
+            if _col not in df_EXPTRANS11111111111111.columns:
+                df_EXPTRANS11111111111111 = df_EXPTRANS11111111111111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS11111111111111", df_EXPTRANS11111111111111)
         
         logger.info("Step: apply_EXPTRANS1111111111111")
         # Expression: apply_EXPTRANS1111111111111
-        df_exp_51 = df_rtr_newgroup0_4
-        df_exp_51 = df_exp_51.withColumn("EST_CODE1", expr("EST_CODE14"))
-        df_exp_51 = df_exp_51.withColumn("AGE_GRP1", expr("AGE_GRP14"))
-        df_exp_51 = df_exp_51.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE14"))
-        df_exp_51 = df_exp_51.withColumn("AGE_GRP_CODE", expr("'12'"))
+        df_EXPTRANS1111111111111 = df_rtr_newgroup12_13
+        df_EXPTRANS1111111111111 = df_EXPTRANS1111111111111.withColumn("EST_CODE1", expr("EST_CODE14"))
+        df_EXPTRANS1111111111111 = df_EXPTRANS1111111111111.withColumn("AGE_GRP1", expr("AGE_GRP14"))
+        df_EXPTRANS1111111111111 = df_EXPTRANS1111111111111.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE14"))
+        df_EXPTRANS1111111111111 = df_EXPTRANS1111111111111.withColumn("AGE_GRP_CODE", expr("'12'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE14"]:
-            if _col not in df_exp_51.columns:
-                df_exp_51 = df_exp_51.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_51 = df_exp_51.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE14")
-        ctx.register_df("df_exp_51", df_exp_51)
+            if _col not in df_EXPTRANS1111111111111.columns:
+                df_EXPTRANS1111111111111 = df_EXPTRANS1111111111111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS1111111111111", df_EXPTRANS1111111111111)
         
         logger.info("Step: apply_EXPTRANS111111111111")
         # Expression: apply_EXPTRANS111111111111
-        df_exp_52 = df_rtr_newgroup0_4
-        df_exp_52 = df_exp_52.withColumn("EST_CODE1", expr("EST_CODE13"))
-        df_exp_52 = df_exp_52.withColumn("AGE_GRP1", expr("AGE_GRP13"))
-        df_exp_52 = df_exp_52.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE13"))
-        df_exp_52 = df_exp_52.withColumn("AGE_GRP_CODE", expr("'11'"))
+        df_EXPTRANS111111111111 = df_rtr_newgroup11_12
+        df_EXPTRANS111111111111 = df_EXPTRANS111111111111.withColumn("EST_CODE1", expr("EST_CODE13"))
+        df_EXPTRANS111111111111 = df_EXPTRANS111111111111.withColumn("AGE_GRP1", expr("AGE_GRP13"))
+        df_EXPTRANS111111111111 = df_EXPTRANS111111111111.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE13"))
+        df_EXPTRANS111111111111 = df_EXPTRANS111111111111.withColumn("AGE_GRP_CODE", expr("'11'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE13"]:
-            if _col not in df_exp_52.columns:
-                df_exp_52 = df_exp_52.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_52 = df_exp_52.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE13")
-        ctx.register_df("df_exp_52", df_exp_52)
+            if _col not in df_EXPTRANS111111111111.columns:
+                df_EXPTRANS111111111111 = df_EXPTRANS111111111111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS111111111111", df_EXPTRANS111111111111)
         
         logger.info("Step: apply_EXPTRANS11111111111")
         # Expression: apply_EXPTRANS11111111111
-        df_exp_53 = df_rtr_newgroup0_4
-        df_exp_53 = df_exp_53.withColumn("EST_CODE1", expr("EST_CODE12"))
-        df_exp_53 = df_exp_53.withColumn("AGE_GRP1", expr("AGE_GRP12"))
-        df_exp_53 = df_exp_53.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE12"))
-        df_exp_53 = df_exp_53.withColumn("AGE_GRP_CODE", expr("'10'"))
+        df_EXPTRANS11111111111 = df_rtr_newgroup10_11
+        df_EXPTRANS11111111111 = df_EXPTRANS11111111111.withColumn("EST_CODE1", expr("EST_CODE12"))
+        df_EXPTRANS11111111111 = df_EXPTRANS11111111111.withColumn("AGE_GRP1", expr("AGE_GRP12"))
+        df_EXPTRANS11111111111 = df_EXPTRANS11111111111.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE12"))
+        df_EXPTRANS11111111111 = df_EXPTRANS11111111111.withColumn("AGE_GRP_CODE", expr("'10'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE12"]:
-            if _col not in df_exp_53.columns:
-                df_exp_53 = df_exp_53.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_53 = df_exp_53.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE12")
-        ctx.register_df("df_exp_53", df_exp_53)
+            if _col not in df_EXPTRANS11111111111.columns:
+                df_EXPTRANS11111111111 = df_EXPTRANS11111111111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS11111111111", df_EXPTRANS11111111111)
         
         logger.info("Step: apply_EXPTRANS1111111111")
         # Expression: apply_EXPTRANS1111111111
-        df_exp_54 = df_rtr_newgroup0_4
-        df_exp_54 = df_exp_54.withColumn("EST_CODE1", expr("EST_CODE11"))
-        df_exp_54 = df_exp_54.withColumn("AGE_GRP1", expr("AGE_GRP11"))
-        df_exp_54 = df_exp_54.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE11"))
-        df_exp_54 = df_exp_54.withColumn("AGE_GRP_CODE", expr("'9'"))
+        df_EXPTRANS1111111111 = df_rtr_newgroup9_10
+        df_EXPTRANS1111111111 = df_EXPTRANS1111111111.withColumn("EST_CODE1", expr("EST_CODE11"))
+        df_EXPTRANS1111111111 = df_EXPTRANS1111111111.withColumn("AGE_GRP1", expr("AGE_GRP11"))
+        df_EXPTRANS1111111111 = df_EXPTRANS1111111111.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE11"))
+        df_EXPTRANS1111111111 = df_EXPTRANS1111111111.withColumn("AGE_GRP_CODE", expr("'9'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE11"]:
-            if _col not in df_exp_54.columns:
-                df_exp_54 = df_exp_54.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_54 = df_exp_54.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE11")
-        ctx.register_df("df_exp_54", df_exp_54)
+            if _col not in df_EXPTRANS1111111111.columns:
+                df_EXPTRANS1111111111 = df_EXPTRANS1111111111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS1111111111", df_EXPTRANS1111111111)
         
         logger.info("Step: apply_EXPTRANS1111111")
         # Expression: apply_EXPTRANS1111111
-        df_exp_55 = df_rtr_newgroup0_4
-        df_exp_55 = df_exp_55.withColumn("EST_CODE1", expr("EST_CODE8"))
-        df_exp_55 = df_exp_55.withColumn("AGE_GRP1", expr("AGE_GRP8"))
-        df_exp_55 = df_exp_55.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE8"))
-        df_exp_55 = df_exp_55.withColumn("AGE_GRP_CODE", expr("'6'"))
+        df_EXPTRANS1111111 = df_rtr_newgroup6_7
+        df_EXPTRANS1111111 = df_EXPTRANS1111111.withColumn("EST_CODE1", expr("EST_CODE8"))
+        df_EXPTRANS1111111 = df_EXPTRANS1111111.withColumn("AGE_GRP1", expr("AGE_GRP8"))
+        df_EXPTRANS1111111 = df_EXPTRANS1111111.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE8"))
+        df_EXPTRANS1111111 = df_EXPTRANS1111111.withColumn("AGE_GRP_CODE", expr("'6'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE8"]:
-            if _col not in df_exp_55.columns:
-                df_exp_55 = df_exp_55.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_55 = df_exp_55.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE8")
-        ctx.register_df("df_exp_55", df_exp_55)
+            if _col not in df_EXPTRANS1111111.columns:
+                df_EXPTRANS1111111 = df_EXPTRANS1111111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS1111111", df_EXPTRANS1111111)
         
         logger.info("Step: apply_EXPTRANS111111")
         # Expression: apply_EXPTRANS111111
-        df_exp_56 = df_rtr_newgroup0_4
-        df_exp_56 = df_exp_56.withColumn("EST_CODE1", expr("EST_CODE7"))
-        df_exp_56 = df_exp_56.withColumn("AGE_GRP1", expr("AGE_GRP7"))
-        df_exp_56 = df_exp_56.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE7"))
-        df_exp_56 = df_exp_56.withColumn("AGE_GRP_CODE", expr("'5'"))
+        df_EXPTRANS111111 = df_rtr_newgroup5_6
+        df_EXPTRANS111111 = df_EXPTRANS111111.withColumn("EST_CODE1", expr("EST_CODE7"))
+        df_EXPTRANS111111 = df_EXPTRANS111111.withColumn("AGE_GRP1", expr("AGE_GRP7"))
+        df_EXPTRANS111111 = df_EXPTRANS111111.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE7"))
+        df_EXPTRANS111111 = df_EXPTRANS111111.withColumn("AGE_GRP_CODE", expr("'5'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE7"]:
-            if _col not in df_exp_56.columns:
-                df_exp_56 = df_exp_56.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_56 = df_exp_56.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE7")
-        ctx.register_df("df_exp_56", df_exp_56)
+            if _col not in df_EXPTRANS111111.columns:
+                df_EXPTRANS111111 = df_EXPTRANS111111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS111111", df_EXPTRANS111111)
         
         logger.info("Step: apply_EXPTRANS11111")
         # Expression: apply_EXPTRANS11111
-        df_exp_57 = df_rtr_newgroup0_4
-        df_exp_57 = df_exp_57.withColumn("EST_CODE1", expr("EST_CODE6"))
-        df_exp_57 = df_exp_57.withColumn("AGE_GRP1", expr("AGE_GRP6"))
-        df_exp_57 = df_exp_57.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE6"))
-        df_exp_57 = df_exp_57.withColumn("AGE_GRP_CODE", expr("'4'"))
+        df_EXPTRANS11111 = df_rtr_newgroup4_5
+        df_EXPTRANS11111 = df_EXPTRANS11111.withColumn("EST_CODE1", expr("EST_CODE6"))
+        df_EXPTRANS11111 = df_EXPTRANS11111.withColumn("AGE_GRP1", expr("AGE_GRP6"))
+        df_EXPTRANS11111 = df_EXPTRANS11111.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE6"))
+        df_EXPTRANS11111 = df_EXPTRANS11111.withColumn("AGE_GRP_CODE", expr("'4'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE6"]:
-            if _col not in df_exp_57.columns:
-                df_exp_57 = df_exp_57.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_57 = df_exp_57.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE6")
-        ctx.register_df("df_exp_57", df_exp_57)
+            if _col not in df_EXPTRANS11111.columns:
+                df_EXPTRANS11111 = df_EXPTRANS11111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS11111", df_EXPTRANS11111)
         
         logger.info("Step: apply_EXPTRANS1111")
         # Expression: apply_EXPTRANS1111
-        df_exp_58 = df_rtr_newgroup0_4
-        df_exp_58 = df_exp_58.withColumn("EST_CODE1", expr("EST_CODE5"))
-        df_exp_58 = df_exp_58.withColumn("AGE_GRP1", expr("AGE_GRP5"))
-        df_exp_58 = df_exp_58.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE5"))
-        df_exp_58 = df_exp_58.withColumn("AGE_GRP_CODE", expr("'3'"))
+        df_EXPTRANS1111 = df_rtr_newgroup3_4
+        df_EXPTRANS1111 = df_EXPTRANS1111.withColumn("EST_CODE1", expr("EST_CODE5"))
+        df_EXPTRANS1111 = df_EXPTRANS1111.withColumn("AGE_GRP1", expr("AGE_GRP5"))
+        df_EXPTRANS1111 = df_EXPTRANS1111.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE5"))
+        df_EXPTRANS1111 = df_EXPTRANS1111.withColumn("AGE_GRP_CODE", expr("'3'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE5"]:
-            if _col not in df_exp_58.columns:
-                df_exp_58 = df_exp_58.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_58 = df_exp_58.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE5")
-        ctx.register_df("df_exp_58", df_exp_58)
+            if _col not in df_EXPTRANS1111.columns:
+                df_EXPTRANS1111 = df_EXPTRANS1111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS1111", df_EXPTRANS1111)
         
         logger.info("Step: apply_EXPTRANS111")
         # Expression: apply_EXPTRANS111
-        df_exp_59 = df_rtr_newgroup0_4
-        df_exp_59 = df_exp_59.withColumn("EST_CODE1", expr("EST_CODE4"))
-        df_exp_59 = df_exp_59.withColumn("AGE_GRP1", expr("AGE_GRP4"))
-        df_exp_59 = df_exp_59.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE4"))
-        df_exp_59 = df_exp_59.withColumn("AGE_GRP_CODE", expr("'2'"))
+        df_EXPTRANS111 = df_rtr_newgroup2_3
+        df_EXPTRANS111 = df_EXPTRANS111.withColumn("EST_CODE1", expr("EST_CODE4"))
+        df_EXPTRANS111 = df_EXPTRANS111.withColumn("AGE_GRP1", expr("AGE_GRP4"))
+        df_EXPTRANS111 = df_EXPTRANS111.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE4"))
+        df_EXPTRANS111 = df_EXPTRANS111.withColumn("AGE_GRP_CODE", expr("'2'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE4"]:
-            if _col not in df_exp_59.columns:
-                df_exp_59 = df_exp_59.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_59 = df_exp_59.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE4")
-        ctx.register_df("df_exp_59", df_exp_59)
+            if _col not in df_EXPTRANS111.columns:
+                df_EXPTRANS111 = df_EXPTRANS111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS111", df_EXPTRANS111)
         
         logger.info("Step: apply_EXPTRANS11")
         # Expression: apply_EXPTRANS11
-        df_exp_60 = df_rtr_newgroup0_4
-        df_exp_60 = df_exp_60.withColumn("EST_CODE1", expr("EST_CODE3"))
-        df_exp_60 = df_exp_60.withColumn("AGE_GRP1", expr("AGE_GRP3"))
-        df_exp_60 = df_exp_60.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE3"))
-        df_exp_60 = df_exp_60.withColumn("AGE_GRP_CODE", expr("'1'"))
+        df_EXPTRANS11 = df_rtr_newgroup1_2
+        df_EXPTRANS11 = df_EXPTRANS11.withColumn("EST_CODE1", expr("EST_CODE3"))
+        df_EXPTRANS11 = df_EXPTRANS11.withColumn("AGE_GRP1", expr("AGE_GRP3"))
+        df_EXPTRANS11 = df_EXPTRANS11.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE3"))
+        df_EXPTRANS11 = df_EXPTRANS11.withColumn("AGE_GRP_CODE", expr("'1'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE3"]:
-            if _col not in df_exp_60.columns:
-                df_exp_60 = df_exp_60.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_60 = df_exp_60.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE3")
-        ctx.register_df("df_exp_60", df_exp_60)
+            if _col not in df_EXPTRANS11.columns:
+                df_EXPTRANS11 = df_EXPTRANS11.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS11", df_EXPTRANS11)
         
         logger.info("Step: apply_EXPTRANS111111111")
         # Expression: apply_EXPTRANS111111111
-        df_exp_61 = df_rtr_newgroup0_4
-        df_exp_61 = df_exp_61.withColumn("EST_CODE1", expr("EST_CODE10"))
-        df_exp_61 = df_exp_61.withColumn("AGE_GRP1", expr("AGE_GRP10"))
-        df_exp_61 = df_exp_61.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE10"))
-        df_exp_61 = df_exp_61.withColumn("AGE_GRP_CODE", expr("'8'"))
+        df_EXPTRANS111111111 = df_rtr_newgroup8_9
+        df_EXPTRANS111111111 = df_EXPTRANS111111111.withColumn("EST_CODE1", expr("EST_CODE10"))
+        df_EXPTRANS111111111 = df_EXPTRANS111111111.withColumn("AGE_GRP1", expr("AGE_GRP10"))
+        df_EXPTRANS111111111 = df_EXPTRANS111111111.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE10"))
+        df_EXPTRANS111111111 = df_EXPTRANS111111111.withColumn("AGE_GRP_CODE", expr("'8'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE10"]:
-            if _col not in df_exp_61.columns:
-                df_exp_61 = df_exp_61.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_61 = df_exp_61.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE10")
-        ctx.register_df("df_exp_61", df_exp_61)
+            if _col not in df_EXPTRANS111111111.columns:
+                df_EXPTRANS111111111 = df_EXPTRANS111111111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS111111111", df_EXPTRANS111111111)
         
         logger.info("Step: apply_EXPTRANS11111111")
         # Expression: apply_EXPTRANS11111111
-        df_exp_62 = df_rtr_newgroup0_4
-        df_exp_62 = df_exp_62.withColumn("EST_CODE1", expr("EST_CODE9"))
-        df_exp_62 = df_exp_62.withColumn("AGE_GRP1", expr("AGE_GRP9"))
-        df_exp_62 = df_exp_62.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE9"))
-        df_exp_62 = df_exp_62.withColumn("AGE_GRP_CODE", expr("'7'"))
+        df_EXPTRANS11111111 = df_rtr_newgroup7_8
+        df_EXPTRANS11111111 = df_EXPTRANS11111111.withColumn("EST_CODE1", expr("EST_CODE9"))
+        df_EXPTRANS11111111 = df_EXPTRANS11111111.withColumn("AGE_GRP1", expr("AGE_GRP9"))
+        df_EXPTRANS11111111 = df_EXPTRANS11111111.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE9"))
+        df_EXPTRANS11111111 = df_EXPTRANS11111111.withColumn("AGE_GRP_CODE", expr("'7'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE9"]:
-            if _col not in df_exp_62.columns:
-                df_exp_62 = df_exp_62.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_62 = df_exp_62.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE9")
-        ctx.register_df("df_exp_62", df_exp_62)
+            if _col not in df_EXPTRANS11111111.columns:
+                df_EXPTRANS11111111 = df_EXPTRANS11111111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS11111111", df_EXPTRANS11111111)
         
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
-        df_exp_63 = df_rtr_newgroup0_4
-        df_exp_63 = df_exp_63.withColumn("AGE_GRP_CODE", expr("'0'"))
+        df_EXPTRANS1 = df_rtr_newgroup0_1
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("AGE_GRP_CODE", expr("'0'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "BLK_CODE1"]:
-            if _col not in df_exp_63.columns:
-                df_exp_63 = df_exp_63.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_63 = df_exp_63.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE1")
-        ctx.register_df("df_exp_63", df_exp_63)
+            if _col not in df_EXPTRANS1.columns:
+                df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
         
         logger.info("Step: apply_EXPTRANS1111111111111111111111111111111")
         # Expression: apply_EXPTRANS1111111111111111111111111111111
-        df_exp_64 = df_rtr_newgroup0_4
-        df_exp_64 = df_exp_64.withColumn("EST_CODE1", expr("EST_CODE32"))
-        df_exp_64 = df_exp_64.withColumn("AGE_GRP1", expr("AGE_GRP32"))
-        df_exp_64 = df_exp_64.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE32"))
-        df_exp_64 = df_exp_64.withColumn("AGE_GRP_CODE", expr("'70+'"))
+        df_EXPTRANS1111111111111111111111111111111 = df_rtr_newgroup70_31
+        df_EXPTRANS1111111111111111111111111111111 = df_EXPTRANS1111111111111111111111111111111.withColumn("EST_CODE1", expr("EST_CODE32"))
+        df_EXPTRANS1111111111111111111111111111111 = df_EXPTRANS1111111111111111111111111111111.withColumn("AGE_GRP1", expr("AGE_GRP32"))
+        df_EXPTRANS1111111111111111111111111111111 = df_EXPTRANS1111111111111111111111111111111.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE32"))
+        df_EXPTRANS1111111111111111111111111111111 = df_EXPTRANS1111111111111111111111111111111.withColumn("AGE_GRP_CODE", expr("'70+'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE32"]:
-            if _col not in df_exp_64.columns:
-                df_exp_64 = df_exp_64.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_64 = df_exp_64.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE32")
-        ctx.register_df("df_exp_64", df_exp_64)
+            if _col not in df_EXPTRANS1111111111111111111111111111111.columns:
+                df_EXPTRANS1111111111111111111111111111111 = df_EXPTRANS1111111111111111111111111111111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS1111111111111111111111111111111", df_EXPTRANS1111111111111111111111111111111)
         
         logger.info("Step: apply_EXPTRANS111111111111111111111111111111")
         # Expression: apply_EXPTRANS111111111111111111111111111111
-        df_exp_65 = df_rtr_newgroup0_4
-        df_exp_65 = df_exp_65.withColumn("EST_CODE1", expr("EST_CODE31"))
-        df_exp_65 = df_exp_65.withColumn("AGE_GRP1", expr("AGE_GRP31"))
-        df_exp_65 = df_exp_65.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE31"))
-        df_exp_65 = df_exp_65.withColumn("AGE_GRP_CODE", expr("'65 - 69'"))
+        df_EXPTRANS111111111111111111111111111111 = df_rtr_newgroup65_30
+        df_EXPTRANS111111111111111111111111111111 = df_EXPTRANS111111111111111111111111111111.withColumn("EST_CODE1", expr("EST_CODE31"))
+        df_EXPTRANS111111111111111111111111111111 = df_EXPTRANS111111111111111111111111111111.withColumn("AGE_GRP1", expr("AGE_GRP31"))
+        df_EXPTRANS111111111111111111111111111111 = df_EXPTRANS111111111111111111111111111111.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE31"))
+        df_EXPTRANS111111111111111111111111111111 = df_EXPTRANS111111111111111111111111111111.withColumn("AGE_GRP_CODE", expr("'65 - 69'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE31"]:
-            if _col not in df_exp_65.columns:
-                df_exp_65 = df_exp_65.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_65 = df_exp_65.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE31")
-        ctx.register_df("df_exp_65", df_exp_65)
+            if _col not in df_EXPTRANS111111111111111111111111111111.columns:
+                df_EXPTRANS111111111111111111111111111111 = df_EXPTRANS111111111111111111111111111111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS111111111111111111111111111111", df_EXPTRANS111111111111111111111111111111)
         
         logger.info("Step: apply_EXPTRANS11111111111111111111111111111")
         # Expression: apply_EXPTRANS11111111111111111111111111111
-        df_exp_66 = df_rtr_newgroup0_4
-        df_exp_66 = df_exp_66.withColumn("EST_CODE1", expr("EST_CODE30"))
-        df_exp_66 = df_exp_66.withColumn("AGE_GRP1", expr("AGE_GRP30"))
-        df_exp_66 = df_exp_66.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE30"))
-        df_exp_66 = df_exp_66.withColumn("AGE_GRP_CODE", expr("'60 - 64'"))
+        df_EXPTRANS11111111111111111111111111111 = df_rtr_newgroup60_29
+        df_EXPTRANS11111111111111111111111111111 = df_EXPTRANS11111111111111111111111111111.withColumn("EST_CODE1", expr("EST_CODE30"))
+        df_EXPTRANS11111111111111111111111111111 = df_EXPTRANS11111111111111111111111111111.withColumn("AGE_GRP1", expr("AGE_GRP30"))
+        df_EXPTRANS11111111111111111111111111111 = df_EXPTRANS11111111111111111111111111111.withColumn("CUST_MBR_GNDR_CODE1", expr("CUST_MBR_GNDR_CODE30"))
+        df_EXPTRANS11111111111111111111111111111 = df_EXPTRANS11111111111111111111111111111.withColumn("AGE_GRP_CODE", expr("'60 - 64'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE30"]:
-            if _col not in df_exp_66.columns:
-                df_exp_66 = df_exp_66.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_66 = df_exp_66.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE30")
-        ctx.register_df("df_exp_66", df_exp_66)
+            if _col not in df_EXPTRANS11111111111111111111111111111.columns:
+                df_EXPTRANS11111111111111111111111111111 = df_EXPTRANS11111111111111111111111111111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS11111111111111111111111111111", df_EXPTRANS11111111111111111111111111111)
         
         logger.info("Step: apply_Union_Transformation")
         # Union: apply_Union_Transformation
-        df_un_67 = df_exp_36
-        df_un_67 = df_un_67.unionByName(df_exp_37, allowMissingColumns=True)
-        df_un_67 = df_un_67.unionByName(df_exp_38, allowMissingColumns=True)
-        df_un_67 = df_un_67.unionByName(df_exp_39, allowMissingColumns=True)
-        df_un_67 = df_un_67.unionByName(df_exp_40, allowMissingColumns=True)
-        df_un_67 = df_un_67.unionByName(df_exp_41, allowMissingColumns=True)
-        df_un_67 = df_un_67.unionByName(df_exp_42, allowMissingColumns=True)
-        df_un_67 = df_un_67.unionByName(df_exp_43, allowMissingColumns=True)
-        df_un_67 = df_un_67.unionByName(df_exp_44, allowMissingColumns=True)
-        df_un_67 = df_un_67.unionByName(df_exp_45, allowMissingColumns=True)
-        df_un_67 = df_un_67.unionByName(df_exp_46, allowMissingColumns=True)
-        df_un_67 = df_un_67.unionByName(df_exp_47, allowMissingColumns=True)
-        df_un_67 = df_un_67.unionByName(df_exp_48, allowMissingColumns=True)
-        df_un_67 = df_un_67.unionByName(df_exp_49, allowMissingColumns=True)
-        df_un_67 = df_un_67.unionByName(df_exp_50, allowMissingColumns=True)
-        df_un_67 = df_un_67.unionByName(df_exp_51, allowMissingColumns=True)
-        df_un_67 = df_un_67.unionByName(df_exp_52, allowMissingColumns=True)
-        df_un_67 = df_un_67.unionByName(df_exp_53, allowMissingColumns=True)
-        df_un_67 = df_un_67.unionByName(df_exp_54, allowMissingColumns=True)
-        df_un_67 = df_un_67.unionByName(df_exp_55, allowMissingColumns=True)
-        df_un_67 = df_un_67.unionByName(df_exp_56, allowMissingColumns=True)
-        df_un_67 = df_un_67.unionByName(df_exp_57, allowMissingColumns=True)
-        df_un_67 = df_un_67.unionByName(df_exp_58, allowMissingColumns=True)
-        df_un_67 = df_un_67.unionByName(df_exp_59, allowMissingColumns=True)
-        df_un_67 = df_un_67.unionByName(df_exp_60, allowMissingColumns=True)
-        df_un_67 = df_un_67.unionByName(df_exp_63, allowMissingColumns=True)
-        df_un_67 = df_un_67.unionByName(df_exp_66, allowMissingColumns=True)
-        df_un_67 = df_un_67.unionByName(df_exp_65, allowMissingColumns=True)
-        df_un_67 = df_un_67.unionByName(df_exp_64, allowMissingColumns=True)
-        df_un_67 = df_un_67.unionByName(df_exp_61, allowMissingColumns=True)
-        df_un_67 = df_un_67.unionByName(df_exp_62, allowMissingColumns=True)
+        # Select + rename upstream columns per input, then union
+        df_Union_Transformation_newgroup = df_EXPTRANS1.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE1").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup1 = df_EXPTRANS11.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE3").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup2 = df_EXPTRANS111.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE4").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup3 = df_EXPTRANS1111.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE5").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup4 = df_EXPTRANS11111.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE6").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup5 = df_EXPTRANS111111.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE7").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup6 = df_EXPTRANS1111111.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE8").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup7 = df_EXPTRANS11111111.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE9").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup8 = df_EXPTRANS111111111.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE10").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup9 = df_EXPTRANS1111111111.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE11").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup10 = df_EXPTRANS11111111111.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE12").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup11 = df_EXPTRANS111111111111.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE13").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup12 = df_EXPTRANS1111111111111.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE14").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup13 = df_EXPTRANS11111111111111.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE15").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup14 = df_EXPTRANS111111111111111.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE16").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup15 = df_EXPTRANS1111111111111111.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE17").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup16 = df_EXPTRANS11111111111111111.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE18").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup17 = df_EXPTRANS111111111111111111.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE19").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup18 = df_EXPTRANS1111111111111111111.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE20").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup19 = df_EXPTRANS11111111111111111111.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE21").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup20 = df_EXPTRANS111111111111111111111.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE22").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup21 = df_EXPTRANS1111111111111111111111.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE23").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup22 = df_EXPTRANS11111111111111111111111.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE24").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup23 = df_EXPTRANS111111111111111111111111.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE25").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup24 = df_EXPTRANS1111111111111111111111111.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE26").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup25 = df_EXPTRANS11111111111111111111111111.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE27").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup26 = df_EXPTRANS111111111111111111111111111.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE28").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup27 = df_EXPTRANS1111111111111111111111111111.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE29").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup28 = df_EXPTRANS11111111111111111111111111111.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE30").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup29 = df_EXPTRANS111111111111111111111111111111.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE31").alias("BLK_CODE")        )
+        df_Union_Transformation_newgroup30 = df_EXPTRANS1111111111111111111111111111111.select(
+            col("EST_CODE1").alias("EST_CODE1"),
+            col("AGE_GRP1").alias("AGE_GRP1"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE1"),
+            col("AGE_GRP_CODE").alias("AGE_GRP_CODE"),
+            col("BLK_CODE32").alias("BLK_CODE")        )
+        df_Union_Transformation = df_Union_Transformation_newgroup
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup1, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup2, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup3, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup4, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup5, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup6, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup7, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup8, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup9, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup10, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup11, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup12, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup13, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup14, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup15, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup16, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup17, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup18, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup19, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup20, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup21, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup22, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup23, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup24, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup25, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup26, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup27, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup28, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup29, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup30, allowMissingColumns=True)
         # Select only union output columns
-        df_un_67 = df_un_67.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE")
-        ctx.register_df("df_un_67", df_un_67)
+        df_Union_Transformation = df_Union_Transformation.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE")
+        ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
         logger.info("Step: apply_AGGTRANS")
         # Aggregator: apply_AGGTRANS
-        df_agg_68 = df_un_67.groupBy("EST_CODE", "CUST_MBR_GNDR_CODE", "AGE_GRP_CODE", "BLK_CODE")
-        df_agg_68 = df_agg_68.agg(
+        # Select only mapped upstream columns with correct port names
+        _agg_input = df_Union_Transformation.select(
+            col("AGE_GRP_CODE"),
+            col("BLK_CODE"),
+            col("EST_CODE1").alias("EST_CODE"),
+            col("CUST_MBR_GNDR_CODE1").alias("CUST_MBR_GNDR_CODE")        )
+        df_AGGTRANS = _agg_input.groupBy("EST_CODE", "CUST_MBR_GNDR_CODE", "AGE_GRP_CODE", "BLK_CODE")
+        df_AGGTRANS = df_AGGTRANS.agg(
             count(expr("""1""")).alias("PLT_CNT")
         )
-        ctx.register_df("df_agg_68", df_agg_68)
+        ctx.register_df("df_AGGTRANS", df_AGGTRANS)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_exp_69 = df_agg_68
-        df_exp_69 = df_exp_69.withColumn("SCHM_CODE", expr("'Analysis'"))
+        df_EXPTRANS = df_AGGTRANS
+        df_EXPTRANS = df_EXPTRANS.withColumn("SCHM_CODE", expr("'Analysis'"))
         _expr = """to_date(concat('$$v_rpt_mth', '01'), 'yyyymmdd')"""
         _expr = _expr.replace("$$v_snsh_date", str(v_snsh_date))
         _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
-        df_exp_69 = df_exp_69.withColumn("TIME_VAL_DATE", expr(_expr))
-        df_exp_69 = df_exp_69.withColumn("SYSTIME", expr("current_timestamp()"))
-        df_exp_69 = df_exp_69.withColumn("DSTR_DMNS_KEY", expr("0"))
-        df_exp_69 = df_exp_69.withColumn("AGE_GRP_SCHM_CODE", expr("'NEW'"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("TIME_VAL_DATE", expr(_expr))
+        df_EXPTRANS = df_EXPTRANS.withColumn("SYSTIME", expr("current_timestamp()"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("DSTR_DMNS_KEY", expr("0"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("AGE_GRP_SCHM_CODE", expr("'NEW'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["EST_CODE", "AGE_GRP_CODE", "PLT_CNT", "CUST_MBR_GNDR_CODE", "BLK_CODE"]:
-            if _col not in df_exp_69.columns:
-                df_exp_69 = df_exp_69.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_69 = df_exp_69.select("EST_CODE", "AGE_GRP_CODE", "PLT_CNT", "CUST_MBR_GNDR_CODE", "SCHM_CODE", "TIME_VAL_DATE", "SYSTIME", "DSTR_DMNS_KEY", "AGE_GRP_SCHM_CODE", "BLK_CODE")
-        ctx.register_df("df_exp_69", df_exp_69)
+            if _col not in df_EXPTRANS.columns:
+                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_EST")
         # Reading Data From Source - read_LKP_DDS_DMNS_EMS_EST
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_lkp_70 = lib.read_sql(spark, _conn, table="DDS_DMNS_EST")
+        df_LKP_DDS_DMNS_EMS_EST = lib.read_sql(spark, _conn, table="DDS_DMNS_EST")
         
         logger.info("Step: apply_LKP_DDS_DMNS_EMS_EST")
         # Lookup: apply_LKP_DDS_DMNS_EMS_EST
-        # Join condition: IN_EST_CODE=EST_CODE        
-        df_lkp_result_71 = df_exp_69.join(
-            broadcast(df_lkp_70),
-            (df_exp_69["IN_EST_CODE"] == df_lkp_70["EST_CODE"]),
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_DDS_DMNS_EMS_EST = df_LKP_DDS_DMNS_EMS_EST.dropDuplicates(subset=["EST_CODE"])
+        # Join condition: EST_CODE=EST_CODE
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_DDS_DMNS_EMS_EST
+        _lkp_right = _lkp_right.withColumnRenamed("EST_CODE", "_lkp_EST_CODE")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_EXPTRANS.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_33 = df_EXPTRANS.join(
+            broadcast(_lkp_right),
+            (df_EXPTRANS["EST_CODE"] == _lkp_right["_lkp_EST_CODE"]),
             "left"
-        )
-        ctx.register_df("df_lkp_result_71", df_lkp_result_71)
+        ).drop("_lkp_EST_CODE")
+
+        ctx.register_df("df_lkp_merge_33", df_lkp_merge_33)
         
         logger.info("Step: read_LKP_DDS_DMNS_TIME_1")
         # Reading Data From Source - read_LKP_DDS_DMNS_TIME_1
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_lkp_72 = lib.read_sql(spark, _conn, table="DDS_DMNS_TIME")
+        df_LKP_DDS_DMNS_TIME_1 = lib.read_sql(spark, _conn, table="DDS_DMNS_TIME")
         
         logger.info("Step: apply_LKP_DDS_DMNS_TIME_1")
         # Lookup: apply_LKP_DDS_DMNS_TIME_1
-        # Join condition: IN_TIME_VAL_DATE=TIME_VAL_DATE        
-        df_lkp_result_73 = df_exp_69.join(
-            broadcast(df_lkp_72),
-            (df_exp_69["IN_TIME_VAL_DATE"] == df_lkp_72["TIME_VAL_DATE"]),
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_DDS_DMNS_TIME_1 = df_LKP_DDS_DMNS_TIME_1.dropDuplicates(subset=["TIME_VAL_DATE"])
+        # Join condition: TIME_VAL_DATE=TIME_VAL_DATE
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_DDS_DMNS_TIME_1
+        _lkp_right = _lkp_right.withColumnRenamed("TIME_VAL_DATE", "_lkp_TIME_VAL_DATE")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_33.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_33 = df_lkp_merge_33.join(
+            broadcast(_lkp_right),
+            (df_lkp_merge_33["TIME_VAL_DATE"] == _lkp_right["_lkp_TIME_VAL_DATE"]),
             "left"
-        )
-        ctx.register_df("df_lkp_result_73", df_lkp_result_73)
+        ).drop("_lkp_TIME_VAL_DATE")
+
+        ctx.register_df("df_lkp_merge_33", df_lkp_merge_33)
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_AGE_GRP")
         # Reading Data From Source - read_LKP_DDS_DMNS_EMS_AGE_GRP
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_lkp_74 = lib.read_sql(spark, _conn, table="DDS_DMNS_EMS_AGE_GRP")
+        df_LKP_DDS_DMNS_EMS_AGE_GRP = lib.read_sql(spark, _conn, table="DDS_DMNS_EMS_AGE_GRP")
         
         logger.info("Step: apply_LKP_DDS_DMNS_EMS_AGE_GRP")
         # Lookup: apply_LKP_DDS_DMNS_EMS_AGE_GRP
-        # Join condition: IN_AGE_GRP_CODE=AGE_GRP_CODE AND IN_AGE_GRP_SCHM_CODE=AGE_GRP_SCHM_CODE        
-        df_lkp_result_75 = df_exp_69.join(
-            broadcast(df_lkp_74),
-            (df_exp_69["IN_AGE_GRP_CODE"] == df_lkp_74["AGE_GRP_CODE"]) &             (df_exp_69["IN_AGE_GRP_SCHM_CODE"] == df_lkp_74["AGE_GRP_SCHM_CODE"]),
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_DDS_DMNS_EMS_AGE_GRP = df_LKP_DDS_DMNS_EMS_AGE_GRP.dropDuplicates(subset=["AGE_GRP_CODE", "AGE_GRP_SCHM_CODE"])
+        # Join condition: AGE_GRP_CODE=AGE_GRP_CODE AND AGE_GRP_SCHM_CODE=AGE_GRP_SCHM_CODE
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_DDS_DMNS_EMS_AGE_GRP
+        _lkp_right = _lkp_right.withColumnRenamed("AGE_GRP_CODE", "_lkp_AGE_GRP_CODE")
+        _lkp_right = _lkp_right.withColumnRenamed("AGE_GRP_SCHM_CODE", "_lkp_AGE_GRP_SCHM_CODE")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_33.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_33 = df_lkp_merge_33.join(
+            broadcast(_lkp_right),
+            (df_lkp_merge_33["AGE_GRP_CODE"] == _lkp_right["_lkp_AGE_GRP_CODE"]) &
+            (df_lkp_merge_33["AGE_GRP_SCHM_CODE"] == _lkp_right["_lkp_AGE_GRP_SCHM_CODE"]),
             "left"
-        )
-        ctx.register_df("df_lkp_result_75", df_lkp_result_75)
+        ).drop("_lkp_AGE_GRP_CODE").drop("_lkp_AGE_GRP_SCHM_CODE")
+
+        ctx.register_df("df_lkp_merge_33", df_lkp_merge_33)
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_EST_PLT_TYPE")
         # Reading Data From Source - read_LKP_DDS_DMNS_EMS_EST_PLT_TYPE
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_lkp_76 = lib.read_sql(spark, _conn, table="DDS_DMNS_EMS_EST_PLT_TYPE")
+        df_LKP_DDS_DMNS_EMS_EST_PLT_TYPE = lib.read_sql(spark, _conn, table="DDS_DMNS_EMS_EST_PLT_TYPE")
         
         logger.info("Step: apply_LKP_DDS_DMNS_EMS_EST_PLT_TYPE")
         # Lookup: apply_LKP_DDS_DMNS_EMS_EST_PLT_TYPE
-        # Join condition: IN_EST_PLT_TYPE_CODE=EST_PLT_TYPE_CODE AND IN_EST_PLT_TYPE_SCHM_CODE=EST_PLT_TYPE_SCHM_CODE        
-        df_lkp_result_77 = df_exp_69.join(
-            broadcast(df_lkp_76),
-            (df_exp_69["IN_EST_PLT_TYPE_CODE"] == df_lkp_76["EST_PLT_TYPE_CODE"]) &             (df_exp_69["IN_EST_PLT_TYPE_SCHM_CODE"] == df_lkp_76["EST_PLT_TYPE_SCHM_CODE"]),
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_DDS_DMNS_EMS_EST_PLT_TYPE = df_LKP_DDS_DMNS_EMS_EST_PLT_TYPE.dropDuplicates(subset=["EST_PLT_TYPE_CODE", "EST_PLT_TYPE_SCHM_CODE"])
+        # Join condition: CUST_MBR_GNDR_CODE=EST_PLT_TYPE_CODE AND AGE_GRP_SCHM_CODE=EST_PLT_TYPE_SCHM_CODE
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_DDS_DMNS_EMS_EST_PLT_TYPE
+        _lkp_right = _lkp_right.withColumnRenamed("EST_PLT_TYPE_CODE", "_lkp_EST_PLT_TYPE_CODE")
+        _lkp_right = _lkp_right.withColumnRenamed("EST_PLT_TYPE_SCHM_CODE", "_lkp_EST_PLT_TYPE_SCHM_CODE")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_33.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_33 = df_lkp_merge_33.join(
+            broadcast(_lkp_right),
+            (df_lkp_merge_33["CUST_MBR_GNDR_CODE"] == _lkp_right["_lkp_EST_PLT_TYPE_CODE"]) &
+            (df_lkp_merge_33["AGE_GRP_SCHM_CODE"] == _lkp_right["_lkp_EST_PLT_TYPE_SCHM_CODE"]),
             "left"
-        )
-        ctx.register_df("df_lkp_result_77", df_lkp_result_77)
+        ).drop("_lkp_EST_PLT_TYPE_CODE").drop("_lkp_EST_PLT_TYPE_SCHM_CODE")
+
+        ctx.register_df("df_lkp_merge_33", df_lkp_merge_33)
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_BLK")
         # Reading Data From Source - read_LKP_DDS_DMNS_EMS_BLK
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_lkp_78 = lib.read_sql(spark, _conn, table="DDS_DMNS_BLK")
+        df_LKP_DDS_DMNS_EMS_BLK = lib.read_sql(spark, _conn, table="DDS_DMNS_BLK")
         
         logger.info("Step: apply_LKP_DDS_DMNS_EMS_BLK")
         # Lookup: apply_LKP_DDS_DMNS_EMS_BLK
-        # Join condition: IN_BLK_CODE=BLK_CODE AND IN_EST_SCD_KEY=EST_SCD_KEY        
-        df_lkp_result_79 = df_lkp_result_71.join(
-            broadcast(df_lkp_78),
-            (df_lkp_result_71["IN_BLK_CODE"] == df_lkp_78["BLK_CODE"]) &             (df_lkp_result_71["IN_EST_SCD_KEY"] == df_lkp_78["EST_SCD_KEY"]),
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_DDS_DMNS_EMS_BLK = df_LKP_DDS_DMNS_EMS_BLK.dropDuplicates(subset=["BLK_CODE", "EST_SCD_KEY"])
+        # Join condition: BLK_CODE=BLK_CODE AND EST_SCD_KEY=EST_SCD_KEY
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_DDS_DMNS_EMS_BLK
+        _lkp_right = _lkp_right.withColumnRenamed("BLK_CODE", "_lkp_BLK_CODE")
+        _lkp_right = _lkp_right.withColumnRenamed("EST_SCD_KEY", "_lkp_EST_SCD_KEY")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_33.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_33 = df_lkp_merge_33.join(
+            broadcast(_lkp_right),
+            (df_lkp_merge_33["BLK_CODE"] == _lkp_right["_lkp_BLK_CODE"]) &
+            (df_lkp_merge_33["EST_SCD_KEY"] == _lkp_right["_lkp_EST_SCD_KEY"]),
             "left"
-        )
-        ctx.register_df("df_lkp_result_79", df_lkp_result_79)
-        
-        logger.info("Step: join_target_DPA_FACT_EMS_EST_PLT_0")
-        # Lookup: join_target_DPA_FACT_EMS_EST_PLT_0
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_lkp_result_73.columns if c in df_exp_69.columns]
-        df_tgt_merge_80 = df_lkp_result_73.join(
-            df_exp_69,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_tgt_merge_80", df_tgt_merge_80)
-        
-        logger.info("Step: join_target_DPA_FACT_EMS_EST_PLT_1")
-        # Lookup: join_target_DPA_FACT_EMS_EST_PLT_1
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_tgt_merge_80.columns if c in df_lkp_result_75.columns]
-        df_tgt_merge_81 = df_tgt_merge_80.join(
-            df_lkp_result_75,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_tgt_merge_81", df_tgt_merge_81)
-        
-        logger.info("Step: join_target_DPA_FACT_EMS_EST_PLT_2")
-        # Lookup: join_target_DPA_FACT_EMS_EST_PLT_2
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_tgt_merge_81.columns if c in df_lkp_result_77.columns]
-        df_tgt_merge_82 = df_tgt_merge_81.join(
-            df_lkp_result_77,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_tgt_merge_82", df_tgt_merge_82)
-        
-        logger.info("Step: join_target_DPA_FACT_EMS_EST_PLT_3")
-        # Lookup: join_target_DPA_FACT_EMS_EST_PLT_3
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_tgt_merge_82.columns if c in df_lkp_result_71.columns]
-        df_tgt_merge_83 = df_tgt_merge_82.join(
-            df_lkp_result_71,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_tgt_merge_83", df_tgt_merge_83)
-        
-        logger.info("Step: join_target_DPA_FACT_EMS_EST_PLT_4")
-        # Lookup: join_target_DPA_FACT_EMS_EST_PLT_4
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_tgt_merge_83.columns if c in df_lkp_result_79.columns]
-        df_tgt_merge_84 = df_tgt_merge_83.join(
-            df_lkp_result_79,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_tgt_merge_84", df_tgt_merge_84)
+        ).drop("_lkp_BLK_CODE").drop("_lkp_EST_SCD_KEY")
+
+        ctx.register_df("df_lkp_merge_33", df_lkp_merge_33)
         
         logger.info("Step: write_DPA_FACT_EMS_EST_PLT")
         # Write to Target: write_DPA_FACT_EMS_EST_PLT
-        df_write = df_tgt_merge_84
+        df_write = df_lkp_merge_33
         # Cast columns to match target schema data types
         if "est_plt_schm_code" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

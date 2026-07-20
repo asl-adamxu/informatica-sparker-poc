@@ -72,66 +72,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.warning("UTL_JOB_PARAM not found, using default values")
     
     try:
-        logger.info("Step: read_SOR_HSM_BLK")
-        # Reading Data From Source - read_SOR_HSM_BLK
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_1 = lib.read_sql(spark, _conn, table="SOR_HSM_BLK")
-        
-        logger.info("Step: read_SOR_HSM_DSTR")
-        # Reading Data From Source - read_SOR_HSM_DSTR
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_2 = lib.read_sql(spark, _conn, table="SOR_HSM_DSTR")
-        
-        logger.info("Step: read_SOR_EMS_SRF_RENT_FCTR_CODE")
-        # Reading Data From Source - read_SOR_EMS_SRF_RENT_FCTR_CODE
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_3 = lib.read_sql(spark, _conn, table="SOR_EMS_SRF_RENT_FCTR_CODE")
-        
-        logger.info("Step: read_SOR_EMS_TAM_TNCY_AGRMT_STS")
-        # Reading Data From Source - read_SOR_EMS_TAM_TNCY_AGRMT_STS
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_4 = lib.read_sql(spark, _conn, table="SOR_EMS_TAM_TNCY_AGRMT_STS")
-        
-        logger.info("Step: read_SOR_EMS_POR_OPR_STS")
-        # Reading Data From Source - read_SOR_EMS_POR_OPR_STS
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_5 = lib.read_sql(spark, _conn, table="SOR_EMS_POR_OPR")
-        
-        logger.info("Step: read_SOR_EMS_REF_QTA_CATG_USER_STS")
-        # Reading Data From Source - read_SOR_EMS_REF_QTA_CATG_USER_STS
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_6 = lib.read_sql(spark, _conn, table="SOR_EMS_REF_QTA_CATG_USER_STS")
-        
-        logger.info("Step: read_SOR_EMS_TAM_TNCY_AGRMT")
-        # Reading Data From Source - read_SOR_EMS_TAM_TNCY_AGRMT
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_7 = lib.read_sql(spark, _conn, table="SOR_EMS_TAM_TNCY_AGRMT")
-        
-        logger.info("Step: read_SOR_HSM_UNIT")
-        # Reading Data From Source - read_SOR_HSM_UNIT
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_8 = lib.read_sql(spark, _conn, table="SOR_HSM_UNIT")
-        
-        logger.info("Step: read_SOR_DUMMY")
-        # Reading Data From Source - read_SOR_DUMMY
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_9 = lib.read_sql(spark, _conn, table="SOR_DUMMY")
-        
-        logger.info("Step: read_SOR_EMS_RFX_ALCT_STD_STS")
-        # Reading Data From Source - read_SOR_EMS_RFX_ALCT_STD_STS
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_10 = lib.read_sql(spark, _conn, table="SOR_EMS_RFX_ALCT_STD_STS")
-        
         logger.info("Step: apply_SQ_SOR_EMS_PHA_APLY")
         # Source Qualifier: apply_SQ_SOR_EMS_PHA_APLY
         # SQL Pushdown - executes Informatica SQ SQL on source database
@@ -227,29 +167,28 @@ ON
 	TAM.CUST_KEY = INTK.CUST_KEY AND TAM.HSE_SRVC_APLY_KEY = INTK.HSE_SRVC_APLY_KEY AND TAMS.UNIT_KEY = INTK.ALCT_UNIT_KEY"""
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         query = query.replace("$$v_snsh_date", v_snsh_date)
-        df_sq_11 = lib.read_sql(spark, _conn, query=query)
+        df_SQ_SOR_EMS_PHA_APLY = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_11.columns
+        _sql_cols = df_SQ_SOR_EMS_PHA_APLY.columns
         _port_cols = ["SYS_RPT_MTH", "SYS_RPT_YEAR", "EST_KEY", "DSTR_BRD_EMMS_DSTR_KEY", "DSTR_CHC_EMMS_DSTR_KEY", "CATG_USER_TYPE_CODE", "UNIT_TYPE_CODE", "MIN_UNIT_HEAD_CNT", "MAX_UNIT_HEAD_CNT", "OPR_TYPE_CODE", "TNCY_AGRMT_KEY", "TNCY_AGRMT_STS_CODE", "TNCY_AGRMT_CMNC_DATE", "NEW_IND", "P_ACTV_TNCY_IND", "P_RENT_FCTR_CODE", "CHG_FLAG", "CUTOFF_DATE"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_11 = df_sq_11.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_SQ_SOR_EMS_PHA_APLY = df_SQ_SOR_EMS_PHA_APLY.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_11 = df_sq_11.select("SYS_RPT_MTH", "SYS_RPT_YEAR", "EST_KEY", "DSTR_BRD_EMMS_DSTR_KEY", "DSTR_CHC_EMMS_DSTR_KEY", "CATG_USER_TYPE_CODE", "UNIT_TYPE_CODE", "MIN_UNIT_HEAD_CNT", "MAX_UNIT_HEAD_CNT", "OPR_TYPE_CODE", "TNCY_AGRMT_KEY", "TNCY_AGRMT_STS_CODE", "TNCY_AGRMT_CMNC_DATE", "NEW_IND", "P_ACTV_TNCY_IND", "P_RENT_FCTR_CODE", "CHG_FLAG", "CUTOFF_DATE")
+        df_SQ_SOR_EMS_PHA_APLY = df_SQ_SOR_EMS_PHA_APLY.select("SYS_RPT_MTH", "SYS_RPT_YEAR", "EST_KEY", "DSTR_BRD_EMMS_DSTR_KEY", "DSTR_CHC_EMMS_DSTR_KEY", "CATG_USER_TYPE_CODE", "UNIT_TYPE_CODE", "MIN_UNIT_HEAD_CNT", "MAX_UNIT_HEAD_CNT", "OPR_TYPE_CODE", "TNCY_AGRMT_KEY", "TNCY_AGRMT_STS_CODE", "TNCY_AGRMT_CMNC_DATE", "NEW_IND", "P_ACTV_TNCY_IND", "P_RENT_FCTR_CODE", "CHG_FLAG", "CUTOFF_DATE")
         
-        ctx.register_df("df_sq_11", df_sq_11)
+        ctx.register_df("df_SQ_SOR_EMS_PHA_APLY", df_SQ_SOR_EMS_PHA_APLY)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_exp_12 = df_sq_11
-        df_exp_12 = df_exp_12.withColumn("TIME_DMNS_KEY", expr("200000000+SYS_RPT_YEAR*10000+SYS_RPT_MTH*100"))
+        df_EXPTRANS = df_SQ_SOR_EMS_PHA_APLY
+        df_EXPTRANS = df_EXPTRANS.withColumn("TIME_DMNS_KEY", expr("200000000+SYS_RPT_YEAR*10000+SYS_RPT_MTH*100"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["EST_KEY", "DSTR_BRD_EMMS_DSTR_KEY", "DSTR_CHC_EMMS_DSTR_KEY", "CATG_USER_TYPE_CODE", "UNIT_TYPE_CODE", "MIN_UNIT_HEAD_CNT", "MAX_UNIT_HEAD_CNT", "OPR_TYPE_CODE", "TNCY_AGRMT_KEY", "TNCY_AGRMT_STS_CODE", "TNCY_AGRMT_CMNC_DATE", "NEW_IND", "P_ACTV_TNCY_IND", "P_RENT_FCTR_CODE", "CHG_FLAG", "CUTOFF_DATE"]:
-            if _col not in df_exp_12.columns:
-                df_exp_12 = df_exp_12.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_12 = df_exp_12.select("TIME_DMNS_KEY", "EST_KEY", "DSTR_BRD_EMMS_DSTR_KEY", "DSTR_CHC_EMMS_DSTR_KEY", "CATG_USER_TYPE_CODE", "UNIT_TYPE_CODE", "MIN_UNIT_HEAD_CNT", "MAX_UNIT_HEAD_CNT", "OPR_TYPE_CODE", "TNCY_AGRMT_KEY", "TNCY_AGRMT_STS_CODE", "TNCY_AGRMT_CMNC_DATE", "NEW_IND", "P_ACTV_TNCY_IND", "P_RENT_FCTR_CODE", "CHG_FLAG", "CUTOFF_DATE")
-        ctx.register_df("df_exp_12", df_exp_12)
+            if _col not in df_EXPTRANS.columns:
+                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: read_mplt_LKP_SOR_EMS_TAM_TNCY_AGRMT_STS")
         # Reading Data From Source - read_mplt_LKP_SOR_EMS_TAM_TNCY_AGRMT_STS
@@ -266,48 +205,118 @@ WHERE
 TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN SOR_EMS_TAM_TNCY_AGRMT_STS.BGN_DATE AND SOR_EMS_TAM_TNCY_AGRMT_STS.END_DATE"""
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         query = query.replace("$$v_snsh_date", v_snsh_date)
-        df_mplt_lkp_13 = lib.read_sql(spark, _conn, query=query)
+        df_mplt_lkp_1 = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_mplt_LKP_SOR_EMS_TAM_TNCY_AGRMT_STS")
         # Lookup: apply_mplt_LKP_SOR_EMS_TAM_TNCY_AGRMT_STS
-        # Join condition: TNCY_AGRMT_KEY=TNCY_AGRMT_KEY        
-        df_mplt_join_14 = df_exp_12.join(
-            broadcast(df_mplt_lkp_13),
-            (df_exp_12["TNCY_AGRMT_KEY"] == df_mplt_lkp_13["TNCY_AGRMT_KEY"]),
+        # Join condition: TNCY_AGRMT_KEY=TNCY_AGRMT_KEY
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_mplt_lkp_1
+        _lkp_right = _lkp_right.withColumnRenamed("TNCY_AGRMT_KEY", "_lkp_TNCY_AGRMT_KEY")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_EXPTRANS.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_mplt_join_2 = df_EXPTRANS.join(
+            broadcast(_lkp_right),
+            (df_EXPTRANS["TNCY_AGRMT_KEY"] == _lkp_right["_lkp_TNCY_AGRMT_KEY"]),
             "left"
-        )
-        ctx.register_df("df_mplt_join_14", df_mplt_join_14)
+        ).drop("_lkp_TNCY_AGRMT_KEY")
+
+        ctx.register_df("df_mplt_join_2", df_mplt_join_2)
+        
+        logger.info("Step: join_mplt_EXPTRANS_0")
+        # Lookup: join_mplt_EXPTRANS_0
+        # Merge on common columns — drop lookup columns that duplicate non-key
+        # input columns (e.g. EST_KEY from both sides → ambiguity).
+        _cc = list(dict.fromkeys(c for c in df_EXPTRANS.columns if c in df_mplt_join_2.columns))
+        if _cc:
+            __lkp_dup = [c for c in df_mplt_join_2.columns if c in df_EXPTRANS.columns and c not in _cc]
+            df_mplt_merge_3 = df_EXPTRANS.join(
+                df_mplt_join_2.drop(*__lkp_dup) if __lkp_dup else df_mplt_join_2,
+                on=_cc, how="left"
+            )
+        else:
+            logger.warning("No common columns between df_EXPTRANS and df_mplt_join_2 — using synthetic key join")
+            df_mplt_merge_3 = df_EXPTRANS.withColumn("_join_key", lit(1)).join(
+                df_mplt_join_2.withColumn("_join_key", lit(1)),
+                on="_join_key", how="left").drop("_join_key")
+        ctx.register_df("df_mplt_merge_3", df_mplt_merge_3)
+        
+        logger.info("Step: join_mplt_EXPTRANS_1")
+        # Lookup: join_mplt_EXPTRANS_1
+        # Merge on common columns — drop lookup columns that duplicate non-key
+        # input columns (e.g. EST_KEY from both sides → ambiguity).
+        _cc = list(dict.fromkeys(c for c in df_mplt_merge_3.columns if c in df_mplt_join_2.columns))
+        if _cc:
+            __lkp_dup = [c for c in df_mplt_join_2.columns if c in df_mplt_merge_3.columns and c not in _cc]
+            df_mplt_merge_4 = df_mplt_merge_3.join(
+                df_mplt_join_2.drop(*__lkp_dup) if __lkp_dup else df_mplt_join_2,
+                on=_cc, how="left"
+            )
+        else:
+            logger.warning("No common columns between df_mplt_merge_3 and df_mplt_join_2 — using synthetic key join")
+            df_mplt_merge_4 = df_mplt_merge_3.withColumn("_join_key", lit(1)).join(
+                df_mplt_join_2.withColumn("_join_key", lit(1)),
+                on="_join_key", how="left").drop("_join_key")
+        ctx.register_df("df_mplt_merge_4", df_mplt_merge_4)
+        
+        logger.info("Step: join_mplt_EXPTRANS_2")
+        # Lookup: join_mplt_EXPTRANS_2
+        # Merge on common columns — drop lookup columns that duplicate non-key
+        # input columns (e.g. EST_KEY from both sides → ambiguity).
+        _cc = list(dict.fromkeys(c for c in df_mplt_merge_4.columns if c in df_mplt_join_2.columns))
+        if _cc:
+            __lkp_dup = [c for c in df_mplt_join_2.columns if c in df_mplt_merge_4.columns and c not in _cc]
+            df_mplt_merge_5 = df_mplt_merge_4.join(
+                df_mplt_join_2.drop(*__lkp_dup) if __lkp_dup else df_mplt_join_2,
+                on=_cc, how="left"
+            )
+        else:
+            logger.warning("No common columns between df_mplt_merge_4 and df_mplt_join_2 — using synthetic key join")
+            df_mplt_merge_5 = df_mplt_merge_4.withColumn("_join_key", lit(1)).join(
+                df_mplt_join_2.withColumn("_join_key", lit(1)),
+                on="_join_key", how="left").drop("_join_key")
+        ctx.register_df("df_mplt_merge_5", df_mplt_merge_5)
         
         logger.info("Step: apply_mplt_EXPTRANS")
         # Expression: apply_mplt_EXPTRANS
-        df_mplt_expr_15 = df_exp_12
-        df_mplt_expr_15 = df_mplt_expr_15.withColumn("DATE", expr("CUTOFF_DATE"))
-        df_mplt_expr_15 = df_mplt_expr_15.withColumn("ORIG_TNCY_AGRMT_CMNC_DATE", expr("ORIG_TNCY_AGRMT_CMNC_CUTOFF_DATE"))
-        df_mplt_expr_15 = df_mplt_expr_15.withColumn("TNCY_AGRMT_TM_TRMT_DATE", expr("TNCY_AGRMT_TM_TRMT_CUTOFF_DATE"))
-        df_mplt_expr_15 = df_mplt_expr_15.withColumn("ACTV_TNCY_IND", expr("CASE WHEN (TNCY_AGRMT_TM_STS_CODE = 'A' OR TNCY_AGRMT_TM_STS_CODE = 'I') AND CASE WHEN ORIG_TNCY_AGRMT_CMNC_CUTOFF_DATE < CUTOFF_DATE THEN -1 WHEN ORIG_TNCY_AGRMT_CMNC_CUTOFF_DATE > CUTOFF_DATE THEN 1 ELSE 0 END<0 AND ((TNCY_AGRMT_TM_TRMT_CUTOFF_DATE IS NULL) OR CASE WHEN TNCY_AGRMT_TM_TRMT_CUTOFF_DATE < CUTOFF_DATE THEN -1 WHEN TNCY_AGRMT_TM_TRMT_CUTOFF_DATE > CUTOFF_DATE THEN 1 ELSE 0 END>=0) THEN 'Y' ELSE 'N' END"))
-        ctx.register_df("df_mplt_expr_15", df_mplt_expr_15)
+        df_mplt_expr_6 = df_mplt_merge_5
+        df_mplt_expr_6 = df_mplt_expr_6.withColumn("DATE", expr("CUTOFF_DATE"))
+        df_mplt_expr_6 = df_mplt_expr_6.withColumn("ORIG_TNCY_AGRMT_CMNC_DATE", expr("ORIG_TNCY_AGRMT_CMNC_CUTOFF_DATE"))
+        df_mplt_expr_6 = df_mplt_expr_6.withColumn("TNCY_AGRMT_TM_TRMT_DATE", expr("TNCY_AGRMT_TM_TRMT_CUTOFF_DATE"))
+        df_mplt_expr_6 = df_mplt_expr_6.withColumn("ACTV_TNCY_IND", expr("CASE WHEN (TNCY_AGRMT_TM_STS_CODE = 'A' OR TNCY_AGRMT_TM_STS_CODE = 'I') AND CASE WHEN ORIG_TNCY_AGRMT_CMNC_CUTOFF_DATE < CUTOFF_DATE THEN -1 WHEN ORIG_TNCY_AGRMT_CMNC_CUTOFF_DATE > CUTOFF_DATE THEN 1 ELSE 0 END<0 AND ((TNCY_AGRMT_TM_TRMT_CUTOFF_DATE IS NULL) OR CASE WHEN TNCY_AGRMT_TM_TRMT_CUTOFF_DATE < CUTOFF_DATE THEN -1 WHEN TNCY_AGRMT_TM_TRMT_CUTOFF_DATE > CUTOFF_DATE THEN 1 ELSE 0 END>=0) THEN 'Y' ELSE 'N' END"))
+        ctx.register_df("df_mplt_expr_6", df_mplt_expr_6)
         
         logger.info("Step: join_output_MPLT_EMS_GET_ACTV_TNCY_BY_TNCY_AGRMT_KEY_0")
         # Lookup: join_output_MPLT_EMS_GET_ACTV_TNCY_BY_TNCY_AGRMT_KEY_0
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_mplt_expr_15.columns if c in df_mplt_join_14.columns]
-        df_mplt_merge_16 = df_mplt_expr_15.join(
-            df_mplt_join_14,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_mplt_merge_16", df_mplt_merge_16)
+        # Merge on common columns — drop lookup columns that duplicate non-key
+        # input columns (e.g. EST_KEY from both sides → ambiguity).
+        _cc = list(dict.fromkeys(c for c in df_mplt_expr_6.columns if c in df_mplt_join_2.columns))
+        if _cc:
+            __lkp_dup = [c for c in df_mplt_join_2.columns if c in df_mplt_expr_6.columns and c not in _cc]
+            df_mplt_merge_7 = df_mplt_expr_6.join(
+                df_mplt_join_2.drop(*__lkp_dup) if __lkp_dup else df_mplt_join_2,
+                on=_cc, how="left"
+            )
+        else:
+            logger.warning("No common columns between df_mplt_expr_6 and df_mplt_join_2 — using synthetic key join")
+            df_mplt_merge_7 = df_mplt_expr_6.withColumn("_join_key", lit(1)).join(
+                df_mplt_join_2.withColumn("_join_key", lit(1)),
+                on="_join_key", how="left").drop("_join_key")
+        ctx.register_df("df_mplt_merge_7", df_mplt_merge_7)
         
         logger.info("Step: apply_MPLT_EMS_GET_ACTV_TNCY_BY_TNCY_AGRMT_KEY")
         # Expression: apply_MPLT_EMS_GET_ACTV_TNCY_BY_TNCY_AGRMT_KEY
-        df_mplt_17 = df_mplt_merge_16
-        ctx.register_df("df_mplt_17", df_mplt_17)
+        df_MPLT_EMS_GET_ACTV_TNCY_BY_TNCY_AGRMT_KEY = df_mplt_merge_7
+        ctx.register_df("df_MPLT_EMS_GET_ACTV_TNCY_BY_TNCY_AGRMT_KEY", df_MPLT_EMS_GET_ACTV_TNCY_BY_TNCY_AGRMT_KEY)
         
         logger.info("Step: apply_mplt_EXPTRANS")
         # Expression: apply_mplt_EXPTRANS
-        df_mplt_expr_18 = df_exp_12
-        df_mplt_expr_18 = df_mplt_expr_18.withColumn("DUMMY", expr("null"))
-        ctx.register_df("df_mplt_expr_18", df_mplt_expr_18)
+        df_mplt_expr_8 = df_EXPTRANS
+        df_mplt_expr_8 = df_mplt_expr_8.withColumn("DUMMY", expr("null"))
+        ctx.register_df("df_mplt_expr_8", df_mplt_expr_8)
         
         logger.info("Step: read_mplt_LKP_SOR_EMS_TAM_TNCY_AGRMT_STS")
         # Reading Data From Source - read_mplt_LKP_SOR_EMS_TAM_TNCY_AGRMT_STS
@@ -321,90 +330,134 @@ from sor_ems_tam_tncy_agrmt_sts
 where ( to_date($$v_snsh_date,'yyyymmdd') > end_date or  to_date($$v_snsh_date,'yyyymmdd') between bgn_date and end_date)"""
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         query = query.replace("$$v_snsh_date", v_snsh_date)
-        df_mplt_lkp_19 = lib.read_sql(spark, _conn, query=query)
+        df_mplt_lkp_9 = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_mplt_LKP_SOR_EMS_TAM_TNCY_AGRMT_STS")
         # Lookup: apply_mplt_LKP_SOR_EMS_TAM_TNCY_AGRMT_STS
-        # Join condition: TNCY_AGRMT_KEY=TNCY_AGRMT_KEY        
-        df_mplt_join_20 = df_mplt_expr_18.join(
-            broadcast(df_mplt_lkp_19),
-            (df_mplt_expr_18["TNCY_AGRMT_KEY"] == df_mplt_lkp_19["TNCY_AGRMT_KEY"]),
+        # Join condition: TNCY_AGRMT_KEY=TNCY_AGRMT_KEY
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_mplt_lkp_9
+        _lkp_right = _lkp_right.withColumnRenamed("TNCY_AGRMT_KEY", "_lkp_TNCY_AGRMT_KEY")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_mplt_expr_8.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_mplt_join_10 = df_mplt_expr_8.join(
+            broadcast(_lkp_right),
+            (df_mplt_expr_8["TNCY_AGRMT_KEY"] == _lkp_right["_lkp_TNCY_AGRMT_KEY"]),
             "left"
-        )
-        ctx.register_df("df_mplt_join_20", df_mplt_join_20)
+        ).drop("_lkp_TNCY_AGRMT_KEY")
+
+        ctx.register_df("df_mplt_join_10", df_mplt_join_10)
         
         logger.info("Step: apply_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY")
         # Expression: apply_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY
-        df_mplt_21 = df_mplt_join_20
-        ctx.register_df("df_mplt_21", df_mplt_21)
+        df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY = df_mplt_join_10
+        ctx.register_df("df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY", df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY)
         
-        logger.info("Step: join_EXPTRANS1_0")
-        # Lookup: join_EXPTRANS1_0
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_mplt_17.columns if c in df_exp_12.columns]
-        df_exp_merge_23 = df_mplt_17.join(
-            df_exp_12,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_exp_merge_23", df_exp_merge_23)
+        logger.info("Step: merge_EXPTRANS1_0")
+        # Lookup: merge_EXPTRANS1_0
+        # Merge on common columns — drop lookup columns that duplicate non-key
+        # input columns (e.g. EST_KEY from both sides → ambiguity).
+        _cc = list(dict.fromkeys(c for c in df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY.columns if c in df_EXPTRANS.columns))
+        if _cc:
+            __lkp_dup = [c for c in df_EXPTRANS.columns if c in df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY.columns and c not in _cc]
+            df_merge_11 = df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY.join(
+                df_EXPTRANS.drop(*__lkp_dup) if __lkp_dup else df_EXPTRANS,
+                on=_cc, how="left"
+            )
+        else:
+            logger.warning("No common columns between df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY and df_EXPTRANS — using synthetic key join")
+            df_merge_11 = df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY.withColumn("_join_key", lit(1)).join(
+                df_EXPTRANS.withColumn("_join_key", lit(1)),
+                on="_join_key", how="left").drop("_join_key")
+        ctx.register_df("df_merge_11", df_merge_11)
         
-        logger.info("Step: join_EXPTRANS1_1")
-        # Lookup: join_EXPTRANS1_1
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_exp_merge_23.columns if c in df_mplt_21.columns]
-        df_exp_merge_24 = df_exp_merge_23.join(
-            df_mplt_21,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_exp_merge_24", df_exp_merge_24)
+        logger.info("Step: merge_EXPTRANS1_1")
+        # Lookup: merge_EXPTRANS1_1
+        # Merge on common columns — drop lookup columns that duplicate non-key
+        # input columns (e.g. EST_KEY from both sides → ambiguity).
+        _cc = list(dict.fromkeys(c for c in df_merge_11.columns if c in df_MPLT_EMS_GET_ACTV_TNCY_BY_TNCY_AGRMT_KEY.columns))
+        if _cc:
+            __lkp_dup = [c for c in df_MPLT_EMS_GET_ACTV_TNCY_BY_TNCY_AGRMT_KEY.columns if c in df_merge_11.columns and c not in _cc]
+            df_merge_12 = df_merge_11.join(
+                df_MPLT_EMS_GET_ACTV_TNCY_BY_TNCY_AGRMT_KEY.drop(*__lkp_dup) if __lkp_dup else df_MPLT_EMS_GET_ACTV_TNCY_BY_TNCY_AGRMT_KEY,
+                on=_cc, how="left"
+            )
+        else:
+            logger.warning("No common columns between df_merge_11 and df_MPLT_EMS_GET_ACTV_TNCY_BY_TNCY_AGRMT_KEY — using synthetic key join")
+            df_merge_12 = df_merge_11.withColumn("_join_key", lit(1)).join(
+                df_MPLT_EMS_GET_ACTV_TNCY_BY_TNCY_AGRMT_KEY.withColumn("_join_key", lit(1)),
+                on="_join_key", how="left").drop("_join_key")
+        ctx.register_df("df_merge_12", df_merge_12)
         
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
-        df_exp_22 = df_exp_merge_24
-        df_exp_22 = df_exp_22.withColumn("TNCY_AGRMT_KEY", expr("TNCY_AGRMT_KEY_OUT"))
-        df_exp_22 = df_exp_22.withColumn("ACTV_TNCY_IND", expr("CASE WHEN TNCY_AGRMT_STS_CODE = 'P' THEN P_ACTV_TNCY_IND ELSE ACTV_TNCY_IND END"))
-        df_exp_22 = df_exp_22.withColumn("RENT_FCTR_CODE", expr("CASE WHEN TNCY_AGRMT_CMNC_DATE > CUTOFF_DATE THEN P_RENT_FCTR_CODE ELSE RENT_FCTR_CODE END"))
+        df_EXPTRANS1 = df_merge_12
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("TNCY_AGRMT_KEY", expr("TNCY_AGRMT_KEY_OUT"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("ACTV_TNCY_IND", expr("CASE WHEN TNCY_AGRMT_STS_CODE = 'P' THEN P_ACTV_TNCY_IND ELSE ACTV_TNCY_IND END"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("RENT_FCTR_CODE", expr("CASE WHEN TNCY_AGRMT_CMNC_DATE > CUTOFF_DATE THEN P_RENT_FCTR_CODE ELSE RENT_FCTR_CODE END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["TIME_DMNS_KEY", "EST_KEY", "DSTR_BRD_EMMS_DSTR_KEY", "DSTR_CHC_EMMS_DSTR_KEY", "CATG_USER_TYPE_CODE", "UNIT_TYPE_CODE", "MIN_UNIT_HEAD_CNT", "MAX_UNIT_HEAD_CNT", "OPR_TYPE_CODE", "NEW_IND", "CUTOFF_DATE", "CHG_FLAG"]:
-            if _col not in df_exp_22.columns:
-                df_exp_22 = df_exp_22.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_22 = df_exp_22.select("TIME_DMNS_KEY", "EST_KEY", "DSTR_BRD_EMMS_DSTR_KEY", "DSTR_CHC_EMMS_DSTR_KEY", "CATG_USER_TYPE_CODE", "UNIT_TYPE_CODE", "MIN_UNIT_HEAD_CNT", "MAX_UNIT_HEAD_CNT", "OPR_TYPE_CODE", "TNCY_AGRMT_KEY", "NEW_IND", "ACTV_TNCY_IND", "RENT_FCTR_CODE", "CHG_FLAG", "CUTOFF_DATE")
-        ctx.register_df("df_exp_22", df_exp_22)
+            if _col not in df_EXPTRANS1.columns:
+                df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_RENT_FCTR")
         # Reading Data From Source - read_LKP_DDS_DMNS_EMS_RENT_FCTR
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_lkp_25 = lib.read_sql(spark, _conn, table="DDS_DMNS_EMS_RENT_FCTR")
+        df_LKP_DDS_DMNS_EMS_RENT_FCTR = lib.read_sql(spark, _conn, table="DDS_DMNS_EMS_RENT_FCTR")
         
         logger.info("Step: apply_LKP_DDS_DMNS_EMS_RENT_FCTR")
         # Lookup: apply_LKP_DDS_DMNS_EMS_RENT_FCTR
-        # Join condition: RENT_FCTR_CODE1=RENT_FCTR_CODE        
-        df_lkp_result_26 = df_exp_22.join(
-            broadcast(df_lkp_25),
-            (df_exp_22["RENT_FCTR_CODE1"] == df_lkp_25["RENT_FCTR_CODE"]),
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_DDS_DMNS_EMS_RENT_FCTR = df_LKP_DDS_DMNS_EMS_RENT_FCTR.dropDuplicates(subset=["RENT_FCTR_CODE"])
+        # Join condition: RENT_FCTR_CODE=RENT_FCTR_CODE
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_DDS_DMNS_EMS_RENT_FCTR
+        _lkp_right = _lkp_right.withColumnRenamed("RENT_FCTR_CODE", "_lkp_RENT_FCTR_CODE")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_EXPTRANS1.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_13 = df_EXPTRANS1.join(
+            broadcast(_lkp_right),
+            (df_EXPTRANS1["RENT_FCTR_CODE"] == _lkp_right["_lkp_RENT_FCTR_CODE"]),
             "left"
-        )
-        ctx.register_df("df_lkp_result_26", df_lkp_result_26)
+        ).drop("_lkp_RENT_FCTR_CODE")
+
+        ctx.register_df("df_lkp_merge_13", df_lkp_merge_13)
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_OPR_TYPE")
         # Reading Data From Source - read_LKP_DDS_DMNS_EMS_OPR_TYPE
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_lkp_27 = lib.read_sql(spark, _conn, table="DDS_DMNS_EMS_OPR_TYPE")
+        df_LKP_DDS_DMNS_EMS_OPR_TYPE = lib.read_sql(spark, _conn, table="DDS_DMNS_EMS_OPR_TYPE")
         
         logger.info("Step: apply_LKP_DDS_DMNS_EMS_OPR_TYPE")
         # Lookup: apply_LKP_DDS_DMNS_EMS_OPR_TYPE
-        # Join condition: OPR_TYPE_CODE1=OPR_TYPE_CODE        
-        df_lkp_result_28 = df_exp_22.join(
-            broadcast(df_lkp_27),
-            (df_exp_22["OPR_TYPE_CODE1"] == df_lkp_27["OPR_TYPE_CODE"]),
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_DDS_DMNS_EMS_OPR_TYPE = df_LKP_DDS_DMNS_EMS_OPR_TYPE.dropDuplicates(subset=["OPR_TYPE_CODE"])
+        # Join condition: OPR_TYPE_CODE=OPR_TYPE_CODE
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_DDS_DMNS_EMS_OPR_TYPE
+        _lkp_right = _lkp_right.withColumnRenamed("OPR_TYPE_CODE", "_lkp_OPR_TYPE_CODE")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_13.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_13 = df_lkp_merge_13.join(
+            broadcast(_lkp_right),
+            (df_lkp_merge_13["OPR_TYPE_CODE"] == _lkp_right["_lkp_OPR_TYPE_CODE"]),
             "left"
-        )
-        ctx.register_df("df_lkp_result_28", df_lkp_result_28)
+        ).drop("_lkp_OPR_TYPE_CODE")
+
+        ctx.register_df("df_lkp_merge_13", df_lkp_merge_13)
         
         logger.info("Step: read_LKP_HRCHY_DMNS_DSTR_CHC_DSTR")
         # Reading Data From Source - read_LKP_HRCHY_DMNS_DSTR_CHC_DSTR
@@ -414,49 +467,82 @@ where ( to_date($$v_snsh_date,'yyyymmdd') > end_date or  to_date($$v_snsh_date,'
 WHERE add_months(to_date('$$v_rpt_mth'||'01', 'YYYYMMDD'),-1)-1 between DDS_HRCHY_EMS_DSTR_CHC_DSTR.BGN_DATE and DDS_HRCHY_EMS_DSTR_CHC_DSTR.END_DATE"""
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         query = query.replace("$$v_snsh_date", v_snsh_date)
-        df_lkp_29 = lib.read_sql(spark, _conn, query=query)
+        df_LKP_HRCHY_DMNS_DSTR_CHC_DSTR = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_LKP_HRCHY_DMNS_DSTR_CHC_DSTR")
         # Lookup: apply_LKP_HRCHY_DMNS_DSTR_CHC_DSTR
-        # Join condition: DSTR_CHC_DSTR_EMMS_KEY=EMMS_SBDSTR_KEY        
-        df_lkp_result_30 = df_exp_22.join(
-            broadcast(df_lkp_29),
-            (df_exp_22["DSTR_CHC_DSTR_EMMS_KEY"] == df_lkp_29["EMMS_SBDSTR_KEY"]),
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_HRCHY_DMNS_DSTR_CHC_DSTR = df_LKP_HRCHY_DMNS_DSTR_CHC_DSTR.dropDuplicates(subset=["EMMS_SBDSTR_KEY"])
+        # Join condition: DSTR_CHC_EMMS_DSTR_KEY=EMMS_SBDSTR_KEY
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_HRCHY_DMNS_DSTR_CHC_DSTR
+        _lkp_right = _lkp_right.withColumnRenamed("EMMS_SBDSTR_KEY", "_lkp_EMMS_SBDSTR_KEY")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_13.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_13 = df_lkp_merge_13.join(
+            broadcast(_lkp_right),
+            (df_lkp_merge_13["DSTR_CHC_EMMS_DSTR_KEY"] == _lkp_right["_lkp_EMMS_SBDSTR_KEY"]),
             "left"
-        )
-        ctx.register_df("df_lkp_result_30", df_lkp_result_30)
+        ).drop("_lkp_EMMS_SBDSTR_KEY")
+
+        ctx.register_df("df_lkp_merge_13", df_lkp_merge_13)
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR")
         # Reading Data From Source - read_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_lkp_31 = lib.read_sql(spark, _conn, table="DDS_DMNS_EMS_DSTR_BRD_DSTR")
+        df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR = lib.read_sql(spark, _conn, table="DDS_DMNS_EMS_DSTR_BRD_DSTR")
         
         logger.info("Step: apply_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR")
         # Lookup: apply_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR
-        # Join condition: DSTR_BRD_DSTR_EMMS_KEY=EMMS_DSTR_KEY        
-        df_lkp_result_32 = df_exp_22.join(
-            broadcast(df_lkp_31),
-            (df_exp_22["DSTR_BRD_DSTR_EMMS_KEY"] == df_lkp_31["EMMS_DSTR_KEY"]),
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR = df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR.dropDuplicates(subset=["EMMS_DSTR_KEY"])
+        # Join condition: DSTR_BRD_EMMS_DSTR_KEY=EMMS_DSTR_KEY
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR
+        _lkp_right = _lkp_right.withColumnRenamed("EMMS_DSTR_KEY", "_lkp_EMMS_DSTR_KEY")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_13.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_13 = df_lkp_merge_13.join(
+            broadcast(_lkp_right),
+            (df_lkp_merge_13["DSTR_BRD_EMMS_DSTR_KEY"] == _lkp_right["_lkp_EMMS_DSTR_KEY"]),
             "left"
-        )
-        ctx.register_df("df_lkp_result_32", df_lkp_result_32)
+        ).drop("_lkp_EMMS_DSTR_KEY")
+
+        ctx.register_df("df_lkp_merge_13", df_lkp_merge_13)
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_FLAT_TYPE")
         # Reading Data From Source - read_LKP_DDS_DMNS_EMS_FLAT_TYPE
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_lkp_33 = lib.read_sql(spark, _conn, table="DDS_DMNS_EMS_FLAT_TYPE")
+        df_LKP_DDS_DMNS_EMS_FLAT_TYPE = lib.read_sql(spark, _conn, table="DDS_DMNS_EMS_FLAT_TYPE")
         
         logger.info("Step: apply_LKP_DDS_DMNS_EMS_FLAT_TYPE")
         # Lookup: apply_LKP_DDS_DMNS_EMS_FLAT_TYPE
-        # Join condition: UNIT_TYPE_CODE=FLAT_TYPE_CODE        
-        df_lkp_result_34 = df_exp_22.join(
-            broadcast(df_lkp_33),
-            (df_exp_22["UNIT_TYPE_CODE"] == df_lkp_33["FLAT_TYPE_CODE"]),
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_DDS_DMNS_EMS_FLAT_TYPE = df_LKP_DDS_DMNS_EMS_FLAT_TYPE.dropDuplicates(subset=["FLAT_TYPE_CODE"])
+        # Join condition: UNIT_TYPE_CODE=FLAT_TYPE_CODE
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_DDS_DMNS_EMS_FLAT_TYPE
+        _lkp_right = _lkp_right.withColumnRenamed("FLAT_TYPE_CODE", "_lkp_FLAT_TYPE_CODE")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_13.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_13 = df_lkp_merge_13.join(
+            broadcast(_lkp_right),
+            (df_lkp_merge_13["UNIT_TYPE_CODE"] == _lkp_right["_lkp_FLAT_TYPE_CODE"]),
             "left"
-        )
-        ctx.register_df("df_lkp_result_34", df_lkp_result_34)
+        ).drop("_lkp_FLAT_TYPE_CODE")
+
+        ctx.register_df("df_lkp_merge_13", df_lkp_merge_13)
         
         logger.info("Step: read_LKP_DDS_HRCHY_EMS_EST")
         # Reading Data From Source - read_LKP_DDS_HRCHY_EMS_EST
@@ -483,115 +569,75 @@ FROM DDS_HRCHY_EMS_EST
 WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY_EMS_EST.BGN_DATE AND DDS_HRCHY_EMS_EST.END_DATE"""
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         query = query.replace("$$v_snsh_date", v_snsh_date)
-        df_lkp_35 = lib.read_sql(spark, _conn, query=query)
+        df_LKP_DDS_HRCHY_EMS_EST = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_LKP_DDS_HRCHY_EMS_EST")
         # Lookup: apply_LKP_DDS_HRCHY_EMS_EST
-        # Join condition: EST_KEY1=EST_KEY        
-        df_lkp_result_36 = df_exp_22.join(
-            broadcast(df_lkp_35),
-            (df_exp_22["EST_KEY1"] == df_lkp_35["EST_KEY"]),
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_DDS_HRCHY_EMS_EST = df_LKP_DDS_HRCHY_EMS_EST.dropDuplicates(subset=["EST_KEY"])
+        # Join condition: EST_KEY=EST_KEY
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_DDS_HRCHY_EMS_EST
+        _lkp_right = _lkp_right.withColumnRenamed("EST_KEY", "_lkp_EST_KEY")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_13.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_13 = df_lkp_merge_13.join(
+            broadcast(_lkp_right),
+            (df_lkp_merge_13["EST_KEY"] == _lkp_right["_lkp_EST_KEY"]),
             "left"
-        )
-        ctx.register_df("df_lkp_result_36", df_lkp_result_36)
-        
-        logger.info("Step: join_EXPTRANS2_0")
-        # Lookup: join_EXPTRANS2_0
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_lkp_result_28.columns if c in df_lkp_result_30.columns]
-        df_exp_merge_38 = df_lkp_result_28.join(
-            df_lkp_result_30,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_exp_merge_38", df_exp_merge_38)
-        
-        logger.info("Step: join_EXPTRANS2_1")
-        # Lookup: join_EXPTRANS2_1
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_exp_merge_38.columns if c in df_lkp_result_32.columns]
-        df_exp_merge_39 = df_exp_merge_38.join(
-            df_lkp_result_32,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_exp_merge_39", df_exp_merge_39)
-        
-        logger.info("Step: join_EXPTRANS2_2")
-        # Lookup: join_EXPTRANS2_2
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_exp_merge_39.columns if c in df_exp_22.columns]
-        df_exp_merge_40 = df_exp_merge_39.join(
-            df_exp_22,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_exp_merge_40", df_exp_merge_40)
-        
-        logger.info("Step: join_EXPTRANS2_3")
-        # Lookup: join_EXPTRANS2_3
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_exp_merge_40.columns if c in df_lkp_result_34.columns]
-        df_exp_merge_41 = df_exp_merge_40.join(
-            df_lkp_result_34,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_exp_merge_41", df_exp_merge_41)
-        
-        logger.info("Step: join_EXPTRANS2_4")
-        # Lookup: join_EXPTRANS2_4
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_exp_merge_41.columns if c in df_lkp_result_36.columns]
-        df_exp_merge_42 = df_exp_merge_41.join(
-            df_lkp_result_36,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_exp_merge_42", df_exp_merge_42)
-        
-        logger.info("Step: join_EXPTRANS2_5")
-        # Lookup: join_EXPTRANS2_5
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_exp_merge_42.columns if c in df_lkp_result_26.columns]
-        df_exp_merge_43 = df_exp_merge_42.join(
-            df_lkp_result_26,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_exp_merge_43", df_exp_merge_43)
+        ).drop("_lkp_EST_KEY")
+
+        ctx.register_df("df_lkp_merge_13", df_lkp_merge_13)
         
         logger.info("Step: apply_EXPTRANS2")
         # Expression: apply_EXPTRANS2
-        df_exp_37 = df_exp_merge_43
-        df_exp_37 = df_exp_37.withColumn("EST_SCD_KEY", expr("CASE WHEN (EST_SCD_KEY IS NULL) THEN 0 ELSE EST_SCD_KEY END"))
-        df_exp_37 = df_exp_37.withColumn("DSTR_BRD_DSTR_DMNS_KEY", expr("CASE WHEN (DSTR_BRD_DSTR_DMNS_KEY IS NULL) THEN 0 ELSE DSTR_BRD_DSTR_DMNS_KEY END"))
-        df_exp_37 = df_exp_37.withColumn("DSTR_CHC_DSTR_SCD_KEY", expr("CASE WHEN (DSTR_CHC_DSTR_SCD_KEY IS NULL) THEN 0 ELSE DSTR_CHC_DSTR_SCD_KEY END"))
-        df_exp_37 = df_exp_37.withColumn("FLAT_TYPE_DMNS_KEY", expr("CASE WHEN (FLAT_TYPE_DMNS_KEY IS NULL) THEN 0 ELSE FLAT_TYPE_DMNS_KEY END"))
-        df_exp_37 = df_exp_37.withColumn("MAX_UNIT_HEAD_CNT", expr("CASE WHEN (MAX_UNIT_HEAD_CNT IS NULL) THEN 0 ELSE MAX_UNIT_HEAD_CNT END"))
-        df_exp_37 = df_exp_37.withColumn("MIN_UNIT_HEAD_CNT", expr("CASE WHEN (MIN_UNIT_HEAD_CNT IS NULL) THEN 0 ELSE MIN_UNIT_HEAD_CNT END"))
-        df_exp_37 = df_exp_37.withColumn("RENT_FCTR_DMNS_KEY", expr("CASE WHEN (RENT_FCTR_DMNS_KEY IS NULL) THEN 0 ELSE RENT_FCTR_DMNS_KEY END"))
-        df_exp_37 = df_exp_37.withColumn("OPR_TYPE_DMNS_KEY", expr("CASE WHEN (OPR_TYPE_DMNS_KEY IS NULL) THEN 0 ELSE OPR_TYPE_DMNS_KEY END"))
+        df_EXPTRANS2 = df_lkp_merge_13
+        df_EXPTRANS2 = df_EXPTRANS2.withColumn("EST_SCD_KEY", expr("CASE WHEN (EST_SCD_KEY IS NULL) THEN 0 ELSE EST_SCD_KEY END"))
+        df_EXPTRANS2 = df_EXPTRANS2.withColumn("DSTR_BRD_DSTR_DMNS_KEY", expr("CASE WHEN (DSTR_BRD_DSTR_DMNS_KEY IS NULL) THEN 0 ELSE DSTR_BRD_DSTR_DMNS_KEY END"))
+        df_EXPTRANS2 = df_EXPTRANS2.withColumn("DSTR_CHC_DSTR_SCD_KEY", expr("CASE WHEN (DSTR_CHC_DSTR_SCD_KEY IS NULL) THEN 0 ELSE DSTR_CHC_DSTR_SCD_KEY END"))
+        df_EXPTRANS2 = df_EXPTRANS2.withColumn("FLAT_TYPE_DMNS_KEY", expr("CASE WHEN (FLAT_TYPE_DMNS_KEY IS NULL) THEN 0 ELSE FLAT_TYPE_DMNS_KEY END"))
+        df_EXPTRANS2 = df_EXPTRANS2.withColumn("MAX_UNIT_HEAD_CNT", expr("CASE WHEN (MAX_UNIT_HEAD_CNT IS NULL) THEN 0 ELSE MAX_UNIT_HEAD_CNT END"))
+        df_EXPTRANS2 = df_EXPTRANS2.withColumn("MIN_UNIT_HEAD_CNT", expr("CASE WHEN (MIN_UNIT_HEAD_CNT IS NULL) THEN 0 ELSE MIN_UNIT_HEAD_CNT END"))
+        df_EXPTRANS2 = df_EXPTRANS2.withColumn("RENT_FCTR_DMNS_KEY", expr("CASE WHEN (RENT_FCTR_DMNS_KEY IS NULL) THEN 0 ELSE RENT_FCTR_DMNS_KEY END"))
+        df_EXPTRANS2 = df_EXPTRANS2.withColumn("OPR_TYPE_DMNS_KEY", expr("CASE WHEN (OPR_TYPE_DMNS_KEY IS NULL) THEN 0 ELSE OPR_TYPE_DMNS_KEY END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["TIME_DMNS_KEY", "CATG_USER_TYPE_CODE", "NEW_IND", "ACTV_TNCY_IND", "TNCY_AGRMT_KEY", "CHG_FLAG"]:
-            if _col not in df_exp_37.columns:
-                df_exp_37 = df_exp_37.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_37 = df_exp_37.select("TIME_DMNS_KEY", "EST_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "CATG_USER_TYPE_CODE", "FLAT_TYPE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "RENT_FCTR_DMNS_KEY", "OPR_TYPE_DMNS_KEY", "NEW_IND", "ACTV_TNCY_IND", "TNCY_AGRMT_KEY", "CHG_FLAG")
-        ctx.register_df("df_exp_37", df_exp_37)
+            if _col not in df_EXPTRANS2.columns:
+                df_EXPTRANS2 = df_EXPTRANS2.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS2", df_EXPTRANS2)
         
         logger.info("Step: apply_AGGTRANS")
         # Aggregator: apply_AGGTRANS
-        df_agg_44 = df_exp_37.groupBy("TIME_DMNS_KEY", "EST_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "CATG_USER_TYPE_CODE", "FLAT_TYPE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "RENT_FCTR_DMNS_KEY", "OPR_TYPE_DMNS_KEY")
-        df_agg_44 = df_agg_44.agg(
-            count(expr("""TNCY_AGRMT_KEY, NEW_IND = 'Y' AND (CHG_FLAG IS NULL) AND CATG_USER_TYPE_CODE != 'NA'""")).alias("IH_NEW_CASE_CNT"),
-            count(expr("""TNCY_AGRMT_KEY, ACTV_TNCY_IND = 'Y'""")).alias("ACTV_TNCY_CNT")
+        # Select only mapped upstream columns with correct port names
+        _agg_input = df_EXPTRANS2.select(
+            col("TIME_DMNS_KEY"),
+            col("EST_SCD_KEY"),
+            col("CATG_USER_TYPE_CODE"),
+            col("FLAT_TYPE_DMNS_KEY"),
+            col("RENT_FCTR_DMNS_KEY"),
+            col("OPR_TYPE_DMNS_KEY"),
+            col("NEW_IND"),
+            col("ACTV_TNCY_IND"),
+            col("TNCY_AGRMT_KEY"),
+            col("DSTR_BRD_DSTR_DMNS_KEY"),
+            col("DSTR_CHC_DSTR_SCD_KEY"),
+            col("CHG_FLAG"),
+            col("MAX_UNIT_HEAD_CNT"),
+            col("MIN_UNIT_HEAD_CNT")        )
+        df_AGGTRANS = _agg_input.groupBy("TIME_DMNS_KEY", "EST_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "CATG_USER_TYPE_CODE", "FLAT_TYPE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "RENT_FCTR_DMNS_KEY", "OPR_TYPE_DMNS_KEY")
+        df_AGGTRANS = df_AGGTRANS.agg(
+            count(when(expr("""NEW_IND = 'Y' AND (CHG_FLAG IS NULL) AND CATG_USER_TYPE_CODE != 'NA'"""), col("TNCY_AGRMT_KEY"))).alias("IH_NEW_CASE_CNT"),
+            count(when(expr("""ACTV_TNCY_IND = 'Y'"""), col("TNCY_AGRMT_KEY"))).alias("ACTV_TNCY_CNT")
         )
-        ctx.register_df("df_agg_44", df_agg_44)
+        ctx.register_df("df_AGGTRANS", df_AGGTRANS)
         
         logger.info("Step: write_DPA_FACT_EMS_IH_CASE_MTH_ANLS")
         # Write to Target: write_DPA_FACT_EMS_IH_CASE_MTH_ANLS
-        df_write = df_agg_44
+        df_write = df_AGGTRANS
         # Cast columns to match target schema data types
         if "catg_user_type_code" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

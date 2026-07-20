@@ -55,18 +55,18 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Reading Data From Source - read_DPA_DMNS_PMS_DSTR
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_src_1 = lib.read_sql(spark, _conn, table="DPA_DMNS_PMS_DSTR")
+        df_DPA_DMNS_PMS_DSTR = lib.read_sql(spark, _conn, table="DPA_DMNS_PMS_DSTR")
         
         logger.info("Step: apply_SQ_DPA_DMNS_PMS_DSTR")
         # Source Qualifier: apply_SQ_DPA_DMNS_PMS_DSTR
-        df_sq_2 = df_src_1
+        df_SQ_DPA_DMNS_PMS_DSTR = df_DPA_DMNS_PMS_DSTR
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_2 = df_sq_2.select("DMNS_PMS_DSTR_KEY", "DSTR_CODE", "DSTR_NAME", "PMS_DSTR_CODE", "PMS_DSTR_NAME", "DSTR_DISP_SEQ_NUM", "PMS_DSTR_DISP_SEQ_NUM")
-        ctx.register_df("df_sq_2", df_sq_2)
+        df_SQ_DPA_DMNS_PMS_DSTR = df_SQ_DPA_DMNS_PMS_DSTR.select("DMNS_PMS_DSTR_KEY", "DSTR_CODE", "DSTR_NAME", "PMS_DSTR_CODE", "PMS_DSTR_NAME", "DSTR_DISP_SEQ_NUM", "PMS_DSTR_DISP_SEQ_NUM")
+        ctx.register_df("df_SQ_DPA_DMNS_PMS_DSTR", df_SQ_DPA_DMNS_PMS_DSTR)
         
         logger.info("Step: write_DDS_DMNS_PMS_DSTR")
         # Write to Target: write_DDS_DMNS_PMS_DSTR
-        df_write = df_sq_2
+        df_write = df_SQ_DPA_DMNS_PMS_DSTR
         # Cast columns to match target schema data types
         if "dstr_code" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

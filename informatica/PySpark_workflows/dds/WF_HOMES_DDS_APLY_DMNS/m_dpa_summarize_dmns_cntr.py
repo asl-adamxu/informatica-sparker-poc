@@ -51,19 +51,13 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
 
     
     try:
-        logger.info("Step: read_SOR_HOM_CON_CNTR_REF")
-        # Reading Data From Source - read_SOR_HOM_CON_CNTR_REF
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_1 = lib.read_sql(spark, _conn, table="SOR_HOM_CON_CNTR_REF")
-        
         logger.info("Step: apply_SEQ_DMNS_CNTR_KEY")
         # Sequence Generator: apply_SEQ_DMNS_CNTR_KEY
-        df_seq_2 = df_input.withColumn(
+        df_SEQ_DMNS_CNTR_KEY = df_input.withColumn(
             "NEXTVAL", 
             monotonically_increasing_id() + 0
         )
-        ctx.register_df("df_seq_2", df_seq_2)
+        ctx.register_df("df_SEQ_DMNS_CNTR_KEY", df_SEQ_DMNS_CNTR_KEY)
         
         logger.info("Step: apply_SQ_SOR_HOM_CON_CNTR_REF")
         # Source Qualifier: apply_SQ_SOR_HOM_CON_CNTR_REF
@@ -75,94 +69,107 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
 FROM
  SOR_HOM_CON_CNTR_REF
 ORDER BY SOR_HOM_CON_CNTR_REF.CNTR_KEY"""
-        df_sq_3 = lib.read_sql(spark, _conn, query=query)
+        df_SQ_SOR_HOM_CON_CNTR_REF = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_3.columns
+        _sql_cols = df_SQ_SOR_HOM_CON_CNTR_REF.columns
         _port_cols = ["CNTR_KEY", "CNTR_NUM", "TNDR_NUM", "TNDR_TTL", "CNTR_TTL"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_3 = df_sq_3.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_SQ_SOR_HOM_CON_CNTR_REF = df_SQ_SOR_HOM_CON_CNTR_REF.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_3 = df_sq_3.select("CNTR_KEY", "CNTR_NUM", "TNDR_NUM", "TNDR_TTL", "CNTR_TTL")
+        df_SQ_SOR_HOM_CON_CNTR_REF = df_SQ_SOR_HOM_CON_CNTR_REF.select("CNTR_KEY", "CNTR_NUM", "TNDR_NUM", "TNDR_TTL", "CNTR_TTL")
         
-        ctx.register_df("df_sq_3", df_sq_3)
+        ctx.register_df("df_SQ_SOR_HOM_CON_CNTR_REF", df_SQ_SOR_HOM_CON_CNTR_REF)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_exp_4 = df_sq_3
-        df_exp_4 = df_exp_4.withColumn("CNTR_NUM_OUT", expr("CASE WHEN CNTR_NUM = NULL THEN TNDR_NUM ELSE CNTR_NUM END"))
-        df_exp_4 = df_exp_4.withColumn("TNDR_TTL_OUT", expr("CASE WHEN CNTR_TTL = NULL THEN TNDR_TTL ELSE CNTR_TTL END"))
+        df_EXPTRANS = df_SQ_SOR_HOM_CON_CNTR_REF
+        df_EXPTRANS = df_EXPTRANS.withColumn("CNTR_NUM_OUT", expr("CASE WHEN CNTR_NUM = NULL THEN TNDR_NUM ELSE CNTR_NUM END"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("TNDR_TTL_OUT", expr("CASE WHEN CNTR_TTL = NULL THEN TNDR_TTL ELSE CNTR_TTL END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["CNTR_KEY", "TNDR_NUM", "CNTR_TTL"]:
-            if _col not in df_exp_4.columns:
-                df_exp_4 = df_exp_4.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_4 = df_exp_4.select("CNTR_KEY", "CNTR_NUM_OUT", "TNDR_NUM", "TNDR_TTL_OUT", "CNTR_TTL")
-        ctx.register_df("df_exp_4", df_exp_4)
+            if _col not in df_EXPTRANS.columns:
+                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: read_LKP_DDS_DMNS_CNTR")
         # Reading Data From Source - read_LKP_DDS_DMNS_CNTR
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_lkp_5 = lib.read_sql(spark, _conn, table="DDS_DMNS_CNTR")
+        df_LKP_DDS_DMNS_CNTR = lib.read_sql(spark, _conn, table="DDS_DMNS_CNTR")
         
         logger.info("Step: apply_LKP_DDS_DMNS_CNTR")
         # Lookup: apply_LKP_DDS_DMNS_CNTR
-        # Join condition: IN_CNTR_KEY=CNTR_KEY        
-        df_lkp_result_6 = df_exp_4.join(
-            broadcast(df_lkp_5),
-            (df_exp_4["IN_CNTR_KEY"] == df_lkp_5["CNTR_KEY"]),
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_DDS_DMNS_CNTR = df_LKP_DDS_DMNS_CNTR.dropDuplicates(subset=["CNTR_KEY"])
+        # Join condition: CNTR_KEY=CNTR_KEY
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_DDS_DMNS_CNTR
+        _lkp_right = _lkp_right.withColumnRenamed("CNTR_KEY", "_lkp_CNTR_KEY")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_EXPTRANS.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_1 = df_EXPTRANS.join(
+            broadcast(_lkp_right),
+            (df_EXPTRANS["CNTR_KEY"] == _lkp_right["_lkp_CNTR_KEY"]),
             "left"
-        )
-        ctx.register_df("df_lkp_result_6", df_lkp_result_6)
-        
-        logger.info("Step: join_EXPTRANS1_0")
-        # Lookup: join_EXPTRANS1_0
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_lkp_result_6.columns if c in df_exp_4.columns]
-        df_exp_merge_8 = df_lkp_result_6.join(
-            df_exp_4,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_exp_merge_8", df_exp_merge_8)
+        ).drop("_lkp_CNTR_KEY")
+
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
         
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
-        df_exp_7 = df_exp_merge_8
-        df_exp_7 = df_exp_7.withColumn("IN_CNTR_TTL", expr("CNTR_TTL"))
-        df_exp_7 = df_exp_7.withColumn("IN_TNDR_NUM", expr("TNDR_NUM"))
-        df_exp_7 = df_exp_7.withColumn("IN_CNTR_NUM", expr("CNTR_NUM_OUT"))
-        df_exp_7 = df_exp_7.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_CNTR_KEY IS NULL) OR CASE WHEN TNDR_NUM = TNDR_NUM THEN false ELSE true END OR CASE WHEN CNTR_NUM = CNTR_NUM_OUT THEN false ELSE true END OR CASE WHEN CNTR_TTL = CNTR_TTL THEN false ELSE true END THEN 1 ELSE 0 END"))
+        df_EXPTRANS1 = df_lkp_merge_1
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("IN_CNTR_NUM", expr("CNTR_NUM_OUT"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("IN_CNTR_TTL", expr("CNTR_TTL"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_CNTR_KEY IS NULL) OR CASE WHEN TNDR_NUM = TNDR_NUM THEN false ELSE true END OR CASE WHEN CNTR_NUM = CNTR_NUM_OUT THEN false ELSE true END OR CASE WHEN CNTR_TTL = CNTR_TTL THEN false ELSE true END THEN 1 ELSE 0 END"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("IN_TNDR_NUM", expr("TNDR_NUM"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["CNTR_KEY", "CNTR_TTL", "TNDR_NUM", "CNTR_NUM", "CNTR_DISP_SEQ_NUM", "DMNS_CNTR_KEY", "IN_CNTR_KEY"]:
-            if _col not in df_exp_7.columns:
-                df_exp_7 = df_exp_7.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_7 = df_exp_7.select("CHANGE_FLAG", "DMNS_CNTR_KEY", "CNTR_KEY", "CNTR_NUM", "CNTR_TTL", "TNDR_NUM", "CNTR_DISP_SEQ_NUM", "IN_CNTR_KEY", "IN_CNTR_NUM", "IN_CNTR_TTL", "IN_TNDR_NUM")
-        ctx.register_df("df_exp_7", df_exp_7)
+        for _col in ["CNTR_TTL", "DMNS_CNTR_KEY", "CNTR_NUM", "TNDR_NUM", "CNTR_KEY", "CNTR_DISP_SEQ_NUM", "IN_CNTR_KEY"]:
+            if _col not in df_EXPTRANS1.columns:
+                df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
         
         logger.info("Step: apply_FIL_CHANGE")
         # Filter: apply_FIL_CHANGE
-        df_fil_9 = df_exp_7.filter(expr("CHANGE_FLAG = 1 AND ( NOT (DMNS_CNTR_KEY IS NULL))"))
-        ctx.register_df("df_fil_9", df_fil_9)
+        __fil_input = df_EXPTRANS1
+        df_FIL_CHANGE = __fil_input.filter(expr("CHANGE_FLAG = 1 AND ( NOT (DMNS_CNTR_KEY IS NULL))"))
+        ctx.register_df("df_FIL_CHANGE", df_FIL_CHANGE)
         
         logger.info("Step: apply_FIL_NEW")
         # Filter: apply_FIL_NEW
-        df_fil_10 = df_exp_7.filter(expr("CHANGE_FLAG = 1 AND (DMNS_CNTR_KEY IS NULL)"))
-        ctx.register_df("df_fil_10", df_fil_10)
+        __fil_input = df_EXPTRANS1
+        df_FIL_NEW = __fil_input.filter(expr("CHANGE_FLAG = 1 AND (DMNS_CNTR_KEY IS NULL)"))
+        ctx.register_df("df_FIL_NEW", df_FIL_NEW)
         
         logger.info("Step: apply_Union_Transformation")
         # Union: apply_Union_Transformation
-        df_un_11 = df_fil_9
-        df_un_11 = df_un_11.unionByName(df_fil_10, allowMissingColumns=True)
+        # Select + rename upstream columns per input, then union
+        df_Union_Transformation_change = df_FIL_CHANGE.select(
+            col("DMNS_CNTR_KEY").alias("DMNS_CNTR_KEY"),
+            col("IN_CNTR_KEY").alias("IN_CNTR_KEY"),
+            col("IN_CNTR_NUM").alias("IN_CNTR_NUM"),
+            col("IN_CNTR_TTL").alias("IN_CNTR_TTL"),
+            col("IN_TNDR_NUM").alias("IN_TNDR_NUM")        )
+        df_Union_Transformation_new = df_FIL_NEW.select(
+            col("NEXTVAL").alias("DMNS_CNTR_KEY"),
+            col("IN_CNTR_KEY").alias("IN_CNTR_KEY"),
+            col("IN_CNTR_NUM").alias("IN_CNTR_NUM"),
+            col("IN_CNTR_TTL").alias("IN_CNTR_TTL"),
+            col("IN_TNDR_NUM").alias("IN_TNDR_NUM")        )
+        df_Union_Transformation = df_Union_Transformation_change
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_new, allowMissingColumns=True)
         # Select only union output columns
-        df_un_11 = df_un_11.select("DMNS_CNTR_KEY", "IN_CNTR_KEY", "IN_CNTR_NUM", "IN_CNTR_TTL", "IN_TNDR_NUM")
-        ctx.register_df("df_un_11", df_un_11)
+        df_Union_Transformation = df_Union_Transformation.select("DMNS_CNTR_KEY", "IN_CNTR_KEY", "IN_CNTR_NUM", "IN_CNTR_TTL", "IN_TNDR_NUM")
+        ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
         logger.info("Step: write_DPA_DMNS_CNTR")
         # Write to Target: write_DPA_DMNS_CNTR
-        df_write = df_un_11
+        df_write = df_Union_Transformation
         # Cast columns to match target schema data types
         if "cntr_num" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

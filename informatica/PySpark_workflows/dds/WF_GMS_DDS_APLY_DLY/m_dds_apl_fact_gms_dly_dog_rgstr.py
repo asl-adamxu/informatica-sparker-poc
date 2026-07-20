@@ -69,17 +69,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.warning("UTL_JOB_PARAM not found, using default values")
     
     try:
-        logger.info("Step: read_DDS_FACT_GMS_DLY_DOG_RGSTR")
-        # Reading Data From Source - read_DDS_FACT_GMS_DLY_DOG_RGSTR
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "DDS")
-        df_src_1 = lib.read_sql(spark, _conn, table="DDS_FACT_GMS_DLY_DOG_RGSTR")
-        
         logger.info("Step: read_DPA_FACT_GMS_DLY_DOG_RGSTR")
         # Reading Data From Source - read_DPA_FACT_GMS_DLY_DOG_RGSTR
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_src_2 = lib.read_sql(spark, _conn, table="DPA_FACT_GMS_DLY_DOG_RGSTR")
+        df_DPA_FACT_GMS_DLY_DOG_RGSTR = lib.read_sql(spark, _conn, table="DPA_FACT_GMS_DLY_DOG_RGSTR")
         
         logger.info("Step: apply_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR")
         # Source Qualifier: apply_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR
@@ -89,44 +83,44 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         _schema = _conn.get("schema", "") or "PDDS"
         query = f"""select time_dmns_key from dds_dmns_time where time_val_date=to_date($$v_snsh_date,'yyyyMMdd') and time_dmns_key<200000000"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
-        df_sq_3 = lib.read_sql(spark, _conn, query=query)
+        df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_3.columns
+        _sql_cols = df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR.columns
         _port_cols = ["TIME_DMNS_KEY"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_3 = df_sq_3.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR = df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_3 = df_sq_3.select("TIME_DMNS_KEY")
+        df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR = df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR.select("TIME_DMNS_KEY")
         
-        ctx.register_df("df_sq_3", df_sq_3)
+        ctx.register_df("df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR", df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR)
         
         logger.info("Step: apply_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR")
         # Source Qualifier: apply_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR
-        df_sq_4 = df_src_2
+        df_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR = df_DPA_FACT_GMS_DLY_DOG_RGSTR
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_4 = df_sq_4.select("TIME_DMNS_KEY", "EST_SCD_KEY", "DOG_RGSTR_APRV_CNT", "DOG_RGSTR_APRV_CNCL_CNT", "AUTH_DOG_PNT_ALLT_CASE_CNT", "UNAUTH_DOG_PNT_ALLT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE")
-        ctx.register_df("df_sq_4", df_sq_4)
+        df_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR = df_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR.select("TIME_DMNS_KEY", "EST_SCD_KEY", "DOG_RGSTR_APRV_CNT", "DOG_RGSTR_APRV_CNCL_CNT", "AUTH_DOG_PNT_ALLT_CASE_CNT", "UNAUTH_DOG_PNT_ALLT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE")
+        ctx.register_df("df_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR", df_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR)
         
         logger.info("Step: apply_UPDTRANS")
         # Update Strategy: apply_UPDTRANS
         # Strategy: DD_DELETE
-        df_upd_5 = df_sq_3.withColumn("_update_flag",
+        df_UPDTRANS = df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR.withColumn("_update_flag",
             when(lit(False), lit("U"))
             .when(lit(True), lit("D"))
             .otherwise(lit("I"))
         )
-        ctx.register_df("df_upd_5", df_upd_5)
+        ctx.register_df("df_UPDTRANS", df_UPDTRANS)
         
         logger.info("Step: apply_UPDTRANS1")
         # Update Strategy: apply_UPDTRANS1
         # Strategy: DD_INSERT
-        df_upd_6 = df_sq_4.withColumn("_update_strategy", lit("INSERT"))
-        ctx.register_df("df_upd_6", df_upd_6)
+        df_UPDTRANS1 = df_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR.withColumn("_update_strategy", lit("INSERT"))
+        ctx.register_df("df_UPDTRANS1", df_UPDTRANS1)
         
         logger.info("Step: write_DDS_FACT_GMS_DLY_DOG_RGSTR1")
         # Write to Target: write_DDS_FACT_GMS_DLY_DOG_RGSTR1
-        df_write = df_upd_5
+        df_write = df_UPDTRANS
         # DD_DELETE: Delete matching rows from target table by key field(s)
         for _dk in ['TIME_DMNS_KEY']:
             _dk_lower = _dk.lower()
@@ -138,7 +132,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("write_DDS_FACT_GMS_DLY_DOG_RGSTR1 write completed")
         logger.info("Step: write_DDS_FACT_GMS_DLY_DOG_RGSTR2")
         # Write to Target: write_DDS_FACT_GMS_DLY_DOG_RGSTR2
-        df_write = df_upd_6
+        df_write = df_UPDTRANS1
         # Cast columns to match target schema data types
         if "rec_rls_ind" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

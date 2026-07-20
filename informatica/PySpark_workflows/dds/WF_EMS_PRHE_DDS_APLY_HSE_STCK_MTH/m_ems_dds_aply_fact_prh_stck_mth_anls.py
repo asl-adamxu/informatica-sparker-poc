@@ -73,20 +73,14 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Reading Data From Source - read_DPA_FACT_EMS_PRH_STCK_MTH_ANLS
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_src_1 = lib.read_sql(spark, _conn, table="DPA_FACT_EMS_PRH_STCK_MTH_ANLS")
-        
-        logger.info("Step: read_DPA_FACT_EMS_PRH_STCK_MTH_ANLS1")
-        # Reading Data From Source - read_DPA_FACT_EMS_PRH_STCK_MTH_ANLS1
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "DPA")
-        df_src_2 = lib.read_sql(spark, _conn, table="DPA_FACT_EMS_PRH_STCK_MTH_ANLS")
+        df_DPA_FACT_EMS_PRH_STCK_MTH_ANLS = lib.read_sql(spark, _conn, table="DPA_FACT_EMS_PRH_STCK_MTH_ANLS")
         
         logger.info("Step: apply_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS")
         # Source Qualifier: apply_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS
-        df_sq_3 = df_src_2
+        df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS = df_DPA_FACT_EMS_PRH_STCK_MTH_ANLS
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_3 = df_sq_3.select("TIME_DMNS_KEY", "EST_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "ALCT_STS_DMNS_KEY", "MGT_MODE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_ADVS_ENV_IND", "BLK_CNT", "PRVS_UNIT_CNT", "RCVR_UNIT_CNT", "MAX_UNIT_VCNCY_DAY_NUM", "TOT_UNIT_VCNCY_DAY_NUM", "RNTL_UNIT_CNT", "MAX_UNIT_MTH_RENT_AMT", "MIN_UNIT_MTH_RENT_AMT", "TOT_UNIT_MTH_RENT_AMT", "MAX_UNIT_IFA_RENT_AMT", "MIN_UNIT_IFA_RENT_AMT", "TOT_UNIT_IFA_RENT_AMT", "STA_UNIT_CNT", "STA_OCPY_UNIT_CNT", "STA_VCNT_UNIT_ALCT_CNT", "STA_UNIT_UND_OFR_CNT", "VCNT_UNIT_UND_RFBH_CNT", "UNIT_UND_OFR_RFBH_CNT", "RLET_UNIT_CNT", "RLET_AFT_RFBH_CNT", "RLET_AFT_TCHUP_WO_CNT", "UNIT_UND_FRZ_RFBH_CNT", "BLK_SCD_KEY", "UNIT_HSC_TYPE_DMNS_KEY", "STA_NONLTB_CNT")
-        ctx.register_df("df_sq_3", df_sq_3)
+        df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS = df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS.select("TIME_DMNS_KEY", "EST_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "ALCT_STS_DMNS_KEY", "MGT_MODE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_ADVS_ENV_IND", "BLK_CNT", "PRVS_UNIT_CNT", "RCVR_UNIT_CNT", "MAX_UNIT_VCNCY_DAY_NUM", "TOT_UNIT_VCNCY_DAY_NUM", "RNTL_UNIT_CNT", "MAX_UNIT_MTH_RENT_AMT", "MIN_UNIT_MTH_RENT_AMT", "TOT_UNIT_MTH_RENT_AMT", "MAX_UNIT_IFA_RENT_AMT", "MIN_UNIT_IFA_RENT_AMT", "TOT_UNIT_IFA_RENT_AMT", "STA_UNIT_CNT", "STA_OCPY_UNIT_CNT", "STA_VCNT_UNIT_ALCT_CNT", "STA_UNIT_UND_OFR_CNT", "VCNT_UNIT_UND_RFBH_CNT", "UNIT_UND_OFR_RFBH_CNT", "RLET_UNIT_CNT", "RLET_AFT_RFBH_CNT", "RLET_AFT_TCHUP_WO_CNT", "UNIT_UND_FRZ_RFBH_CNT", "BLK_SCD_KEY", "UNIT_HSC_TYPE_DMNS_KEY", "STA_NONLTB_CNT")
+        ctx.register_df("df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS", df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS)
         
         logger.info("Step: apply_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS1")
         # Source Qualifier: apply_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS1
@@ -94,22 +88,60 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         _conn = lib.get_db_config(config, "DPA")
         query = f"""SELECT DISTINCT TIME_DMNS_KEY FROM DPA_FACT_EMS_PRH_STCK_MTH_ANLS"""
         query = query.replace("$$v_REC_RLS_IND", v_REC_RLS_IND)
-        df_sq_4 = lib.read_sql(spark, _conn, query=query)
+        df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS1 = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_4.columns
+        _sql_cols = df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS1.columns
         _port_cols = ["TIME_DMNS_KEY"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_4 = df_sq_4.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS1 = df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS1.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_4 = df_sq_4.select("TIME_DMNS_KEY")
+        df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS1 = df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS1.select("TIME_DMNS_KEY")
         
-        ctx.register_df("df_sq_4", df_sq_4)
+        ctx.register_df("df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS1", df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS1)
         
         logger.info("Step: apply_AGGTRANS")
         # Aggregator: apply_AGGTRANS
-        df_agg_5 = df_sq_3.groupBy("TIME_DMNS_KEY", "EST_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "ALCT_STS_DMNS_KEY", "MGT_MODE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_ADVS_ENV_IND", "BLK_SCD_KEY", "UNIT_HSC_TYPE_DMNS_KEY")
-        df_agg_5 = df_agg_5.agg(
+        # Select only mapped upstream columns with correct port names
+        _agg_input = df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS.select(
+            col("STA_UNIT_UND_OFR_CNT"),
+            col("MAX_UNIT_VCNCY_DAY_NUM"),
+            col("TOT_UNIT_VCNCY_DAY_NUM"),
+            col("RNTL_UNIT_CNT"),
+            col("MAX_UNIT_MTH_RENT_AMT"),
+            col("MIN_UNIT_MTH_RENT_AMT"),
+            col("TOT_UNIT_MTH_RENT_AMT"),
+            col("MAX_UNIT_IFA_RENT_AMT"),
+            col("VCNT_UNIT_UND_RFBH_CNT"),
+            col("UNIT_UND_OFR_RFBH_CNT"),
+            col("RLET_UNIT_CNT"),
+            col("RLET_AFT_RFBH_CNT"),
+            col("RLET_AFT_TCHUP_WO_CNT"),
+            col("UNIT_UND_FRZ_RFBH_CNT"),
+            col("TIME_DMNS_KEY"),
+            col("EST_SCD_KEY"),
+            col("DSTR_BRD_DSTR_DMNS_KEY"),
+            col("DSTR_CHC_DSTR_SCD_KEY"),
+            col("FLAT_TYPE_DMNS_KEY"),
+            col("UNIT_SIZE_DMNS_KEY"),
+            col("ALCT_STS_DMNS_KEY"),
+            col("MGT_MODE_DMNS_KEY"),
+            col("MAX_UNIT_HEAD_CNT"),
+            col("MIN_UNIT_HEAD_CNT"),
+            col("UNIT_ADVS_ENV_IND"),
+            col("BLK_CNT"),
+            col("PRVS_UNIT_CNT"),
+            col("RCVR_UNIT_CNT"),
+            col("MIN_UNIT_IFA_RENT_AMT"),
+            col("TOT_UNIT_IFA_RENT_AMT"),
+            col("STA_UNIT_CNT"),
+            col("STA_OCPY_UNIT_CNT"),
+            col("STA_VCNT_UNIT_ALCT_CNT"),
+            col("BLK_SCD_KEY"),
+            col("STA_NONLTB_CNT"),
+            col("UNIT_HSC_TYPE_DMNS_KEY")        )
+        df_AGGTRANS = _agg_input.groupBy("TIME_DMNS_KEY", "EST_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "ALCT_STS_DMNS_KEY", "MGT_MODE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_ADVS_ENV_IND", "BLK_SCD_KEY", "UNIT_HSC_TYPE_DMNS_KEY")
+        df_AGGTRANS = df_AGGTRANS.agg(
             sum("BLK_CNT").alias("BLK_CNT1"),
             sum("PRVS_UNIT_CNT").alias("PRVS_UNIT_CNT1"),
             sum("RCVR_UNIT_CNT").alias("RCVR_UNIT_CNT1"),
@@ -135,21 +167,21 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             sum("STA_NONLTB_CNT").alias("STA_NONLTB_CNT1"),
             {v_REC_RLS_IND}.alias("REC_RLS_IND")
         )
-        ctx.register_df("df_agg_5", df_agg_5)
+        ctx.register_df("df_AGGTRANS", df_AGGTRANS)
         
         logger.info("Step: apply_UPDTRANS")
         # Update Strategy: apply_UPDTRANS
         # Strategy: DD_DELETE
-        df_upd_6 = df_sq_4.withColumn("_update_flag",
+        df_UPDTRANS = df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS1.withColumn("_update_flag",
             when(lit(False), lit("U"))
             .when(lit(True), lit("D"))
             .otherwise(lit("I"))
         )
-        ctx.register_df("df_upd_6", df_upd_6)
+        ctx.register_df("df_UPDTRANS", df_UPDTRANS)
         
         logger.info("Step: write_DDS_FACT_EMS_PRH_STCK_MTH_ANLS")
         # Write to Target: write_DDS_FACT_EMS_PRH_STCK_MTH_ANLS
-        df_write = df_agg_5
+        df_write = df_AGGTRANS
         # Cast columns to match target schema data types
         if "unit_advs_env_ind" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:
@@ -179,7 +211,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("write_DDS_FACT_EMS_PRH_STCK_MTH_ANLS write completed")
         logger.info("Step: write_DDS_FACT_EMS_PRH_STCK_MTH_ANLS1")
         # Write to Target: write_DDS_FACT_EMS_PRH_STCK_MTH_ANLS1
-        df_write = df_upd_6
+        df_write = df_UPDTRANS
         # DD_DELETE: Delete matching rows from target table by key field(s)
         for _dk in ['TIME_DMNS_KEY']:
             _dk_lower = _dk.lower()

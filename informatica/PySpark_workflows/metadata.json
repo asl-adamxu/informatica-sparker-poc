@@ -1,0 +1,326 @@
+{
+  "metadata_version": "1.0",
+  "workflow": "WF_EMS_PRHE_DDS_APLY_RVN_MTH",
+  "mappings": [
+    {
+      "mapping": "M_EMS_SOR_LOAD_CSA_DRP_SWD_PRLM_PYMT_RAW_FOR_DELETE",
+      "targets": [
+        {
+          "table": "SOR_EMS_CSA_DRP_PRLM_PYMT_RAW",
+          "connection": "SOR"
+        },
+        {
+          "table": "EMS_CSA_DRP_SWD_PRLM_PYMT_RAW",
+          "connection": "target_db"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_DPA_SUMMARIZE_FACT_TNCY_AND_HSHLD_SMRY",
+      "targets": [
+        {
+          "table": "DPA_FACT_TNCY_AND_HSHLD_SMRY",
+          "connection": "DPA"
+        },
+        {
+          "table": "SOR_EMS_CSA_DRP_PRLM_PYMT_RAW",
+          "connection": "SOR"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_DPA_SUMMARIZE_FACT_MTH_DRP_SWD_CLCT_SMRY_A",
+      "targets": [
+        {
+          "table": "DPA_FACT_MTH_DRP_SWD_CLCT_SMRY",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_UTL_DPA_TRUNCATE",
+      "targets": [
+        {
+          "table": "UTL_DEV_NULL",
+          "connection": "$PMTargetFileDir/utl_dev_null1.out"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_DDS_APLY_MTH_DRP_SWD_STAT",
+      "targets": [
+        {
+          "table": "DDS_FACT_MTH_DRP_SWD_STAT",
+          "connection": "$PMTargetFileDir/PCIS01/PRHE/STA_DRPSWD.txt"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_DPA_SUMMARIZE_FACT_MTH_RENT_AND_ARR_SMRY_A",
+      "targets": [
+        {
+          "table": "DPA_FACT_MTH_RENT_AND_ARR_SMRY",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_DPA_SUMMARIZE_FACT_RENT_ENQ_RMDR_SMRY_A",
+      "targets": [
+        {
+          "table": "DPA_FACT_RENT_ENQ_RMDR_SMRY",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_DDS_APLY_FACT_MTH_DRP_SWD_CLCT_SMRY",
+      "targets": [
+        {
+          "table": "UTL_DEV_NULL",
+          "connection": "$PMTargetFileDir/utl_dev_null1.out"
+        },
+        {
+          "table": "DDS_FACT_MTH_DRP_SWD_CLCT_SMRY",
+          "connection": "DDS"
+        },
+        {
+          "table": "DDS_RLS_CNTL",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_FACT_MTH_DRP_SWD_CLCT_SMRY",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_DDS_APLY_FACT_TNCY_AND_HSHLD_SMRY",
+      "targets": [
+        {
+          "table": "DDS_FACT_TNCY_AND_HSHLD_SMRY",
+          "connection": "DDS"
+        },
+        {
+          "table": "UTL_DEV_NULL",
+          "connection": "$PMTargetFileDir/utl_dev_null1.out"
+        },
+        {
+          "table": "DDS_RLS_CNTL",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_FACT_TNCY_AND_HSHLD_SMRY",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_UTL_PARAM_SETUP",
+      "targets": [
+        {
+          "table": "UTL_JOB_PARAM",
+          "connection": "$PMSourceFileDir/PCIS01/ems_prhe_rvn_mth_job_param.txt"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_DPA_SUMMARIZE_FACT_RENT_ENQ_RMDR_SMRY_C",
+      "targets": [
+        {
+          "table": "DPA_FACT_RENT_ENQ_RMDR_SMRY",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SOR_LOAD_CSA_DRP_SWD_PRLM_PYMT_RAW_FOR_INSERT",
+      "targets": [
+        {
+          "table": "SOR_EMS_CSA_DRP_PRLM_PYMT_RAW",
+          "connection": "SOR"
+        },
+        {
+          "table": "EMS_CSA_DRP_SWD_PRLM_PYMT_RAW",
+          "connection": "target_db"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_DPA_SUMMARIZE_FACT_MTH_RENT_AND_ARR_SMRY_C",
+      "targets": [
+        {
+          "table": "DPA_FACT_MTH_RENT_AND_ARR_SMRY",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_DPA_SUMMARIZE_FACT_RENT_ENQ_RMDR_SMRY_E",
+      "targets": [
+        {
+          "table": "DPA_FACT_RENT_ENQ_RMDR_SMRY",
+          "connection": "DPA"
+        },
+        {
+          "table": "DDS_FACT_MTH_RENT_AND_ARR_SMRY",
+          "connection": "DDS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_DDS_APLY_FACT_MTH_RENT_AND_ARR_SMRY",
+      "targets": [
+        {
+          "table": "DDS_RLS_CNTL",
+          "connection": "DDS"
+        },
+        {
+          "table": "DDS_FACT_MTH_RENT_AND_ARR_SMRY",
+          "connection": "DDS"
+        },
+        {
+          "table": "UTL_DEV_NULL",
+          "connection": "$PMTargetFileDir/utl_dev_null1.out"
+        },
+        {
+          "table": "DPA_FACT_MTH_RENT_AND_ARR_SMRY",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_DPA_SUMMARIZE_FACT_RENT_ENQ_RMDR_SMRY_B",
+      "targets": [
+        {
+          "table": "DPA_FACT_RENT_ENQ_RMDR_SMRY",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_DDS_APLY_FACT_MTH_RENT_AND_ARR_SMRY_FOR_UPDATE",
+      "targets": [
+        {
+          "table": "DDS_FACT_MTH_RENT_AND_ARR_SMRY",
+          "connection": "DDS"
+        },
+        {
+          "table": "DDS_FACT_MTH_RENT_AND_ARR_SMRY",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_FACT_MTH_RENT_AND_ARR_SMRY",
+          "connection": "DPA"
+        },
+        {
+          "table": "DPA_FACT_MTH_RENT_AND_ARR_SMRY",
+          "connection": "DPA"
+        },
+        {
+          "table": "DDS_FACT_MTH_RENT_AND_ARR_SMRY",
+          "connection": "DDS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_DDS_APLY_FACT_TNCY_AND_PLT_SMRY",
+      "targets": [
+        {
+          "table": "DDS_RLS_CNTL",
+          "connection": "DDS"
+        },
+        {
+          "table": "UTL_DEV_NULL",
+          "connection": "$PMTargetFileDir/utl_dev_null1.out"
+        },
+        {
+          "table": "DDS_FACT_TNCY_AND_PLT_SMRY",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_FACT_TNCY_AND_PLT_SMRY",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_DDS_APLY_FACT_RENT_ENQ_RMDR_SMRY",
+      "targets": [
+        {
+          "table": "DDS_RLS_CNTL",
+          "connection": "DDS"
+        },
+        {
+          "table": "UTL_DEV_NULL",
+          "connection": "$PMTargetFileDir/utl_dev_null1.out"
+        },
+        {
+          "table": "DDS_FACT_RENT_ENQ_RMDR_SMRY",
+          "connection": "DDS"
+        },
+        {
+          "table": "DPA_FACT_RENT_ENQ_RMDR_SMRY",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_DPA_SUMMARIZE_FACT_MTH_RENT_AND_ARR_SMRY_D",
+      "targets": [
+        {
+          "table": "DPA_FACT_MTH_RENT_AND_ARR_SMRY",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_DPA_SUMMARIZE_FACT_MTH_RENT_AND_ARR_SMRY_B",
+      "targets": [
+        {
+          "table": "DPA_FACT_MTH_RENT_AND_ARR_SMRY",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_DPA_SUMMARIZE_FACT_TNCY_AND_PLT_SMRY",
+      "targets": [
+        {
+          "table": "DPA_FACT_TNCY_AND_PLT_SMRY",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_DPA_SUMMARIZE_FACT_MTH_DRP_SWD_CLCT_SMRY_B",
+      "targets": [
+        {
+          "table": "DPA_FACT_MTH_DRP_SWD_CLCT_SMRY",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_DPA_SUMMARIZE_FACT_RENT_ENQ_RMDR_SMRY_D",
+      "targets": [
+        {
+          "table": "DPA_FACT_RENT_ENQ_RMDR_SMRY",
+          "connection": "DPA"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_CSA_DRP_SWD_PRLM_PYMT_RAW",
+      "targets": [
+        {
+          "table": "EMS_CSA_DRP_SWD_PRLM_PYMT_RAW",
+          "connection": "target_db"
+        }
+      ]
+    }
+  ],
+  "output": {
+    "script": "wf_ems_prhe_dds_aply_rvn_mth.py"
+  }
+}

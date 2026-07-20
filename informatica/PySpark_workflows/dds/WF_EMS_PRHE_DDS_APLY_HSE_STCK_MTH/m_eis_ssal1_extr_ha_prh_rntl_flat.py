@@ -53,34 +53,22 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
     try:
         logger.info("Step: apply_HA_PRH_RNTL_UNIT")
         # Source Qualifier: apply_HA_PRH_RNTL_UNIT
-        df_sq_1 = df_source
+        df_HA_PRH_RNTL_UNIT = df_source
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_1 = df_sq_1.select("estate", "block", "unit", "con_ref", "shrind", "indicator", "vcnt_ind")
-        ctx.register_df("df_sq_1", df_sq_1)
+        df_HA_PRH_RNTL_UNIT = df_HA_PRH_RNTL_UNIT.select("estate", "block", "unit", "con_ref", "shrind", "indicator", "vcnt_ind")
+        ctx.register_df("df_HA_PRH_RNTL_UNIT", df_HA_PRH_RNTL_UNIT)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_exp_2 = df_sq_1
-        df_exp_2 = df_exp_2.withColumn("out_vcnt_ind", expr("CASE WHEN ltrim(rtrim(vcnt_ind)) = '' THEN null ELSE cast(vcnt_ind as decimal) END"))
+        df_EXPTRANS = df_HA_PRH_RNTL_UNIT
+        df_EXPTRANS = df_EXPTRANS.withColumn("out_vcnt_ind", expr("CASE WHEN ltrim(rtrim(vcnt_ind)) = '' THEN null ELSE cast(vcnt_ind as decimal) END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_2 = df_exp_2.select("out_vcnt_ind")
-        ctx.register_df("df_exp_2", df_exp_2)
-        
-        logger.info("Step: join_target_EIS_HA_PRH_RNTL_UNIT_0")
-        # Lookup: join_target_EIS_HA_PRH_RNTL_UNIT_0
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_exp_2.columns if c in df_sq_1.columns]
-        df_tgt_merge_3 = df_exp_2.join(
-            df_sq_1,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_tgt_merge_3", df_tgt_merge_3)
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EIS_HA_PRH_RNTL_UNIT")
         # Write to Target: write_EIS_HA_PRH_RNTL_UNIT
-        df_write = df_tgt_merge_3
+        df_write = df_EXPTRANS
         # Cast columns to match target schema data types
         if "estate" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

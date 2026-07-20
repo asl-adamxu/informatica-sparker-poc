@@ -1,14 +1,14 @@
 ================================================================================
 INFORMATICA-SPARKER CONVERSION LOG
-Generated: 2026-07-09 11:47:38
+Generated: 2026-07-20 18:03:37
 ================================================================================
 
 SUMMARY
 ----------------------------------------
 Total Mappings: 49
-Successful: 49
-Failed: 0
-Total Warnings: 0
+Successful: 47
+Failed: 2
+Total Warnings: 2
 Total Errors: 0
 
 SOURCE DETECTION RESULTS
@@ -21700,16 +21700,20 @@ MAPPING: M_S5_DDS_APLY_FACT_EMS_SMS_FLAT_PRC_TXN
   Generated Files: m_s5_dds_aply_fact_ems_sms_flat_prc_txn.py
 
 MAPPING: M_S5_DDS_APLY_FACT_EMS_SMS_CRT_HGST_SALE
-  Status: SUCCESS
+  Status: FAILED
   Generated Files: m_s5_dds_aply_fact_ems_sms_crt_hgst_sale.py
+  Warnings (1):
+    [WARN] No input DataFrame found for SQ_SP_DELETE
 
 MAPPING: M_S5_DDS_APLY_FACT_EMS_SMS_DSTR_TXN
   Status: SUCCESS
   Generated Files: m_s5_dds_aply_fact_ems_sms_dstr_txn.py
 
 MAPPING: M_S5_DDS_APLY_FACT_EMS_SMS_APLY_TYPE_TXN
-  Status: SUCCESS
+  Status: FAILED
   Generated Files: m_s5_dds_aply_fact_ems_sms_aply_type_txn.py
+  Warnings (1):
+    [WARN] No input DataFrame found for SQ_SP_DELETE
 
 MAPPING: M_S5_DDS_APLY_FACT_EMS_SMS_TXN
   Status: SUCCESS
@@ -21730,3 +21734,8 @@ MAPPING: M_UTL_PARAM_SETUP
 MAPPING: M_UTL_DPA_TRUNCATE
   Status: SUCCESS
   Generated Files: m_utl_dpa_truncate.py
+
+ALL WARNINGS
+----------------------------------------
+  [WARN] No input DataFrame found for SQ_SP_DELETE
+  [WARN] No input DataFrame found for SQ_SP_DELETE

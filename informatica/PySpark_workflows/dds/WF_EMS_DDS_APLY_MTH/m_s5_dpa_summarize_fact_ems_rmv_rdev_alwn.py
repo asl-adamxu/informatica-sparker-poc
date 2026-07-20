@@ -72,24 +72,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.warning("UTL_JOB_PARAM not found, using default values")
     
     try:
-        logger.info("Step: read_SOR_EMS_POR_OPR")
-        # Reading Data From Source - read_SOR_EMS_POR_OPR
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_1 = lib.read_sql(spark, _conn, table="SOR_EMS_POR_OPR")
-        
-        logger.info("Step: read_SOR_EMS_POR_OPR_STS")
-        # Reading Data From Source - read_SOR_EMS_POR_OPR_STS
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_2 = lib.read_sql(spark, _conn, table="SOR_EMS_POR_OPR")
-        
-        logger.info("Step: read_SOR_EMS_POR_CRP_PYMT_STAT_STS")
-        # Reading Data From Source - read_SOR_EMS_POR_CRP_PYMT_STAT_STS
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_3 = lib.read_sql(spark, _conn, table="SOR_EMS_POR_CRP_PYMT_STAT_STS")
-        
         logger.info("Step: apply_No_of_Families_Rehoused_to_PH")
         # Source Qualifier: apply_No_of_Families_Rehoused_to_PH
         # SQL Pushdown - executes Informatica SQ SQL on source database
@@ -119,17 +101,17 @@ and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.en
 group by opr.opr_code"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_sq_4 = lib.read_sql(spark, _conn, query=query)
+        df_No_of_Families_Rehoused_to_PH = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_4.columns
+        _sql_cols = df_No_of_Families_Rehoused_to_PH.columns
         _port_cols = ["OPR_CODE", "CNT", "SCHM_CODE"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_4 = df_sq_4.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_No_of_Families_Rehoused_to_PH = df_No_of_Families_Rehoused_to_PH.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_4 = df_sq_4.select("OPR_CODE", "CNT", "SCHM_CODE")
+        df_No_of_Families_Rehoused_to_PH = df_No_of_Families_Rehoused_to_PH.select("OPR_CODE", "CNT", "SCHM_CODE")
         
-        ctx.register_df("df_sq_4", df_sq_4)
+        ctx.register_df("df_No_of_Families_Rehoused_to_PH", df_No_of_Families_Rehoused_to_PH)
         
         logger.info("Step: apply_two_P_Domestic_Removal_Allowance_Redev")
         # Source Qualifier: apply_two_P_Domestic_Removal_Allowance_Redev
@@ -156,17 +138,17 @@ and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'DXA' and stat.c
 and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_sq_5 = lib.read_sql(spark, _conn, query=query)
+        df_two_P_Domestic_Removal_Allowance_Redev = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_5.columns
+        _sql_cols = df_two_P_Domestic_Removal_Allowance_Redev.columns
         _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_5 = df_sq_5.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_two_P_Domestic_Removal_Allowance_Redev = df_two_P_Domestic_Removal_Allowance_Redev.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_5 = df_sq_5.select("OPR_CODE", "AMT", "SCHM_CODE")
+        df_two_P_Domestic_Removal_Allowance_Redev = df_two_P_Domestic_Removal_Allowance_Redev.select("OPR_CODE", "AMT", "SCHM_CODE")
         
-        ctx.register_df("df_sq_5", df_sq_5)
+        ctx.register_df("df_two_P_Domestic_Removal_Allowance_Redev", df_two_P_Domestic_Removal_Allowance_Redev)
         
         logger.info("Step: apply_one_P_Domestic_Removal_Allowance_Redev")
         # Source Qualifier: apply_one_P_Domestic_Removal_Allowance_Redev
@@ -193,17 +175,17 @@ and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'DXA' and stat.c
 and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_sq_6 = lib.read_sql(spark, _conn, query=query)
+        df_one_P_Domestic_Removal_Allowance_Redev = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_6.columns
+        _sql_cols = df_one_P_Domestic_Removal_Allowance_Redev.columns
         _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_6 = df_sq_6.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_one_P_Domestic_Removal_Allowance_Redev = df_one_P_Domestic_Removal_Allowance_Redev.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_6 = df_sq_6.select("OPR_CODE", "AMT", "SCHM_CODE")
+        df_one_P_Domestic_Removal_Allowance_Redev = df_one_P_Domestic_Removal_Allowance_Redev.select("OPR_CODE", "AMT", "SCHM_CODE")
         
-        ctx.register_df("df_sq_6", df_sq_6)
+        ctx.register_df("df_one_P_Domestic_Removal_Allowance_Redev", df_one_P_Domestic_Removal_Allowance_Redev)
         
         logger.info("Step: apply_two_P_Exgratia_Allowance")
         # Source Qualifier: apply_two_P_Exgratia_Allowance
@@ -230,17 +212,17 @@ and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'EXA' and stat.c
 and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_sq_7 = lib.read_sql(spark, _conn, query=query)
+        df_two_P_Exgratia_Allowance = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_7.columns
+        _sql_cols = df_two_P_Exgratia_Allowance.columns
         _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_7 = df_sq_7.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_two_P_Exgratia_Allowance = df_two_P_Exgratia_Allowance.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_7 = df_sq_7.select("OPR_CODE", "AMT", "SCHM_CODE")
+        df_two_P_Exgratia_Allowance = df_two_P_Exgratia_Allowance.select("OPR_CODE", "AMT", "SCHM_CODE")
         
-        ctx.register_df("df_sq_7", df_sq_7)
+        ctx.register_df("df_two_P_Exgratia_Allowance", df_two_P_Exgratia_Allowance)
         
         logger.info("Step: apply_one_P_Exgratia_Allowance")
         # Source Qualifier: apply_one_P_Exgratia_Allowance
@@ -267,17 +249,17 @@ and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'EXA' and stat.c
 and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_sq_8 = lib.read_sql(spark, _conn, query=query)
+        df_one_P_Exgratia_Allowance = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_8.columns
+        _sql_cols = df_one_P_Exgratia_Allowance.columns
         _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_8 = df_sq_8.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_one_P_Exgratia_Allowance = df_one_P_Exgratia_Allowance.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_8 = df_sq_8.select("OPR_CODE", "AMT", "SCHM_CODE")
+        df_one_P_Exgratia_Allowance = df_one_P_Exgratia_Allowance.select("OPR_CODE", "AMT", "SCHM_CODE")
         
-        ctx.register_df("df_sq_8", df_sq_8)
+        ctx.register_df("df_one_P_Exgratia_Allowance", df_one_P_Exgratia_Allowance)
         
         logger.info("Step: apply_two_P_Special_Allowance")
         # Source Qualifier: apply_two_P_Special_Allowance
@@ -304,17 +286,17 @@ and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'SA' and stat.cr
 and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_sq_9 = lib.read_sql(spark, _conn, query=query)
+        df_two_P_Special_Allowance = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_9.columns
+        _sql_cols = df_two_P_Special_Allowance.columns
         _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_9 = df_sq_9.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_two_P_Special_Allowance = df_two_P_Special_Allowance.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_9 = df_sq_9.select("OPR_CODE", "AMT", "SCHM_CODE")
+        df_two_P_Special_Allowance = df_two_P_Special_Allowance.select("OPR_CODE", "AMT", "SCHM_CODE")
         
-        ctx.register_df("df_sq_9", df_sq_9)
+        ctx.register_df("df_two_P_Special_Allowance", df_two_P_Special_Allowance)
         
         logger.info("Step: apply_one_P_Special_Allowance")
         # Source Qualifier: apply_one_P_Special_Allowance
@@ -341,17 +323,17 @@ and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'SA' and stat.cr
 and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_sq_10 = lib.read_sql(spark, _conn, query=query)
+        df_one_P_Special_Allowance = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_10.columns
+        _sql_cols = df_one_P_Special_Allowance.columns
         _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_10 = df_sq_10.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_one_P_Special_Allowance = df_one_P_Special_Allowance.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_10 = df_sq_10.select("OPR_CODE", "AMT", "SCHM_CODE")
+        df_one_P_Special_Allowance = df_one_P_Special_Allowance.select("OPR_CODE", "AMT", "SCHM_CODE")
         
-        ctx.register_df("df_sq_10", df_sq_10)
+        ctx.register_df("df_one_P_Special_Allowance", df_one_P_Special_Allowance)
         
         logger.info("Step: apply_two_P_Domestic_Removal_Allowance")
         # Source Qualifier: apply_two_P_Domestic_Removal_Allowance
@@ -378,17 +360,17 @@ and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'DRA' and stat.c
 and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_sq_11 = lib.read_sql(spark, _conn, query=query)
+        df_two_P_Domestic_Removal_Allowance = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_11.columns
+        _sql_cols = df_two_P_Domestic_Removal_Allowance.columns
         _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_11 = df_sq_11.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_two_P_Domestic_Removal_Allowance = df_two_P_Domestic_Removal_Allowance.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_11 = df_sq_11.select("OPR_CODE", "AMT", "SCHM_CODE")
+        df_two_P_Domestic_Removal_Allowance = df_two_P_Domestic_Removal_Allowance.select("OPR_CODE", "AMT", "SCHM_CODE")
         
-        ctx.register_df("df_sq_11", df_sq_11)
+        ctx.register_df("df_two_P_Domestic_Removal_Allowance", df_two_P_Domestic_Removal_Allowance)
         
         logger.info("Step: apply_one_P_Domestic_Removal_Allowance")
         # Source Qualifier: apply_one_P_Domestic_Removal_Allowance
@@ -415,17 +397,17 @@ and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'DRA' and stat.c
 and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_sq_12 = lib.read_sql(spark, _conn, query=query)
+        df_one_P_Domestic_Removal_Allowance = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_12.columns
+        _sql_cols = df_one_P_Domestic_Removal_Allowance.columns
         _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_12 = df_sq_12.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_one_P_Domestic_Removal_Allowance = df_one_P_Domestic_Removal_Allowance.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_12 = df_sq_12.select("OPR_CODE", "AMT", "SCHM_CODE")
+        df_one_P_Domestic_Removal_Allowance = df_one_P_Domestic_Removal_Allowance.select("OPR_CODE", "AMT", "SCHM_CODE")
         
-        ctx.register_df("df_sq_12", df_sq_12)
+        ctx.register_df("df_one_P_Domestic_Removal_Allowance", df_one_P_Domestic_Removal_Allowance)
         
         logger.info("Step: apply_Total_No_of_2P_Family")
         # Source Qualifier: apply_Total_No_of_2P_Family
@@ -455,17 +437,17 @@ and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.en
 group by opr.opr_code"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_sq_13 = lib.read_sql(spark, _conn, query=query)
+        df_Total_No_of_2P_Family = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_13.columns
+        _sql_cols = df_Total_No_of_2P_Family.columns
         _port_cols = ["OPR_CODE", "CNT", "SCHM_CODE"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_13 = df_sq_13.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_Total_No_of_2P_Family = df_Total_No_of_2P_Family.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_13 = df_sq_13.select("OPR_CODE", "CNT", "SCHM_CODE")
+        df_Total_No_of_2P_Family = df_Total_No_of_2P_Family.select("OPR_CODE", "CNT", "SCHM_CODE")
         
-        ctx.register_df("df_sq_13", df_sq_13)
+        ctx.register_df("df_Total_No_of_2P_Family", df_Total_No_of_2P_Family)
         
         logger.info("Step: apply_Total_No_of_1P_Family")
         # Source Qualifier: apply_Total_No_of_1P_Family
@@ -495,17 +477,17 @@ and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.en
 group by opr.opr_code"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_sq_14 = lib.read_sql(spark, _conn, query=query)
+        df_Total_No_of_1P_Family = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_14.columns
+        _sql_cols = df_Total_No_of_1P_Family.columns
         _port_cols = ["OPR_CODE", "CNT", "SCHM_CODE"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_14 = df_sq_14.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_Total_No_of_1P_Family = df_Total_No_of_1P_Family.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_14 = df_sq_14.select("OPR_CODE", "CNT", "SCHM_CODE")
+        df_Total_No_of_1P_Family = df_Total_No_of_1P_Family.select("OPR_CODE", "CNT", "SCHM_CODE")
         
-        ctx.register_df("df_sq_14", df_sq_14)
+        ctx.register_df("df_Total_No_of_1P_Family", df_Total_No_of_1P_Family)
         
         logger.info("Step: apply_Domestic_Removal_Allowance_Redev")
         # Source Qualifier: apply_Domestic_Removal_Allowance_Redev
@@ -532,17 +514,17 @@ and stat.crp_pymt_schd_code = '1' and stat.crp_alwn_type_code = 'DXA' and stat.c
 and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_sq_15 = lib.read_sql(spark, _conn, query=query)
+        df_Domestic_Removal_Allowance_Redev = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_15.columns
+        _sql_cols = df_Domestic_Removal_Allowance_Redev.columns
         _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_15 = df_sq_15.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_Domestic_Removal_Allowance_Redev = df_Domestic_Removal_Allowance_Redev.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_15 = df_sq_15.select("OPR_CODE", "AMT", "SCHM_CODE")
+        df_Domestic_Removal_Allowance_Redev = df_Domestic_Removal_Allowance_Redev.select("OPR_CODE", "AMT", "SCHM_CODE")
         
-        ctx.register_df("df_sq_15", df_sq_15)
+        ctx.register_df("df_Domestic_Removal_Allowance_Redev", df_Domestic_Removal_Allowance_Redev)
         
         logger.info("Step: apply_Special_Allowance")
         # Source Qualifier: apply_Special_Allowance
@@ -569,17 +551,17 @@ and stat.crp_pymt_schd_code = '1' and stat.crp_alwn_type_code = 'SA' and stat.cr
 and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_sq_16 = lib.read_sql(spark, _conn, query=query)
+        df_Special_Allowance = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_16.columns
+        _sql_cols = df_Special_Allowance.columns
         _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_16 = df_sq_16.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_Special_Allowance = df_Special_Allowance.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_16 = df_sq_16.select("OPR_CODE", "AMT", "SCHM_CODE")
+        df_Special_Allowance = df_Special_Allowance.select("OPR_CODE", "AMT", "SCHM_CODE")
         
-        ctx.register_df("df_sq_16", df_sq_16)
+        ctx.register_df("df_Special_Allowance", df_Special_Allowance)
         
         logger.info("Step: apply_Domestic_Removal_Allowance")
         # Source Qualifier: apply_Domestic_Removal_Allowance
@@ -606,17 +588,17 @@ and stat.crp_pymt_schd_code = '1' and stat.crp_alwn_type_code = 'DRA' and stat.c
 and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_sq_17 = lib.read_sql(spark, _conn, query=query)
+        df_Domestic_Removal_Allowance = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_17.columns
+        _sql_cols = df_Domestic_Removal_Allowance.columns
         _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_17 = df_sq_17.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_Domestic_Removal_Allowance = df_Domestic_Removal_Allowance.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_17 = df_sq_17.select("OPR_CODE", "AMT", "SCHM_CODE")
+        df_Domestic_Removal_Allowance = df_Domestic_Removal_Allowance.select("OPR_CODE", "AMT", "SCHM_CODE")
         
-        ctx.register_df("df_sq_17", df_sq_17)
+        ctx.register_df("df_Domestic_Removal_Allowance", df_Domestic_Removal_Allowance)
         
         logger.info("Step: apply_No_of_Cases_Settled_by_Other_Means")
         # Source Qualifier: apply_No_of_Cases_Settled_by_Other_Means
@@ -647,17 +629,17 @@ and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.en
 group by opr.opr_code"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_sq_18 = lib.read_sql(spark, _conn, query=query)
+        df_No_of_Cases_Settled_by_Other_Means = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_18.columns
+        _sql_cols = df_No_of_Cases_Settled_by_Other_Means.columns
         _port_cols = ["OPR_CODE", "CNT", "SCHM_CODE"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_18 = df_sq_18.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_No_of_Cases_Settled_by_Other_Means = df_No_of_Cases_Settled_by_Other_Means.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_18 = df_sq_18.select("OPR_CODE", "CNT", "SCHM_CODE")
+        df_No_of_Cases_Settled_by_Other_Means = df_No_of_Cases_Settled_by_Other_Means.select("OPR_CODE", "CNT", "SCHM_CODE")
         
-        ctx.register_df("df_sq_18", df_sq_18)
+        ctx.register_df("df_No_of_Cases_Settled_by_Other_Means", df_No_of_Cases_Settled_by_Other_Means)
         
         logger.info("Step: apply_No_of_HPL_Purchaser_Families_Included")
         # Source Qualifier: apply_No_of_HPL_Purchaser_Families_Included
@@ -688,17 +670,17 @@ and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.en
 group by opr.opr_code"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_sq_19 = lib.read_sql(spark, _conn, query=query)
+        df_No_of_HPL_Purchaser_Families_Included = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_19.columns
+        _sql_cols = df_No_of_HPL_Purchaser_Families_Included.columns
         _port_cols = ["OPR_CODE", "CNT", "SCHM_CODE"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_19 = df_sq_19.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_No_of_HPL_Purchaser_Families_Included = df_No_of_HPL_Purchaser_Families_Included.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_19 = df_sq_19.select("OPR_CODE", "CNT", "SCHM_CODE")
+        df_No_of_HPL_Purchaser_Families_Included = df_No_of_HPL_Purchaser_Families_Included.select("OPR_CODE", "CNT", "SCHM_CODE")
         
-        ctx.register_df("df_sq_19", df_sq_19)
+        ctx.register_df("df_No_of_HPL_Purchaser_Families_Included", df_No_of_HPL_Purchaser_Families_Included)
         
         logger.info("Step: apply_No_of_HOS_Purchaser_Families_Included")
         # Source Qualifier: apply_No_of_HOS_Purchaser_Families_Included
@@ -729,17 +711,17 @@ and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.en
 group by opr.opr_code"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_sq_20 = lib.read_sql(spark, _conn, query=query)
+        df_No_of_HOS_Purchaser_Families_Included = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_20.columns
+        _sql_cols = df_No_of_HOS_Purchaser_Families_Included.columns
         _port_cols = ["OPR_CODE", "CNT", "SCHM_CODE"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_20 = df_sq_20.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_No_of_HOS_Purchaser_Families_Included = df_No_of_HOS_Purchaser_Families_Included.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_20 = df_sq_20.select("OPR_CODE", "CNT", "SCHM_CODE")
+        df_No_of_HOS_Purchaser_Families_Included = df_No_of_HOS_Purchaser_Families_Included.select("OPR_CODE", "CNT", "SCHM_CODE")
         
-        ctx.register_df("df_sq_20", df_sq_20)
+        ctx.register_df("df_No_of_HOS_Purchaser_Families_Included", df_No_of_HOS_Purchaser_Families_Included)
         
         logger.info("Step: apply_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS")
         # Source Qualifier: apply_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS
@@ -756,238 +738,221 @@ and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.en
 and opr.opr_code not in ('1994R0009', '1995R0001')"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_sq_21 = lib.read_sql(spark, _conn, query=query)
+        df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_21.columns
+        _sql_cols = df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS.columns
         _port_cols = ["OPR_CODE", "CRP_PYMT_STAT_LAST_EXTRC_DATE", "CRP_PYMT_STAT_EXTRC_DATE", "SCHM_CODE"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_21 = df_sq_21.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS = df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_21 = df_sq_21.select("OPR_CODE", "CRP_PYMT_STAT_LAST_EXTRC_DATE", "CRP_PYMT_STAT_EXTRC_DATE", "SCHM_CODE")
+        df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS = df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS.select("OPR_CODE", "CRP_PYMT_STAT_LAST_EXTRC_DATE", "CRP_PYMT_STAT_EXTRC_DATE", "SCHM_CODE")
         
-        ctx.register_df("df_sq_21", df_sq_21)
+        ctx.register_df("df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS", df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS)
         
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
-        df_exp_22 = df_sq_4
-        df_exp_22 = df_exp_22.withColumn("RMV_CASE_CODE", expr("'RE'"))
-        df_exp_22 = df_exp_22.withColumn("AMT", expr("0"))
+        df_EXPTRANS1 = df_No_of_Families_Rehoused_to_PH
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("RMV_CASE_CODE", expr("'RE'"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("AMT", expr("0"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["OPR_CODE", "CNT", "SCHM_CODE"]:
-            if _col not in df_exp_22.columns:
-                df_exp_22 = df_exp_22.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_22 = df_exp_22.select("OPR_CODE", "CNT", "RMV_CASE_CODE", "AMT", "SCHM_CODE")
-        ctx.register_df("df_exp_22", df_exp_22)
+            if _col not in df_EXPTRANS1.columns:
+                df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
         
         logger.info("Step: apply_EXPTRANS1111122111112")
         # Expression: apply_EXPTRANS1111122111112
-        df_exp_23 = df_sq_5
-        df_exp_23 = df_exp_23.withColumn("CNT", expr("0"))
-        df_exp_23 = df_exp_23.withColumn("RMV_CASE_CODE", expr("'DRAR2'"))
+        df_EXPTRANS1111122111112 = df_two_P_Domestic_Removal_Allowance_Redev
+        df_EXPTRANS1111122111112 = df_EXPTRANS1111122111112.withColumn("CNT", expr("0"))
+        df_EXPTRANS1111122111112 = df_EXPTRANS1111122111112.withColumn("RMV_CASE_CODE", expr("'DRAR2'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["OPR_CODE", "AMT", "SCHM_CODE"]:
-            if _col not in df_exp_23.columns:
-                df_exp_23 = df_exp_23.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_23 = df_exp_23.select("OPR_CODE", "CNT", "RMV_CASE_CODE", "AMT", "SCHM_CODE")
-        ctx.register_df("df_exp_23", df_exp_23)
+            if _col not in df_EXPTRANS1111122111112.columns:
+                df_EXPTRANS1111122111112 = df_EXPTRANS1111122111112.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS1111122111112", df_EXPTRANS1111122111112)
         
         logger.info("Step: apply_EXPTRANS1111122111111")
         # Expression: apply_EXPTRANS1111122111111
-        df_exp_24 = df_sq_6
-        df_exp_24 = df_exp_24.withColumn("CNT", expr("0"))
-        df_exp_24 = df_exp_24.withColumn("RMV_CASE_CODE", expr("'DRAR1'"))
+        df_EXPTRANS1111122111111 = df_one_P_Domestic_Removal_Allowance_Redev
+        df_EXPTRANS1111122111111 = df_EXPTRANS1111122111111.withColumn("CNT", expr("0"))
+        df_EXPTRANS1111122111111 = df_EXPTRANS1111122111111.withColumn("RMV_CASE_CODE", expr("'DRAR1'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["OPR_CODE", "AMT", "SCHM_CODE"]:
-            if _col not in df_exp_24.columns:
-                df_exp_24 = df_exp_24.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_24 = df_exp_24.select("OPR_CODE", "CNT", "RMV_CASE_CODE", "AMT", "SCHM_CODE")
-        ctx.register_df("df_exp_24", df_exp_24)
+            if _col not in df_EXPTRANS1111122111111.columns:
+                df_EXPTRANS1111122111111 = df_EXPTRANS1111122111111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS1111122111111", df_EXPTRANS1111122111111)
         
         logger.info("Step: apply_EXPTRANS111112211111")
         # Expression: apply_EXPTRANS111112211111
-        df_exp_25 = df_sq_7
-        df_exp_25 = df_exp_25.withColumn("CNT", expr("0"))
-        df_exp_25 = df_exp_25.withColumn("RMV_CASE_CODE", expr("'EA2'"))
+        df_EXPTRANS111112211111 = df_two_P_Exgratia_Allowance
+        df_EXPTRANS111112211111 = df_EXPTRANS111112211111.withColumn("CNT", expr("0"))
+        df_EXPTRANS111112211111 = df_EXPTRANS111112211111.withColumn("RMV_CASE_CODE", expr("'EA2'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["OPR_CODE", "AMT", "SCHM_CODE"]:
-            if _col not in df_exp_25.columns:
-                df_exp_25 = df_exp_25.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_25 = df_exp_25.select("OPR_CODE", "CNT", "RMV_CASE_CODE", "AMT", "SCHM_CODE")
-        ctx.register_df("df_exp_25", df_exp_25)
+            if _col not in df_EXPTRANS111112211111.columns:
+                df_EXPTRANS111112211111 = df_EXPTRANS111112211111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS111112211111", df_EXPTRANS111112211111)
         
         logger.info("Step: apply_EXPTRANS11111221111")
         # Expression: apply_EXPTRANS11111221111
-        df_exp_26 = df_sq_8
-        df_exp_26 = df_exp_26.withColumn("CNT", expr("0"))
-        df_exp_26 = df_exp_26.withColumn("RMV_CASE_CODE", expr("'EA1'"))
+        df_EXPTRANS11111221111 = df_one_P_Exgratia_Allowance
+        df_EXPTRANS11111221111 = df_EXPTRANS11111221111.withColumn("CNT", expr("0"))
+        df_EXPTRANS11111221111 = df_EXPTRANS11111221111.withColumn("RMV_CASE_CODE", expr("'EA1'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["OPR_CODE", "AMT", "SCHM_CODE"]:
-            if _col not in df_exp_26.columns:
-                df_exp_26 = df_exp_26.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_26 = df_exp_26.select("OPR_CODE", "CNT", "RMV_CASE_CODE", "AMT", "SCHM_CODE")
-        ctx.register_df("df_exp_26", df_exp_26)
+            if _col not in df_EXPTRANS11111221111.columns:
+                df_EXPTRANS11111221111 = df_EXPTRANS11111221111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS11111221111", df_EXPTRANS11111221111)
         
         logger.info("Step: apply_EXPTRANS1111122111")
         # Expression: apply_EXPTRANS1111122111
-        df_exp_27 = df_sq_9
-        df_exp_27 = df_exp_27.withColumn("CNT", expr("0"))
-        df_exp_27 = df_exp_27.withColumn("RMV_CASE_CODE", expr("'SA2'"))
+        df_EXPTRANS1111122111 = df_two_P_Special_Allowance
+        df_EXPTRANS1111122111 = df_EXPTRANS1111122111.withColumn("CNT", expr("0"))
+        df_EXPTRANS1111122111 = df_EXPTRANS1111122111.withColumn("RMV_CASE_CODE", expr("'SA2'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["OPR_CODE", "AMT", "SCHM_CODE"]:
-            if _col not in df_exp_27.columns:
-                df_exp_27 = df_exp_27.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_27 = df_exp_27.select("OPR_CODE", "CNT", "RMV_CASE_CODE", "AMT", "SCHM_CODE")
-        ctx.register_df("df_exp_27", df_exp_27)
+            if _col not in df_EXPTRANS1111122111.columns:
+                df_EXPTRANS1111122111 = df_EXPTRANS1111122111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS1111122111", df_EXPTRANS1111122111)
         
         logger.info("Step: apply_EXPTRANS111112211")
         # Expression: apply_EXPTRANS111112211
-        df_exp_28 = df_sq_10
-        df_exp_28 = df_exp_28.withColumn("CNT", expr("0"))
-        df_exp_28 = df_exp_28.withColumn("RMV_CASE_CODE", expr("'SA1'"))
+        df_EXPTRANS111112211 = df_one_P_Special_Allowance
+        df_EXPTRANS111112211 = df_EXPTRANS111112211.withColumn("CNT", expr("0"))
+        df_EXPTRANS111112211 = df_EXPTRANS111112211.withColumn("RMV_CASE_CODE", expr("'SA1'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["OPR_CODE", "AMT", "SCHM_CODE"]:
-            if _col not in df_exp_28.columns:
-                df_exp_28 = df_exp_28.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_28 = df_exp_28.select("OPR_CODE", "CNT", "RMV_CASE_CODE", "AMT", "SCHM_CODE")
-        ctx.register_df("df_exp_28", df_exp_28)
+            if _col not in df_EXPTRANS111112211.columns:
+                df_EXPTRANS111112211 = df_EXPTRANS111112211.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS111112211", df_EXPTRANS111112211)
         
         logger.info("Step: apply_EXPTRANS11111221")
         # Expression: apply_EXPTRANS11111221
-        df_exp_29 = df_sq_11
-        df_exp_29 = df_exp_29.withColumn("CNT", expr("0"))
-        df_exp_29 = df_exp_29.withColumn("RMV_CASE_CODE", expr("'DRA2'"))
+        df_EXPTRANS11111221 = df_two_P_Domestic_Removal_Allowance
+        df_EXPTRANS11111221 = df_EXPTRANS11111221.withColumn("CNT", expr("0"))
+        df_EXPTRANS11111221 = df_EXPTRANS11111221.withColumn("RMV_CASE_CODE", expr("'DRA2'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["OPR_CODE", "AMT", "SCHM_CODE"]:
-            if _col not in df_exp_29.columns:
-                df_exp_29 = df_exp_29.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_29 = df_exp_29.select("OPR_CODE", "CNT", "RMV_CASE_CODE", "AMT", "SCHM_CODE")
-        ctx.register_df("df_exp_29", df_exp_29)
+            if _col not in df_EXPTRANS11111221.columns:
+                df_EXPTRANS11111221 = df_EXPTRANS11111221.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS11111221", df_EXPTRANS11111221)
         
         logger.info("Step: apply_EXPTRANS1111122")
         # Expression: apply_EXPTRANS1111122
-        df_exp_30 = df_sq_12
-        df_exp_30 = df_exp_30.withColumn("CNT", expr("0"))
-        df_exp_30 = df_exp_30.withColumn("RMV_CASE_CODE", expr("'DRA1'"))
+        df_EXPTRANS1111122 = df_one_P_Domestic_Removal_Allowance
+        df_EXPTRANS1111122 = df_EXPTRANS1111122.withColumn("CNT", expr("0"))
+        df_EXPTRANS1111122 = df_EXPTRANS1111122.withColumn("RMV_CASE_CODE", expr("'DRA1'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["OPR_CODE", "AMT", "SCHM_CODE"]:
-            if _col not in df_exp_30.columns:
-                df_exp_30 = df_exp_30.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_30 = df_exp_30.select("OPR_CODE", "CNT", "RMV_CASE_CODE", "AMT", "SCHM_CODE")
-        ctx.register_df("df_exp_30", df_exp_30)
+            if _col not in df_EXPTRANS1111122.columns:
+                df_EXPTRANS1111122 = df_EXPTRANS1111122.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS1111122", df_EXPTRANS1111122)
         
         logger.info("Step: apply_EXPTRANS1112")
         # Expression: apply_EXPTRANS1112
-        df_exp_31 = df_sq_13
-        df_exp_31 = df_exp_31.withColumn("RMV_CASE_CODE", expr("'TF2'"))
-        df_exp_31 = df_exp_31.withColumn("AMT", expr("0"))
+        df_EXPTRANS1112 = df_Total_No_of_2P_Family
+        df_EXPTRANS1112 = df_EXPTRANS1112.withColumn("RMV_CASE_CODE", expr("'TF2'"))
+        df_EXPTRANS1112 = df_EXPTRANS1112.withColumn("AMT", expr("0"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["OPR_CODE", "CNT", "SCHM_CODE"]:
-            if _col not in df_exp_31.columns:
-                df_exp_31 = df_exp_31.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_31 = df_exp_31.select("OPR_CODE", "CNT", "RMV_CASE_CODE", "AMT", "SCHM_CODE")
-        ctx.register_df("df_exp_31", df_exp_31)
+            if _col not in df_EXPTRANS1112.columns:
+                df_EXPTRANS1112 = df_EXPTRANS1112.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS1112", df_EXPTRANS1112)
         
         logger.info("Step: apply_EXPTRANS1111121")
         # Expression: apply_EXPTRANS1111121
-        df_exp_32 = df_sq_14
-        df_exp_32 = df_exp_32.withColumn("RMV_CASE_CODE", expr("'TF1'"))
-        df_exp_32 = df_exp_32.withColumn("AMT", expr("0"))
+        df_EXPTRANS1111121 = df_Total_No_of_1P_Family
+        df_EXPTRANS1111121 = df_EXPTRANS1111121.withColumn("RMV_CASE_CODE", expr("'TF1'"))
+        df_EXPTRANS1111121 = df_EXPTRANS1111121.withColumn("AMT", expr("0"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["OPR_CODE", "CNT", "SCHM_CODE"]:
-            if _col not in df_exp_32.columns:
-                df_exp_32 = df_exp_32.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_32 = df_exp_32.select("OPR_CODE", "CNT", "RMV_CASE_CODE", "AMT", "SCHM_CODE")
-        ctx.register_df("df_exp_32", df_exp_32)
+            if _col not in df_EXPTRANS1111121.columns:
+                df_EXPTRANS1111121 = df_EXPTRANS1111121.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS1111121", df_EXPTRANS1111121)
         
         logger.info("Step: apply_EXPTRANS111112")
         # Expression: apply_EXPTRANS111112
-        df_exp_33 = df_sq_15
-        df_exp_33 = df_exp_33.withColumn("CNT", expr("0"))
-        df_exp_33 = df_exp_33.withColumn("RMV_CASE_CODE", expr("'DRAR'"))
+        df_EXPTRANS111112 = df_Domestic_Removal_Allowance_Redev
+        df_EXPTRANS111112 = df_EXPTRANS111112.withColumn("CNT", expr("0"))
+        df_EXPTRANS111112 = df_EXPTRANS111112.withColumn("RMV_CASE_CODE", expr("'DRAR'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["OPR_CODE", "AMT", "SCHM_CODE"]:
-            if _col not in df_exp_33.columns:
-                df_exp_33 = df_exp_33.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_33 = df_exp_33.select("OPR_CODE", "CNT", "RMV_CASE_CODE", "AMT", "SCHM_CODE")
-        ctx.register_df("df_exp_33", df_exp_33)
+            if _col not in df_EXPTRANS111112.columns:
+                df_EXPTRANS111112 = df_EXPTRANS111112.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS111112", df_EXPTRANS111112)
         
         logger.info("Step: apply_EXPTRANS111111")
         # Expression: apply_EXPTRANS111111
-        df_exp_34 = df_sq_16
-        df_exp_34 = df_exp_34.withColumn("CNT", expr("0"))
-        df_exp_34 = df_exp_34.withColumn("RMV_CASE_CODE", expr("'SA'"))
+        df_EXPTRANS111111 = df_Special_Allowance
+        df_EXPTRANS111111 = df_EXPTRANS111111.withColumn("CNT", expr("0"))
+        df_EXPTRANS111111 = df_EXPTRANS111111.withColumn("RMV_CASE_CODE", expr("'SA'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["OPR_CODE", "AMT", "SCHM_CODE"]:
-            if _col not in df_exp_34.columns:
-                df_exp_34 = df_exp_34.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_34 = df_exp_34.select("OPR_CODE", "CNT", "RMV_CASE_CODE", "AMT", "SCHM_CODE")
-        ctx.register_df("df_exp_34", df_exp_34)
+            if _col not in df_EXPTRANS111111.columns:
+                df_EXPTRANS111111 = df_EXPTRANS111111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS111111", df_EXPTRANS111111)
         
         logger.info("Step: apply_EXPTRANS11111")
         # Expression: apply_EXPTRANS11111
-        df_exp_35 = df_sq_17
-        df_exp_35 = df_exp_35.withColumn("CNT", expr("0"))
-        df_exp_35 = df_exp_35.withColumn("RMV_CASE_CODE", expr("'DRA'"))
+        df_EXPTRANS11111 = df_Domestic_Removal_Allowance
+        df_EXPTRANS11111 = df_EXPTRANS11111.withColumn("CNT", expr("0"))
+        df_EXPTRANS11111 = df_EXPTRANS11111.withColumn("RMV_CASE_CODE", expr("'DRA'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["OPR_CODE", "AMT", "SCHM_CODE"]:
-            if _col not in df_exp_35.columns:
-                df_exp_35 = df_exp_35.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_35 = df_exp_35.select("OPR_CODE", "CNT", "RMV_CASE_CODE", "AMT", "SCHM_CODE")
-        ctx.register_df("df_exp_35", df_exp_35)
+            if _col not in df_EXPTRANS11111.columns:
+                df_EXPTRANS11111 = df_EXPTRANS11111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS11111", df_EXPTRANS11111)
         
         logger.info("Step: apply_EXPTRANS1111")
         # Expression: apply_EXPTRANS1111
-        df_exp_36 = df_sq_18
-        df_exp_36 = df_exp_36.withColumn("RMV_CASE_CODE", expr("'CS'"))
-        df_exp_36 = df_exp_36.withColumn("AMT", expr("0"))
+        df_EXPTRANS1111 = df_No_of_Cases_Settled_by_Other_Means
+        df_EXPTRANS1111 = df_EXPTRANS1111.withColumn("RMV_CASE_CODE", expr("'CS'"))
+        df_EXPTRANS1111 = df_EXPTRANS1111.withColumn("AMT", expr("0"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["OPR_CODE", "CNT", "SCHM_CODE"]:
-            if _col not in df_exp_36.columns:
-                df_exp_36 = df_exp_36.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_36 = df_exp_36.select("OPR_CODE", "CNT", "RMV_CASE_CODE", "AMT", "SCHM_CODE")
-        ctx.register_df("df_exp_36", df_exp_36)
+            if _col not in df_EXPTRANS1111.columns:
+                df_EXPTRANS1111 = df_EXPTRANS1111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS1111", df_EXPTRANS1111)
         
         logger.info("Step: apply_EXPTRANS111")
         # Expression: apply_EXPTRANS111
-        df_exp_37 = df_sq_19
-        df_exp_37 = df_exp_37.withColumn("RMV_CASE_CODE", expr("'HPL'"))
-        df_exp_37 = df_exp_37.withColumn("AMT", expr("0"))
+        df_EXPTRANS111 = df_No_of_HPL_Purchaser_Families_Included
+        df_EXPTRANS111 = df_EXPTRANS111.withColumn("RMV_CASE_CODE", expr("'HPL'"))
+        df_EXPTRANS111 = df_EXPTRANS111.withColumn("AMT", expr("0"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["OPR_CODE", "CNT", "SCHM_CODE"]:
-            if _col not in df_exp_37.columns:
-                df_exp_37 = df_exp_37.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_37 = df_exp_37.select("OPR_CODE", "CNT", "RMV_CASE_CODE", "AMT", "SCHM_CODE")
-        ctx.register_df("df_exp_37", df_exp_37)
+            if _col not in df_EXPTRANS111.columns:
+                df_EXPTRANS111 = df_EXPTRANS111.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS111", df_EXPTRANS111)
         
         logger.info("Step: apply_EXPTRANS11")
         # Expression: apply_EXPTRANS11
-        df_exp_38 = df_sq_20
-        df_exp_38 = df_exp_38.withColumn("RMV_CASE_CODE", expr("'HOS'"))
-        df_exp_38 = df_exp_38.withColumn("AMT", expr("0"))
+        df_EXPTRANS11 = df_No_of_HOS_Purchaser_Families_Included
+        df_EXPTRANS11 = df_EXPTRANS11.withColumn("RMV_CASE_CODE", expr("'HOS'"))
+        df_EXPTRANS11 = df_EXPTRANS11.withColumn("AMT", expr("0"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["OPR_CODE", "CNT", "SCHM_CODE"]:
-            if _col not in df_exp_38.columns:
-                df_exp_38 = df_exp_38.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_38 = df_exp_38.select("OPR_CODE", "CNT", "RMV_CASE_CODE", "AMT", "SCHM_CODE")
-        ctx.register_df("df_exp_38", df_exp_38)
+            if _col not in df_EXPTRANS11.columns:
+                df_EXPTRANS11 = df_EXPTRANS11.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS11", df_EXPTRANS11)
         
         logger.info("Step: read_LKP_OPR_TRGT_EVCT_DATE")
         # Reading Data From Source - read_LKP_OPR_TRGT_EVCT_DATE
@@ -1002,148 +967,288 @@ WHERE opr.OPR_KEY = opr_sts.OPR_KEY
 AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN opr_sts.BGN_DATE AND opr_sts.END_DATE"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_lkp_39 = lib.read_sql(spark, _conn, query=query)
+        df_LKP_OPR_TRGT_EVCT_DATE = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_LKP_OPR_TRGT_EVCT_DATE")
         # Lookup: apply_LKP_OPR_TRGT_EVCT_DATE
-        # Join condition: IN_OPR_CODE=OPR_CODE        
-        df_lkp_result_40 = df_sq_21.join(
-            broadcast(df_lkp_39),
-            (df_sq_21["IN_OPR_CODE"] == df_lkp_39["OPR_CODE"]),
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_OPR_TRGT_EVCT_DATE = df_LKP_OPR_TRGT_EVCT_DATE.dropDuplicates(subset=["OPR_CODE"])
+        # Join condition: OPR_CODE=OPR_CODE
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_OPR_TRGT_EVCT_DATE
+        _lkp_right = _lkp_right.withColumnRenamed("OPR_CODE", "_lkp_OPR_CODE")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_1 = df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS.join(
+            broadcast(_lkp_right),
+            (df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS["OPR_CODE"] == _lkp_right["_lkp_OPR_CODE"]),
             "left"
-        )
-        ctx.register_df("df_lkp_result_40", df_lkp_result_40)
+        ).drop("_lkp_OPR_CODE")
+
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
         
         logger.info("Step: apply_Union_Transformation")
         # Union: apply_Union_Transformation
-        df_un_41 = df_exp_23
-        df_un_41 = df_un_41.unionByName(df_exp_24, allowMissingColumns=True)
-        df_un_41 = df_un_41.unionByName(df_exp_25, allowMissingColumns=True)
-        df_un_41 = df_un_41.unionByName(df_exp_26, allowMissingColumns=True)
-        df_un_41 = df_un_41.unionByName(df_exp_27, allowMissingColumns=True)
-        df_un_41 = df_un_41.unionByName(df_exp_30, allowMissingColumns=True)
-        df_un_41 = df_un_41.unionByName(df_exp_31, allowMissingColumns=True)
-        df_un_41 = df_un_41.unionByName(df_exp_32, allowMissingColumns=True)
-        df_un_41 = df_un_41.unionByName(df_exp_33, allowMissingColumns=True)
-        df_un_41 = df_un_41.unionByName(df_exp_34, allowMissingColumns=True)
-        df_un_41 = df_un_41.unionByName(df_exp_28, allowMissingColumns=True)
-        df_un_41 = df_un_41.unionByName(df_exp_29, allowMissingColumns=True)
-        df_un_41 = df_un_41.unionByName(df_exp_35, allowMissingColumns=True)
-        df_un_41 = df_un_41.unionByName(df_exp_36, allowMissingColumns=True)
-        df_un_41 = df_un_41.unionByName(df_exp_37, allowMissingColumns=True)
-        df_un_41 = df_un_41.unionByName(df_exp_38, allowMissingColumns=True)
-        df_un_41 = df_un_41.unionByName(df_exp_22, allowMissingColumns=True)
+        # Select + rename upstream columns per input, then union
+        df_Union_Transformation_re = df_EXPTRANS1.select(
+            col("OPR_CODE").alias("OPR_CODE"),
+            col("CNT").alias("CNT"),
+            col("AMT").alias("AMT"),
+            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
+            col("SCHM_CODE").alias("SCHM_CODE")        )
+        df_Union_Transformation_hos = df_EXPTRANS11.select(
+            col("OPR_CODE").alias("OPR_CODE"),
+            col("CNT").alias("CNT"),
+            col("AMT").alias("AMT"),
+            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
+            col("SCHM_CODE").alias("SCHM_CODE")        )
+        df_Union_Transformation_hpl = df_EXPTRANS111.select(
+            col("OPR_CODE").alias("OPR_CODE"),
+            col("CNT").alias("CNT"),
+            col("AMT").alias("AMT"),
+            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
+            col("SCHM_CODE").alias("SCHM_CODE")        )
+        df_Union_Transformation_cs = df_EXPTRANS1111.select(
+            col("OPR_CODE").alias("OPR_CODE"),
+            col("CNT").alias("CNT"),
+            col("AMT").alias("AMT"),
+            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
+            col("SCHM_CODE").alias("SCHM_CODE")        )
+        df_Union_Transformation_dra = df_EXPTRANS11111.select(
+            col("OPR_CODE").alias("OPR_CODE"),
+            col("CNT").alias("CNT"),
+            col("AMT").alias("AMT"),
+            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
+            col("SCHM_CODE").alias("SCHM_CODE")        )
+        df_Union_Transformation_sa = df_EXPTRANS111111.select(
+            col("OPR_CODE").alias("OPR_CODE"),
+            col("CNT").alias("CNT"),
+            col("AMT").alias("AMT"),
+            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
+            col("SCHM_CODE").alias("SCHM_CODE")        )
+        df_Union_Transformation_drar = df_EXPTRANS111112.select(
+            col("OPR_CODE").alias("OPR_CODE"),
+            col("CNT").alias("CNT"),
+            col("AMT").alias("AMT"),
+            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
+            col("SCHM_CODE").alias("SCHM_CODE")        )
+        df_Union_Transformation_tf1 = df_EXPTRANS1111121.select(
+            col("OPR_CODE").alias("OPR_CODE"),
+            col("CNT").alias("CNT"),
+            col("AMT").alias("AMT"),
+            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
+            col("SCHM_CODE").alias("SCHM_CODE")        )
+        df_Union_Transformation_tf2 = df_EXPTRANS1112.select(
+            col("OPR_CODE").alias("OPR_CODE"),
+            col("CNT").alias("CNT"),
+            col("AMT").alias("AMT"),
+            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
+            col("SCHM_CODE").alias("SCHM_CODE")        )
+        df_Union_Transformation_dra1 = df_EXPTRANS1111122.select(
+            col("OPR_CODE").alias("OPR_CODE"),
+            col("CNT").alias("CNT"),
+            col("AMT").alias("AMT"),
+            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
+            col("SCHM_CODE").alias("SCHM_CODE")        )
+        df_Union_Transformation_dra2 = df_EXPTRANS11111221.select(
+            col("OPR_CODE").alias("OPR_CODE"),
+            col("CNT").alias("CNT"),
+            col("AMT").alias("AMT"),
+            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
+            col("SCHM_CODE").alias("SCHM_CODE")        )
+        df_Union_Transformation_sa1 = df_EXPTRANS111112211.select(
+            col("OPR_CODE").alias("OPR_CODE"),
+            col("CNT").alias("CNT"),
+            col("AMT").alias("AMT"),
+            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
+            col("SCHM_CODE").alias("SCHM_CODE")        )
+        df_Union_Transformation_sa2 = df_EXPTRANS1111122111.select(
+            col("OPR_CODE").alias("OPR_CODE"),
+            col("CNT").alias("CNT"),
+            col("AMT").alias("AMT"),
+            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
+            col("SCHM_CODE").alias("SCHM_CODE")        )
+        df_Union_Transformation_ea1 = df_EXPTRANS11111221111.select(
+            col("OPR_CODE").alias("OPR_CODE"),
+            col("CNT").alias("CNT"),
+            col("AMT").alias("AMT"),
+            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
+            col("SCHM_CODE").alias("SCHM_CODE")        )
+        df_Union_Transformation_ea2 = df_EXPTRANS111112211111.select(
+            col("OPR_CODE").alias("OPR_CODE"),
+            col("CNT").alias("CNT"),
+            col("AMT").alias("AMT"),
+            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
+            col("SCHM_CODE").alias("SCHM_CODE")        )
+        df_Union_Transformation_drar1 = df_EXPTRANS1111122111111.select(
+            col("OPR_CODE").alias("OPR_CODE"),
+            col("CNT").alias("CNT"),
+            col("AMT").alias("AMT"),
+            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
+            col("SCHM_CODE").alias("SCHM_CODE")        )
+        df_Union_Transformation_drar2 = df_EXPTRANS1111122111112.select(
+            col("OPR_CODE").alias("OPR_CODE"),
+            col("CNT").alias("CNT"),
+            col("AMT").alias("AMT"),
+            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
+            col("SCHM_CODE").alias("SCHM_CODE")        )
+        df_Union_Transformation = df_Union_Transformation_re
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_hos, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_hpl, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_cs, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_dra, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_sa, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_drar, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_tf1, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_tf2, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_dra1, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_dra2, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_sa1, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_sa2, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_ea1, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_ea2, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_drar1, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_drar2, allowMissingColumns=True)
         # Select only union output columns
-        df_un_41 = df_un_41.select("OPR_CODE", "CNT", "AMT", "RMV_CASE_CODE", "SCHM_CODE")
-        ctx.register_df("df_un_41", df_un_41)
+        df_Union_Transformation = df_Union_Transformation.select("OPR_CODE", "CNT", "AMT", "RMV_CASE_CODE", "SCHM_CODE")
+        ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
         logger.info("Step: apply_EXPTRANS2")
         # Expression: apply_EXPTRANS2
-        df_exp_42 = df_un_41
+        df_EXPTRANS2 = df_Union_Transformation
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["OPR_CODE", "CNT", "AMT", "RMV_CASE_CODE", "SCHM_CODE"]:
-            if _col not in df_exp_42.columns:
-                df_exp_42 = df_exp_42.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_42 = df_exp_42.select("OPR_CODE", "CNT", "AMT", "RMV_CASE_CODE", "SCHM_CODE")
-        ctx.register_df("df_exp_42", df_exp_42)
+            if _col not in df_EXPTRANS2.columns:
+                df_EXPTRANS2 = df_EXPTRANS2.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS2", df_EXPTRANS2)
         
         logger.info("Step: apply_Union_Transformation1")
         # Union: apply_Union_Transformation1
-        df_un_43 = df_exp_42
-        df_un_43 = df_un_43.unionByName(df_lkp_result_40, allowMissingColumns=True)
-        df_un_43 = df_un_43.unionByName(df_sq_21, allowMissingColumns=True)
+        # Select + rename upstream columns per input, then union
+        df_Union_Transformation1_main = df_lkp_merge_1.select(
+            col("OPR_CODE").alias("OPR_CODE"),
+            col("OPR_TRGT_EVCT_DATE").alias("OPR_TRGT_EVCT_DATE"),
+            col("OPR_DESP").alias("OPR_DESP"),
+            col("OPR_RMK_TEXT").alias("OPR_RMK_TEXT"),
+            col("CRP_PYMT_STAT_LAST_EXTRC_DATE").alias("CRP_PYMT_STAT_LAST_EXTRC_DATE"),
+            col("CRP_PYMT_STAT_EXTRC_DATE").alias("CRP_PYMT_STAT_EXTRC_DATE"),
+            col("SCHM_CODE").alias("SCHM_CODE")        )
+        df_Union_Transformation1_sub = df_EXPTRANS2.select(
+            col("OPR_CODE").alias("OPR_CODE"),
+            col("CNT").alias("CNT"),
+            col("AMT").alias("AMT"),
+            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
+            col("SCHM_CODE").alias("SCHM_CODE")        )
+        df_Union_Transformation1 = df_Union_Transformation1_main
+        df_Union_Transformation1 = df_Union_Transformation1.unionByName(df_Union_Transformation1_sub, allowMissingColumns=True)
         # Select only union output columns
-        df_un_43 = df_un_43.select("OPR_CODE", "OPR_TRGT_EVCT_DATE", "OPR_DESP", "OPR_RMK_TEXT", "CRP_PYMT_STAT_LAST_EXTRC_DATE", "CRP_PYMT_STAT_EXTRC_DATE", "CNT", "AMT", "RMV_CASE_CODE", "SCHM_CODE")
-        ctx.register_df("df_un_43", df_un_43)
+        df_Union_Transformation1 = df_Union_Transformation1.select("OPR_CODE", "OPR_TRGT_EVCT_DATE", "OPR_DESP", "OPR_RMK_TEXT", "CRP_PYMT_STAT_LAST_EXTRC_DATE", "CRP_PYMT_STAT_EXTRC_DATE", "CNT", "AMT", "RMV_CASE_CODE", "SCHM_CODE")
+        ctx.register_df("df_Union_Transformation1", df_Union_Transformation1)
         
         logger.info("Step: apply_AGGTRANS")
         # Aggregator: apply_AGGTRANS
-        df_agg_44 = df_un_43.groupBy("OPR_CODE", "RMV_CASE_CODE", "SCHM_CODE")
-        df_agg_44 = df_agg_44.agg(
+        # Select only mapped upstream columns with correct port names
+        _agg_input = df_Union_Transformation1.select(
+            col("OPR_CODE"),
+            col("OPR_TRGT_EVCT_DATE"),
+            col("OPR_DESP"),
+            col("OPR_RMK_TEXT"),
+            col("CRP_PYMT_STAT_LAST_EXTRC_DATE"),
+            col("CRP_PYMT_STAT_EXTRC_DATE"),
+            col("CNT"),
+            col("AMT"),
+            col("RMV_CASE_CODE"),
+            col("SCHM_CODE")        )
+        df_AGGTRANS = _agg_input.groupBy("OPR_CODE", "RMV_CASE_CODE", "SCHM_CODE")
+        df_AGGTRANS = df_AGGTRANS.agg(
             sum("CNT").alias("CNT_OUT"),
             sum("AMT").alias("AMT_OUT")
         )
-        ctx.register_df("df_agg_44", df_agg_44)
+        ctx.register_df("df_AGGTRANS", df_AGGTRANS)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_exp_45 = df_agg_44
-        df_exp_45 = df_exp_45.withColumn("CNT", expr("CNT_OUT"))
-        df_exp_45 = df_exp_45.withColumn("AMT", expr("AMT_OUT"))
-        df_exp_45 = df_exp_45.withColumn("DMNS_SCHM_CODE", expr("'NEW'"))
-        df_exp_45 = df_exp_45.withColumn("SYSTIME", expr("current_timestamp()"))
+        df_EXPTRANS = df_AGGTRANS
+        df_EXPTRANS = df_EXPTRANS.withColumn("CNT", expr("CNT_OUT"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("AMT", expr("AMT_OUT"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("DMNS_SCHM_CODE", expr("'NEW'"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("SYSTIME", expr("current_timestamp()"))
         _expr = """to_date(concat('$$v_rpt_mth', '01'), 'yyyymmdd')"""
         _expr = _expr.replace("$$v_snsh_date", str(v_snsh_date))
         _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
-        df_exp_45 = df_exp_45.withColumn("TIME_VAL_DATE", expr(_expr))
-        df_exp_45 = df_exp_45.withColumn("OPR_FROM_DATE", expr("CRP_PYMT_STAT_LAST_EXTRC_DATE"))
-        df_exp_45 = df_exp_45.withColumn("OPR_TO_DATE", expr("CRP_PYMT_STAT_EXTRC_DATE"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("TIME_VAL_DATE", expr(_expr))
+        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_FROM_DATE", expr("CRP_PYMT_STAT_LAST_EXTRC_DATE"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_TO_DATE", expr("CRP_PYMT_STAT_EXTRC_DATE"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["OPR_CODE", "OPR_TRGT_EVCT_DATE", "RMV_CASE_CODE", "OPR_DESP", "OPR_RMK_TEXT", "SCHM_CODE"]:
-            if _col not in df_exp_45.columns:
-                df_exp_45 = df_exp_45.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_45 = df_exp_45.select("OPR_CODE", "OPR_TRGT_EVCT_DATE", "CNT", "AMT", "RMV_CASE_CODE", "DMNS_SCHM_CODE", "SYSTIME", "TIME_VAL_DATE", "OPR_FROM_DATE", "OPR_TO_DATE", "OPR_DESP", "OPR_RMK_TEXT", "SCHM_CODE")
-        ctx.register_df("df_exp_45", df_exp_45)
+            if _col not in df_EXPTRANS.columns:
+                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_RMV_CASE")
         # Reading Data From Source - read_LKP_DDS_DMNS_EMS_RMV_CASE
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_lkp_46 = lib.read_sql(spark, _conn, table="DDS_DMNS_EMS_RMV_CASE")
+        df_LKP_DDS_DMNS_EMS_RMV_CASE = lib.read_sql(spark, _conn, table="DDS_DMNS_EMS_RMV_CASE")
         
         logger.info("Step: apply_LKP_DDS_DMNS_EMS_RMV_CASE")
         # Lookup: apply_LKP_DDS_DMNS_EMS_RMV_CASE
-        # Join condition: IN_RMV_CASE_CODE=RMV_CASE_CODE AND IN_RMV_CASE_SCHM_CODE=RMV_CASE_SCHM_CODE        
-        df_lkp_result_47 = df_exp_45.join(
-            broadcast(df_lkp_46),
-            (df_exp_45["IN_RMV_CASE_CODE"] == df_lkp_46["RMV_CASE_CODE"]) &             (df_exp_45["IN_RMV_CASE_SCHM_CODE"] == df_lkp_46["RMV_CASE_SCHM_CODE"]),
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_DDS_DMNS_EMS_RMV_CASE = df_LKP_DDS_DMNS_EMS_RMV_CASE.dropDuplicates(subset=["RMV_CASE_CODE", "RMV_CASE_SCHM_CODE"])
+        # Join condition: RMV_CASE_CODE=RMV_CASE_CODE AND DMNS_SCHM_CODE=RMV_CASE_SCHM_CODE
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_DDS_DMNS_EMS_RMV_CASE
+        _lkp_right = _lkp_right.withColumnRenamed("RMV_CASE_CODE", "_lkp_RMV_CASE_CODE")
+        _lkp_right = _lkp_right.withColumnRenamed("RMV_CASE_SCHM_CODE", "_lkp_RMV_CASE_SCHM_CODE")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_EXPTRANS.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_2 = df_EXPTRANS.join(
+            broadcast(_lkp_right),
+            (df_EXPTRANS["RMV_CASE_CODE"] == _lkp_right["_lkp_RMV_CASE_CODE"]) &
+            (df_EXPTRANS["DMNS_SCHM_CODE"] == _lkp_right["_lkp_RMV_CASE_SCHM_CODE"]),
             "left"
-        )
-        ctx.register_df("df_lkp_result_47", df_lkp_result_47)
+        ).drop("_lkp_RMV_CASE_CODE").drop("_lkp_RMV_CASE_SCHM_CODE")
+
+        ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)
         
         logger.info("Step: read_LKP_DDS_DMNS_TIME_1")
         # Reading Data From Source - read_LKP_DDS_DMNS_TIME_1
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_lkp_48 = lib.read_sql(spark, _conn, table="DDS_DMNS_TIME")
+        df_LKP_DDS_DMNS_TIME_1 = lib.read_sql(spark, _conn, table="DDS_DMNS_TIME")
         
         logger.info("Step: apply_LKP_DDS_DMNS_TIME_1")
         # Lookup: apply_LKP_DDS_DMNS_TIME_1
-        # Join condition: IN_TIME_VAL_DATE=TIME_VAL_DATE        
-        df_lkp_result_49 = df_exp_45.join(
-            broadcast(df_lkp_48),
-            (df_exp_45["IN_TIME_VAL_DATE"] == df_lkp_48["TIME_VAL_DATE"]),
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_DDS_DMNS_TIME_1 = df_LKP_DDS_DMNS_TIME_1.dropDuplicates(subset=["TIME_VAL_DATE"])
+        # Join condition: TIME_VAL_DATE=TIME_VAL_DATE
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_DDS_DMNS_TIME_1
+        _lkp_right = _lkp_right.withColumnRenamed("TIME_VAL_DATE", "_lkp_TIME_VAL_DATE")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_2.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_2 = df_lkp_merge_2.join(
+            broadcast(_lkp_right),
+            (df_lkp_merge_2["TIME_VAL_DATE"] == _lkp_right["_lkp_TIME_VAL_DATE"]),
             "left"
-        )
-        ctx.register_df("df_lkp_result_49", df_lkp_result_49)
-        
-        logger.info("Step: join_target_DPA_FACT_EMS_RMV_RDEV_ALWN_0")
-        # Lookup: join_target_DPA_FACT_EMS_RMV_RDEV_ALWN_0
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_lkp_result_47.columns if c in df_exp_45.columns]
-        df_tgt_merge_50 = df_lkp_result_47.join(
-            df_exp_45,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_tgt_merge_50", df_tgt_merge_50)
-        
-        logger.info("Step: join_target_DPA_FACT_EMS_RMV_RDEV_ALWN_1")
-        # Lookup: join_target_DPA_FACT_EMS_RMV_RDEV_ALWN_1
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_tgt_merge_50.columns if c in df_lkp_result_49.columns]
-        df_tgt_merge_51 = df_tgt_merge_50.join(
-            df_lkp_result_49,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_tgt_merge_51", df_tgt_merge_51)
+        ).drop("_lkp_TIME_VAL_DATE")
+
+        ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)
         
         logger.info("Step: write_DPA_FACT_EMS_RMV_RDEV_ALWN")
         # Write to Target: write_DPA_FACT_EMS_RMV_RDEV_ALWN
-        df_write = df_tgt_merge_51
+        df_write = df_lkp_merge_2
         # Cast columns to match target schema data types
         if "opr_code" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

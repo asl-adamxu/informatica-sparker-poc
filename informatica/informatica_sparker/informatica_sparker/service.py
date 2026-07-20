@@ -900,6 +900,7 @@ class ConversionService:
                         "type": "source",
                         "format": src.file_format.value if src.file_format else "csv",
                         "path": _file_path,
+                        "is_flat_file": is_flat,
                     }
 
                 # Collect target tables

@@ -69,19 +69,13 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.warning("UTL_JOB_PARAM not found, using default values")
     
     try:
-        logger.info("Step: read_DDS_FACT_GMS_DLY_MSD_SMRY")
-        # Reading Data From Source - read_DDS_FACT_GMS_DLY_MSD_SMRY
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "DDS")
-        df_src_1 = lib.read_sql(spark, _conn, table="DDS_FACT_GMS_DLY_MSD_SMRY")
-        
         logger.info("Step: apply_SQ_DDS_FACT_GMS_DLY_MSD_SMRY")
         # Source Qualifier: apply_SQ_DDS_FACT_GMS_DLY_MSD_SMRY
         # SQL Pushdown - executes Informatica SQ SQL on source database
         _conn = lib.get_db_config(config, "DDS")
         # Parameterize schema from connection config
         _schema = _conn.get("schema", "") or "PDDS"
-        query = f"""with m as (
+        query = f"""SELECT DDS_FACT_GMS_DLY_MSD_SMRY.TIME_DMNS_KEY, DDS_FACT_GMS_DLY_MSD_SMRY.EST_SCD_KEY, DDS_FACT_GMS_DLY_MSD_SMRY.OFCR_TYPE_DMNS_KEY, DDS_FACT_GMS_DLY_MSD_SMRY.HSHLD_SIZE_DMNS_KEY, DDS_FACT_GMS_DLY_MSD_SMRY.MSD_CODE_SCD_KEY, DDS_FACT_GMS_DLY_MSD_SMRY.OFNDR_GNDR_DMNS_KEY, DDS_FACT_GMS_DLY_MSD_SMRY.OFNDR_AGE_GRP_DMNS_KEY, DDS_FACT_GMS_DLY_MSD_SMRY.OFNC_SCORE_GRP_DMNS_KEY, DDS_FACT_GMS_DLY_MSD_SMRY.ACTV_OFNC_TNCY_CNT, DDS_FACT_GMS_DLY_MSD_SMRY.CMLT_OFNC_TNCY_CNT, DDS_FACT_GMS_DLY_MSD_SMRY.AFT_CMLT_WRT_WARN_TNCY_CNT, DDS_FACT_GMS_DLY_MSD_SMRY.CMLT_WRT_WARN_CASE_CNT, DDS_FACT_GMS_DLY_MSD_SMRY.AFT_CMLT_WRT_WARN_CASE_CNT, DDS_FACT_GMS_DLY_MSD_SMRY.ACTV_PNT_ALLT_CASE_CNT, DDS_FACT_GMS_DLY_MSD_SMRY.CMLT_PNT_ALLT_CASE_CNT, DDS_FACT_GMS_DLY_MSD_SMRY.CMLT_MSD_TOT_CASE_CNT, DDS_FACT_GMS_DLY_MSD_SMRY.REC_RLS_IND, DDS_FACT_GMS_DLY_MSD_SMRY.LAST_REC_TXN_DATE, DDS_FACT_GMS_DLY_MSD_SMRY.LAST_REC_TXN_TYPE_CODE FROM a, b, c, cs, e, ee, es, g, h, hs, m, msd, n, ns, o, p, r, rs, s, ss, t, tc, tcs, ts, u WHERE with m as (
 select t.msd_txn_key, tc.msd_tncy_txn_key, c.msd_tncy_key, ts.msd_type_code, ts.msd_txn_sts_code, 
   ts.msd_pnt_num, ts.msd_schm_type_code, ts.msd_txn_cre_date, ts.incdt_date_time,
   ts.msd_code_key, ts.msd_del_rsn_code, ts.msd_iss_ofcr_type_code, ts.ofndr_gndr_code, ts.ofndr_dob_date,
@@ -265,32 +259,31 @@ and u.hse_est_code=e.est_code (+)
 and u.hshld_size_code=h.hshld_size_code (+)
 and u.score_grp_code=s.score_grp_code (+)"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
-        df_sq_2 = lib.read_sql(spark, _conn, query=query)
+        df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_2.columns
+        _sql_cols = df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY.columns
         _port_cols = ["TIME_DMNS_KEY", "EST_SCD_KEY", "OFCR_TYPE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MSD_CODE_SCD_KEY", "OFNDR_GNDR_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY", "ACTV_OFNC_TNCY_CNT", "CMLT_OFNC_TNCY_CNT", "AFT_CMLT_WRT_WARN_TNCY_CNT", "CMLT_WRT_WARN_CASE_CNT", "AFT_CMLT_WRT_WARN_CASE_CNT", "ACTV_PNT_ALLT_CASE_CNT", "CMLT_PNT_ALLT_CASE_CNT", "CMLT_MSD_TOT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_2 = df_sq_2.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY = df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_2 = df_sq_2.select("TIME_DMNS_KEY", "EST_SCD_KEY", "OFCR_TYPE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MSD_CODE_SCD_KEY", "OFNDR_GNDR_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY", "ACTV_OFNC_TNCY_CNT", "CMLT_OFNC_TNCY_CNT", "AFT_CMLT_WRT_WARN_TNCY_CNT", "CMLT_WRT_WARN_CASE_CNT", "AFT_CMLT_WRT_WARN_CASE_CNT", "ACTV_PNT_ALLT_CASE_CNT", "CMLT_PNT_ALLT_CASE_CNT", "CMLT_MSD_TOT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE")
+        df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY = df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY.select("TIME_DMNS_KEY", "EST_SCD_KEY", "OFCR_TYPE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MSD_CODE_SCD_KEY", "OFNDR_GNDR_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY", "ACTV_OFNC_TNCY_CNT", "CMLT_OFNC_TNCY_CNT", "AFT_CMLT_WRT_WARN_TNCY_CNT", "CMLT_WRT_WARN_CASE_CNT", "AFT_CMLT_WRT_WARN_CASE_CNT", "ACTV_PNT_ALLT_CASE_CNT", "CMLT_PNT_ALLT_CASE_CNT", "CMLT_MSD_TOT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE")
         
-        ctx.register_df("df_sq_2", df_sq_2)
+        ctx.register_df("df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY", df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_exp_3 = df_sq_2
+        df_EXPTRANS = df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["TIME_DMNS_KEY", "EST_SCD_KEY", "OFCR_TYPE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MSD_CODE_SCD_KEY", "OFNDR_GNDR_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY", "ACTV_OFNC_TNCY_CNT", "CMLT_OFNC_TNCY_CNT", "AFT_CMLT_WRT_WARN_TNCY_CNT", "CMLT_WRT_WARN_CASE_CNT", "ACTV_PNT_ALLT_CASE_CNT", "CMLT_PNT_ALLT_CASE_CNT", "CMLT_MSD_TOT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "AFT_CMLT_WRT_WARN_CASE_CNT"]:
-            if _col not in df_exp_3.columns:
-                df_exp_3 = df_exp_3.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_3 = df_exp_3.select("TIME_DMNS_KEY", "EST_SCD_KEY", "OFCR_TYPE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MSD_CODE_SCD_KEY", "OFNDR_GNDR_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY", "ACTV_OFNC_TNCY_CNT", "CMLT_OFNC_TNCY_CNT", "AFT_CMLT_WRT_WARN_TNCY_CNT", "CMLT_WRT_WARN_CASE_CNT", "AFT_CMLT_WRT_WARN_CASE_CNT", "ACTV_PNT_ALLT_CASE_CNT", "CMLT_PNT_ALLT_CASE_CNT", "CMLT_MSD_TOT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE")
-        ctx.register_df("df_exp_3", df_exp_3)
+        for _col in ["TIME_DMNS_KEY", "EST_SCD_KEY", "OFCR_TYPE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MSD_CODE_SCD_KEY", "OFNDR_GNDR_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY", "ACTV_OFNC_TNCY_CNT", "CMLT_OFNC_TNCY_CNT", "AFT_CMLT_WRT_WARN_TNCY_CNT", "CMLT_WRT_WARN_CASE_CNT", "AFT_CMLT_WRT_WARN_CASE_CNT", "ACTV_PNT_ALLT_CASE_CNT", "CMLT_PNT_ALLT_CASE_CNT", "CMLT_MSD_TOT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE"]:
+            if _col not in df_EXPTRANS.columns:
+                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_DPA_FACT_GMS_DLY_MSD_SMRY")
         # Write to Target: write_DPA_FACT_GMS_DLY_MSD_SMRY
-        df_write = df_exp_3
+        df_write = df_EXPTRANS
         # Cast columns to match target schema data types
         if "rec_rls_ind" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

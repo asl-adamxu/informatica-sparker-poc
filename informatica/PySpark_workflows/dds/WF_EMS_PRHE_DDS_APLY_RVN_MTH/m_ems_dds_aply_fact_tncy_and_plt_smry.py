@@ -101,8 +101,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         for _col in ["TIME_DMNS_KEY"]:
             if _col not in df_EXP_SET_DEL_INFO.columns:
                 df_EXP_SET_DEL_INFO = df_EXP_SET_DEL_INFO.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_EXP_SET_DEL_INFO = df_EXP_SET_DEL_INFO.select("TIME_DMNS_KEY", "TBL_NAME", "RM_FLG", "RSL_CTL_IND")
+        # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXP_SET_DEL_INFO", df_EXP_SET_DEL_INFO)
         
         logger.info("Step: write_DDS_FACT_TNCY_AND_PLT_SMRY")
@@ -135,13 +134,20 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         
         logger.info("Step: join_mplt_EXP_SP_DELETE_0")
         # Lookup: join_mplt_EXP_SP_DELETE_0
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_mplt_lkp_2.columns if c in df_EXP_SET_DEL_INFO.columns]
-        df_mplt_merge_3 = df_mplt_lkp_2.join(
-            df_EXP_SET_DEL_INFO,
-            on=_common_cols,
-            how="left"
-        )
+        # Merge on common columns — drop lookup columns that duplicate non-key
+        # input columns (e.g. EST_KEY from both sides → ambiguity).
+        _cc = list(dict.fromkeys(c for c in df_mplt_lkp_2.columns if c in df_EXP_SET_DEL_INFO.columns))
+        if _cc:
+            __lkp_dup = [c for c in df_EXP_SET_DEL_INFO.columns if c in df_mplt_lkp_2.columns and c not in _cc]
+            df_mplt_merge_3 = df_mplt_lkp_2.join(
+                df_EXP_SET_DEL_INFO.drop(*__lkp_dup) if __lkp_dup else df_EXP_SET_DEL_INFO,
+                on=_cc, how="left"
+            )
+        else:
+            logger.warning("No common columns between df_mplt_lkp_2 and df_EXP_SET_DEL_INFO — using synthetic key join")
+            df_mplt_merge_3 = df_mplt_lkp_2.withColumn("_join_key", lit(1)).join(
+                df_EXP_SET_DEL_INFO.withColumn("_join_key", lit(1)),
+                on="_join_key", how="left").drop("_join_key")
         ctx.register_df("df_mplt_merge_3", df_mplt_merge_3)
         
         logger.info("Step: apply_mplt_EXP_SP_DELETE")
@@ -164,7 +170,8 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         
         logger.info("Step: apply_mplt_FILTRANS")
         # Filter: apply_mplt_FILTRANS
-        df_mplt_fil_5 = df_mplt_expr_4.filter(expr("RSL_CTL_IND = '1'"))
+        __fil_input = df_mplt_expr_4
+        df_mplt_fil_5 = __fil_input.filter(expr("RSL_CTL_IND = '1'"))
         ctx.register_df("df_mplt_fil_5", df_mplt_fil_5)
         
         logger.info("Step: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD")

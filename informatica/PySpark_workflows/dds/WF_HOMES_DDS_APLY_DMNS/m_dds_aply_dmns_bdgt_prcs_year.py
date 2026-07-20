@@ -55,18 +55,18 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Reading Data From Source - read_DPA_DMNS_BDGT_PRCS_YEAR
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_src_1 = lib.read_sql(spark, _conn, table="DPA_DMNS_BDGT_PRCS_YEAR")
+        df_DPA_DMNS_BDGT_PRCS_YEAR = lib.read_sql(spark, _conn, table="DPA_DMNS_BDGT_PRCS_YEAR")
         
         logger.info("Step: apply_SQ_DPA_DMNS_BDGT_PRCS_YEAR")
         # Source Qualifier: apply_SQ_DPA_DMNS_BDGT_PRCS_YEAR
-        df_sq_2 = df_src_1
+        df_SQ_DPA_DMNS_BDGT_PRCS_YEAR = df_DPA_DMNS_BDGT_PRCS_YEAR
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_2 = df_sq_2.select("DMNS_BDGT_PRCS_YEAR_KEY", "PRCS_YEAR", "PRCS_MTH", "PRCS_DATE", "PRCS_YEAR_TEXT", "PRCS_MTH_TEXT", "PRCS_YEAR_DISP_SEQ_NUM", "PRCS_MTH_DISP_SEQ_NUM")
-        ctx.register_df("df_sq_2", df_sq_2)
+        df_SQ_DPA_DMNS_BDGT_PRCS_YEAR = df_SQ_DPA_DMNS_BDGT_PRCS_YEAR.select("DMNS_BDGT_PRCS_YEAR_KEY", "PRCS_YEAR", "PRCS_MTH", "PRCS_DATE", "PRCS_YEAR_TEXT", "PRCS_MTH_TEXT", "PRCS_YEAR_DISP_SEQ_NUM", "PRCS_MTH_DISP_SEQ_NUM")
+        ctx.register_df("df_SQ_DPA_DMNS_BDGT_PRCS_YEAR", df_SQ_DPA_DMNS_BDGT_PRCS_YEAR)
         
         logger.info("Step: write_DDS_DMNS_BDGT_PRCS_YEAR")
         # Write to Target: write_DDS_DMNS_BDGT_PRCS_YEAR
-        df_write = df_sq_2
+        df_write = df_SQ_DPA_DMNS_BDGT_PRCS_YEAR
         # Cast columns to match target schema data types
         if "prcs_date" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

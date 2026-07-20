@@ -72,24 +72,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.warning("UTL_JOB_PARAM not found, using default values")
     
     try:
-        logger.info("Step: read_SOR_EMS_SMS_CAS_APLY_STS1")
-        # Reading Data From Source - read_SOR_EMS_SMS_CAS_APLY_STS1
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_1 = lib.read_sql(spark, _conn, table="SOR_EMS_SMS_CAS_APLY")
-        
-        logger.info("Step: read_SOR_EMS_SMS_LN_APLY_STS")
-        # Reading Data From Source - read_SOR_EMS_SMS_LN_APLY_STS
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_2 = lib.read_sql(spark, _conn, table="SOR_EMS_SMS_LN")
-        
-        logger.info("Step: read_SOR_EMS_SMS_CAS_APLY_STS")
-        # Reading Data From Source - read_SOR_EMS_SMS_CAS_APLY_STS
-        # Resolve connection by alias (supports lookup/source connections dynamically)
-        _conn = lib.get_db_config(config, "SOR")
-        df_src_3 = lib.read_sql(spark, _conn, table="SOR_EMS_SMS_CAS_APLY")
-        
         logger.info("Step: apply_SQ_SOR_EMS_SMS_LN_APLY_STS1")
         # Source Qualifier: apply_SQ_SOR_EMS_SMS_LN_APLY_STS1
         # SQL Pushdown - executes Informatica SQ SQL on source database
@@ -113,17 +95,17 @@ AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN cert_sts.BGN_DATE AND cert_sts.EN
 AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN  cas_aply_sts.BGN_DATE AND  cas_aply_sts.END_DATE"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_sq_4 = lib.read_sql(spark, _conn, query=query)
+        df_SQ_SOR_EMS_SMS_LN_APLY_STS1 = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_4.columns
+        _sql_cols = df_SQ_SOR_EMS_SMS_LN_APLY_STS1.columns
         _port_cols = ["UNIT_SFA_AREA"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_4 = df_sq_4.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_SQ_SOR_EMS_SMS_LN_APLY_STS1 = df_SQ_SOR_EMS_SMS_LN_APLY_STS1.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_4 = df_sq_4.select("UNIT_SFA_AREA")
+        df_SQ_SOR_EMS_SMS_LN_APLY_STS1 = df_SQ_SOR_EMS_SMS_LN_APLY_STS1.select("UNIT_SFA_AREA")
         
-        ctx.register_df("df_sq_4", df_sq_4)
+        ctx.register_df("df_SQ_SOR_EMS_SMS_LN_APLY_STS1", df_SQ_SOR_EMS_SMS_LN_APLY_STS1)
         
         logger.info("Step: apply_SQ_SOR_EMS_SMS_LN_APLY_STS")
         # Source Qualifier: apply_SQ_SOR_EMS_SMS_LN_APLY_STS
@@ -150,497 +132,622 @@ AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN cert_sts.BGN_DATE AND cert_sts.EN
 AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN  cas_aply_sts.BGN_DATE AND  cas_aply_sts.END_DATE"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
-        df_sq_5 = lib.read_sql(spark, _conn, query=query)
+        df_SQ_SOR_EMS_SMS_LN_APLY_STS = lib.read_sql(spark, _conn, query=query)
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
-        _sql_cols = df_sq_5.columns
+        _sql_cols = df_SQ_SOR_EMS_SMS_LN_APLY_STS.columns
         _port_cols = ["SCHM_CODE", "UNIT_SFA_AREA"]
         for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
             if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_sq_5 = df_sq_5.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+                df_SQ_SOR_EMS_SMS_LN_APLY_STS = df_SQ_SOR_EMS_SMS_LN_APLY_STS.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
         # Select only SQ output ports (matches Informatica behavior)
-        df_sq_5 = df_sq_5.select("SCHM_CODE", "UNIT_SFA_AREA")
+        df_SQ_SOR_EMS_SMS_LN_APLY_STS = df_SQ_SOR_EMS_SMS_LN_APLY_STS.select("SCHM_CODE", "UNIT_SFA_AREA")
         
-        ctx.register_df("df_sq_5", df_sq_5)
+        ctx.register_df("df_SQ_SOR_EMS_SMS_LN_APLY_STS", df_SQ_SOR_EMS_SMS_LN_APLY_STS)
         
         logger.info("Step: apply_RTRTRANS1")
         # Router: apply_RTRTRANS1 - splits into multiple output groups
-        df_rtr_group_over_60_6 = df_sq_4  # Default group
-        ctx.register_df("df_rtr_group_over_60_6", df_rtr_group_over_60_6)
-        df_rtr_group_55_to_60_7 = df_sq_4  # Default group
-        ctx.register_df("df_rtr_group_55_to_60_7", df_rtr_group_55_to_60_7)
-        df_rtr_group_50_to_55_8 = df_sq_4  # Default group
-        ctx.register_df("df_rtr_group_50_to_55_8", df_rtr_group_50_to_55_8)
-        df_rtr_group_45_to_50_9 = df_sq_4  # Default group
-        ctx.register_df("df_rtr_group_45_to_50_9", df_rtr_group_45_to_50_9)
-        df_rtr_group_40_to_45_10 = df_sq_4  # Default group
-        ctx.register_df("df_rtr_group_40_to_45_10", df_rtr_group_40_to_45_10)
-        df_rtr_group_35_to_40_11 = df_sq_4  # Default group
-        ctx.register_df("df_rtr_group_35_to_40_11", df_rtr_group_35_to_40_11)
-        df_rtr_group_30_to_35_12 = df_sq_4  # Default group
-        ctx.register_df("df_rtr_group_30_to_35_12", df_rtr_group_30_to_35_12)
-        df_rtr_group_22_to_30_13 = df_sq_4  # Default group
-        ctx.register_df("df_rtr_group_22_to_30_13", df_rtr_group_22_to_30_13)
-        df_rtr_group_under_22_14 = df_sq_4  # Default group
-        ctx.register_df("df_rtr_group_under_22_14", df_rtr_group_under_22_14)
-        df_rtr_default_15 = df_sq_4  # Default group
-        ctx.register_df("df_rtr_default_15", df_rtr_default_15)
+        df_rtr_group_over_60_1 = df_SQ_SOR_EMS_SMS_LN_APLY_STS1.filter(expr("UNIT_SFA_AREA > 60"))
+        df_rtr_group_over_60_1 = df_rtr_group_over_60_1.drop("UNIT_SFA_AREA1").withColumnRenamed("UNIT_SFA_AREA", "UNIT_SFA_AREA1")
+        ctx.register_df("df_rtr_group_over_60_1", df_rtr_group_over_60_1)
+        df_rtr_group_55_to_60_2 = df_SQ_SOR_EMS_SMS_LN_APLY_STS1.filter(expr("UNIT_SFA_AREA > 55 AND UNIT_SFA_AREA <= 60"))
+        df_rtr_group_55_to_60_2 = df_rtr_group_55_to_60_2.drop("UNIT_SFA_AREA3").withColumnRenamed("UNIT_SFA_AREA", "UNIT_SFA_AREA3")
+        ctx.register_df("df_rtr_group_55_to_60_2", df_rtr_group_55_to_60_2)
+        df_rtr_group_50_to_55_3 = df_SQ_SOR_EMS_SMS_LN_APLY_STS1.filter(expr("UNIT_SFA_AREA > 50 AND UNIT_SFA_AREA <= 55"))
+        df_rtr_group_50_to_55_3 = df_rtr_group_50_to_55_3.drop("UNIT_SFA_AREA4").withColumnRenamed("UNIT_SFA_AREA", "UNIT_SFA_AREA4")
+        ctx.register_df("df_rtr_group_50_to_55_3", df_rtr_group_50_to_55_3)
+        df_rtr_group_45_to_50_4 = df_SQ_SOR_EMS_SMS_LN_APLY_STS1.filter(expr("UNIT_SFA_AREA > 45 AND UNIT_SFA_AREA <= 50"))
+        df_rtr_group_45_to_50_4 = df_rtr_group_45_to_50_4.drop("UNIT_SFA_AREA5").withColumnRenamed("UNIT_SFA_AREA", "UNIT_SFA_AREA5")
+        ctx.register_df("df_rtr_group_45_to_50_4", df_rtr_group_45_to_50_4)
+        df_rtr_group_40_to_45_5 = df_SQ_SOR_EMS_SMS_LN_APLY_STS1.filter(expr("UNIT_SFA_AREA > 40 AND UNIT_SFA_AREA <= 45"))
+        df_rtr_group_40_to_45_5 = df_rtr_group_40_to_45_5.drop("UNIT_SFA_AREA6").withColumnRenamed("UNIT_SFA_AREA", "UNIT_SFA_AREA6")
+        ctx.register_df("df_rtr_group_40_to_45_5", df_rtr_group_40_to_45_5)
+        df_rtr_group_35_to_40_6 = df_SQ_SOR_EMS_SMS_LN_APLY_STS1.filter(expr("UNIT_SFA_AREA > 35 AND UNIT_SFA_AREA <= 40"))
+        df_rtr_group_35_to_40_6 = df_rtr_group_35_to_40_6.drop("UNIT_SFA_AREA7").withColumnRenamed("UNIT_SFA_AREA", "UNIT_SFA_AREA7")
+        ctx.register_df("df_rtr_group_35_to_40_6", df_rtr_group_35_to_40_6)
+        df_rtr_group_30_to_35_7 = df_SQ_SOR_EMS_SMS_LN_APLY_STS1.filter(expr("UNIT_SFA_AREA > 30 AND UNIT_SFA_AREA <= 35"))
+        df_rtr_group_30_to_35_7 = df_rtr_group_30_to_35_7.drop("UNIT_SFA_AREA8").withColumnRenamed("UNIT_SFA_AREA", "UNIT_SFA_AREA8")
+        ctx.register_df("df_rtr_group_30_to_35_7", df_rtr_group_30_to_35_7)
+        df_rtr_group_22_to_30_8 = df_SQ_SOR_EMS_SMS_LN_APLY_STS1.filter(expr("UNIT_SFA_AREA > 22 AND UNIT_SFA_AREA <= 30"))
+        df_rtr_group_22_to_30_8 = df_rtr_group_22_to_30_8.drop("UNIT_SFA_AREA9").withColumnRenamed("UNIT_SFA_AREA", "UNIT_SFA_AREA9")
+        ctx.register_df("df_rtr_group_22_to_30_8", df_rtr_group_22_to_30_8)
+        df_rtr_group_under_22_9 = df_SQ_SOR_EMS_SMS_LN_APLY_STS1.filter(expr("UNIT_SFA_AREA <= 22"))
+        df_rtr_group_under_22_9 = df_rtr_group_under_22_9.drop("UNIT_SFA_AREA10").withColumnRenamed("UNIT_SFA_AREA", "UNIT_SFA_AREA10")
+        ctx.register_df("df_rtr_group_under_22_9", df_rtr_group_under_22_9)
+        df_rtr_default_10 = df_SQ_SOR_EMS_SMS_LN_APLY_STS1.filter(~(expr("UNIT_SFA_AREA > 60")) & ~(expr("UNIT_SFA_AREA > 55 AND UNIT_SFA_AREA <= 60")) & ~(expr("UNIT_SFA_AREA > 50 AND UNIT_SFA_AREA <= 55")) & ~(expr("UNIT_SFA_AREA > 45 AND UNIT_SFA_AREA <= 50")) & ~(expr("UNIT_SFA_AREA > 40 AND UNIT_SFA_AREA <= 45")) & ~(expr("UNIT_SFA_AREA > 35 AND UNIT_SFA_AREA <= 40")) & ~(expr("UNIT_SFA_AREA > 30 AND UNIT_SFA_AREA <= 35")) & ~(expr("UNIT_SFA_AREA > 22 AND UNIT_SFA_AREA <= 30")) & ~(expr("UNIT_SFA_AREA <= 22")))
+        df_rtr_default_10 = df_rtr_default_10.drop("UNIT_SFA_AREA2").withColumnRenamed("UNIT_SFA_AREA", "UNIT_SFA_AREA2")
+        ctx.register_df("df_rtr_default_10", df_rtr_default_10)
         
         logger.info("Step: apply_RTRTRANS")
         # Router: apply_RTRTRANS - splits into multiple output groups
-        df_rtr_group_over_60_16 = df_sq_5  # Default group
-        ctx.register_df("df_rtr_group_over_60_16", df_rtr_group_over_60_16)
-        df_rtr_group_55_to_60_17 = df_sq_5  # Default group
-        ctx.register_df("df_rtr_group_55_to_60_17", df_rtr_group_55_to_60_17)
-        df_rtr_group_50_to_55_18 = df_sq_5  # Default group
-        ctx.register_df("df_rtr_group_50_to_55_18", df_rtr_group_50_to_55_18)
-        df_rtr_group_45_to_50_19 = df_sq_5  # Default group
-        ctx.register_df("df_rtr_group_45_to_50_19", df_rtr_group_45_to_50_19)
-        df_rtr_group_40_to_45_20 = df_sq_5  # Default group
-        ctx.register_df("df_rtr_group_40_to_45_20", df_rtr_group_40_to_45_20)
-        df_rtr_group_35_to_40_21 = df_sq_5  # Default group
-        ctx.register_df("df_rtr_group_35_to_40_21", df_rtr_group_35_to_40_21)
-        df_rtr_group_30_to_35_22 = df_sq_5  # Default group
-        ctx.register_df("df_rtr_group_30_to_35_22", df_rtr_group_30_to_35_22)
-        df_rtr_group_22_to_30_23 = df_sq_5  # Default group
-        ctx.register_df("df_rtr_group_22_to_30_23", df_rtr_group_22_to_30_23)
-        df_rtr_group_under_22_24 = df_sq_5  # Default group
-        ctx.register_df("df_rtr_group_under_22_24", df_rtr_group_under_22_24)
-        df_rtr_default_25 = df_sq_5  # Default group
-        ctx.register_df("df_rtr_default_25", df_rtr_default_25)
+        df_rtr_group_over_60_11 = df_SQ_SOR_EMS_SMS_LN_APLY_STS.filter(expr("UNIT_SFA_AREA > 60"))
+        df_rtr_group_over_60_11 = df_rtr_group_over_60_11.drop("SCHM_CODE1").withColumnRenamed("SCHM_CODE", "SCHM_CODE1")
+        df_rtr_group_over_60_11 = df_rtr_group_over_60_11.drop("UNIT_SFA_AREA1").withColumnRenamed("UNIT_SFA_AREA", "UNIT_SFA_AREA1")
+        ctx.register_df("df_rtr_group_over_60_11", df_rtr_group_over_60_11)
+        df_rtr_group_55_to_60_12 = df_SQ_SOR_EMS_SMS_LN_APLY_STS.filter(expr("UNIT_SFA_AREA > 55 AND UNIT_SFA_AREA <= 60"))
+        df_rtr_group_55_to_60_12 = df_rtr_group_55_to_60_12.drop("SCHM_CODE3").withColumnRenamed("SCHM_CODE", "SCHM_CODE3")
+        df_rtr_group_55_to_60_12 = df_rtr_group_55_to_60_12.drop("UNIT_SFA_AREA3").withColumnRenamed("UNIT_SFA_AREA", "UNIT_SFA_AREA3")
+        ctx.register_df("df_rtr_group_55_to_60_12", df_rtr_group_55_to_60_12)
+        df_rtr_group_50_to_55_13 = df_SQ_SOR_EMS_SMS_LN_APLY_STS.filter(expr("UNIT_SFA_AREA > 50 AND UNIT_SFA_AREA <= 55"))
+        df_rtr_group_50_to_55_13 = df_rtr_group_50_to_55_13.drop("SCHM_CODE4").withColumnRenamed("SCHM_CODE", "SCHM_CODE4")
+        df_rtr_group_50_to_55_13 = df_rtr_group_50_to_55_13.drop("UNIT_SFA_AREA4").withColumnRenamed("UNIT_SFA_AREA", "UNIT_SFA_AREA4")
+        ctx.register_df("df_rtr_group_50_to_55_13", df_rtr_group_50_to_55_13)
+        df_rtr_group_45_to_50_14 = df_SQ_SOR_EMS_SMS_LN_APLY_STS.filter(expr("UNIT_SFA_AREA > 45 AND UNIT_SFA_AREA <= 50"))
+        df_rtr_group_45_to_50_14 = df_rtr_group_45_to_50_14.drop("SCHM_CODE5").withColumnRenamed("SCHM_CODE", "SCHM_CODE5")
+        df_rtr_group_45_to_50_14 = df_rtr_group_45_to_50_14.drop("UNIT_SFA_AREA5").withColumnRenamed("UNIT_SFA_AREA", "UNIT_SFA_AREA5")
+        ctx.register_df("df_rtr_group_45_to_50_14", df_rtr_group_45_to_50_14)
+        df_rtr_group_40_to_45_15 = df_SQ_SOR_EMS_SMS_LN_APLY_STS.filter(expr("UNIT_SFA_AREA > 40 AND UNIT_SFA_AREA <= 45"))
+        df_rtr_group_40_to_45_15 = df_rtr_group_40_to_45_15.drop("SCHM_CODE6").withColumnRenamed("SCHM_CODE", "SCHM_CODE6")
+        df_rtr_group_40_to_45_15 = df_rtr_group_40_to_45_15.drop("UNIT_SFA_AREA6").withColumnRenamed("UNIT_SFA_AREA", "UNIT_SFA_AREA6")
+        ctx.register_df("df_rtr_group_40_to_45_15", df_rtr_group_40_to_45_15)
+        df_rtr_group_35_to_40_16 = df_SQ_SOR_EMS_SMS_LN_APLY_STS.filter(expr("UNIT_SFA_AREA > 35 AND UNIT_SFA_AREA <= 40"))
+        df_rtr_group_35_to_40_16 = df_rtr_group_35_to_40_16.drop("SCHM_CODE7").withColumnRenamed("SCHM_CODE", "SCHM_CODE7")
+        df_rtr_group_35_to_40_16 = df_rtr_group_35_to_40_16.drop("UNIT_SFA_AREA7").withColumnRenamed("UNIT_SFA_AREA", "UNIT_SFA_AREA7")
+        ctx.register_df("df_rtr_group_35_to_40_16", df_rtr_group_35_to_40_16)
+        df_rtr_group_30_to_35_17 = df_SQ_SOR_EMS_SMS_LN_APLY_STS.filter(expr("UNIT_SFA_AREA > 30 AND UNIT_SFA_AREA <= 35"))
+        df_rtr_group_30_to_35_17 = df_rtr_group_30_to_35_17.drop("SCHM_CODE8").withColumnRenamed("SCHM_CODE", "SCHM_CODE8")
+        df_rtr_group_30_to_35_17 = df_rtr_group_30_to_35_17.drop("UNIT_SFA_AREA8").withColumnRenamed("UNIT_SFA_AREA", "UNIT_SFA_AREA8")
+        ctx.register_df("df_rtr_group_30_to_35_17", df_rtr_group_30_to_35_17)
+        df_rtr_group_22_to_30_18 = df_SQ_SOR_EMS_SMS_LN_APLY_STS.filter(expr("UNIT_SFA_AREA > 22 AND UNIT_SFA_AREA <= 30"))
+        df_rtr_group_22_to_30_18 = df_rtr_group_22_to_30_18.drop("SCHM_CODE9").withColumnRenamed("SCHM_CODE", "SCHM_CODE9")
+        df_rtr_group_22_to_30_18 = df_rtr_group_22_to_30_18.drop("UNIT_SFA_AREA9").withColumnRenamed("UNIT_SFA_AREA", "UNIT_SFA_AREA9")
+        ctx.register_df("df_rtr_group_22_to_30_18", df_rtr_group_22_to_30_18)
+        df_rtr_group_under_22_19 = df_SQ_SOR_EMS_SMS_LN_APLY_STS.filter(expr("UNIT_SFA_AREA <= 22"))
+        df_rtr_group_under_22_19 = df_rtr_group_under_22_19.drop("SCHM_CODE10").withColumnRenamed("SCHM_CODE", "SCHM_CODE10")
+        df_rtr_group_under_22_19 = df_rtr_group_under_22_19.drop("UNIT_SFA_AREA10").withColumnRenamed("UNIT_SFA_AREA", "UNIT_SFA_AREA10")
+        ctx.register_df("df_rtr_group_under_22_19", df_rtr_group_under_22_19)
+        df_rtr_default_20 = df_SQ_SOR_EMS_SMS_LN_APLY_STS.filter(~(expr("UNIT_SFA_AREA > 60")) & ~(expr("UNIT_SFA_AREA > 55 AND UNIT_SFA_AREA <= 60")) & ~(expr("UNIT_SFA_AREA > 50 AND UNIT_SFA_AREA <= 55")) & ~(expr("UNIT_SFA_AREA > 45 AND UNIT_SFA_AREA <= 50")) & ~(expr("UNIT_SFA_AREA > 40 AND UNIT_SFA_AREA <= 45")) & ~(expr("UNIT_SFA_AREA > 35 AND UNIT_SFA_AREA <= 40")) & ~(expr("UNIT_SFA_AREA > 30 AND UNIT_SFA_AREA <= 35")) & ~(expr("UNIT_SFA_AREA > 22 AND UNIT_SFA_AREA <= 30")) & ~(expr("UNIT_SFA_AREA <= 22")))
+        df_rtr_default_20 = df_rtr_default_20.drop("SCHM_CODE2").withColumnRenamed("SCHM_CODE", "SCHM_CODE2")
+        df_rtr_default_20 = df_rtr_default_20.drop("UNIT_SFA_AREA2").withColumnRenamed("UNIT_SFA_AREA", "UNIT_SFA_AREA2")
+        ctx.register_df("df_rtr_default_20", df_rtr_default_20)
         
         logger.info("Step: apply_EXPTRANS91")
         # Expression: apply_EXPTRANS91
-        df_exp_26 = df_rtr_group_over_60_6
-        df_exp_26 = df_exp_26.withColumn("UNIT_SIZE_CODE", expr("'9'"))
+        df_EXPTRANS91 = df_rtr_group_under_22_9
+        df_EXPTRANS91 = df_EXPTRANS91.withColumn("UNIT_SIZE_CODE", expr("'9'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["UNIT_SFA_AREA10"]:
-            if _col not in df_exp_26.columns:
-                df_exp_26 = df_exp_26.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_26 = df_exp_26.select("UNIT_SFA_AREA10", "UNIT_SIZE_CODE")
-        ctx.register_df("df_exp_26", df_exp_26)
+            if _col not in df_EXPTRANS91.columns:
+                df_EXPTRANS91 = df_EXPTRANS91.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS91", df_EXPTRANS91)
         
         logger.info("Step: apply_EXPTRANS81")
         # Expression: apply_EXPTRANS81
-        df_exp_27 = df_rtr_group_over_60_6
-        df_exp_27 = df_exp_27.withColumn("UNIT_SIZE_CODE", expr("'8'"))
+        df_EXPTRANS81 = df_rtr_group_22_to_30_8
+        df_EXPTRANS81 = df_EXPTRANS81.withColumn("UNIT_SIZE_CODE", expr("'8'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["UNIT_SFA_AREA9"]:
-            if _col not in df_exp_27.columns:
-                df_exp_27 = df_exp_27.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_27 = df_exp_27.select("UNIT_SFA_AREA9", "UNIT_SIZE_CODE")
-        ctx.register_df("df_exp_27", df_exp_27)
+            if _col not in df_EXPTRANS81.columns:
+                df_EXPTRANS81 = df_EXPTRANS81.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS81", df_EXPTRANS81)
         
         logger.info("Step: apply_EXPTRANS71")
         # Expression: apply_EXPTRANS71
-        df_exp_28 = df_rtr_group_over_60_6
-        df_exp_28 = df_exp_28.withColumn("UNIT_SIZE_CODE", expr("'7'"))
+        df_EXPTRANS71 = df_rtr_group_30_to_35_7
+        df_EXPTRANS71 = df_EXPTRANS71.withColumn("UNIT_SIZE_CODE", expr("'7'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["UNIT_SFA_AREA8"]:
-            if _col not in df_exp_28.columns:
-                df_exp_28 = df_exp_28.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_28 = df_exp_28.select("UNIT_SFA_AREA8", "UNIT_SIZE_CODE")
-        ctx.register_df("df_exp_28", df_exp_28)
+            if _col not in df_EXPTRANS71.columns:
+                df_EXPTRANS71 = df_EXPTRANS71.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS71", df_EXPTRANS71)
         
         logger.info("Step: apply_EXPTRANS61")
         # Expression: apply_EXPTRANS61
-        df_exp_29 = df_rtr_group_over_60_6
-        df_exp_29 = df_exp_29.withColumn("UNIT_SIZE_CODE", expr("'6'"))
+        df_EXPTRANS61 = df_rtr_group_35_to_40_6
+        df_EXPTRANS61 = df_EXPTRANS61.withColumn("UNIT_SIZE_CODE", expr("'6'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["UNIT_SFA_AREA7"]:
-            if _col not in df_exp_29.columns:
-                df_exp_29 = df_exp_29.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_29 = df_exp_29.select("UNIT_SFA_AREA7", "UNIT_SIZE_CODE")
-        ctx.register_df("df_exp_29", df_exp_29)
+            if _col not in df_EXPTRANS61.columns:
+                df_EXPTRANS61 = df_EXPTRANS61.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS61", df_EXPTRANS61)
         
         logger.info("Step: apply_EXPTRANS51")
         # Expression: apply_EXPTRANS51
-        df_exp_30 = df_rtr_group_over_60_6
-        df_exp_30 = df_exp_30.withColumn("UNIT_SIZE_CODE", expr("'5'"))
+        df_EXPTRANS51 = df_rtr_group_40_to_45_5
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("UNIT_SIZE_CODE", expr("'5'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["UNIT_SFA_AREA6"]:
-            if _col not in df_exp_30.columns:
-                df_exp_30 = df_exp_30.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_30 = df_exp_30.select("UNIT_SFA_AREA6", "UNIT_SIZE_CODE")
-        ctx.register_df("df_exp_30", df_exp_30)
+            if _col not in df_EXPTRANS51.columns:
+                df_EXPTRANS51 = df_EXPTRANS51.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS51", df_EXPTRANS51)
         
         logger.info("Step: apply_EXPTRANS41")
         # Expression: apply_EXPTRANS41
-        df_exp_31 = df_rtr_group_over_60_6
-        df_exp_31 = df_exp_31.withColumn("UNIT_SIZE_CODE", expr("'4'"))
+        df_EXPTRANS41 = df_rtr_group_45_to_50_4
+        df_EXPTRANS41 = df_EXPTRANS41.withColumn("UNIT_SIZE_CODE", expr("'4'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["UNIT_SFA_AREA5"]:
-            if _col not in df_exp_31.columns:
-                df_exp_31 = df_exp_31.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_31 = df_exp_31.select("UNIT_SFA_AREA5", "UNIT_SIZE_CODE")
-        ctx.register_df("df_exp_31", df_exp_31)
+            if _col not in df_EXPTRANS41.columns:
+                df_EXPTRANS41 = df_EXPTRANS41.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS41", df_EXPTRANS41)
         
         logger.info("Step: apply_EXPTRANS31")
         # Expression: apply_EXPTRANS31
-        df_exp_32 = df_rtr_group_over_60_6
-        df_exp_32 = df_exp_32.withColumn("UNIT_SIZE_CODE", expr("'3'"))
+        df_EXPTRANS31 = df_rtr_group_50_to_55_3
+        df_EXPTRANS31 = df_EXPTRANS31.withColumn("UNIT_SIZE_CODE", expr("'3'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["UNIT_SFA_AREA4"]:
-            if _col not in df_exp_32.columns:
-                df_exp_32 = df_exp_32.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_32 = df_exp_32.select("UNIT_SFA_AREA4", "UNIT_SIZE_CODE")
-        ctx.register_df("df_exp_32", df_exp_32)
+            if _col not in df_EXPTRANS31.columns:
+                df_EXPTRANS31 = df_EXPTRANS31.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS31", df_EXPTRANS31)
         
         logger.info("Step: apply_EXPTRANS21")
         # Expression: apply_EXPTRANS21
-        df_exp_33 = df_rtr_group_over_60_6
-        df_exp_33 = df_exp_33.withColumn("UNIT_SIZE_CODE", expr("'2'"))
+        df_EXPTRANS21 = df_rtr_group_55_to_60_2
+        df_EXPTRANS21 = df_EXPTRANS21.withColumn("UNIT_SIZE_CODE", expr("'2'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["UNIT_SFA_AREA3"]:
-            if _col not in df_exp_33.columns:
-                df_exp_33 = df_exp_33.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_33 = df_exp_33.select("UNIT_SFA_AREA3", "UNIT_SIZE_CODE")
-        ctx.register_df("df_exp_33", df_exp_33)
+            if _col not in df_EXPTRANS21.columns:
+                df_EXPTRANS21 = df_EXPTRANS21.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS21", df_EXPTRANS21)
         
         logger.info("Step: apply_EXPTRANS11")
         # Expression: apply_EXPTRANS11
-        df_exp_34 = df_rtr_group_over_60_6
-        df_exp_34 = df_exp_34.withColumn("UNIT_SIZE_CODE", expr("'1'"))
+        df_EXPTRANS11 = df_rtr_group_over_60_1
+        df_EXPTRANS11 = df_EXPTRANS11.withColumn("UNIT_SIZE_CODE", expr("'1'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["UNIT_SFA_AREA1"]:
-            if _col not in df_exp_34.columns:
-                df_exp_34 = df_exp_34.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_34 = df_exp_34.select("UNIT_SFA_AREA1", "UNIT_SIZE_CODE")
-        ctx.register_df("df_exp_34", df_exp_34)
+            if _col not in df_EXPTRANS11.columns:
+                df_EXPTRANS11 = df_EXPTRANS11.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS11", df_EXPTRANS11)
         
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
-        df_exp_35 = df_rtr_group_over_60_6
-        df_exp_35 = df_exp_35.withColumn("UNIT_SIZE_CODE", expr("'1'"))
+        df_EXPTRANS1 = df_rtr_group_over_60_11
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("UNIT_SIZE_CODE", expr("'1'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["SCHM_CODE1", "UNIT_SFA_AREA1"]:
-            if _col not in df_exp_35.columns:
-                df_exp_35 = df_exp_35.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_35 = df_exp_35.select("SCHM_CODE1", "UNIT_SFA_AREA1", "UNIT_SIZE_CODE")
-        ctx.register_df("df_exp_35", df_exp_35)
+            if _col not in df_EXPTRANS1.columns:
+                df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
         
         logger.info("Step: apply_EXPTRANS2")
         # Expression: apply_EXPTRANS2
-        df_exp_36 = df_rtr_group_over_60_6
-        df_exp_36 = df_exp_36.withColumn("UNIT_SIZE_CODE", expr("'2'"))
+        df_EXPTRANS2 = df_rtr_group_55_to_60_12
+        df_EXPTRANS2 = df_EXPTRANS2.withColumn("UNIT_SIZE_CODE", expr("'2'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["SCHM_CODE3", "UNIT_SFA_AREA3"]:
-            if _col not in df_exp_36.columns:
-                df_exp_36 = df_exp_36.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_36 = df_exp_36.select("SCHM_CODE3", "UNIT_SFA_AREA3", "UNIT_SIZE_CODE")
-        ctx.register_df("df_exp_36", df_exp_36)
+            if _col not in df_EXPTRANS2.columns:
+                df_EXPTRANS2 = df_EXPTRANS2.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS2", df_EXPTRANS2)
         
         logger.info("Step: apply_EXPTRANS3")
         # Expression: apply_EXPTRANS3
-        df_exp_37 = df_rtr_group_over_60_6
-        df_exp_37 = df_exp_37.withColumn("UNIT_SIZE_CODE", expr("'3'"))
+        df_EXPTRANS3 = df_rtr_group_50_to_55_13
+        df_EXPTRANS3 = df_EXPTRANS3.withColumn("UNIT_SIZE_CODE", expr("'3'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["SCHM_CODE4", "UNIT_SFA_AREA4"]:
-            if _col not in df_exp_37.columns:
-                df_exp_37 = df_exp_37.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_37 = df_exp_37.select("SCHM_CODE4", "UNIT_SFA_AREA4", "UNIT_SIZE_CODE")
-        ctx.register_df("df_exp_37", df_exp_37)
+            if _col not in df_EXPTRANS3.columns:
+                df_EXPTRANS3 = df_EXPTRANS3.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS3", df_EXPTRANS3)
         
         logger.info("Step: apply_EXPTRANS4")
         # Expression: apply_EXPTRANS4
-        df_exp_38 = df_rtr_group_over_60_6
-        df_exp_38 = df_exp_38.withColumn("UNIT_SIZE_CODE", expr("'4'"))
+        df_EXPTRANS4 = df_rtr_group_45_to_50_14
+        df_EXPTRANS4 = df_EXPTRANS4.withColumn("UNIT_SIZE_CODE", expr("'4'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["SCHM_CODE5", "UNIT_SFA_AREA5"]:
-            if _col not in df_exp_38.columns:
-                df_exp_38 = df_exp_38.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_38 = df_exp_38.select("SCHM_CODE5", "UNIT_SFA_AREA5", "UNIT_SIZE_CODE")
-        ctx.register_df("df_exp_38", df_exp_38)
+            if _col not in df_EXPTRANS4.columns:
+                df_EXPTRANS4 = df_EXPTRANS4.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS4", df_EXPTRANS4)
         
         logger.info("Step: apply_EXPTRANS5")
         # Expression: apply_EXPTRANS5
-        df_exp_39 = df_rtr_group_over_60_6
-        df_exp_39 = df_exp_39.withColumn("UNIT_SIZE_CODE", expr("'5'"))
+        df_EXPTRANS5 = df_rtr_group_40_to_45_15
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("UNIT_SIZE_CODE", expr("'5'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["SCHM_CODE6", "UNIT_SFA_AREA6"]:
-            if _col not in df_exp_39.columns:
-                df_exp_39 = df_exp_39.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_39 = df_exp_39.select("SCHM_CODE6", "UNIT_SFA_AREA6", "UNIT_SIZE_CODE")
-        ctx.register_df("df_exp_39", df_exp_39)
+            if _col not in df_EXPTRANS5.columns:
+                df_EXPTRANS5 = df_EXPTRANS5.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS5", df_EXPTRANS5)
         
         logger.info("Step: apply_EXPTRANS6")
         # Expression: apply_EXPTRANS6
-        df_exp_40 = df_rtr_group_over_60_6
-        df_exp_40 = df_exp_40.withColumn("UNIT_SIZE_CODE", expr("'6'"))
+        df_EXPTRANS6 = df_rtr_group_35_to_40_16
+        df_EXPTRANS6 = df_EXPTRANS6.withColumn("UNIT_SIZE_CODE", expr("'6'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["SCHM_CODE7", "UNIT_SFA_AREA7"]:
-            if _col not in df_exp_40.columns:
-                df_exp_40 = df_exp_40.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_40 = df_exp_40.select("SCHM_CODE7", "UNIT_SFA_AREA7", "UNIT_SIZE_CODE")
-        ctx.register_df("df_exp_40", df_exp_40)
+            if _col not in df_EXPTRANS6.columns:
+                df_EXPTRANS6 = df_EXPTRANS6.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS6", df_EXPTRANS6)
         
         logger.info("Step: apply_EXPTRANS7")
         # Expression: apply_EXPTRANS7
-        df_exp_41 = df_rtr_group_over_60_6
-        df_exp_41 = df_exp_41.withColumn("UNIT_SIZE_CODE", expr("'7'"))
+        df_EXPTRANS7 = df_rtr_group_30_to_35_17
+        df_EXPTRANS7 = df_EXPTRANS7.withColumn("UNIT_SIZE_CODE", expr("'7'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["SCHM_CODE8", "UNIT_SFA_AREA8"]:
-            if _col not in df_exp_41.columns:
-                df_exp_41 = df_exp_41.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_41 = df_exp_41.select("SCHM_CODE8", "UNIT_SFA_AREA8", "UNIT_SIZE_CODE")
-        ctx.register_df("df_exp_41", df_exp_41)
+            if _col not in df_EXPTRANS7.columns:
+                df_EXPTRANS7 = df_EXPTRANS7.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS7", df_EXPTRANS7)
         
         logger.info("Step: apply_EXPTRANS8")
         # Expression: apply_EXPTRANS8
-        df_exp_42 = df_rtr_group_over_60_6
-        df_exp_42 = df_exp_42.withColumn("UNIT_SIZE_CODE", expr("'8'"))
+        df_EXPTRANS8 = df_rtr_group_22_to_30_18
+        df_EXPTRANS8 = df_EXPTRANS8.withColumn("UNIT_SIZE_CODE", expr("'8'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["SCHM_CODE9", "UNIT_SFA_AREA9"]:
-            if _col not in df_exp_42.columns:
-                df_exp_42 = df_exp_42.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_42 = df_exp_42.select("SCHM_CODE9", "UNIT_SFA_AREA9", "UNIT_SIZE_CODE")
-        ctx.register_df("df_exp_42", df_exp_42)
+            if _col not in df_EXPTRANS8.columns:
+                df_EXPTRANS8 = df_EXPTRANS8.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS8", df_EXPTRANS8)
         
         logger.info("Step: apply_EXPTRANS9")
         # Expression: apply_EXPTRANS9
-        df_exp_43 = df_rtr_group_over_60_6
-        df_exp_43 = df_exp_43.withColumn("UNIT_SIZE_CODE", expr("'9'"))
+        df_EXPTRANS9 = df_rtr_group_under_22_19
+        df_EXPTRANS9 = df_EXPTRANS9.withColumn("UNIT_SIZE_CODE", expr("'9'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["SCHM_CODE10", "UNIT_SFA_AREA10"]:
-            if _col not in df_exp_43.columns:
-                df_exp_43 = df_exp_43.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_43 = df_exp_43.select("SCHM_CODE10", "UNIT_SFA_AREA10", "UNIT_SIZE_CODE")
-        ctx.register_df("df_exp_43", df_exp_43)
+            if _col not in df_EXPTRANS9.columns:
+                df_EXPTRANS9 = df_EXPTRANS9.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS9", df_EXPTRANS9)
         
         logger.info("Step: apply_Union_Transformation1")
         # Union: apply_Union_Transformation1
-        df_un_44 = df_exp_29
-        df_un_44 = df_un_44.unionByName(df_exp_28, allowMissingColumns=True)
-        df_un_44 = df_un_44.unionByName(df_exp_27, allowMissingColumns=True)
-        df_un_44 = df_un_44.unionByName(df_exp_26, allowMissingColumns=True)
-        df_un_44 = df_un_44.unionByName(df_exp_34, allowMissingColumns=True)
-        df_un_44 = df_un_44.unionByName(df_exp_33, allowMissingColumns=True)
-        df_un_44 = df_un_44.unionByName(df_exp_32, allowMissingColumns=True)
-        df_un_44 = df_un_44.unionByName(df_exp_31, allowMissingColumns=True)
-        df_un_44 = df_un_44.unionByName(df_exp_30, allowMissingColumns=True)
+        # Select + rename upstream columns per input, then union
+        df_Union_Transformation1_newgroup = df_EXPTRANS11.select(
+            col("UNIT_SFA_AREA1").alias("UNIT_SFA_AREA1"),
+            col("UNIT_SIZE_CODE").alias("UNIT_SIZE_CODE")        )
+        df_Union_Transformation1_newgroup1 = df_EXPTRANS21.select(
+            col("UNIT_SFA_AREA3").alias("UNIT_SFA_AREA1"),
+            col("UNIT_SIZE_CODE").alias("UNIT_SIZE_CODE")        )
+        df_Union_Transformation1_newgroup2 = df_EXPTRANS31.select(
+            col("UNIT_SFA_AREA4").alias("UNIT_SFA_AREA1"),
+            col("UNIT_SIZE_CODE").alias("UNIT_SIZE_CODE")        )
+        df_Union_Transformation1_newgroup3 = df_EXPTRANS41.select(
+            col("UNIT_SFA_AREA5").alias("UNIT_SFA_AREA1"),
+            col("UNIT_SIZE_CODE").alias("UNIT_SIZE_CODE")        )
+        df_Union_Transformation1_newgroup4 = df_EXPTRANS51.select(
+            col("UNIT_SFA_AREA6").alias("UNIT_SFA_AREA1"),
+            col("UNIT_SIZE_CODE").alias("UNIT_SIZE_CODE")        )
+        df_Union_Transformation1_newgroup5 = df_EXPTRANS61.select(
+            col("UNIT_SFA_AREA7").alias("UNIT_SFA_AREA1"),
+            col("UNIT_SIZE_CODE").alias("UNIT_SIZE_CODE")        )
+        df_Union_Transformation1_newgroup6 = df_EXPTRANS71.select(
+            col("UNIT_SFA_AREA8").alias("UNIT_SFA_AREA1"),
+            col("UNIT_SIZE_CODE").alias("UNIT_SIZE_CODE")        )
+        df_Union_Transformation1_newgroup7 = df_EXPTRANS81.select(
+            col("UNIT_SFA_AREA9").alias("UNIT_SFA_AREA1"),
+            col("UNIT_SIZE_CODE").alias("UNIT_SIZE_CODE")        )
+        df_Union_Transformation1_newgroup8 = df_EXPTRANS91.select(
+            col("UNIT_SFA_AREA10").alias("UNIT_SFA_AREA1"),
+            col("UNIT_SIZE_CODE").alias("UNIT_SIZE_CODE")        )
+        df_Union_Transformation1 = df_Union_Transformation1_newgroup
+        df_Union_Transformation1 = df_Union_Transformation1.unionByName(df_Union_Transformation1_newgroup1, allowMissingColumns=True)
+        df_Union_Transformation1 = df_Union_Transformation1.unionByName(df_Union_Transformation1_newgroup2, allowMissingColumns=True)
+        df_Union_Transformation1 = df_Union_Transformation1.unionByName(df_Union_Transformation1_newgroup3, allowMissingColumns=True)
+        df_Union_Transformation1 = df_Union_Transformation1.unionByName(df_Union_Transformation1_newgroup4, allowMissingColumns=True)
+        df_Union_Transformation1 = df_Union_Transformation1.unionByName(df_Union_Transformation1_newgroup5, allowMissingColumns=True)
+        df_Union_Transformation1 = df_Union_Transformation1.unionByName(df_Union_Transformation1_newgroup6, allowMissingColumns=True)
+        df_Union_Transformation1 = df_Union_Transformation1.unionByName(df_Union_Transformation1_newgroup7, allowMissingColumns=True)
+        df_Union_Transformation1 = df_Union_Transformation1.unionByName(df_Union_Transformation1_newgroup8, allowMissingColumns=True)
         # Select only union output columns
-        df_un_44 = df_un_44.select("UNIT_SFA_AREA1", "UNIT_SIZE_CODE")
-        ctx.register_df("df_un_44", df_un_44)
+        df_Union_Transformation1 = df_Union_Transformation1.select("UNIT_SFA_AREA1", "UNIT_SIZE_CODE")
+        ctx.register_df("df_Union_Transformation1", df_Union_Transformation1)
         
         logger.info("Step: apply_Union_Transformation")
         # Union: apply_Union_Transformation
-        df_un_45 = df_exp_35
-        df_un_45 = df_un_45.unionByName(df_exp_36, allowMissingColumns=True)
-        df_un_45 = df_un_45.unionByName(df_exp_37, allowMissingColumns=True)
-        df_un_45 = df_un_45.unionByName(df_exp_38, allowMissingColumns=True)
-        df_un_45 = df_un_45.unionByName(df_exp_39, allowMissingColumns=True)
-        df_un_45 = df_un_45.unionByName(df_exp_40, allowMissingColumns=True)
-        df_un_45 = df_un_45.unionByName(df_exp_41, allowMissingColumns=True)
-        df_un_45 = df_un_45.unionByName(df_exp_42, allowMissingColumns=True)
-        df_un_45 = df_un_45.unionByName(df_exp_43, allowMissingColumns=True)
+        # Select + rename upstream columns per input, then union
+        df_Union_Transformation_newgroup = df_EXPTRANS1.select(
+            col("SCHM_CODE1").alias("SCHM_CODE1"),
+            col("UNIT_SFA_AREA1").alias("UNIT_SFA_AREA1"),
+            col("UNIT_SIZE_CODE").alias("UNIT_SIZE_CODE")        )
+        df_Union_Transformation_newgroup1 = df_EXPTRANS2.select(
+            col("SCHM_CODE3").alias("SCHM_CODE1"),
+            col("UNIT_SFA_AREA3").alias("UNIT_SFA_AREA1"),
+            col("UNIT_SIZE_CODE").alias("UNIT_SIZE_CODE")        )
+        df_Union_Transformation_newgroup2 = df_EXPTRANS3.select(
+            col("SCHM_CODE4").alias("SCHM_CODE1"),
+            col("UNIT_SFA_AREA4").alias("UNIT_SFA_AREA1"),
+            col("UNIT_SIZE_CODE").alias("UNIT_SIZE_CODE")        )
+        df_Union_Transformation_newgroup3 = df_EXPTRANS4.select(
+            col("SCHM_CODE5").alias("SCHM_CODE1"),
+            col("UNIT_SFA_AREA5").alias("UNIT_SFA_AREA1"),
+            col("UNIT_SIZE_CODE").alias("UNIT_SIZE_CODE")        )
+        df_Union_Transformation_newgroup4 = df_EXPTRANS5.select(
+            col("SCHM_CODE6").alias("SCHM_CODE1"),
+            col("UNIT_SFA_AREA6").alias("UNIT_SFA_AREA1"),
+            col("UNIT_SIZE_CODE").alias("UNIT_SIZE_CODE")        )
+        df_Union_Transformation_newgroup5 = df_EXPTRANS6.select(
+            col("SCHM_CODE7").alias("SCHM_CODE1"),
+            col("UNIT_SFA_AREA7").alias("UNIT_SFA_AREA1"),
+            col("UNIT_SIZE_CODE").alias("UNIT_SIZE_CODE")        )
+        df_Union_Transformation_newgroup6 = df_EXPTRANS7.select(
+            col("SCHM_CODE8").alias("SCHM_CODE1"),
+            col("UNIT_SFA_AREA8").alias("UNIT_SFA_AREA1"),
+            col("UNIT_SIZE_CODE").alias("UNIT_SIZE_CODE")        )
+        df_Union_Transformation_newgroup7 = df_EXPTRANS8.select(
+            col("SCHM_CODE9").alias("SCHM_CODE1"),
+            col("UNIT_SFA_AREA9").alias("UNIT_SFA_AREA1"),
+            col("UNIT_SIZE_CODE").alias("UNIT_SIZE_CODE")        )
+        df_Union_Transformation_newgroup8 = df_EXPTRANS9.select(
+            col("SCHM_CODE10").alias("SCHM_CODE1"),
+            col("UNIT_SFA_AREA10").alias("UNIT_SFA_AREA1"),
+            col("UNIT_SIZE_CODE").alias("UNIT_SIZE_CODE")        )
+        df_Union_Transformation = df_Union_Transformation_newgroup
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup1, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup2, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup3, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup4, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup5, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup6, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup7, allowMissingColumns=True)
+        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup8, allowMissingColumns=True)
         # Select only union output columns
-        df_un_45 = df_un_45.select("SCHM_CODE1", "UNIT_SFA_AREA1", "UNIT_SIZE_CODE")
-        ctx.register_df("df_un_45", df_un_45)
+        df_Union_Transformation = df_Union_Transformation.select("SCHM_CODE1", "UNIT_SFA_AREA1", "UNIT_SIZE_CODE")
+        ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
         logger.info("Step: apply_AGGTRANS1")
         # Aggregator: apply_AGGTRANS1
-        df_agg_46 = df_un_44.groupBy("UNIT_SIZE_CODE")
-        df_agg_46 = df_agg_46.agg(
+        # Select only mapped upstream columns with correct port names
+        _agg_input = df_Union_Transformation1.select(
+            col("UNIT_SFA_AREA1"),
+            col("UNIT_SIZE_CODE")        )
+        df_AGGTRANS1 = _agg_input.groupBy("UNIT_SIZE_CODE")
+        df_AGGTRANS1 = df_AGGTRANS1.agg(
             count(expr("""1""")).alias("CNT")
         )
-        ctx.register_df("df_agg_46", df_agg_46)
+        ctx.register_df("df_AGGTRANS1", df_AGGTRANS1)
         
         logger.info("Step: apply_AGGTRANS")
         # Aggregator: apply_AGGTRANS
-        df_agg_47 = df_un_45.groupBy("SCHM_CODE1", "UNIT_SIZE_CODE")
-        df_agg_47 = df_agg_47.agg(
+        # Select only mapped upstream columns with correct port names
+        _agg_input = df_Union_Transformation.select(
+            col("SCHM_CODE1"),
+            col("UNIT_SFA_AREA1"),
+            col("UNIT_SIZE_CODE")        )
+        df_AGGTRANS = _agg_input.groupBy("SCHM_CODE1", "UNIT_SIZE_CODE")
+        df_AGGTRANS = df_AGGTRANS.agg(
             count(expr("""1""")).alias("CNT")
         )
-        ctx.register_df("df_agg_47", df_agg_47)
+        ctx.register_df("df_AGGTRANS", df_AGGTRANS)
         
         logger.info("Step: apply_EXPTRANS10")
         # Expression: apply_EXPTRANS10
-        df_exp_48 = df_agg_46
-        df_exp_48 = df_exp_48.withColumn("UNIT_SFA_AREA", expr("UNIT_SFA_AREA1"))
-        df_exp_48 = df_exp_48.withColumn("DESP_DTL", expr("'no_of_tran_total'"))
-        df_exp_48 = df_exp_48.withColumn("LAST_REC_TXN_DATE", expr("current_timestamp()"))
+        df_EXPTRANS10 = df_AGGTRANS1
+        df_EXPTRANS10 = df_EXPTRANS10.withColumn("UNIT_SFA_AREA", expr("UNIT_SFA_AREA1"))
+        df_EXPTRANS10 = df_EXPTRANS10.withColumn("DESP_DTL", expr("'no_of_tran_total'"))
+        df_EXPTRANS10 = df_EXPTRANS10.withColumn("LAST_REC_TXN_DATE", expr("current_timestamp()"))
         _expr = """to_date(concat('$$v_rpt_mth', '01'), 'yyyymmdd')"""
         _expr = _expr.replace("$$v_snsh_date", str(v_snsh_date))
         _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
-        df_exp_48 = df_exp_48.withColumn("TIME", expr(_expr))
-        df_exp_48 = df_exp_48.withColumn("SCHM_CODE1", expr("'SMS'"))
+        df_EXPTRANS10 = df_EXPTRANS10.withColumn("TIME", expr(_expr))
+        df_EXPTRANS10 = df_EXPTRANS10.withColumn("SCHM_CODE1", expr("'SMS'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["UNIT_SIZE_CODE", "CNT"]:
-            if _col not in df_exp_48.columns:
-                df_exp_48 = df_exp_48.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_48 = df_exp_48.select("UNIT_SFA_AREA", "UNIT_SIZE_CODE", "CNT", "DESP_DTL", "LAST_REC_TXN_DATE", "TIME", "SCHM_CODE1")
-        ctx.register_df("df_exp_48", df_exp_48)
+            if _col not in df_EXPTRANS10.columns:
+                df_EXPTRANS10 = df_EXPTRANS10.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS10", df_EXPTRANS10)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_exp_49 = df_agg_47
-        df_exp_49 = df_exp_49.withColumn("SCHM_CODE1", expr("'SMS'"))
-        df_exp_49 = df_exp_49.withColumn("UNIT_SFA_AREA", expr("UNIT_SFA_AREA1"))
-        df_exp_49 = df_exp_49.withColumn("LAST_REC_TXN_DATE", expr("current_timestamp()"))
+        df_EXPTRANS = df_AGGTRANS
+        df_EXPTRANS = df_EXPTRANS.withColumn("SCHM_CODE1", expr("'SMS'"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("UNIT_SFA_AREA", expr("UNIT_SFA_AREA1"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE", expr("current_timestamp()"))
         _expr = """to_date(concat('$$v_rpt_mth', '01'), 'yyyymmdd')"""
         _expr = _expr.replace("$$v_snsh_date", str(v_snsh_date))
         _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
-        df_exp_49 = df_exp_49.withColumn("TIME", expr(_expr))
-        df_exp_49 = df_exp_49.withColumn("SCHM_CODE", expr("SCHM_CODE1"))
-        df_exp_49 = df_exp_49.withColumn("DESP_DTL", expr("CASE WHEN SCHM_CODE1 = 'T' THEN 'no_of_tran_tps' ELSE 'no_of_tran_hos' END"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("TIME", expr(_expr))
+        df_EXPTRANS = df_EXPTRANS.withColumn("SCHM_CODE", expr("SCHM_CODE1"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("DESP_DTL", expr("CASE WHEN SCHM_CODE1 = 'T' THEN 'no_of_tran_tps' ELSE 'no_of_tran_hos' END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["UNIT_SIZE_CODE", "CNT"]:
-            if _col not in df_exp_49.columns:
-                df_exp_49 = df_exp_49.withColumn(_col, lit(None))
-        # Select only mapping output ports (prevents column leakage)
-        df_exp_49 = df_exp_49.select("SCHM_CODE", "UNIT_SFA_AREA", "UNIT_SIZE_CODE", "CNT", "DESP_DTL", "LAST_REC_TXN_DATE", "TIME", "SCHM_CODE1")
-        ctx.register_df("df_exp_49", df_exp_49)
+            if _col not in df_EXPTRANS.columns:
+                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_UNIT_SIZE1")
         # Reading Data From Source - read_LKP_DDS_DMNS_EMS_UNIT_SIZE1
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_lkp_50 = lib.read_sql(spark, _conn, table="DDS_DMNS_EMS_UNIT_SIZE")
+        df_LKP_DDS_DMNS_EMS_UNIT_SIZE1 = lib.read_sql(spark, _conn, table="DDS_DMNS_EMS_UNIT_SIZE")
         
         logger.info("Step: apply_LKP_DDS_DMNS_EMS_UNIT_SIZE1")
         # Lookup: apply_LKP_DDS_DMNS_EMS_UNIT_SIZE1
-        # Join condition: IN_UNIT_SIZE_CODE=UNIT_SIZE_CODE AND IN_UNIT_SIZE_SCHM_CODE=UNIT_SIZE_SCHM_CODE        
-        df_lkp_result_51 = df_exp_48.join(
-            broadcast(df_lkp_50),
-            (df_exp_48["IN_UNIT_SIZE_CODE"] == df_lkp_50["UNIT_SIZE_CODE"]) &             (df_exp_48["IN_UNIT_SIZE_SCHM_CODE"] == df_lkp_50["UNIT_SIZE_SCHM_CODE"]),
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_DDS_DMNS_EMS_UNIT_SIZE1 = df_LKP_DDS_DMNS_EMS_UNIT_SIZE1.dropDuplicates(subset=["UNIT_SIZE_CODE", "UNIT_SIZE_SCHM_CODE"])
+        # Join condition: UNIT_SIZE_CODE=UNIT_SIZE_CODE AND SCHM_CODE1=UNIT_SIZE_SCHM_CODE
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_DDS_DMNS_EMS_UNIT_SIZE1
+        _lkp_right = _lkp_right.withColumnRenamed("UNIT_SIZE_CODE", "_lkp_UNIT_SIZE_CODE")
+        _lkp_right = _lkp_right.withColumnRenamed("UNIT_SIZE_SCHM_CODE", "_lkp_UNIT_SIZE_SCHM_CODE")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_EXPTRANS10.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_21 = df_EXPTRANS10.join(
+            broadcast(_lkp_right),
+            (df_EXPTRANS10["UNIT_SIZE_CODE"] == _lkp_right["_lkp_UNIT_SIZE_CODE"]) &
+            (df_EXPTRANS10["SCHM_CODE1"] == _lkp_right["_lkp_UNIT_SIZE_SCHM_CODE"]),
             "left"
-        )
-        ctx.register_df("df_lkp_result_51", df_lkp_result_51)
+        ).drop("_lkp_UNIT_SIZE_CODE").drop("_lkp_UNIT_SIZE_SCHM_CODE")
+
+        ctx.register_df("df_lkp_merge_21", df_lkp_merge_21)
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_DESP_DTL1")
         # Reading Data From Source - read_LKP_DDS_DMNS_EMS_DESP_DTL1
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_lkp_52 = lib.read_sql(spark, _conn, table="DDS_DMNS_EMS_DESP_DTL")
+        df_LKP_DDS_DMNS_EMS_DESP_DTL1 = lib.read_sql(spark, _conn, table="DDS_DMNS_EMS_DESP_DTL")
         
         logger.info("Step: apply_LKP_DDS_DMNS_EMS_DESP_DTL1")
         # Lookup: apply_LKP_DDS_DMNS_EMS_DESP_DTL1
-        # Join condition: IN_DESP_DTL_CODE=DESP_DTL_CODE AND IN_DESP_DTL_SCHM_CODE=DESP_DTL_SCHM_CODE        
-        df_lkp_result_53 = df_exp_48.join(
-            broadcast(df_lkp_52),
-            (df_exp_48["IN_DESP_DTL_CODE"] == df_lkp_52["DESP_DTL_CODE"]) &             (df_exp_48["IN_DESP_DTL_SCHM_CODE"] == df_lkp_52["DESP_DTL_SCHM_CODE"]),
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_DDS_DMNS_EMS_DESP_DTL1 = df_LKP_DDS_DMNS_EMS_DESP_DTL1.dropDuplicates(subset=["DESP_DTL_CODE", "DESP_DTL_SCHM_CODE"])
+        # Join condition: DESP_DTL=DESP_DTL_CODE AND SCHM_CODE1=DESP_DTL_SCHM_CODE
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_DDS_DMNS_EMS_DESP_DTL1
+        _lkp_right = _lkp_right.withColumnRenamed("DESP_DTL_CODE", "_lkp_DESP_DTL_CODE")
+        _lkp_right = _lkp_right.withColumnRenamed("DESP_DTL_SCHM_CODE", "_lkp_DESP_DTL_SCHM_CODE")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_21.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_21 = df_lkp_merge_21.join(
+            broadcast(_lkp_right),
+            (df_lkp_merge_21["DESP_DTL"] == _lkp_right["_lkp_DESP_DTL_CODE"]) &
+            (df_lkp_merge_21["SCHM_CODE1"] == _lkp_right["_lkp_DESP_DTL_SCHM_CODE"]),
             "left"
-        )
-        ctx.register_df("df_lkp_result_53", df_lkp_result_53)
+        ).drop("_lkp_DESP_DTL_CODE").drop("_lkp_DESP_DTL_SCHM_CODE")
+
+        ctx.register_df("df_lkp_merge_21", df_lkp_merge_21)
         
         logger.info("Step: read_LKP_DDS_DMNS_TIME_11")
         # Reading Data From Source - read_LKP_DDS_DMNS_TIME_11
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_lkp_54 = lib.read_sql(spark, _conn, table="DDS_DMNS_TIME")
+        df_LKP_DDS_DMNS_TIME_11 = lib.read_sql(spark, _conn, table="DDS_DMNS_TIME")
         
         logger.info("Step: apply_LKP_DDS_DMNS_TIME_11")
         # Lookup: apply_LKP_DDS_DMNS_TIME_11
-        # Join condition: IN_TIME_VAL_DATE=TIME_VAL_DATE        
-        df_lkp_result_55 = df_exp_48.join(
-            broadcast(df_lkp_54),
-            (df_exp_48["IN_TIME_VAL_DATE"] == df_lkp_54["TIME_VAL_DATE"]),
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_DDS_DMNS_TIME_11 = df_LKP_DDS_DMNS_TIME_11.dropDuplicates(subset=["TIME_VAL_DATE"])
+        # Join condition: TIME=TIME_VAL_DATE
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_DDS_DMNS_TIME_11
+        _lkp_right = _lkp_right.withColumnRenamed("TIME_VAL_DATE", "_lkp_TIME_VAL_DATE")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_21.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_21 = df_lkp_merge_21.join(
+            broadcast(_lkp_right),
+            (df_lkp_merge_21["TIME"] == _lkp_right["_lkp_TIME_VAL_DATE"]),
             "left"
-        )
-        ctx.register_df("df_lkp_result_55", df_lkp_result_55)
+        ).drop("_lkp_TIME_VAL_DATE")
+
+        ctx.register_df("df_lkp_merge_21", df_lkp_merge_21)
         
         logger.info("Step: read_LKP_DDS_DMNS_TIME_1")
         # Reading Data From Source - read_LKP_DDS_DMNS_TIME_1
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_lkp_56 = lib.read_sql(spark, _conn, table="DDS_DMNS_TIME")
+        df_LKP_DDS_DMNS_TIME_1 = lib.read_sql(spark, _conn, table="DDS_DMNS_TIME")
         
         logger.info("Step: apply_LKP_DDS_DMNS_TIME_1")
         # Lookup: apply_LKP_DDS_DMNS_TIME_1
-        # Join condition: IN_TIME_VAL_DATE=TIME_VAL_DATE        
-        df_lkp_result_57 = df_exp_49.join(
-            broadcast(df_lkp_56),
-            (df_exp_49["IN_TIME_VAL_DATE"] == df_lkp_56["TIME_VAL_DATE"]),
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_DDS_DMNS_TIME_1 = df_LKP_DDS_DMNS_TIME_1.dropDuplicates(subset=["TIME_VAL_DATE"])
+        # Join condition: TIME=TIME_VAL_DATE
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_DDS_DMNS_TIME_1
+        _lkp_right = _lkp_right.withColumnRenamed("TIME_VAL_DATE", "_lkp_TIME_VAL_DATE")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_EXPTRANS.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_22 = df_EXPTRANS.join(
+            broadcast(_lkp_right),
+            (df_EXPTRANS["TIME"] == _lkp_right["_lkp_TIME_VAL_DATE"]),
             "left"
-        )
-        ctx.register_df("df_lkp_result_57", df_lkp_result_57)
+        ).drop("_lkp_TIME_VAL_DATE")
+
+        ctx.register_df("df_lkp_merge_22", df_lkp_merge_22)
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_DESP_DTL")
         # Reading Data From Source - read_LKP_DDS_DMNS_EMS_DESP_DTL
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_lkp_58 = lib.read_sql(spark, _conn, table="DDS_DMNS_EMS_DESP_DTL")
+        df_LKP_DDS_DMNS_EMS_DESP_DTL = lib.read_sql(spark, _conn, table="DDS_DMNS_EMS_DESP_DTL")
         
         logger.info("Step: apply_LKP_DDS_DMNS_EMS_DESP_DTL")
         # Lookup: apply_LKP_DDS_DMNS_EMS_DESP_DTL
-        # Join condition: IN_DESP_DTL_CODE=DESP_DTL_CODE AND IN_DESP_DTL_SCHM_CODE=DESP_DTL_SCHM_CODE        
-        df_lkp_result_59 = df_exp_49.join(
-            broadcast(df_lkp_58),
-            (df_exp_49["IN_DESP_DTL_CODE"] == df_lkp_58["DESP_DTL_CODE"]) &             (df_exp_49["IN_DESP_DTL_SCHM_CODE"] == df_lkp_58["DESP_DTL_SCHM_CODE"]),
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_DDS_DMNS_EMS_DESP_DTL = df_LKP_DDS_DMNS_EMS_DESP_DTL.dropDuplicates(subset=["DESP_DTL_CODE", "DESP_DTL_SCHM_CODE"])
+        # Join condition: DESP_DTL=DESP_DTL_CODE AND SCHM_CODE1=DESP_DTL_SCHM_CODE
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_DDS_DMNS_EMS_DESP_DTL
+        _lkp_right = _lkp_right.withColumnRenamed("DESP_DTL_CODE", "_lkp_DESP_DTL_CODE")
+        _lkp_right = _lkp_right.withColumnRenamed("DESP_DTL_SCHM_CODE", "_lkp_DESP_DTL_SCHM_CODE")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_22.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_22 = df_lkp_merge_22.join(
+            broadcast(_lkp_right),
+            (df_lkp_merge_22["DESP_DTL"] == _lkp_right["_lkp_DESP_DTL_CODE"]) &
+            (df_lkp_merge_22["SCHM_CODE1"] == _lkp_right["_lkp_DESP_DTL_SCHM_CODE"]),
             "left"
-        )
-        ctx.register_df("df_lkp_result_59", df_lkp_result_59)
+        ).drop("_lkp_DESP_DTL_CODE").drop("_lkp_DESP_DTL_SCHM_CODE")
+
+        ctx.register_df("df_lkp_merge_22", df_lkp_merge_22)
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_UNIT_SIZE")
         # Reading Data From Source - read_LKP_DDS_DMNS_EMS_UNIT_SIZE
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_lkp_60 = lib.read_sql(spark, _conn, table="DDS_DMNS_EMS_UNIT_SIZE")
+        df_LKP_DDS_DMNS_EMS_UNIT_SIZE = lib.read_sql(spark, _conn, table="DDS_DMNS_EMS_UNIT_SIZE")
         
         logger.info("Step: apply_LKP_DDS_DMNS_EMS_UNIT_SIZE")
         # Lookup: apply_LKP_DDS_DMNS_EMS_UNIT_SIZE
-        # Join condition: IN_UNIT_SIZE_CODE=UNIT_SIZE_CODE AND IN_UNIT_SIZE_SCHM_CODE=UNIT_SIZE_SCHM_CODE        
-        df_lkp_result_61 = df_exp_49.join(
-            broadcast(df_lkp_60),
-            (df_exp_49["IN_UNIT_SIZE_CODE"] == df_lkp_60["UNIT_SIZE_CODE"]) &             (df_exp_49["IN_UNIT_SIZE_SCHM_CODE"] == df_lkp_60["UNIT_SIZE_SCHM_CODE"]),
+        # Use First Value / Use Any Value: dedup by join keys
+        df_LKP_DDS_DMNS_EMS_UNIT_SIZE = df_LKP_DDS_DMNS_EMS_UNIT_SIZE.dropDuplicates(subset=["UNIT_SIZE_CODE", "UNIT_SIZE_SCHM_CODE"])
+        # Join condition: UNIT_SIZE_CODE=UNIT_SIZE_CODE AND SCHM_CODE1=UNIT_SIZE_SCHM_CODE
+        # Rename right-side join keys to avoid ambiguous column references
+        _lkp_right = df_LKP_DDS_DMNS_EMS_UNIT_SIZE
+        _lkp_right = _lkp_right.withColumnRenamed("UNIT_SIZE_CODE", "_lkp_UNIT_SIZE_CODE")
+        _lkp_right = _lkp_right.withColumnRenamed("UNIT_SIZE_SCHM_CODE", "_lkp_UNIT_SIZE_SCHM_CODE")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_22.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_lkp_merge_22 = df_lkp_merge_22.join(
+            broadcast(_lkp_right),
+            (df_lkp_merge_22["UNIT_SIZE_CODE"] == _lkp_right["_lkp_UNIT_SIZE_CODE"]) &
+            (df_lkp_merge_22["SCHM_CODE1"] == _lkp_right["_lkp_UNIT_SIZE_SCHM_CODE"]),
             "left"
-        )
-        ctx.register_df("df_lkp_result_61", df_lkp_result_61)
-        
-        logger.info("Step: join_target_DPA_FACT_EMS_SMS_FLAT_SIZE_TXN1_0")
-        # Lookup: join_target_DPA_FACT_EMS_SMS_FLAT_SIZE_TXN1_0
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_lkp_result_53.columns if c in df_exp_48.columns]
-        df_tgt_merge_62 = df_lkp_result_53.join(
-            df_exp_48,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_tgt_merge_62", df_tgt_merge_62)
-        
-        logger.info("Step: join_target_DPA_FACT_EMS_SMS_FLAT_SIZE_TXN1_1")
-        # Lookup: join_target_DPA_FACT_EMS_SMS_FLAT_SIZE_TXN1_1
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_tgt_merge_62.columns if c in df_lkp_result_55.columns]
-        df_tgt_merge_63 = df_tgt_merge_62.join(
-            df_lkp_result_55,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_tgt_merge_63", df_tgt_merge_63)
-        
-        logger.info("Step: join_target_DPA_FACT_EMS_SMS_FLAT_SIZE_TXN1_2")
-        # Lookup: join_target_DPA_FACT_EMS_SMS_FLAT_SIZE_TXN1_2
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_tgt_merge_63.columns if c in df_lkp_result_51.columns]
-        df_tgt_merge_64 = df_tgt_merge_63.join(
-            df_lkp_result_51,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_tgt_merge_64", df_tgt_merge_64)
+        ).drop("_lkp_UNIT_SIZE_CODE").drop("_lkp_UNIT_SIZE_SCHM_CODE")
+
+        ctx.register_df("df_lkp_merge_22", df_lkp_merge_22)
         
         logger.info("Step: write_DPA_FACT_EMS_SMS_FLAT_SIZE_TXN1")
         # Write to Target: write_DPA_FACT_EMS_SMS_FLAT_SIZE_TXN1
-        df_write = df_tgt_merge_64
+        df_write = df_lkp_merge_21
         # Cast columns to match target schema data types
         if "last_rec_txn_date" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:
@@ -675,42 +782,9 @@ AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN  cas_aply_sts.BGN_DATE AND  cas_a
         lib.write_table(df_write, conn_target, "DPA_FACT_EMS_SMS_FLAT_SIZE_TXN", mode="append")
 
         logger.info("write_DPA_FACT_EMS_SMS_FLAT_SIZE_TXN1 write completed")
-        logger.info("Step: join_target_DPA_FACT_EMS_SMS_FLAT_SIZE_TXN_0")
-        # Lookup: join_target_DPA_FACT_EMS_SMS_FLAT_SIZE_TXN_0
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_lkp_result_59.columns if c in df_exp_49.columns]
-        df_tgt_merge_65 = df_lkp_result_59.join(
-            df_exp_49,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_tgt_merge_65", df_tgt_merge_65)
-        
-        logger.info("Step: join_target_DPA_FACT_EMS_SMS_FLAT_SIZE_TXN_1")
-        # Lookup: join_target_DPA_FACT_EMS_SMS_FLAT_SIZE_TXN_1
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_tgt_merge_65.columns if c in df_lkp_result_57.columns]
-        df_tgt_merge_66 = df_tgt_merge_65.join(
-            df_lkp_result_57,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_tgt_merge_66", df_tgt_merge_66)
-        
-        logger.info("Step: join_target_DPA_FACT_EMS_SMS_FLAT_SIZE_TXN_2")
-        # Lookup: join_target_DPA_FACT_EMS_SMS_FLAT_SIZE_TXN_2
-        # Merge parallel DataFrames on their common columns
-        _common_cols = [c for c in df_tgt_merge_66.columns if c in df_lkp_result_61.columns]
-        df_tgt_merge_67 = df_tgt_merge_66.join(
-            df_lkp_result_61,
-            on=_common_cols,
-            how="left"
-        )
-        ctx.register_df("df_tgt_merge_67", df_tgt_merge_67)
-        
         logger.info("Step: write_DPA_FACT_EMS_SMS_FLAT_SIZE_TXN")
         # Write to Target: write_DPA_FACT_EMS_SMS_FLAT_SIZE_TXN
-        df_write = df_tgt_merge_67
+        df_write = df_lkp_merge_22
         # Cast columns to match target schema data types
         if "last_rec_txn_date" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:
