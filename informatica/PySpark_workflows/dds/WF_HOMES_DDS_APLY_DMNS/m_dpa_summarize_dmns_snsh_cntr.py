@@ -125,7 +125,9 @@ and TO_DATE ($$v_snsh_date, 'YYYYMMDD') BETWEEN ss.bgn_date AND ss.end_date"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_SNSH_CNTR = df_LKP_DDS_DMNS_SNSH_CNTR.dropDuplicates(subset=["CNTR_KEY", "SNSH_KEY"])
         # Join condition: CNTR_KEY=CNTR_KEY AND SNSH_KEY=SNSH_KEY
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_SNSH_CNTR
         _lkp_right = _lkp_right.withColumnRenamed("CNTR_KEY", "_lkp_CNTR_KEY")
         _lkp_right = _lkp_right.withColumnRenamed("SNSH_KEY", "_lkp_SNSH_KEY")
@@ -147,11 +149,11 @@ and TO_DATE ($$v_snsh_date, 'YYYYMMDD') BETWEEN ss.bgn_date AND ss.end_date"""
         # Expression: apply_EXPTRANS
         df_EXPTRANS = df_lkp_merge_1
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_SNSH_CNTR_DISP_SEQ_NUM", expr("snsh_cntr_disp_seq_num"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("IN_CNTR_TTL", expr("CNTR_TTL"))
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_CNTR_NUM", expr("CNTR_NUM"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("IN_CNTR_TTL", expr("CNTR_TTL"))
         df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_SNSH_CNTR_KEY IS NULL) OR CASE WHEN CNTR_KEY = IN_CNTR_KEY THEN false ELSE true END OR CASE WHEN SNSH_KEY = IN_SNSH_KEY THEN false ELSE true END OR CASE WHEN CNTR_NUM = CNTR_NUM THEN false ELSE true END OR CASE WHEN CNTR_TTL = CNTR_TTL THEN false ELSE true END THEN 1 ELSE 0 END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["CNTR_TTL", "DMNS_SNSH_CNTR_KEY", "IN_SNSH_KEY", "CNTR_NUM", "CNTR_KEY", "SNSH_KEY", "IN_CNTR_KEY", "TNDR_NUM", "SNSH_CNTR_DISP_SEQ_NUM"]:
+        for _col in ["CNTR_NUM", "IN_CNTR_KEY", "DMNS_SNSH_CNTR_KEY", "IN_SNSH_KEY", "CNTR_TTL", "SNSH_KEY", "CNTR_KEY", "TNDR_NUM", "SNSH_CNTR_DISP_SEQ_NUM"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)

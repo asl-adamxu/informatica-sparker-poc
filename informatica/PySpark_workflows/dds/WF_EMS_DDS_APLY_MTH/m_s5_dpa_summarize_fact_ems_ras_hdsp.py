@@ -145,12 +145,10 @@ GROUP BY rfx.BLK_KEY, rfx_sts.UNIT_TYPE_CODE, rfx.UNIT_ENV_CODE, rfx.UNIT_IFA_AR
         _w = _Window.partitionBy(col("BLK_KEY"), col("UNIT_TYPE_CODE"), col("UNIT_ENV_CODE"), col("UNIT_IFA_AREA")).orderBy(lit(0).desc())
         df_LKP_CUR_RENT = df_LKP_CUR_RENT.withColumn("_rn", row_number().over(_w)).filter(col("_rn") == 1).drop("_rn")
         # Join condition: CUR_EMMS_BLK_KEY=BLK_KEY AND CUR_UNIT_TYPE_CODE=UNIT_TYPE_CODE AND CUR_HSE_UNIT_ENV_CODE=UNIT_ENV_CODE AND CUR_UNIT_IFA_AREA=UNIT_IFA_AREA
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_CUR_RENT
-        _lkp_right = _lkp_right.withColumnRenamed("BLK_KEY", "_lkp_BLK_KEY")
-        _lkp_right = _lkp_right.withColumnRenamed("UNIT_TYPE_CODE", "_lkp_UNIT_TYPE_CODE")
-        _lkp_right = _lkp_right.withColumnRenamed("UNIT_ENV_CODE", "_lkp_UNIT_ENV_CODE")
-        _lkp_right = _lkp_right.withColumnRenamed("UNIT_IFA_AREA", "_lkp_UNIT_IFA_AREA")
         # Drop lookup columns that would conflict with input columns (e.g. both
         # sides having EST_KEY but only one is a join key → ambiguity after join).
         __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_SQ_SOR_HSM_UNIT.columns]
@@ -158,12 +156,12 @@ GROUP BY rfx.BLK_KEY, rfx_sts.UNIT_TYPE_CODE, rfx.UNIT_ENV_CODE, rfx.UNIT_IFA_AR
             _lkp_right = _lkp_right.select(*__lkp_keep)
         df_lkp_merge_1 = df_SQ_SOR_HSM_UNIT.join(
             broadcast(_lkp_right),
-            (df_SQ_SOR_HSM_UNIT["CUR_EMMS_BLK_KEY"] == _lkp_right["_lkp_BLK_KEY"]) &
-            (df_SQ_SOR_HSM_UNIT["CUR_UNIT_TYPE_CODE"] == _lkp_right["_lkp_UNIT_TYPE_CODE"]) &
-            (df_SQ_SOR_HSM_UNIT["CUR_HSE_UNIT_ENV_CODE"] == _lkp_right["_lkp_UNIT_ENV_CODE"]) &
-            (df_SQ_SOR_HSM_UNIT["CUR_UNIT_IFA_AREA"] == _lkp_right["_lkp_UNIT_IFA_AREA"]),
+            (df_SQ_SOR_HSM_UNIT["CUR_EMMS_BLK_KEY"] == _lkp_right["BLK_KEY"]) &
+            (df_SQ_SOR_HSM_UNIT["CUR_UNIT_TYPE_CODE"] == _lkp_right["UNIT_TYPE_CODE"]) &
+            (df_SQ_SOR_HSM_UNIT["CUR_HSE_UNIT_ENV_CODE"] == _lkp_right["UNIT_ENV_CODE"]) &
+            (df_SQ_SOR_HSM_UNIT["CUR_UNIT_IFA_AREA"] == _lkp_right["UNIT_IFA_AREA"]),
             "left"
-        ).drop("_lkp_BLK_KEY").drop("_lkp_UNIT_TYPE_CODE").drop("_lkp_UNIT_ENV_CODE").drop("_lkp_UNIT_IFA_AREA")
+        )
 
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
         
@@ -197,7 +195,9 @@ GROUP BY tncy.CUST_KEY, tncy.HSE_SRVC_APLY_KEY"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_HH_SIZE = df_LKP_HH_SIZE.dropDuplicates(subset=["CUST_KEY", "HSE_SRVC_APLY_KEY"])
         # Join condition: CUST_KEY=CUST_KEY AND HSE_SRVC_APLY_KEY=HSE_SRVC_APLY_KEY
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_HH_SIZE
         _lkp_right = _lkp_right.withColumnRenamed("CUST_KEY", "_lkp_CUST_KEY")
         _lkp_right = _lkp_right.withColumnRenamed("HSE_SRVC_APLY_KEY", "_lkp_HSE_SRVC_APLY_KEY")
@@ -236,12 +236,10 @@ GROUP BY rfx.BLK_KEY, rfx_sts.UNIT_TYPE_CODE, rfx.UNIT_ENV_CODE, rfx.UNIT_IFA_AR
         _w = _Window.partitionBy(col("BLK_KEY"), col("UNIT_TYPE_CODE"), col("UNIT_ENV_CODE"), col("UNIT_IFA_AREA")).orderBy(lit(0).desc())
         df_LKP_PREV_RENT = df_LKP_PREV_RENT.withColumn("_rn", row_number().over(_w)).filter(col("_rn") == 1).drop("_rn")
         # Join condition: PREV_EMMS_BLK_KEY=BLK_KEY AND PREV_UNIT_TYPE_CODE=UNIT_TYPE_CODE AND PREV_HSE_UNIT_ENV_CODE=UNIT_ENV_CODE AND PREV_UNIT_IFA_AREA=UNIT_IFA_AREA
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_PREV_RENT
-        _lkp_right = _lkp_right.withColumnRenamed("BLK_KEY", "_lkp_BLK_KEY")
-        _lkp_right = _lkp_right.withColumnRenamed("UNIT_TYPE_CODE", "_lkp_UNIT_TYPE_CODE")
-        _lkp_right = _lkp_right.withColumnRenamed("UNIT_ENV_CODE", "_lkp_UNIT_ENV_CODE")
-        _lkp_right = _lkp_right.withColumnRenamed("UNIT_IFA_AREA", "_lkp_UNIT_IFA_AREA")
         # Drop lookup columns that would conflict with input columns (e.g. both
         # sides having EST_KEY but only one is a join key → ambiguity after join).
         __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_1.columns]
@@ -249,12 +247,12 @@ GROUP BY rfx.BLK_KEY, rfx_sts.UNIT_TYPE_CODE, rfx.UNIT_ENV_CODE, rfx.UNIT_IFA_AR
             _lkp_right = _lkp_right.select(*__lkp_keep)
         df_lkp_merge_1 = df_lkp_merge_1.join(
             broadcast(_lkp_right),
-            (df_lkp_merge_1["PREV_EMMS_BLK_KEY"] == _lkp_right["_lkp_BLK_KEY"]) &
-            (df_lkp_merge_1["PREV_UNIT_TYPE_CODE"] == _lkp_right["_lkp_UNIT_TYPE_CODE"]) &
-            (df_lkp_merge_1["PREV_HSE_UNIT_ENV_CODE"] == _lkp_right["_lkp_UNIT_ENV_CODE"]) &
-            (df_lkp_merge_1["PREV_UNIT_IFA_AREA"] == _lkp_right["_lkp_UNIT_IFA_AREA"]),
+            (df_lkp_merge_1["PREV_EMMS_BLK_KEY"] == _lkp_right["BLK_KEY"]) &
+            (df_lkp_merge_1["PREV_UNIT_TYPE_CODE"] == _lkp_right["UNIT_TYPE_CODE"]) &
+            (df_lkp_merge_1["PREV_HSE_UNIT_ENV_CODE"] == _lkp_right["UNIT_ENV_CODE"]) &
+            (df_lkp_merge_1["PREV_UNIT_IFA_AREA"] == _lkp_right["UNIT_IFA_AREA"]),
             "left"
-        ).drop("_lkp_BLK_KEY").drop("_lkp_UNIT_TYPE_CODE").drop("_lkp_UNIT_ENV_CODE").drop("_lkp_UNIT_IFA_AREA")
+        )
 
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
         
@@ -277,7 +275,9 @@ AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN rfx_sts.BGN_DATE AND rfx_sts.END_
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_CUR_RENT1 = df_LKP_CUR_RENT1.dropDuplicates(subset=["BLK_KEY", "UNIT_TYPE_CODE", "UNIT_ENV_CODE", "UNIT_IFA_AREA", "RENT_SCHD_BGN_DATE"])
         # Join condition: BLK_KEY=BLK_KEY AND UNIT_TYPE_CODE=UNIT_TYPE_CODE AND UNIT_ENV_CODE=UNIT_ENV_CODE AND UNIT_IFA_AREA=UNIT_IFA_AREA AND RENT_SCHD_BGN_DATE=RENT_SCHD_BGN_DATE
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_CUR_RENT1
         _lkp_right = _lkp_right.withColumnRenamed("BLK_KEY", "_lkp_BLK_KEY")
         _lkp_right = _lkp_right.withColumnRenamed("UNIT_TYPE_CODE", "_lkp_UNIT_TYPE_CODE")
@@ -330,7 +330,9 @@ AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN rfx_sts.BGN_DATE AND rfx_sts.END_
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_PREV_RENT1 = df_LKP_PREV_RENT1.dropDuplicates(subset=["BLK_KEY", "UNIT_TYPE_CODE", "UNIT_ENV_CODE", "UNIT_IFA_AREA", "RENT_SCHD_BGN_DATE"])
         # Join condition: BLK_KEY=BLK_KEY AND UNIT_TYPE_CODE=UNIT_TYPE_CODE AND UNIT_ENV_CODE=UNIT_ENV_CODE AND UNIT_IFA_AREA=UNIT_IFA_AREA AND RENT_SCHD_BGN_DATE=RENT_SCHD_BGN_DATE
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_PREV_RENT1
         _lkp_right = _lkp_right.withColumnRenamed("BLK_KEY", "_lkp_BLK_KEY")
         _lkp_right = _lkp_right.withColumnRenamed("UNIT_TYPE_CODE", "_lkp_UNIT_TYPE_CODE")
@@ -409,9 +411,10 @@ AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN rfx_sts.BGN_DATE AND rfx_sts.END_
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_TIME_1 = df_LKP_DDS_DMNS_TIME_1.dropDuplicates(subset=["TIME_VAL_DATE"])
         # Join condition: TIME=TIME_VAL_DATE
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_TIME_1
-        _lkp_right = _lkp_right.withColumnRenamed("TIME_VAL_DATE", "_lkp_TIME_VAL_DATE")
         # Drop lookup columns that would conflict with input columns (e.g. both
         # sides having EST_KEY but only one is a join key → ambiguity after join).
         __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_EXPTRANS.columns]
@@ -419,9 +422,9 @@ AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN rfx_sts.BGN_DATE AND rfx_sts.END_
             _lkp_right = _lkp_right.select(*__lkp_keep)
         df_lkp_merge_4 = df_EXPTRANS.join(
             broadcast(_lkp_right),
-            (df_EXPTRANS["TIME"] == _lkp_right["_lkp_TIME_VAL_DATE"]),
+            (df_EXPTRANS["TIME"] == _lkp_right["TIME_VAL_DATE"]),
             "left"
-        ).drop("_lkp_TIME_VAL_DATE")
+        )
 
         ctx.register_df("df_lkp_merge_4", df_lkp_merge_4)
         

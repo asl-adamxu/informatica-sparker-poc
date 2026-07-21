@@ -139,7 +139,9 @@ order by ss.snsh_year, ss.snsh_mth"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_SNSH = df_LKP_DDS_DMNS_SNSH.dropDuplicates(subset=["SNSH_YEAR", "SNSH_MTH"])
         # Join condition: SNSH_YEAR=SNSH_YEAR AND SNSH_MTH=SNSH_MTH
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_SNSH
         _lkp_right = _lkp_right.withColumnRenamed("SNSH_YEAR", "_lkp_SNSH_YEAR")
         _lkp_right = _lkp_right.withColumnRenamed("SNSH_MTH", "_lkp_SNSH_MTH")

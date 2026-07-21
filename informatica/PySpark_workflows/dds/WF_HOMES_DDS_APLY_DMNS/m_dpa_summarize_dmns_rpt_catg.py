@@ -120,7 +120,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_RPT_CATG = df_LKP_DDS_DMNS_RPT_CATG.dropDuplicates(subset=["RPT_CATG_CODE"])
         # Join condition: RPT_CATG_CODE=RPT_CATG_CODE
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_RPT_CATG
         _lkp_right = _lkp_right.withColumnRenamed("RPT_CATG_CODE", "_lkp_RPT_CATG_CODE")
         # Drop lookup columns that would conflict with input columns (e.g. both

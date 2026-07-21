@@ -457,6 +457,75 @@ def batch_delete(spark: SparkSession, conn_config: Dict[str, Any],
         conn.close()
 
 
+def batch_update(spark: SparkSession, conn_config: Dict[str, Any],
+                 table_name: str, set_columns: list, key_columns: list,
+                 rows: list, batch_size: int = 1000) -> None:
+    """Update rows by composite key using JDBC PreparedStatement (bind variables).
+
+    Generates: UPDATE table SET col1=?, col2=? WHERE key1=? AND key2=?
+    Each row in `rows` is a tuple of (set_val1, set_val2, ..., key_val1, key_val2, ...)
+    in the order of set_columns followed by key_columns.
+    """
+    if not rows:
+        return
+    jdbc_url = get_jdbc_url(conn_config)
+    user = conn_config.get("username", "")
+    password = _resolve_password(spark, conn_config)
+    driver = conn_config.get("driver", "oracle.jdbc.driver.OracleDriver")
+
+    set_clause = ", ".join("{} = ?".format(c) for c in set_columns)
+    where_clause = " AND ".join("{} = ?".format(c) for c in key_columns)
+    sql = "UPDATE {} SET {} WHERE {}".format(table_name, set_clause, where_clause)
+
+    spark._jvm.java.lang.Class.forName(driver)
+    conn = spark._jvm.java.sql.DriverManager.getConnection(jdbc_url, user, password)
+    try:
+        pstmt = conn.prepareStatement(sql)
+        for i, row in enumerate(rows):
+            for j, val in enumerate(row):
+                pstmt.setString(j + 1, str(val) if val is not None else None)
+            pstmt.addBatch()
+            if (i + 1) % batch_size == 0:
+                pstmt.executeBatch()
+        pstmt.executeBatch()
+        pstmt.close()
+    finally:
+        conn.close()
+
+
+def batch_delete_composite(spark: SparkSession, conn_config: Dict[str, Any],
+                           table_name: str, key_columns: list,
+                           key_rows: list, batch_size: int = 1000) -> None:
+    """Delete rows by composite key using JDBC PreparedStatement.
+
+    WHERE clause uses AND of all key columns: key1=? AND key2=?
+    Each row in key_rows is a tuple of (key_val1, key_val2, ...).
+    """
+    if not key_rows or not key_columns:
+        return
+    jdbc_url = get_jdbc_url(conn_config)
+    user = conn_config.get("username", "")
+    password = _resolve_password(spark, conn_config)
+    driver = conn_config.get("driver", "oracle.jdbc.driver.OracleDriver")
+    where_clause = " AND ".join("{} = ?".format(c) for c in key_columns)
+    sql = "DELETE FROM {} WHERE {}".format(table_name, where_clause)
+    spark._jvm.java.lang.Class.forName(driver)
+    conn = spark._jvm.java.sql.DriverManager.getConnection(jdbc_url, user, password)
+    try:
+        pstmt = conn.prepareStatement(sql)
+        for i, row in enumerate(key_rows):
+            for j, val in enumerate(row):
+                pstmt.setString(j + 1, str(val) if val is not None else None)
+            pstmt.addBatch()
+            if (i + 1) % batch_size == 0:
+                pstmt.executeBatch()
+        pstmt.executeBatch()
+        pstmt.close()
+    finally:
+        conn.close()
+
+
+
 def get_spark_session(app_name: str, config: Dict[str, Any] = None) -> SparkSession:
     """Get or create Spark session.
 

@@ -130,7 +130,9 @@ select 'Others' sub_div_name, 'Others' sctn_name, 'OTHR' proj_mgr_name, 9999 sub
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_ORG = df_LKP_DDS_DMNS_ORG.dropDuplicates(subset=["SUB_DIV_NAME", "SCTN_NAME", "PROJ_MGR_NAME"])
         # Join condition: SUB_DIV_NAME=SUB_DIV_NAME AND SCTN_NAME=SCTN_NAME AND PROJ_MGR_NAME=PROJ_MGR_NAME
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_ORG
         _lkp_right = _lkp_right.withColumnRenamed("SUB_DIV_NAME", "_lkp_SUB_DIV_NAME")
         _lkp_right = _lkp_right.withColumnRenamed("SCTN_NAME", "_lkp_SCTN_NAME")
@@ -158,7 +160,7 @@ select 'Others' sub_div_name, 'Others' sctn_name, 'OTHR' proj_mgr_name, 9999 sub
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_MGR_DISP_SEQ_NUM", expr("MGR_DISP_SEQ_NUM"))
         df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_ORG_KEY IS NULL) OR CASE WHEN SUB_DIV_NAME = IN_SUB_DIV_NAME THEN false ELSE true END OR CASE WHEN SCTN_NAME = IN_SCTN_NAME THEN false ELSE true END OR CASE WHEN PROJ_MGR_NAME = IN_PROJ_MGR_NAME THEN false ELSE true END THEN 1 ELSE 0 END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["IN_SCTN_NAME", "IN_SUB_DIV_NAME", "IN_PROJ_MGR_NAME", "DMNS_ORG_KEY"]:
+        for _col in ["DMNS_ORG_KEY", "IN_PROJ_MGR_NAME", "IN_SUB_DIV_NAME", "IN_SCTN_NAME"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)

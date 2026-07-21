@@ -115,7 +115,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_FIN_NTR = df_LKP_DDS_DMNS_FIN_NTR.dropDuplicates(subset=["FIN_NTR_CODE"])
         # Join condition: FIN_NTR_CODE=FIN_NTR_CODE
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_FIN_NTR
         _lkp_right = _lkp_right.withColumnRenamed("FIN_NTR_CODE", "_lkp_FIN_NTR_CODE")
         # Drop lookup columns that would conflict with input columns (e.g. both
@@ -135,10 +137,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Expression: apply_EXPTRANS
         df_EXPTRANS = df_lkp_merge_1
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_DISP_SEQ_NUM", expr("DISP_SEQ_NUM"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("IN_FIN_NTR_DESP", expr("FIN_NTR_DESP"))
         df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_FIN_NTR_KEY IS NULL) OR CASE WHEN FIN_NTR_DESP = FIN_NTR_DESP THEN false ELSE true END THEN 1 ELSE 0 END"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("IN_FIN_NTR_DESP", expr("FIN_NTR_DESP"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["FIN_NTR_DESP", "DMNS_FIN_NTR_KEY", "FIN_NTR_CODE", "FIN_NTR_DISP_SEQ_NUM", "IN_FIN_NTR_CODE"]:
+        for _col in ["DMNS_FIN_NTR_KEY", "FIN_NTR_DESP", "FIN_NTR_CODE", "FIN_NTR_DISP_SEQ_NUM", "IN_FIN_NTR_CODE"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)

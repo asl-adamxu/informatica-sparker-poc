@@ -117,7 +117,9 @@ select 'OTHR' proj_ntr_code, 'Others' proj_ntr_desp, 10000
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_PROJ_NTR = df_LKP_DDS_DMNS_PROJ_NTR.dropDuplicates(subset=["PROJ_NTR_CODE"])
         # Join condition: PROJ_NTR_CODE=PROJ_NTR_CODE
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_PROJ_NTR
         _lkp_right = _lkp_right.withColumnRenamed("PROJ_NTR_CODE", "_lkp_PROJ_NTR_CODE")
         # Drop lookup columns that would conflict with input columns (e.g. both
@@ -140,7 +142,7 @@ select 'OTHR' proj_ntr_code, 'Others' proj_ntr_desp, 10000
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_PROJ_NTR_DESP", expr("PROJ_NTR_DESP"))
         df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_PROJ_NTR_KEY IS NULL) OR CASE WHEN PROJ_NTR_CODE = IN_PROJ_NTR_CODE THEN false ELSE true END OR CASE WHEN PROJ_NTR_DESP = PROJ_NTR_DESP THEN false ELSE true END THEN 1 ELSE 0 END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["IN_PROJ_NTR_CODE", "PROJ_NTR_CODE", "PROJ_NTR_DESP", "DMNS_PROJ_NTR_KEY", "PROJ_NTR_DISP_SEQ_NUM"]:
+        for _col in ["DMNS_PROJ_NTR_KEY", "PROJ_NTR_CODE", "PROJ_NTR_DESP", "IN_PROJ_NTR_CODE", "PROJ_NTR_DISP_SEQ_NUM"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)

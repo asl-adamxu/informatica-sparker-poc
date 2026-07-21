@@ -116,7 +116,9 @@ ORDER BY SOR_HOM_CON_CNTR_STG.CNTR_STG_CODE"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_CNTR_STG = df_LKP_DDS_DMNS_CNTR_STG.dropDuplicates(subset=["CNTR_STG_CODE"])
         # Join condition: CNTR_STG_CODE=CNTR_STG_CODE
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_CNTR_STG
         _lkp_right = _lkp_right.withColumnRenamed("CNTR_STG_CODE", "_lkp_CNTR_STG_CODE")
         # Drop lookup columns that would conflict with input columns (e.g. both

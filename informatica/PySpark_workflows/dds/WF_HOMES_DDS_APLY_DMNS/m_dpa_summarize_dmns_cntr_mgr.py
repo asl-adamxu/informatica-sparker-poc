@@ -159,9 +159,10 @@ select 'Others' cntr_mgr_post, 99999 cntr_mgr_disp_seq_num
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_CNTR_MGR = df_LKP_DDS_DMNS_CNTR_MGR.dropDuplicates(subset=["CNTR_MGR_POST_NAME"])
         # Join condition: CNTR_MGR_POST_DESP=CNTR_MGR_POST_NAME
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_CNTR_MGR
-        _lkp_right = _lkp_right.withColumnRenamed("CNTR_MGR_POST_NAME", "_lkp_CNTR_MGR_POST_NAME")
         # Drop lookup columns that would conflict with input columns (e.g. both
         # sides having EST_KEY but only one is a join key → ambiguity after join).
         __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_SQ_SOR_HOM_CON_CNTR_REF.columns]
@@ -169,9 +170,9 @@ select 'Others' cntr_mgr_post, 99999 cntr_mgr_disp_seq_num
             _lkp_right = _lkp_right.select(*__lkp_keep)
         df_lkp_merge_1 = df_SQ_SOR_HOM_CON_CNTR_REF.join(
             broadcast(_lkp_right),
-            (df_SQ_SOR_HOM_CON_CNTR_REF["CNTR_MGR_POST_DESP"] == _lkp_right["_lkp_CNTR_MGR_POST_NAME"]),
+            (df_SQ_SOR_HOM_CON_CNTR_REF["CNTR_MGR_POST_DESP"] == _lkp_right["CNTR_MGR_POST_NAME"]),
             "left"
-        ).drop("_lkp_CNTR_MGR_POST_NAME")
+        )
 
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
         

@@ -22,13 +22,13 @@ EXECUTION_PLAN = [
     "steps": [
       {
         "type": "session",
-        "name": "S_EMS_PRHE_RVN_MTH_PARAM_SETUP",
-        "mapping_name": "M_UTL_PARAM_SETUP"
+        "name": "S_EMS_PRHE_RVN_MTH_DPA_TRUNCATE",
+        "mapping_name": "M_UTL_DPA_TRUNCATE"
       },
       {
         "type": "session",
-        "name": "S_EMS_PRHE_RVN_MTH_DPA_TRUNCATE",
-        "mapping_name": "M_UTL_DPA_TRUNCATE"
+        "name": "S_EMS_PRHE_RVN_MTH_PARAM_SETUP",
+        "mapping_name": "M_UTL_PARAM_SETUP"
       }
     ]
   },
@@ -46,8 +46,8 @@ EXECUTION_PLAN = [
       },
       {
         "type": "session",
-        "name": "S_EMS_DPA_SUMMARIZE_FACT_TNCY_AND_PLT_SMRY",
-        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_TNCY_AND_PLT_SMRY"
+        "name": "S_EMS_SSAL1_EXTR_CSA_DRP_SWD_PRLM_PYMT_RAW",
+        "mapping_name": "M_EMS_SSAL1_EXTR_CSA_DRP_SWD_PRLM_PYMT_RAW"
       },
       {
         "type": "session",
@@ -56,8 +56,8 @@ EXECUTION_PLAN = [
       },
       {
         "type": "session",
-        "name": "S_EMS_SSAL1_EXTR_CSA_DRP_SWD_PRLM_PYMT_RAW",
-        "mapping_name": "M_EMS_SSAL1_EXTR_CSA_DRP_SWD_PRLM_PYMT_RAW"
+        "name": "S_EMS_DPA_SUMMARIZE_FACT_TNCY_AND_PLT_SMRY",
+        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_TNCY_AND_PLT_SMRY"
       }
     ]
   },
@@ -71,11 +71,6 @@ EXECUTION_PLAN = [
       },
       {
         "type": "session",
-        "name": "S_EMS_DPA_SUMMARIZE_FACT_MTH_DRP_SWD_CLCT_SMRY_B",
-        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_MTH_DRP_SWD_CLCT_SMRY_B"
-      },
-      {
-        "type": "session",
         "name": "S_EMS_SOR_LOAD_CSA_DRP_SWD_PRLM_PYMT_RAW_FOR_DELETE",
         "mapping_name": "M_EMS_SOR_LOAD_CSA_DRP_SWD_PRLM_PYMT_RAW_FOR_DELETE"
       },
@@ -83,6 +78,11 @@ EXECUTION_PLAN = [
         "type": "session",
         "name": "S_EMS_DDS_APLY_FACT_TNCY_AND_PLT_SMRY",
         "mapping_name": "M_EMS_DDS_APLY_FACT_TNCY_AND_PLT_SMRY"
+      },
+      {
+        "type": "session",
+        "name": "S_EMS_DPA_SUMMARIZE_FACT_MTH_DRP_SWD_CLCT_SMRY_B",
+        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_MTH_DRP_SWD_CLCT_SMRY_B"
       }
     ]
   },
@@ -96,13 +96,13 @@ EXECUTION_PLAN = [
       },
       {
         "type": "session",
-        "name": "S_EMS_DDS_APLY_FACT_MTH_DRP_SWD_CLCT_SMRY",
-        "mapping_name": "M_EMS_DDS_APLY_FACT_MTH_DRP_SWD_CLCT_SMRY"
+        "name": "S_EMS_SOR_LOAD_CSA_DRP_SWD_PRLM_PYMT_RAW_FOR_INSERT",
+        "mapping_name": "M_EMS_SOR_LOAD_CSA_DRP_SWD_PRLM_PYMT_RAW_FOR_INSERT"
       },
       {
         "type": "session",
-        "name": "S_EMS_SOR_LOAD_CSA_DRP_SWD_PRLM_PYMT_RAW_FOR_INSERT",
-        "mapping_name": "M_EMS_SOR_LOAD_CSA_DRP_SWD_PRLM_PYMT_RAW_FOR_INSERT"
+        "name": "S_EMS_DDS_APLY_FACT_MTH_DRP_SWD_CLCT_SMRY",
+        "mapping_name": "M_EMS_DDS_APLY_FACT_MTH_DRP_SWD_CLCT_SMRY"
       }
     ]
   },
@@ -130,13 +130,13 @@ EXECUTION_PLAN = [
       },
       {
         "type": "session",
-        "name": "S_EMS_DDS_APLY_MTH_DRP_SWD_STAT",
-        "mapping_name": "M_EMS_DDS_APLY_MTH_DRP_SWD_STAT"
+        "name": "S_EMS_DPA_SUMMARIZE_FACT_TNCY_AND_HSHLD_SMRY",
+        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_TNCY_AND_HSHLD_SMRY"
       },
       {
         "type": "session",
-        "name": "S_EMS_DPA_SUMMARIZE_FACT_TNCY_AND_HSHLD_SMRY",
-        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_TNCY_AND_HSHLD_SMRY"
+        "name": "S_EMS_DDS_APLY_MTH_DRP_SWD_STAT",
+        "mapping_name": "M_EMS_DDS_APLY_MTH_DRP_SWD_STAT"
       }
     ]
   },

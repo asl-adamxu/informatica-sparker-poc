@@ -974,7 +974,9 @@ AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN opr_sts.BGN_DATE AND opr_sts.END_
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_OPR_TRGT_EVCT_DATE = df_LKP_OPR_TRGT_EVCT_DATE.dropDuplicates(subset=["OPR_CODE"])
         # Join condition: OPR_CODE=OPR_CODE
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_OPR_TRGT_EVCT_DATE
         _lkp_right = _lkp_right.withColumnRenamed("OPR_CODE", "_lkp_OPR_CODE")
         # Drop lookup columns that would conflict with input columns (e.g. both
@@ -1163,7 +1165,7 @@ AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN opr_sts.BGN_DATE AND opr_sts.END_
             col("AMT"),
             col("RMV_CASE_CODE"),
             col("SCHM_CODE")        )
-        df_AGGTRANS = _agg_input.groupBy("OPR_CODE", "RMV_CASE_CODE", "SCHM_CODE")
+        df_AGGTRANS = _agg_input.groupBy("OPR_CODE", "OPR_TRGT_EVCT_DATE", "OPR_DESP", "OPR_RMK_TEXT", "CRP_PYMT_STAT_LAST_EXTRC_DATE", "CRP_PYMT_STAT_EXTRC_DATE", "RMV_CASE_CODE", "SCHM_CODE")
         df_AGGTRANS = df_AGGTRANS.agg(
             sum("CNT").alias("CNT_OUT"),
             sum("AMT").alias("AMT_OUT")
@@ -1201,10 +1203,11 @@ AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN opr_sts.BGN_DATE AND opr_sts.END_
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_RMV_CASE = df_LKP_DDS_DMNS_EMS_RMV_CASE.dropDuplicates(subset=["RMV_CASE_CODE", "RMV_CASE_SCHM_CODE"])
         # Join condition: RMV_CASE_CODE=RMV_CASE_CODE AND DMNS_SCHM_CODE=RMV_CASE_SCHM_CODE
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_EMS_RMV_CASE
         _lkp_right = _lkp_right.withColumnRenamed("RMV_CASE_CODE", "_lkp_RMV_CASE_CODE")
-        _lkp_right = _lkp_right.withColumnRenamed("RMV_CASE_SCHM_CODE", "_lkp_RMV_CASE_SCHM_CODE")
         # Drop lookup columns that would conflict with input columns (e.g. both
         # sides having EST_KEY but only one is a join key → ambiguity after join).
         __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_EXPTRANS.columns]
@@ -1213,9 +1216,9 @@ AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN opr_sts.BGN_DATE AND opr_sts.END_
         df_lkp_merge_2 = df_EXPTRANS.join(
             broadcast(_lkp_right),
             (df_EXPTRANS["RMV_CASE_CODE"] == _lkp_right["_lkp_RMV_CASE_CODE"]) &
-            (df_EXPTRANS["DMNS_SCHM_CODE"] == _lkp_right["_lkp_RMV_CASE_SCHM_CODE"]),
+            (df_EXPTRANS["DMNS_SCHM_CODE"] == _lkp_right["RMV_CASE_SCHM_CODE"]),
             "left"
-        ).drop("_lkp_RMV_CASE_CODE").drop("_lkp_RMV_CASE_SCHM_CODE")
+        ).drop("_lkp_RMV_CASE_CODE")
 
         ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)
         
@@ -1230,7 +1233,9 @@ AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN opr_sts.BGN_DATE AND opr_sts.END_
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_TIME_1 = df_LKP_DDS_DMNS_TIME_1.dropDuplicates(subset=["TIME_VAL_DATE"])
         # Join condition: TIME_VAL_DATE=TIME_VAL_DATE
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_TIME_1
         _lkp_right = _lkp_right.withColumnRenamed("TIME_VAL_DATE", "_lkp_TIME_VAL_DATE")
         # Drop lookup columns that would conflict with input columns (e.g. both

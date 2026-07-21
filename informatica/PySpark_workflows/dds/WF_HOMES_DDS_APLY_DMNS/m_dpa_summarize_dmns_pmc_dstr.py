@@ -124,7 +124,9 @@ select 'OTHR' dstr_code, 'Others' dstr_name, 'OTHR' pms_dstr_code,
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_PMS_DSTR = df_LKP_DDS_DMNS_PMS_DSTR.dropDuplicates(subset=["DSTR_CODE", "PMS_DSTR_CODE"])
         # Join condition: DSTR_CODE=DSTR_CODE AND PMS_DSTR_CODE=PMS_DSTR_CODE
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_PMS_DSTR
         _lkp_right = _lkp_right.withColumnRenamed("DSTR_CODE", "_lkp_DSTR_CODE")
         _lkp_right = _lkp_right.withColumnRenamed("PMS_DSTR_CODE", "_lkp_PMS_DSTR_CODE")
@@ -145,13 +147,13 @@ select 'OTHR' dstr_code, 'Others' dstr_name, 'OTHR' pms_dstr_code,
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
         df_EXPTRANS = df_lkp_merge_1
-        df_EXPTRANS = df_EXPTRANS.withColumn("IN_DSTR_NAME", expr("DSTR_NAME"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_PMS_DSTR_KEY IS NULL) OR CASE WHEN DSTR_NAME = DSTR_NAME THEN false ELSE true END OR CASE WHEN PMS_DSTR_NAME = PMS_DSTR_NAME THEN false ELSE true END THEN 1 ELSE 0 END"))
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_PMS_DSTR_NAME", expr("PMS_DSTR_NAME"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_PMS_DSTR_KEY IS NULL) OR CASE WHEN DSTR_NAME = DSTR_NAME THEN false ELSE true END OR CASE WHEN PMS_DSTR_NAME = PMS_DSTR_NAME THEN false ELSE true END THEN 1 ELSE 0 END"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("IN_DSTR_NAME", expr("DSTR_NAME"))
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_DSTR_DISP_SEQ_NUM", expr("DSTR_DISP_SEQ_NUM"))
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_PMS_DSTR_DISP_SEQ_NUM", expr("PMS_DSTR_DISP_SEQ_NUM"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["DMNS_PMS_DSTR_KEY", "DSTR_NAME", "PMS_DSTR_NAME", "DSTR_CODE", "PMS_DSTR_CODE", "DSTR_DISP_SEQ_NUM", "PMS_DSTR_DISP_SEQ_NUM", "IN_DSTR_CODE", "IN_PMS_DSTR_CODE"]:
+        for _col in ["PMS_DSTR_NAME", "DMNS_PMS_DSTR_KEY", "DSTR_NAME", "DSTR_CODE", "PMS_DSTR_CODE", "DSTR_DISP_SEQ_NUM", "PMS_DSTR_DISP_SEQ_NUM", "IN_DSTR_CODE", "IN_PMS_DSTR_CODE"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)

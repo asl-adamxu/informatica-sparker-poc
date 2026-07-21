@@ -117,7 +117,9 @@ select 'Others' flatmix_type_code, 'Others' flatmix_type_desp, 9999
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_FLATMIX = df_LKP_DDS_DMNS_FLATMIX.dropDuplicates(subset=["FLATMIX_TYPE_CODE"])
         # Join condition: FLATMIX_TYPE_CODE=FLATMIX_TYPE_CODE
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_FLATMIX
         _lkp_right = _lkp_right.withColumnRenamed("FLATMIX_TYPE_CODE", "_lkp_FLATMIX_TYPE_CODE")
         # Drop lookup columns that would conflict with input columns (e.g. both
@@ -140,7 +142,7 @@ select 'Others' flatmix_type_code, 'Others' flatmix_type_desp, 9999
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_RPT_SEQ_NUM", expr("RPT_SEQ_NUM"))
         df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_FLATMIX_KEY IS NULL) OR CASE WHEN FLATMIX_TYPE_CODE = IN_FLATMIX_TYPE_CODE THEN false ELSE true END OR CASE WHEN FLATMIX_TYPE_DESP = FLATMIX_DESP THEN false ELSE true END THEN 1 ELSE 0 END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["IN_FLATMIX_TYPE_CODE", "FLATMIX_TYPE_DESP", "FLATMIX_TYPE_CODE", "DMNS_FLATMIX_KEY", "DISP_SEQ_NUM"]:
+        for _col in ["IN_FLATMIX_TYPE_CODE", "DMNS_FLATMIX_KEY", "FLATMIX_TYPE_CODE", "FLATMIX_TYPE_DESP", "DISP_SEQ_NUM"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)

@@ -129,7 +129,9 @@ select 'OTHR' dstr_grp_code, 'Others' dstr_grp_name, 'OTHR' dstr_code,
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_DSTR_GRP = df_LKP_DDS_DMNS_DSTR_GRP.dropDuplicates(subset=["DSTR_GRP_CODE", "DSTR_CODE"])
         # Join condition: DSTR_GRP_CODE=DSTR_GRP_CODE AND DSTR_CODE=DSTR_CODE
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_DSTR_GRP
         _lkp_right = _lkp_right.withColumnRenamed("DSTR_GRP_CODE", "_lkp_DSTR_GRP_CODE")
         _lkp_right = _lkp_right.withColumnRenamed("DSTR_CODE", "_lkp_DSTR_CODE")

@@ -163,9 +163,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_PROJ = df_LKP_DDS_DMNS_PROJ.dropDuplicates(subset=["PROJ_KEY"])
         # Join condition: PROJ_HOM_BK=PROJ_KEY
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_PROJ
-        _lkp_right = _lkp_right.withColumnRenamed("PROJ_KEY", "_lkp_PROJ_KEY")
         # Drop lookup columns that would conflict with input columns (e.g. both
         # sides having EST_KEY but only one is a join key → ambiguity after join).
         __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_SQ_SOR_HOM_BUD_PROJ_LIST.columns]
@@ -173,21 +174,21 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             _lkp_right = _lkp_right.select(*__lkp_keep)
         df_lkp_merge_1 = df_SQ_SOR_HOM_BUD_PROJ_LIST.join(
             broadcast(_lkp_right),
-            (df_SQ_SOR_HOM_BUD_PROJ_LIST["PROJ_HOM_BK"] == _lkp_right["_lkp_PROJ_KEY"]),
+            (df_SQ_SOR_HOM_BUD_PROJ_LIST["PROJ_HOM_BK"] == _lkp_right["PROJ_KEY"]),
             "left"
-        ).drop("_lkp_PROJ_KEY")
+        )
 
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
         df_EXPTRANS = df_lkp_merge_1
-        df_EXPTRANS = df_EXPTRANS.withColumn("IN_PHASE_CODE", expr("PHASE_CODE"))
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_PROJ_TTL", expr("PROJ_TTL"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("IN_PHASE_CODE", expr("PHASE_CODE"))
         df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_PROJ_KEY IS NULL) OR CASE WHEN PROJ_NUM = PROJ_NUM THEN false ELSE true END OR CASE WHEN PHASE_CODE = PHASE_CODE THEN false ELSE true END OR CASE WHEN PROJ_TTL = PROJ_TTL THEN false ELSE true END THEN 1 ELSE 0 END"))
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_PROJ_NUM", expr("PROJ_NUM"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["DMNS_PROJ_KEY", "PHASE_CODE", "PROJ_TTL", "PROJ_NUM", "PROJ_KEY", "PROJ_DISP_SEQ_NUM", "IN_PROJ_KEY"]:
+        for _col in ["PROJ_TTL", "PHASE_CODE", "DMNS_PROJ_KEY", "PROJ_NUM", "PROJ_KEY", "PROJ_DISP_SEQ_NUM", "IN_PROJ_KEY"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)

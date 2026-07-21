@@ -95,7 +95,9 @@ FROM SOR_EMS_CSA_DRP_PRLM_PYMT_RAW"""
         if _dup_cnt > 0:
             raise RuntimeError(f"Lookup apply_LKPTRANS: {_dup_cnt} duplicate keys found — Report Error policy")
         # Join condition: PRLM_FILE_REC_KEY1=PRLM_FILE_REC_KEY1
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKPTRANS
         _lkp_right = _lkp_right.withColumnRenamed("PRLM_FILE_REC_KEY1", "_lkp_PRLM_FILE_REC_KEY1")
         # Drop lookup columns that would conflict with input columns (e.g. both

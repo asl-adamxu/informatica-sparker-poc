@@ -428,7 +428,9 @@ SELECT     	RM.UNIT_KEY as UNIT_KEY,
         _w = _Window.partitionBy(col("UNIT_KEY")).orderBy(lit(0).desc())
         df_LKPTRANS = df_LKPTRANS.withColumn("_rn", row_number().over(_w)).filter(col("_rn") == 1).drop("_rn")
         # Join condition: UNIT_KEY=UNIT_KEY
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKPTRANS
         _lkp_right = _lkp_right.withColumnRenamed("UNIT_KEY", "_lkp_UNIT_KEY")
         # Drop lookup columns that would conflict with input columns (e.g. both
@@ -494,9 +496,10 @@ select t1.unit_key, e1, e2, e3 from
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_UNIT_ADVS_ENV_CODE_IND = df_LKP_UNIT_ADVS_ENV_CODE_IND.dropDuplicates(subset=["UNIT_KEY"])
         # Join condition: UNIT_KEY1=UNIT_KEY
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_UNIT_ADVS_ENV_CODE_IND
-        _lkp_right = _lkp_right.withColumnRenamed("UNIT_KEY", "_lkp_UNIT_KEY")
         # Drop lookup columns that would conflict with input columns (e.g. both
         # sides having EST_KEY but only one is a join key → ambiguity after join).
         __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_FILTRANS1.columns]
@@ -504,9 +507,9 @@ select t1.unit_key, e1, e2, e3 from
             _lkp_right = _lkp_right.select(*__lkp_keep)
         df_lkp_merge_2 = df_FILTRANS1.join(
             broadcast(_lkp_right),
-            (df_FILTRANS1["UNIT_KEY1"] == _lkp_right["_lkp_UNIT_KEY"]),
+            (df_FILTRANS1["UNIT_KEY1"] == _lkp_right["UNIT_KEY"]),
             "left"
-        ).drop("_lkp_UNIT_KEY")
+        )
 
         ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)
         

@@ -116,7 +116,9 @@ select 'Others' blk_type_code, 'Others' blk_type_desp, 9999 disp_seq_num
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_PRJ_BLK_TYPE = df_LKP_DDS_DMNS_PRJ_BLK_TYPE.dropDuplicates(subset=["BLK_TYPE_CODE"])
         # Join condition: BLK_TYPE_CODE=BLK_TYPE_CODE
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_PRJ_BLK_TYPE
         _lkp_right = _lkp_right.withColumnRenamed("BLK_TYPE_CODE", "_lkp_BLK_TYPE_CODE")
         # Drop lookup columns that would conflict with input columns (e.g. both
@@ -135,11 +137,11 @@ select 'Others' blk_type_code, 'Others' blk_type_desp, 9999 disp_seq_num
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
         df_EXPTRANS = df_lkp_merge_1
-        df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_BLK_TYPE_KEY IS NULL) OR CASE WHEN BLK_TYPE_CODE = IN_BLK_TYPE_CODE THEN false ELSE true END OR CASE WHEN BLK_TYPE_DESP = BLK_TYPE_DESP THEN false ELSE true END THEN 1 ELSE 0 END"))
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_BLK_TYPE_DESP", expr("BLK_TYPE_DESP"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_BLK_TYPE_KEY IS NULL) OR CASE WHEN BLK_TYPE_CODE = IN_BLK_TYPE_CODE THEN false ELSE true END OR CASE WHEN BLK_TYPE_DESP = BLK_TYPE_DESP THEN false ELSE true END THEN 1 ELSE 0 END"))
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_DISP_SEQ_NUM", expr("DISP_SEQ_NUM"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["BLK_TYPE_CODE", "DMNS_BLK_TYPE_KEY", "IN_BLK_TYPE_CODE", "BLK_TYPE_DESP", "DISP_SEQ_NUM"]:
+        for _col in ["BLK_TYPE_CODE", "IN_BLK_TYPE_CODE", "BLK_TYPE_DESP", "DMNS_BLK_TYPE_KEY", "DISP_SEQ_NUM"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)

@@ -217,7 +217,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_KPI_SNSH_YEAR = df_LKP_DDS_DMNS_KPI_SNSH_YEAR.dropDuplicates(subset=["SNSH_YEAR", "SNSH_MTH"])
         # Join condition: SNSH_YEAR=SNSH_YEAR AND SNSH_MTH=SNSH_MTH
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_KPI_SNSH_YEAR
         _lkp_right = _lkp_right.withColumnRenamed("SNSH_YEAR", "_lkp_SNSH_YEAR")
         _lkp_right = _lkp_right.withColumnRenamed("SNSH_MTH", "_lkp_SNSH_MTH")
@@ -242,7 +244,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_DISP_SNSH_YEAR_TEXT", expr("disp_snsh_year_text"))
         df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_KPI_SNSH_YEAR_KEY IS NULL) OR CASE WHEN SNSH_YEAR = IN_SNSH_YEAR THEN false ELSE true END OR CASE WHEN SNSH_MTH = IN_SNSH_MTH THEN false ELSE true END OR CASE WHEN DISP_FIN_YEAR_TEXT = disp_fin_year_text THEN false ELSE true END OR CASE WHEN DISP_SNSH_YEAR_TEXT = disp_snsh_year_text THEN false ELSE true END THEN 1 ELSE 0 END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["SNSH_YEAR", "IN_SNSH_YEAR", "DMNS_KPI_SNSH_YEAR_KEY", "DISP_SNSH_YEAR_TEXT", "DISP_FIN_YEAR_TEXT", "SNSH_MTH", "IN_SNSH_MTH", "FIN_YEAR", "SNSH_DISP_SEQ_NUM"]:
+        for _col in ["SNSH_YEAR", "IN_SNSH_MTH", "DISP_SNSH_YEAR_TEXT", "SNSH_MTH", "IN_SNSH_YEAR", "DISP_FIN_YEAR_TEXT", "DMNS_KPI_SNSH_YEAR_KEY", "FIN_YEAR", "SNSH_DISP_SEQ_NUM"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)

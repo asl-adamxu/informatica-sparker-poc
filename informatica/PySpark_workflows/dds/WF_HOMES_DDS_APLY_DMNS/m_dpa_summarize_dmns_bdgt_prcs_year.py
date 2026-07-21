@@ -146,10 +146,11 @@ from
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_BDGT_PRCS_YEAR = df_LKP_DDS_DMNS_BDGT_PRCS_YEAR.dropDuplicates(subset=["PRCS_YEAR", "PRCS_MTH"])
         # Join condition: PRCS_YEAR=PRCS_YEAR AND prcs_mth=PRCS_MTH
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_BDGT_PRCS_YEAR
         _lkp_right = _lkp_right.withColumnRenamed("PRCS_YEAR", "_lkp_PRCS_YEAR")
-        _lkp_right = _lkp_right.withColumnRenamed("PRCS_MTH", "_lkp_PRCS_MTH")
         # Drop lookup columns that would conflict with input columns (e.g. both
         # sides having EST_KEY but only one is a join key → ambiguity after join).
         __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_SQ_SOR_HOM_BUD_COPY.columns]
@@ -158,9 +159,9 @@ from
         df_lkp_merge_1 = df_SQ_SOR_HOM_BUD_COPY.join(
             broadcast(_lkp_right),
             (df_SQ_SOR_HOM_BUD_COPY["PRCS_YEAR"] == _lkp_right["_lkp_PRCS_YEAR"]) &
-            (df_SQ_SOR_HOM_BUD_COPY["prcs_mth"] == _lkp_right["_lkp_PRCS_MTH"]),
+            (df_SQ_SOR_HOM_BUD_COPY["prcs_mth"] == _lkp_right["PRCS_MTH"]),
             "left"
-        ).drop("_lkp_PRCS_YEAR").drop("_lkp_PRCS_MTH")
+        ).drop("_lkp_PRCS_YEAR")
 
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
         
@@ -174,7 +175,7 @@ from
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_prcs_mth_disp_seq_num1", expr("prcs_mth_disp_seq_num"))
         df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_BDGT_PRCS_YEAR_KEY IS NULL) OR CASE WHEN PRCS_YEAR = IN_PRCS_YEAR THEN false ELSE true END OR CASE WHEN PRCS_DATE = prcs_date THEN false ELSE true END OR CASE WHEN PRCS_MTH = IN_PRCS_MTH THEN false ELSE true END THEN 1 ELSE 0 END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["PRCS_YEAR", "PRCS_MTH", "IN_PRCS_YEAR", "PRCS_DATE", "DMNS_BDGT_PRCS_YEAR_KEY", "IN_PRCS_MTH", "PRCS_YEAR_TEXT", "PRCS_MTH_TEXT", "PRCS_YEAR_DISP_SEQ_NUM", "PRCS_MTH_DISP_SEQ_NUM"]:
+        for _col in ["IN_PRCS_MTH", "PRCS_MTH", "IN_PRCS_YEAR", "DMNS_BDGT_PRCS_YEAR_KEY", "PRCS_YEAR", "PRCS_DATE", "PRCS_YEAR_TEXT", "PRCS_MTH_TEXT", "PRCS_YEAR_DISP_SEQ_NUM", "PRCS_MTH_DISP_SEQ_NUM"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)

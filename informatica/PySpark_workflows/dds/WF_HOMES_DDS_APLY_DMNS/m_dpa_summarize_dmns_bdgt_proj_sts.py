@@ -122,9 +122,10 @@ order by pp.parm_name"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_BDGT_PROJ_STS = df_LKP_DDS_DMNS_BDGT_PROJ_STS.dropDuplicates(subset=["PROJ_STS_CATG_CODE"])
         # Join condition: PARM_NAME=PROJ_STS_CATG_CODE
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_BDGT_PROJ_STS
-        _lkp_right = _lkp_right.withColumnRenamed("PROJ_STS_CATG_CODE", "_lkp_PROJ_STS_CATG_CODE")
         # Drop lookup columns that would conflict with input columns (e.g. both
         # sides having EST_KEY but only one is a join key → ambiguity after join).
         __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_SQ_SOR_HOM_BUD_PARM.columns]
@@ -132,9 +133,9 @@ order by pp.parm_name"""
             _lkp_right = _lkp_right.select(*__lkp_keep)
         df_lkp_merge_1 = df_SQ_SOR_HOM_BUD_PARM.join(
             broadcast(_lkp_right),
-            (df_SQ_SOR_HOM_BUD_PARM["PARM_NAME"] == _lkp_right["_lkp_PROJ_STS_CATG_CODE"]),
+            (df_SQ_SOR_HOM_BUD_PARM["PARM_NAME"] == _lkp_right["PROJ_STS_CATG_CODE"]),
             "left"
-        ).drop("_lkp_PROJ_STS_CATG_CODE")
+        )
 
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
         
@@ -144,7 +145,7 @@ order by pp.parm_name"""
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_proj_sts_desp", expr("proj_sts_desp"))
         df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_BDGT_PROJ_STS_KEY IS NULL) OR CASE WHEN PROJ_STS_DESP = proj_sts_desp THEN false ELSE true END OR CASE WHEN PROJ_STS_CATG_CODE = IN_PROJ_STS_CATG_CODE THEN false ELSE true END THEN 1 ELSE 0 END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["DMNS_BDGT_PROJ_STS_KEY", "PROJ_STS_DESP", "PROJ_STS_CATG_CODE", "IN_PROJ_STS_CATG_CODE", "BDGT_STS_DISP_SEQ_NUM", "PHCP_IND", "PARM_TEXT"]:
+        for _col in ["IN_PROJ_STS_CATG_CODE", "DMNS_BDGT_PROJ_STS_KEY", "PROJ_STS_CATG_CODE", "PROJ_STS_DESP", "BDGT_STS_DISP_SEQ_NUM", "PHCP_IND", "PARM_TEXT"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)

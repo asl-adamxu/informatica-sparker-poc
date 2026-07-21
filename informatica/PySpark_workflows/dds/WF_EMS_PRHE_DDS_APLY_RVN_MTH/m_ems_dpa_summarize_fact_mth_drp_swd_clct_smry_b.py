@@ -188,9 +188,10 @@ where  u.blk_key = b.blk_key"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_EST_KEY_UNIT2 = df_LKP_EST_KEY_UNIT2.dropDuplicates(subset=["HSE_UNIT_KEY"])
         # Join condition: UNIT_KEY=HSE_UNIT_KEY
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_EST_KEY_UNIT2
-        _lkp_right = _lkp_right.withColumnRenamed("HSE_UNIT_KEY", "_lkp_HSE_UNIT_KEY")
         # Drop lookup columns that would conflict with input columns (e.g. both
         # sides having EST_KEY but only one is a join key → ambiguity after join).
         __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_DRP.columns]
@@ -198,9 +199,9 @@ where  u.blk_key = b.blk_key"""
             _lkp_right = _lkp_right.select(*__lkp_keep)
         df_lkp_merge_1 = df_DRP.join(
             broadcast(_lkp_right),
-            (df_DRP["UNIT_KEY"] == _lkp_right["_lkp_HSE_UNIT_KEY"]),
+            (df_DRP["UNIT_KEY"] == _lkp_right["HSE_UNIT_KEY"]),
             "left"
-        ).drop("_lkp_HSE_UNIT_KEY")
+        )
 
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
         
@@ -237,7 +238,9 @@ where  u.blk_key = b.blk_key"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_EST_KEY_UNIT1 = df_LKP_EST_KEY_UNIT1.dropDuplicates(subset=["HSE_UNIT_KEY"])
         # Join condition: HSE_UNIT_KEY=HSE_UNIT_KEY
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_EST_KEY_UNIT1
         _lkp_right = _lkp_right.withColumnRenamed("HSE_UNIT_KEY", "_lkp_HSE_UNIT_KEY")
         # Drop lookup columns that would conflict with input columns (e.g. both
@@ -271,9 +274,10 @@ where  u.blk_key = b.blk_key"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_EST_KEY_UNIT = df_LKP_EST_KEY_UNIT.dropDuplicates(subset=["HSE_UNIT_KEY"])
         # Join condition: HSE_UNIT_KEY1=HSE_UNIT_KEY
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_EST_KEY_UNIT
-        _lkp_right = _lkp_right.withColumnRenamed("HSE_UNIT_KEY", "_lkp_HSE_UNIT_KEY")
         # Drop lookup columns that would conflict with input columns (e.g. both
         # sides having EST_KEY but only one is a join key → ambiguity after join).
         __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_EXPTRANS.columns]
@@ -281,9 +285,9 @@ where  u.blk_key = b.blk_key"""
             _lkp_right = _lkp_right.select(*__lkp_keep)
         df_lkp_merge_3 = df_EXPTRANS.join(
             broadcast(_lkp_right),
-            (df_EXPTRANS["HSE_UNIT_KEY1"] == _lkp_right["_lkp_HSE_UNIT_KEY"]),
+            (df_EXPTRANS["HSE_UNIT_KEY1"] == _lkp_right["HSE_UNIT_KEY"]),
             "left"
-        ).drop("_lkp_HSE_UNIT_KEY")
+        )
 
         ctx.register_df("df_lkp_merge_3", df_lkp_merge_3)
         
@@ -386,10 +390,10 @@ and ADD_MONTHS(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'), 1)-1 BETWEEN SOR_EMS_TA
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_EST_KEY_MBR_ID = df_LKP_EST_KEY_MBR_ID.dropDuplicates(subset=["CUST_MBR_ID_TYPE_CODE", "CUST_MBR_ID_NUM"])
         # Join condition: PRPL_CSSA_APLY_ID_TYPE_CODE1=CUST_MBR_ID_TYPE_CODE AND PRPL_CSSA_APLY_ID_NUM1=CUST_MBR_ID_NUM
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_EST_KEY_MBR_ID
-        _lkp_right = _lkp_right.withColumnRenamed("CUST_MBR_ID_TYPE_CODE", "_lkp_CUST_MBR_ID_TYPE_CODE")
-        _lkp_right = _lkp_right.withColumnRenamed("CUST_MBR_ID_NUM", "_lkp_CUST_MBR_ID_NUM")
         # Drop lookup columns that would conflict with input columns (e.g. both
         # sides having EST_KEY but only one is a join key → ambiguity after join).
         __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_rtr_valid_type_4.columns]
@@ -397,10 +401,10 @@ and ADD_MONTHS(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'), 1)-1 BETWEEN SOR_EMS_TA
             _lkp_right = _lkp_right.select(*__lkp_keep)
         df_lkp_merge_6 = df_rtr_valid_type_4.join(
             broadcast(_lkp_right),
-            (df_rtr_valid_type_4["PRPL_CSSA_APLY_ID_TYPE_CODE1"] == _lkp_right["_lkp_CUST_MBR_ID_TYPE_CODE"]) &
-            (df_rtr_valid_type_4["PRPL_CSSA_APLY_ID_NUM1"] == _lkp_right["_lkp_CUST_MBR_ID_NUM"]),
+            (df_rtr_valid_type_4["PRPL_CSSA_APLY_ID_TYPE_CODE1"] == _lkp_right["CUST_MBR_ID_TYPE_CODE"]) &
+            (df_rtr_valid_type_4["PRPL_CSSA_APLY_ID_NUM1"] == _lkp_right["CUST_MBR_ID_NUM"]),
             "left"
-        ).drop("_lkp_CUST_MBR_ID_TYPE_CODE").drop("_lkp_CUST_MBR_ID_NUM")
+        )
 
         ctx.register_df("df_lkp_merge_6", df_lkp_merge_6)
         
@@ -512,9 +516,10 @@ WHERE TRUNC(TIME_DMNS_KEY/100000000) =2"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_TIME_DMNS_KEY = df_LKP_TIME_DMNS_KEY.dropDuplicates(subset=["TIME_VAL_DATE"])
         # Join condition: MONTH_DATE=TIME_VAL_DATE
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_TIME_DMNS_KEY
-        _lkp_right = _lkp_right.withColumnRenamed("TIME_VAL_DATE", "_lkp_TIME_VAL_DATE")
         # Drop lookup columns that would conflict with input columns (e.g. both
         # sides having EST_KEY but only one is a join key → ambiguity after join).
         __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_GROUPBY_EST.columns]
@@ -522,9 +527,9 @@ WHERE TRUNC(TIME_DMNS_KEY/100000000) =2"""
             _lkp_right = _lkp_right.select(*__lkp_keep)
         df_lkp_merge_7 = df_GROUPBY_EST.join(
             broadcast(_lkp_right),
-            (df_GROUPBY_EST["MONTH_DATE"] == _lkp_right["_lkp_TIME_VAL_DATE"]),
+            (df_GROUPBY_EST["MONTH_DATE"] == _lkp_right["TIME_VAL_DATE"]),
             "left"
-        ).drop("_lkp_TIME_VAL_DATE")
+        )
 
         ctx.register_df("df_lkp_merge_7", df_lkp_merge_7)
         
@@ -539,7 +544,9 @@ WHERE TRUNC(TIME_DMNS_KEY/100000000) =2"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_RVN_TXN_MODE_DMNS_KEY = df_LKP_RVN_TXN_MODE_DMNS_KEY.dropDuplicates(subset=["RVN_TXN_MODE_CODE"])
         # Join condition: RVN_TXN_MODE_CODE=RVN_TXN_MODE_CODE
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_RVN_TXN_MODE_DMNS_KEY
         _lkp_right = _lkp_right.withColumnRenamed("RVN_TXN_MODE_CODE", "_lkp_RVN_TXN_MODE_CODE")
         # Drop lookup columns that would conflict with input columns (e.g. both
@@ -572,7 +579,9 @@ where ADD_MONTHS(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'), 1)-1 between bgn_date
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_EST_SCD_KEY = df_LKP_EST_SCD_KEY.dropDuplicates(subset=["EST_KEY"])
         # Join condition: EST_KEY=EST_KEY
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_EST_SCD_KEY
         _lkp_right = _lkp_right.withColumnRenamed("EST_KEY", "_lkp_EST_KEY")
         # Drop lookup columns that would conflict with input columns (e.g. both

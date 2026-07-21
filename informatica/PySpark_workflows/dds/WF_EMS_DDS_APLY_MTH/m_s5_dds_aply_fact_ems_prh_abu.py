@@ -114,7 +114,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             col("ABU_DMNS_KEY"),
             col("LAST_REC_TXN_DATE"),
             col("LAST_REC_TXN_TYPE_CODE")        )
-        df_AGGTRANS = _agg_input.groupBy("TIME_DMNS_KEY", "RGN_DMNS_KEY", "ABU_DMNS_KEY")
+        df_AGGTRANS = _agg_input.groupBy("TIME_DMNS_KEY", "RGN_DMNS_KEY", "ABU_DMNS_KEY", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE")
         df_AGGTRANS = df_AGGTRANS.agg(
             sum("CASE_CNT").alias("CASE_CNT_OUT"),
             {v_REC_RLS_IND}.alias("REC_RLS_IND")
@@ -123,61 +123,84 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         
         logger.info("Step: apply_mplt_EXPTRANS")
         # Expression: apply_mplt_EXPTRANS
-        df_mplt_expr_1 = df_EXP_SET_DEL_INFO
-        df_mplt_expr_1 = df_mplt_expr_1.withColumn("RLS_CNTL_DMNS_TYPE_CODE", expr("substring(cast(TIME_DMNS_KEY as string),1,1)"))
-        ctx.register_df("df_mplt_expr_1", df_mplt_expr_1)
+        df_mplt_EXPTRANS = df_EXP_SET_DEL_INFO
+        df_mplt_EXPTRANS = df_mplt_EXPTRANS.withColumn("RLS_CNTL_DMNS_TYPE_CODE", expr("substring(cast(TIME_DMNS_KEY as string),1,1)"))
+        ctx.register_df("df_mplt_EXPTRANS", df_mplt_EXPTRANS)
+        
+        logger.info("Step: apply_mplt_AGGTRANS")
+        # Aggregator: apply_mplt_AGGTRANS
+        df_mplt_AGGTRANS = df_mplt_EXPTRANS.groupBy("TBL_NAME", "RM_FLG", "RLS_CNTL_DMNS_TYPE_CODE", "RSL_CTL_IND")
+        df_mplt_AGGTRANS = df_mplt_AGGTRANS.agg(
+            max("TIME_DMNS_KEY").alias("MAX_TIME_DMNS_KEY"),
+            min("TIME_DMNS_KEY").alias("MIN_TIME_DMNS_KEY")
+        )
+        ctx.register_df("df_mplt_AGGTRANS", df_mplt_AGGTRANS)
         
         logger.info("Step: read_mplt_LKPTRANS")
         # Reading Data From Source - read_mplt_LKPTRANS
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "target")
-        df_mplt_lkp_2 = lib.read_sql(spark, _conn, table="DDS_RLS_CNTL")
+        df_mplt_lkp_1 = lib.read_sql(spark, _conn, table="DDS_RLS_CNTL")
         
-        logger.info("Step: join_mplt_EXP_SP_DELETE_0")
-        # Lookup: join_mplt_EXP_SP_DELETE_0
-        # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity).
-        _cc = list(dict.fromkeys(c for c in df_mplt_lkp_2.columns if c in df_EXP_SET_DEL_INFO.columns))
-        if _cc:
-            __lkp_dup = [c for c in df_EXP_SET_DEL_INFO.columns if c in df_mplt_lkp_2.columns and c not in _cc]
-            df_mplt_merge_3 = df_mplt_lkp_2.join(
-                df_EXP_SET_DEL_INFO.drop(*__lkp_dup) if __lkp_dup else df_EXP_SET_DEL_INFO,
-                on=_cc, how="left"
-            )
-        else:
-            logger.warning("No common columns between df_mplt_lkp_2 and df_EXP_SET_DEL_INFO — using synthetic key join")
-            df_mplt_merge_3 = df_mplt_lkp_2.withColumn("_join_key", lit(1)).join(
-                df_EXP_SET_DEL_INFO.withColumn("_join_key", lit(1)),
-                on="_join_key", how="left").drop("_join_key")
-        ctx.register_df("df_mplt_merge_3", df_mplt_merge_3)
+        logger.info("Step: apply_mplt_LKPTRANS")
+        # Lookup: apply_mplt_LKPTRANS
+        # Join condition: TBL_NAME=RLS_CNTL_FACT_TBL_NAME AND RLS_CNTL_DMNS_TYPE_CODE=RLS_CNTL_DMNS_TYPE_CODE
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
+        _lkp_right = df_mplt_lkp_1
+        _lkp_right = _lkp_right.withColumnRenamed("RLS_CNTL_DMNS_TYPE_CODE", "_lkp_RLS_CNTL_DMNS_TYPE_CODE")
+        # Drop lookup columns that would conflict with input columns (e.g. both
+        # sides having EST_KEY but only one is a join key → ambiguity after join).
+        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_mplt_AGGTRANS.columns]
+        if len(__lkp_keep) < len(_lkp_right.columns):
+            _lkp_right = _lkp_right.select(*__lkp_keep)
+        df_mplt_LKPTRANS = df_mplt_AGGTRANS.join(
+            broadcast(_lkp_right),
+            (df_mplt_AGGTRANS["TBL_NAME"] == _lkp_right["RLS_CNTL_FACT_TBL_NAME"]) &
+            (df_mplt_AGGTRANS["RLS_CNTL_DMNS_TYPE_CODE"] == _lkp_right["_lkp_RLS_CNTL_DMNS_TYPE_CODE"]),
+            "left"
+        ).drop("_lkp_RLS_CNTL_DMNS_TYPE_CODE")
+
+        ctx.register_df("df_mplt_LKPTRANS", df_mplt_LKPTRANS)
+        
+        logger.info("Step: rename_EXP_SP_DELETE")
+        # Expression: rename_EXP_SP_DELETE
+        df_mplt_rename_2 = df_mplt_LKPTRANS
+        df_mplt_rename_2 = df_mplt_rename_2.drop("DDS_RLS_CNTL_DMNS_TYPE_CODE").withColumnRenamed("RLS_CNTL_DMNS_TYPE_CODE", "DDS_RLS_CNTL_DMNS_TYPE_CODE")
+        df_mplt_rename_2 = df_mplt_rename_2.drop("DDS_RLS_CNTL_BGN_TIME_DMNS_KEY").withColumnRenamed("RLS_CNTL_BGN_TIME_DMNS_KEY", "DDS_RLS_CNTL_BGN_TIME_DMNS_KEY")
+        df_mplt_rename_2 = df_mplt_rename_2.drop("DDS_RLS_CNTL_END_TIME_DMNS_KEY").withColumnRenamed("RLS_CNTL_END_TIME_DMNS_KEY", "DDS_RLS_CNTL_END_TIME_DMNS_KEY")
+        df_mplt_rename_2 = df_mplt_rename_2.drop("REMOVE_ALL_FLG").withColumnRenamed("RM_FLG", "REMOVE_ALL_FLG")
+        df_mplt_rename_2 = df_mplt_rename_2.drop("FACT_TBL_NAME").withColumnRenamed("TBL_NAME", "FACT_TBL_NAME")
+        df_mplt_rename_2 = df_mplt_rename_2.drop("DDS_RLS_CNTL_FACT_TBL_NAME").withColumnRenamed("RLS_CNTL_FACT_TBL_NAME", "DDS_RLS_CNTL_FACT_TBL_NAME")
+        ctx.register_df("df_mplt_rename_2", df_mplt_rename_2)
         
         logger.info("Step: apply_mplt_EXP_SP_DELETE")
         # Expression: apply_mplt_EXP_SP_DELETE
-        df_mplt_expr_4 = df_mplt_merge_3
-        df_mplt_expr_4 = df_mplt_expr_4.withColumn("FACT_TBL_NAME", expr("TBL_NAME"))
+        df_mplt_EXP_SP_DELETE = df_mplt_rename_2
         # Execute stored procedure for each input value via JDBC
         _sp_conn = conn_oracle
-        _sp_input_cols = ["TBL_NAME", "MIN_TIME_DMNS_KEY", "RM_FLG"]
-        _input_rows = [row for row in df_mplt_merge_3.select(*_sp_input_cols).collect()]
+        _sp_input_cols = ["FACT_TBL_NAME", "MIN_TIME_DMNS_KEY", "REMOVE_ALL_FLG"]
+        _input_rows = [row for row in df_mplt_rename_2.select(*_sp_input_cols).collect()]
         for _row in _input_rows:
             _arg_vals = ", ".join("'" + str(_row[c]) + "'" for c in _sp_input_cols)
             lib.execute_sql(spark, _sp_conn,
                 "BEGIN SP_DELETE_DDS_FACT(" + _arg_vals + "); END;")
-        df_mplt_expr_4 = df_mplt_expr_4.withColumn("CALL_SP", lit("SUCCESS"))
-        df_mplt_expr_4 = df_mplt_expr_4.withColumn("RLS_CNTL_BGN_DMNS_KEY", expr("CASE WHEN (RLS_CNTL_BGN_TIME_DMNS_KEY IS NULL) OR (MIN_TIME_DMNS_KEY < RLS_CNTL_BGN_TIME_DMNS_KEY) THEN MIN_TIME_DMNS_KEY ELSE RLS_CNTL_BGN_TIME_DMNS_KEY END"))
-        df_mplt_expr_4 = df_mplt_expr_4.withColumn("RLS_CNTL_END_DMNS_KEY", expr("CASE WHEN (RLS_CNTL_END_TIME_DMNS_KEY IS NULL) OR (MAX_TIME_DMNS_KEY > RLS_CNTL_END_TIME_DMNS_KEY) THEN MAX_TIME_DMNS_KEY ELSE RLS_CNTL_END_TIME_DMNS_KEY END"))
-        df_mplt_expr_4 = df_mplt_expr_4.withColumn("UPDATE_FLAG", expr("CASE WHEN (DDS_RLS_CNTL_TBL_NAME IS NULL) THEN DD_INSERT ELSE DD_UPDATE END"))
-        ctx.register_df("df_mplt_expr_4", df_mplt_expr_4)
+        df_mplt_EXP_SP_DELETE = df_mplt_EXP_SP_DELETE.withColumn("CALL_SP", lit("SUCCESS"))
+        df_mplt_EXP_SP_DELETE = df_mplt_EXP_SP_DELETE.withColumn("RLS_CNTL_BGN_DMNS_KEY", expr("CASE WHEN (DDS_RLS_CNTL_BGN_TIME_DMNS_KEY IS NULL) OR (MIN_TIME_DMNS_KEY < DDS_RLS_CNTL_BGN_TIME_DMNS_KEY) THEN MIN_TIME_DMNS_KEY ELSE DDS_RLS_CNTL_BGN_TIME_DMNS_KEY END"))
+        df_mplt_EXP_SP_DELETE = df_mplt_EXP_SP_DELETE.withColumn("RLS_CNTL_END_DMNS_KEY", expr("CASE WHEN (DDS_RLS_CNTL_END_TIME_DMNS_KEY IS NULL) OR (MAX_TIME_DMNS_KEY > DDS_RLS_CNTL_END_TIME_DMNS_KEY) THEN MAX_TIME_DMNS_KEY ELSE DDS_RLS_CNTL_END_TIME_DMNS_KEY END"))
+        df_mplt_EXP_SP_DELETE = df_mplt_EXP_SP_DELETE.withColumn("UPDATE_FLAG", expr("CASE WHEN (DDS_RLS_CNTL_FACT_TBL_NAME IS NULL) THEN 'DD_INSERT' ELSE 'DD_UPDATE' END"))
+        ctx.register_df("df_mplt_EXP_SP_DELETE", df_mplt_EXP_SP_DELETE)
         
         logger.info("Step: apply_mplt_FILTRANS")
         # Filter: apply_mplt_FILTRANS
-        __fil_input = df_mplt_expr_4
-        df_mplt_fil_5 = __fil_input.filter(expr("RSL_CTL_IND = '1'"))
-        ctx.register_df("df_mplt_fil_5", df_mplt_fil_5)
+        __fil_input = df_mplt_EXP_SP_DELETE
+        df_mplt_FILTRANS = __fil_input.filter(expr("RSL_CTL_IND = '1'"))
+        ctx.register_df("df_mplt_FILTRANS", df_mplt_FILTRANS)
         
         logger.info("Step: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD")
         # Expression: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD
-        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD = df_mplt_expr_4
+        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD = df_mplt_EXP_SP_DELETE
         ctx.register_df("df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD", df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD)
         
         logger.info("Step: write_DDS_FACT_EMS_PRH_ABU")
@@ -223,12 +246,37 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: apply_UPD_RLS_CNTL")
         # Update Strategy: apply_UPD_RLS_CNTL
         # Strategy: UPDATE_FLAG
-        df_UPD_RLS_CNTL = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD.withColumn("_update_strategy", lit("INSERT"))
+        df_UPD_RLS_CNTL = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD.withColumn("_update_flag",
+            when(col("UPDATE_FLAG") == "DD_INSERT", lit("I"))
+            .when(col("UPDATE_FLAG") == "DD_UPDATE", lit("U"))
+            .when(col("UPDATE_FLAG") == "DD_DELETE", lit("D"))
+            .otherwise(lit("I"))
+        )
         ctx.register_df("df_UPD_RLS_CNTL", df_UPD_RLS_CNTL)
         
         logger.info("Step: write_DDS_RLS_CNTL")
         # Write to Target: write_DDS_RLS_CNTL
         df_write = df_UPD_RLS_CNTL
+        # Split by _update_flag operation (INSERT/UPDATE/DELETE) before column processing
+        _df_ins = df_write.filter(col("_update_flag") == "I").drop("_update_flag")
+        _df_upd = df_write.filter(col("_update_flag") == "U").drop("_update_flag")
+        _df_del = df_write.filter(col("_update_flag") == "D").drop("_update_flag")
+        df_write = df_write.drop("_update_flag")
+        # DELETE: composite key batch delete (all key columns together)
+        _del_key_cols = ['rls_cntl_fact_tbl_name', 'rls_cntl_dmns_type_code', 'rls_cntl_bgn_time_dmns_key', 'rls_cntl_end_time_dmns_key']
+        if not _df_del.rdd.isEmpty():
+            _del_rows = [tuple(r[c] for c in _del_key_cols) for r in _df_del.select(*_del_key_cols).distinct().collect()]
+            if _del_rows:
+                lib.batch_delete_composite(spark, conn_target, "DDS_RLS_CNTL", _del_key_cols, _del_rows, 1000)
+        # UPDATE: batch update via JDBC
+        if not _df_upd.rdd.isEmpty():
+            _upd_key_cols = ['rls_cntl_fact_tbl_name', 'rls_cntl_dmns_type_code', 'rls_cntl_bgn_time_dmns_key', 'rls_cntl_end_time_dmns_key']
+            _upd_set_cols = [c for c in _df_upd.columns if c not in _upd_key_cols]
+            if _upd_set_cols:
+                _upd_rows = [tuple(r[c] for c in _upd_set_cols + _upd_key_cols) for r in _df_upd.collect()]
+                lib.batch_update(spark, conn_target, "DDS_RLS_CNTL", _upd_set_cols, _upd_key_cols, _upd_rows, 1000)
+        # INSERT — set df_write to _df_ins so it flows through normal write path
+        df_write = _df_ins
         # Cast columns to match target schema data types
         if "rls_cntl_fact_tbl_name" in [c.lower() for c in df_write.columns]:
             for c in df_write.columns:

@@ -155,7 +155,9 @@ FROM
         if _dup_cnt > 0:
             raise RuntimeError(f"Lookup apply_LKP_DDS_FACT_EMS_UND_OCPY: {_dup_cnt} duplicate keys found — Report Error policy")
         # Join condition: CODE_ADDR=CODE_ADDR
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_FACT_EMS_UND_OCPY
         _lkp_right = _lkp_right.withColumnRenamed("CODE_ADDR", "_lkp_CODE_ADDR")
         # Drop lookup columns that would conflict with input columns (e.g. both
@@ -182,12 +184,13 @@ FROM
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DPA_FACT_EMS_UND_OCPY = df_LKP_DPA_FACT_EMS_UND_OCPY.dropDuplicates(subset=["CODE_ADDR", "IFA_AREA", "FMLY_SIZE_NUM", "DSBL_CATG_CODE", "ELDR_IND", "FLAT_TYPE_DMNS_KEY", "EST_DMNS_KEY"])
         # Join condition: CODE_ADDR=CODE_ADDR AND IFA_AREA=IFA_AREA AND FMLY_SIZE_NUM=FMLY_SIZE_NUM AND DSBL_CODE=DSBL_CATG_CODE AND ELDR_IND=ELDR_IND AND FLAT_TYPE_DMNS_KEY=FLAT_TYPE_DMNS_KEY AND EST_DMNS_KEY=EST_DMNS_KEY
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DPA_FACT_EMS_UND_OCPY
         _lkp_right = _lkp_right.withColumnRenamed("CODE_ADDR", "_lkp_CODE_ADDR")
         _lkp_right = _lkp_right.withColumnRenamed("IFA_AREA", "_lkp_IFA_AREA")
         _lkp_right = _lkp_right.withColumnRenamed("FMLY_SIZE_NUM", "_lkp_FMLY_SIZE_NUM")
-        _lkp_right = _lkp_right.withColumnRenamed("DSBL_CATG_CODE", "_lkp_DSBL_CATG_CODE")
         _lkp_right = _lkp_right.withColumnRenamed("ELDR_IND", "_lkp_ELDR_IND")
         _lkp_right = _lkp_right.withColumnRenamed("FLAT_TYPE_DMNS_KEY", "_lkp_FLAT_TYPE_DMNS_KEY")
         _lkp_right = _lkp_right.withColumnRenamed("EST_DMNS_KEY", "_lkp_EST_DMNS_KEY")
@@ -201,12 +204,12 @@ FROM
             (df_EXPTRANS1["CODE_ADDR"] == _lkp_right["_lkp_CODE_ADDR"]) &
             (df_EXPTRANS1["IFA_AREA"] == _lkp_right["_lkp_IFA_AREA"]) &
             (df_EXPTRANS1["FMLY_SIZE_NUM"] == _lkp_right["_lkp_FMLY_SIZE_NUM"]) &
-            (df_EXPTRANS1["DSBL_CODE"] == _lkp_right["_lkp_DSBL_CATG_CODE"]) &
+            (df_EXPTRANS1["DSBL_CODE"] == _lkp_right["DSBL_CATG_CODE"]) &
             (df_EXPTRANS1["ELDR_IND"] == _lkp_right["_lkp_ELDR_IND"]) &
             (df_EXPTRANS1["FLAT_TYPE_DMNS_KEY"] == _lkp_right["_lkp_FLAT_TYPE_DMNS_KEY"]) &
             (df_EXPTRANS1["EST_DMNS_KEY"] == _lkp_right["_lkp_EST_DMNS_KEY"]),
             "left"
-        ).drop("_lkp_CODE_ADDR").drop("_lkp_IFA_AREA").drop("_lkp_FMLY_SIZE_NUM").drop("_lkp_DSBL_CATG_CODE").drop("_lkp_ELDR_IND").drop("_lkp_FLAT_TYPE_DMNS_KEY").drop("_lkp_EST_DMNS_KEY")
+        ).drop("_lkp_CODE_ADDR").drop("_lkp_IFA_AREA").drop("_lkp_FMLY_SIZE_NUM").drop("_lkp_ELDR_IND").drop("_lkp_FLAT_TYPE_DMNS_KEY").drop("_lkp_EST_DMNS_KEY")
 
         ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)
         

@@ -286,6 +286,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             "left"
         ).drop({% for jp in lkp_join.join_predicates %}"_lkp_jk_{{ jp.lookup_col }}"{% if not loop.last %}, {% endif %}{% endfor %})
         {% endfor %}
+        {% for rc in step.params.get('rename_columns', []) %}
+        {% set _src, _tgt = rc %}
+        {{ step.df_output }} = {{ step.df_output }}.drop("{{ _tgt }}").withColumnRenamed("{{ _src }}", "{{ _tgt }}")
+        {% endfor %}
         {% set pass_through_cols = [] %}
         {% for col in step.params.get('computed_columns', []) %}
         {% set expr_str = col.get('expression', 'NULL') %}
@@ -384,10 +388,14 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {{ lookup_df_name }} = {{ lookup_df_name }}.dropDuplicates(subset=[{% for k in dedup_keys %}"{{ k }}"{% if not loop.last %}, {% endif %}{% endfor %}])
         {% endif %}
         {% endif %}
-        # Join condition: {% for jp in join_predicates %}{{ jp.source_col }}={{ jp.lookup_col }}{% if not loop.last %} AND {% endif %}{% endfor %}{{ '\n' }}        # Rename right-side join keys to avoid ambiguous column references
+        # Join condition: {% for jp in join_predicates %}{{ jp.source_col }}={{ jp.lookup_col }}{% if not loop.last %} AND {% endif %}{% endfor %}{{ '\n' }}        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = {{ lookup_df_name }}
         {% for jp in join_predicates %}
+        {% if jp.source_col == jp.lookup_col %}
         _lkp_right = _lkp_right.withColumnRenamed("{{ jp.lookup_col }}", "_lkp_{{ jp.lookup_col }}")
+        {% endif %}
         {% endfor %}
         # Drop lookup columns that would conflict with input columns (e.g. both
         # sides having EST_KEY but only one is a join key → ambiguity after join).
@@ -399,10 +407,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             broadcast(_lkp_right){% else %}_lkp_right
             {% endif %},
             {% for jp in join_predicates %}
-            ({{ step.df_input }}["{{ jp.source_col }}"] == _lkp_right["_lkp_{{ jp.lookup_col }}"]){% if not loop.last %} &{{ '\n' }}{% endif %}
+            {% set _lkp_col = "_lkp_" + jp.lookup_col if jp.source_col == jp.lookup_col else jp.lookup_col %}
+            ({{ step.df_input }}["{{ jp.source_col }}"] == _lkp_right["{{ _lkp_col }}"]){% if not loop.last %} &{{ '\n' }}{% endif %}
             {% endfor %},
             "{{ step.params.get('lookup_type', 'left') }}"
-        ){% for jp in join_predicates %}.drop("_lkp_{{ jp.lookup_col }}"){% endfor %}{{ '\n' }}
+        ){% for jp in join_predicates %}{% if jp.source_col == jp.lookup_col %}.drop("_lkp_{{ jp.lookup_col }}"){% endif %}{% endfor %}{{ '\n' }}
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
         {% elif join_expr %}
         {{ step.df_output }} = {{ step.df_input }}.join(
@@ -628,7 +637,15 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% elif step.step_type == IRStepType.APPLY_UPDATE_STRATEGY %}
         # Update Strategy: {{ step.step_name }}
         # Strategy: {{ step.params.get('strategy_expression', 'DD_INSERT') }}
-        {% if step.params.get('needs_merge', False) %}
+        {% if step.params.get('strategy_field') %}
+        {% set sf = step.params.get('strategy_field') %}
+        {{ step.df_output }} = {{ step.df_input }}.withColumn("_update_flag",
+            when(col("{{ sf }}") == "DD_INSERT", lit("I"))
+            .when(col("{{ sf }}") == "DD_UPDATE", lit("U"))
+            .when(col("{{ sf }}") == "DD_DELETE", lit("D"))
+            .otherwise(lit("I"))
+        )
+        {% elif step.params.get('needs_merge', False) %}
         {{ step.df_output }} = {{ step.df_input }}.withColumn("_update_flag",
             when({{ step.params.get('update_condition', 'lit(False)') }}, lit("U"))
             .when({{ step.params.get('delete_condition', 'lit(False)') }}, lit("D"))
@@ -675,6 +692,33 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Target {{ step.step_name }} is /dev/null, skipping write")
         {% else %}
         df_write = {{ step.df_input }}
+        {% if step.params.get('has_update_flag') %}
+        {% set _upd_keys = step.params.get('delete_keys', []) %}
+        # Split by _update_flag operation (INSERT/UPDATE/DELETE) before column processing
+        _df_ins = df_write.filter(col("_update_flag") == "I").drop("_update_flag")
+        _df_upd = df_write.filter(col("_update_flag") == "U").drop("_update_flag")
+        _df_del = df_write.filter(col("_update_flag") == "D").drop("_update_flag")
+        df_write = df_write.drop("_update_flag")
+        # DELETE: composite key batch delete (all key columns together)
+        {% if _upd_keys %}
+        _del_key_cols = {{ _upd_keys }}
+        if not _df_del.rdd.isEmpty():
+            _del_rows = [tuple(r[c] for c in _del_key_cols) for r in _df_del.select(*_del_key_cols).distinct().collect()]
+            if _del_rows:
+                lib.batch_delete_composite(spark, conn_target, "{{ table_name }}", _del_key_cols, _del_rows, 1000)
+        {% endif %}
+        # UPDATE: batch update via JDBC
+        {% if _upd_keys %}
+        if not _df_upd.rdd.isEmpty():
+            _upd_key_cols = {{ _upd_keys }}
+            _upd_set_cols = [c for c in _df_upd.columns if c not in _upd_key_cols]
+            if _upd_set_cols:
+                _upd_rows = [tuple(r[c] for c in _upd_set_cols + _upd_key_cols) for r in _df_upd.collect()]
+                lib.batch_update(spark, conn_target, "{{ table_name }}", _upd_set_cols, _upd_key_cols, _upd_rows, 1000)
+        {% endif %}
+        # INSERT — set df_write to _df_ins so it flows through normal write path
+        df_write = _df_ins
+        {% endif %}
         {% if is_delete and delete_keys %}
         # DD_DELETE: Delete matching rows from target table by key field(s)
         for _dk in {{ delete_keys }}:

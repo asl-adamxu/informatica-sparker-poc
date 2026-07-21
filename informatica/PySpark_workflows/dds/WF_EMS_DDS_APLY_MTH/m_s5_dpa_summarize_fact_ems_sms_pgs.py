@@ -307,7 +307,9 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DPA_FACT_EMS_SMS_PGS41 = df_LKP_DPA_FACT_EMS_SMS_PGS41.dropDuplicates(subset=["TIME_DMNS_KEY"])
         # Join condition: TIME_DMNS_KEY=TIME_DMNS_KEY
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DPA_FACT_EMS_SMS_PGS41
         _lkp_right = _lkp_right.withColumnRenamed("TIME_DMNS_KEY", "_lkp_TIME_DMNS_KEY")
         # Drop lookup columns that would conflict with input columns (e.g. both
@@ -341,7 +343,9 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DPA_FACT_EMS_SMS_PGS4 = df_LKP_DPA_FACT_EMS_SMS_PGS4.dropDuplicates(subset=["TIME_DMNS_KEY"])
         # Join condition: TIME_DMNS_KEY=TIME_DMNS_KEY
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DPA_FACT_EMS_SMS_PGS4
         _lkp_right = _lkp_right.withColumnRenamed("TIME_DMNS_KEY", "_lkp_TIME_DMNS_KEY")
         # Drop lookup columns that would conflict with input columns (e.g. both
@@ -375,7 +379,9 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DPA_FACT_EMS_SMS_PGS11 = df_LKP_DPA_FACT_EMS_SMS_PGS11.dropDuplicates(subset=["TIME_DMNS_KEY"])
         # Join condition: TIME_DMNS_KEY=TIME_DMNS_KEY
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DPA_FACT_EMS_SMS_PGS11
         _lkp_right = _lkp_right.withColumnRenamed("TIME_DMNS_KEY", "_lkp_TIME_DMNS_KEY")
         # Drop lookup columns that would conflict with input columns (e.g. both
@@ -475,7 +481,9 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DPA_FACT_EMS_SMS_PGS3 = df_LKP_DPA_FACT_EMS_SMS_PGS3.dropDuplicates(subset=["TIME_DMNS_KEY"])
         # Join condition: TIME_DMNS_KEY=TIME_DMNS_KEY
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DPA_FACT_EMS_SMS_PGS3
         _lkp_right = _lkp_right.withColumnRenamed("TIME_DMNS_KEY", "_lkp_TIME_DMNS_KEY")
         # Drop lookup columns that would conflict with input columns (e.g. both
@@ -509,7 +517,9 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DPA_FACT_EMS_SMS_PGS2 = df_LKP_DPA_FACT_EMS_SMS_PGS2.dropDuplicates(subset=["TIME_DMNS_KEY"])
         # Join condition: TIME_DMNS_KEY=TIME_DMNS_KEY
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DPA_FACT_EMS_SMS_PGS2
         _lkp_right = _lkp_right.withColumnRenamed("TIME_DMNS_KEY", "_lkp_TIME_DMNS_KEY")
         # Drop lookup columns that would conflict with input columns (e.g. both
@@ -543,7 +553,9 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DPA_FACT_EMS_SMS_PGS1 = df_LKP_DPA_FACT_EMS_SMS_PGS1.dropDuplicates(subset=["TIME_DMNS_KEY"])
         # Join condition: TIME_DMNS_KEY=TIME_DMNS_KEY
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DPA_FACT_EMS_SMS_PGS1
         _lkp_right = _lkp_right.withColumnRenamed("TIME_DMNS_KEY", "_lkp_TIME_DMNS_KEY")
         # Drop lookup columns that would conflict with input columns (e.g. both
@@ -577,7 +589,9 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DPA_FACT_EMS_SMS_PGS = df_LKP_DPA_FACT_EMS_SMS_PGS.dropDuplicates(subset=["TIME_DMNS_KEY"])
         # Join condition: TIME_DMNS_KEY=TIME_DMNS_KEY
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DPA_FACT_EMS_SMS_PGS
         _lkp_right = _lkp_right.withColumnRenamed("TIME_DMNS_KEY", "_lkp_TIME_DMNS_KEY")
         # Drop lookup columns that would conflict with input columns (e.g. both
@@ -691,10 +705,11 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_GNRL_STAT111 = df_LKP_DDS_DMNS_EMS_GNRL_STAT111.dropDuplicates(subset=["GNRL_STAT_CODE", "GNRL_STAT_SCHM_CODE"])
         # Join condition: GNRL_STAT_CODE=GNRL_STAT_CODE AND SCHM_CODE=GNRL_STAT_SCHM_CODE
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_EMS_GNRL_STAT111
         _lkp_right = _lkp_right.withColumnRenamed("GNRL_STAT_CODE", "_lkp_GNRL_STAT_CODE")
-        _lkp_right = _lkp_right.withColumnRenamed("GNRL_STAT_SCHM_CODE", "_lkp_GNRL_STAT_SCHM_CODE")
         # Drop lookup columns that would conflict with input columns (e.g. both
         # sides having EST_KEY but only one is a join key → ambiguity after join).
         __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_EXPTRANS711.columns]
@@ -703,9 +718,9 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         df_lkp_merge_4 = df_EXPTRANS711.join(
             broadcast(_lkp_right),
             (df_EXPTRANS711["GNRL_STAT_CODE"] == _lkp_right["_lkp_GNRL_STAT_CODE"]) &
-            (df_EXPTRANS711["SCHM_CODE"] == _lkp_right["_lkp_GNRL_STAT_SCHM_CODE"]),
+            (df_EXPTRANS711["SCHM_CODE"] == _lkp_right["GNRL_STAT_SCHM_CODE"]),
             "left"
-        ).drop("_lkp_GNRL_STAT_CODE").drop("_lkp_GNRL_STAT_SCHM_CODE")
+        ).drop("_lkp_GNRL_STAT_CODE")
 
         ctx.register_df("df_lkp_merge_4", df_lkp_merge_4)
         
@@ -720,10 +735,11 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_GNRL_STAT11 = df_LKP_DDS_DMNS_EMS_GNRL_STAT11.dropDuplicates(subset=["GNRL_STAT_CODE", "GNRL_STAT_SCHM_CODE"])
         # Join condition: GNRL_STAT_CODE=GNRL_STAT_CODE AND SCHM_CODE=GNRL_STAT_SCHM_CODE
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_EMS_GNRL_STAT11
         _lkp_right = _lkp_right.withColumnRenamed("GNRL_STAT_CODE", "_lkp_GNRL_STAT_CODE")
-        _lkp_right = _lkp_right.withColumnRenamed("GNRL_STAT_SCHM_CODE", "_lkp_GNRL_STAT_SCHM_CODE")
         # Drop lookup columns that would conflict with input columns (e.g. both
         # sides having EST_KEY but only one is a join key → ambiguity after join).
         __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_EXPTRANS71.columns]
@@ -732,9 +748,9 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         df_lkp_merge_5 = df_EXPTRANS71.join(
             broadcast(_lkp_right),
             (df_EXPTRANS71["GNRL_STAT_CODE"] == _lkp_right["_lkp_GNRL_STAT_CODE"]) &
-            (df_EXPTRANS71["SCHM_CODE"] == _lkp_right["_lkp_GNRL_STAT_SCHM_CODE"]),
+            (df_EXPTRANS71["SCHM_CODE"] == _lkp_right["GNRL_STAT_SCHM_CODE"]),
             "left"
-        ).drop("_lkp_GNRL_STAT_CODE").drop("_lkp_GNRL_STAT_SCHM_CODE")
+        ).drop("_lkp_GNRL_STAT_CODE")
 
         ctx.register_df("df_lkp_merge_5", df_lkp_merge_5)
         
@@ -761,10 +777,11 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_GNRL_STAT1 = df_LKP_DDS_DMNS_EMS_GNRL_STAT1.dropDuplicates(subset=["GNRL_STAT_CODE", "GNRL_STAT_SCHM_CODE"])
         # Join condition: GNRL_STAT_CODE=GNRL_STAT_CODE AND SCHM_CODE=GNRL_STAT_SCHM_CODE
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_EMS_GNRL_STAT1
         _lkp_right = _lkp_right.withColumnRenamed("GNRL_STAT_CODE", "_lkp_GNRL_STAT_CODE")
-        _lkp_right = _lkp_right.withColumnRenamed("GNRL_STAT_SCHM_CODE", "_lkp_GNRL_STAT_SCHM_CODE")
         # Drop lookup columns that would conflict with input columns (e.g. both
         # sides having EST_KEY but only one is a join key → ambiguity after join).
         __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_EXPTRANS7.columns]
@@ -773,9 +790,9 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         df_lkp_merge_6 = df_EXPTRANS7.join(
             broadcast(_lkp_right),
             (df_EXPTRANS7["GNRL_STAT_CODE"] == _lkp_right["_lkp_GNRL_STAT_CODE"]) &
-            (df_EXPTRANS7["SCHM_CODE"] == _lkp_right["_lkp_GNRL_STAT_SCHM_CODE"]),
+            (df_EXPTRANS7["SCHM_CODE"] == _lkp_right["GNRL_STAT_SCHM_CODE"]),
             "left"
-        ).drop("_lkp_GNRL_STAT_CODE").drop("_lkp_GNRL_STAT_SCHM_CODE")
+        ).drop("_lkp_GNRL_STAT_CODE")
 
         ctx.register_df("df_lkp_merge_6", df_lkp_merge_6)
         
@@ -913,10 +930,11 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_GNRL_STAT = df_LKP_DDS_DMNS_EMS_GNRL_STAT.dropDuplicates(subset=["GNRL_STAT_CODE", "GNRL_STAT_SCHM_CODE"])
         # Join condition: GNRL_STAT_CODE=GNRL_STAT_CODE AND SCHM_CODE=GNRL_STAT_SCHM_CODE
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_EMS_GNRL_STAT
         _lkp_right = _lkp_right.withColumnRenamed("GNRL_STAT_CODE", "_lkp_GNRL_STAT_CODE")
-        _lkp_right = _lkp_right.withColumnRenamed("GNRL_STAT_SCHM_CODE", "_lkp_GNRL_STAT_SCHM_CODE")
         # Drop lookup columns that would conflict with input columns (e.g. both
         # sides having EST_KEY but only one is a join key → ambiguity after join).
         __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_EXPTRANS6.columns]
@@ -925,9 +943,9 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         df_lkp_merge_7 = df_EXPTRANS6.join(
             broadcast(_lkp_right),
             (df_EXPTRANS6["GNRL_STAT_CODE"] == _lkp_right["_lkp_GNRL_STAT_CODE"]) &
-            (df_EXPTRANS6["SCHM_CODE"] == _lkp_right["_lkp_GNRL_STAT_SCHM_CODE"]),
+            (df_EXPTRANS6["SCHM_CODE"] == _lkp_right["GNRL_STAT_SCHM_CODE"]),
             "left"
-        ).drop("_lkp_GNRL_STAT_CODE").drop("_lkp_GNRL_STAT_SCHM_CODE")
+        ).drop("_lkp_GNRL_STAT_CODE")
 
         ctx.register_df("df_lkp_merge_7", df_lkp_merge_7)
         
@@ -942,9 +960,10 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_TIME_1 = df_LKP_DDS_DMNS_TIME_1.dropDuplicates(subset=["TIME_VAL_DATE"])
         # Join condition: APLY_DATE=TIME_VAL_DATE
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_TIME_1
-        _lkp_right = _lkp_right.withColumnRenamed("TIME_VAL_DATE", "_lkp_TIME_VAL_DATE")
         # Drop lookup columns that would conflict with input columns (e.g. both
         # sides having EST_KEY but only one is a join key → ambiguity after join).
         __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_7.columns]
@@ -952,9 +971,9 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
             _lkp_right = _lkp_right.select(*__lkp_keep)
         df_lkp_merge_7 = df_lkp_merge_7.join(
             broadcast(_lkp_right),
-            (df_lkp_merge_7["APLY_DATE"] == _lkp_right["_lkp_TIME_VAL_DATE"]),
+            (df_lkp_merge_7["APLY_DATE"] == _lkp_right["TIME_VAL_DATE"]),
             "left"
-        ).drop("_lkp_TIME_VAL_DATE")
+        )
 
         ctx.register_df("df_lkp_merge_7", df_lkp_merge_7)
         

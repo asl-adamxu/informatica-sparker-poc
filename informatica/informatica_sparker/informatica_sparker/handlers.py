@@ -1241,6 +1241,10 @@ class TransformHandlers:
                 output_columns=output_columns,
                 lookup_type="left"
             ))
+            # Detect if any join key shares the same name on both sides →
+            # needs _lkp_ rename to avoid ambiguous column references.
+            if any(jp.get("source_col", "") == jp.get("lookup_col", "") for jp in join_predicates):
+                steps[-1].params["needs_join_rename"] = True
             # Handle "Lookup policy on multiple match" — dedup the lookup
             # DataFrame by join keys when there could be multiple matches.
             # Options: Use First Value, Use Last Value, Use Any Value, Report Error.
@@ -1511,6 +1515,25 @@ class TransformHandlers:
                     if pyspark_agg:
                         aggregations[field.name] = pyspark_agg
                         self.logger.log_transformation(instance.name, "Aggregator", f"Aggregation: {field.name} = {pyspark_agg}", LogLevel.INFO)
+                    elif "INPUT" in (field.port_type or "").upper():
+                        # INPUT/OUTPUT field with pass-through expression that isn't
+                        # an aggregation. Check that it is NOT used as an argument to
+                        # any aggregate function before adding to groupBy (e.g.
+                        # TIME_DMNS_KEY in MAX(TIME_DMNS_KEY) should NOT be grouped).
+                        _agg_args = set()
+                        for _af in transform.fields:
+                            if _af.expression and "OUTPUT" in (_af.port_type or "").upper():
+                                _agg_match = re.search(
+                                    r'\b(MAX|MIN|SUM|COUNT|AVG|FIRST|LAST|MEDIAN|STDDEV|VARIANCE)\s*\(\s*(\w+)\s*\)',
+                                    _af.expression, re.IGNORECASE
+                                )
+                                if _agg_match:
+                                    _agg_args.add(_agg_match.group(2))
+                        if field.name not in _agg_args:
+                            group_by.append(field.name)
+                            self.logger.log_transformation(instance.name, "Aggregator", f"GROUP BY (implicit): {field.name}", LogLevel.INFO)
+                        else:
+                            self.logger.log_transformation(instance.name, "Aggregator", f"SKIP GROUP BY (agg arg): {field.name}", LogLevel.INFO)
 
             self.logger.log_transformation(instance.name, "Aggregator", f"Found {len(group_by)} GROUP BY keys, {len(aggregations)} aggregations", LogLevel.INFO)
 
@@ -1953,6 +1976,16 @@ class TransformHandlers:
         step.params["has_delete"] = has_delete
         step.params["needs_merge"] = has_update or has_delete
 
+        # Determine if strategy_expr is a field reference (e.g. "UPDATE_FLAG")
+        # or a static DD_* value. Field references need dynamic when() logic.
+        _is_field_ref = bool(
+            strategy_expr
+            and "DD_" not in strategy_expr.upper()
+            and re.match(r'^[A-Za-z_]\w*$', strategy_expr)
+        )
+        if _is_field_ref:
+            step.params["strategy_field"] = strategy_expr
+            step.comments.append(f"Strategy from field '{strategy_expr}' — dynamic DD_INSERT/UPDATE/DELETE")
         # Generate proper column update flag based on strategy
         if has_delete:
             step.params["update_condition"] = "lit(False)"
@@ -2080,9 +2113,10 @@ class TransformHandlers:
                           "DEL_UPD_INS_FLAG", "INS_UPD_DEL_FLAG"]
         columns_to_drop = [c for c in control_columns if c.lower() not in [tc.lower() for tc in target_columns]]
 
-        # Detect if upstream is a DD_DELETE update strategy
+        # Detect if upstream is an Update Strategy (static DD_* or dynamic field)
         is_delete = False
         delete_keys = []
+        has_update_flag = False
         for connector in self.mapping.connectors:
             if connector.to_instance == instance.name:
                 from_trans = self.transform_map.get(connector.from_instance)
@@ -2090,10 +2124,12 @@ class TransformHandlers:
                     strategy_expr = from_trans.table_attributes.get("Update Strategy Expression", "")
                     if "DD_DELETE" in strategy_expr.upper():
                         is_delete = True
-                        # Use the connector's effectively mapped field as delete key
                         if connector.from_field and connector.from_field not in delete_keys:
                             delete_keys.append(connector.from_field)
                         break
+                    # Dynamic strategy from field (e.g. UPDATE_FLAG column)
+                    elif strategy_expr and "DD_" not in strategy_expr.upper():
+                        has_update_flag = True
 
         write_step = WriteTargetStep(
             step_name=f"write_{instance.name}",
@@ -2110,6 +2146,10 @@ class TransformHandlers:
             write_step.params["is_delete"] = True
             write_step.params["delete_keys"] = delete_keys
             write_step.comments.append("DD_DELETE strategy detected — will DELETE matching rows instead of INSERT")
+        if has_update_flag:
+            write_step.params["has_update_flag"] = True
+            write_step.params["delete_keys"] = delete_keys or [c.lower() for c in target_columns]
+            write_step.comments.append("Dynamic Update Strategy detected — will INSERT/UPDATE/DELETE based on _update_flag")
 
         if columns_to_drop:
             write_step.params["drop_columns"] = columns_to_drop
@@ -2466,7 +2506,7 @@ class TransformHandlers:
 
                 if mpl_input_df and lookup_df_name:
                     parsed = self._parse_lookup_condition(lookup_cond, lookup_df_name)
-                    join_result_df = self._get_df_name("df_mplt_join")
+                    join_result_df = "df_mplt_" + re.sub(r'[^a-zA-Z0-9_]', '_', mpl_inst_name)
                     mpl_df_map[mpl_inst_name] = join_result_df
 
                     # Remap source columns: mapplet port names → actual upstream
@@ -2514,60 +2554,59 @@ class TransformHandlers:
                 if not transform:
                     continue
 
-                # Find ALL input DataFrames for this expression
+                # Find ALL input DataFrames for this expression, uniquely by
+                # upstream instance. Use the LAST one (most complete — lookups
+                # chain-join onto prior results and already contain all upstream
+                # columns). Do NOT create extra merge steps; they would be
+                # redundant (e.g. merging AGGTRANS into LKPTRANS when LKPTRANS
+                # was left-joined from AGGTRANS).
                 mpl_input_df = None
-                mpl_extra_inputs = []
+                mpl_upstream_dfs = {}
                 for conn in mpl_connectors:
                     if conn.to_instance == mpl_inst_name:
                         _df = mpl_df_map.get(conn.from_instance)
                         if _df:
-                            if not mpl_input_df:
-                                mpl_input_df = _df
-                            elif _df != mpl_input_df:
-                                mpl_extra_inputs.append(_df)
-
+                            mpl_upstream_dfs[conn.from_instance] = _df
+                if mpl_upstream_dfs:
+                    # Pick the most recently processed upstream by checking the
+                    # topological order in reverse — the last-processed instance
+                    # (e.g. a lookup chain-joined from earlier steps) has all
+                    # prior columns and is the most complete input.
+                    for _rev_name in reversed(mpl_order):
+                        if _rev_name in mpl_upstream_dfs:
+                            mpl_input_df = mpl_upstream_dfs[_rev_name]
+                            break
                 if not mpl_input_df:
-                    # Fall back to the mapplet's primary input
                     mpl_input_df = input_df
+                # mpl_extra_inputs intentionally skipped — no redundant merges
 
-                # If the expression has extra inputs, or if its input differs from the
-                # mapplet's primary input, merge them so all referenced columns exist.
-                if mpl_input_df and input_df and mpl_input_df != input_df:
-                    if input_df not in mpl_extra_inputs:
-                        mpl_extra_inputs.append(input_df)
-
-                # If the expression has extra inputs (e.g. from an internal lookup),
-                # merge them via left join on common columns before the expression.
-                if mpl_extra_inputs:
-                    _cur_df = mpl_input_df
-                    for _i, _extra_df in enumerate(mpl_extra_inputs):
-                        _join_df = self._get_df_name("df_mplt_merge")
-                        steps.append(ApplyLookupStep(
-                            step_name=f"join_mplt_{mpl_inst.name}_{_i}",
-                            df_input=_cur_df,
-                            df_output=_join_df,
-                            lookup_df=_extra_df,
-                            join_predicates=[],
-                            join_expr="__common_cols__",
-                            output_columns=[],
-                            lookup_type="left",
-                        ))
-                        self.logger.log_transformation(
-                            mpl_inst.name, "Mapplet",
-                            f"Merged extra input {_extra_df} for expression {mpl_inst.name}",
-                            LogLevel.INFO)
-                        _cur_df = _join_df
-                    mpl_input_df = _cur_df
+                # Rename upstream columns to match Expression port names using
+                # connector mappings (e.g. TBL_NAME → FACT_TABL_NAME) so that
+                # expression port references resolve to the actual DataFrame columns.
+                _expr_renames = [(actual_col, mpl_port) for mpl_port, actual_col in inst_field_remap.items()
+                                 if mpl_port != actual_col]
+                if _expr_renames:
+                    # Rename upstream columns to match expression port names via
+                    # a single withColumnRenamed chain (efficient, no column copy).
+                    _rename_df = self._get_df_name("df_mplt_rename")
+                    _rename_step = ApplyExpressionStep(
+                        step_name=f"rename_{mpl_inst_name}",
+                        df_input=mpl_input_df,
+                        df_output=_rename_df,
+                        computed_columns=[],
+                    )
+                    _rename_step.params["rename_columns"] = _expr_renames
+                    steps.append(_rename_step)
+                    mpl_input_df = _rename_df
+                    self.logger.log_transformation(
+                        mpl_inst_name, "Mapplet",
+                        f"Renamed {len(_expr_renames)} columns for expression {mpl_inst_name}",
+                        LogLevel.INFO)
 
                 computed_cols = []
                 for field in transform.fields:
                     if field.expression and "OUTPUT" in (field.port_type or "").upper():
                         expr_text = field.expression
-                        # Remap port names to actual column names using both
-                        # external and internal mapplet connector mappings.
-                        for mpl_port, actual_col in inst_field_remap.items():
-                            if mpl_port != actual_col:
-                                expr_text = expr_text.replace(mpl_port, actual_col)
                         translated = self.expr_translator.translate(
                             expr_text, "column", field.name
                         )
@@ -2578,7 +2617,7 @@ class TransformHandlers:
                         ))
 
                 if computed_cols:
-                    expr_df_name = self._get_df_name("df_mplt_expr")
+                    expr_df_name = "df_mplt_" + re.sub(r'[^a-zA-Z0-9_]', '_', mpl_inst_name)
                     mpl_df_map[mpl_inst_name] = expr_df_name
                     steps.append(ApplyExpressionStep(
                         step_name=f"apply_mplt_{mpl_inst.name}",
@@ -2613,7 +2652,7 @@ class TransformHandlers:
                                 _filter_expr = _filter_expr.replace(_mpl_port, _actual_col)
                         # Translate the filter condition (handles Informatica SQL syntax)
                         _filter_expr = self.expr_translator.translate_for_filter(_filter_expr)
-                        _mpl_filt_df = self._get_df_name("df_mplt_fil")
+                        _mpl_filt_df = "df_mplt_" + re.sub(r'[^a-zA-Z0-9_]', '_', mpl_inst_name)
                         mpl_df_map[mpl_inst_name] = _mpl_filt_df
                         steps.append(ApplyFilterStep(
                             step_name=f"apply_mplt_{mpl_inst.name}",
@@ -2624,6 +2663,74 @@ class TransformHandlers:
                     else:
                         # Filter with no condition — pass-through
                         mpl_df_map[mpl_inst_name] = mpl_input_df or input_df
+
+            elif "Aggregator" in mpl_inst_type:
+                _agg_txf = mpl_transforms.get(mpl_inst.transformation_name or mpl_inst.name)
+                if _agg_txf:
+                    _agg_input_df = None
+                    for conn in mpl_connectors:
+                        if conn.to_instance == mpl_inst_name:
+                            _agg_input_df = mpl_df_map.get(conn.from_instance)
+                            if _agg_input_df:
+                                break
+                    if not _agg_input_df:
+                        _agg_input_df = input_df
+                    _orig_map = self.current_df_map.copy()
+                    _mplt_inst = Instance(
+                        name="mplt_" + mpl_inst.name,
+                        type=mpl_inst.type,
+                        transformation_name=("mplt_" + mpl_inst.transformation_name) if mpl_inst.transformation_name else None,
+                        transformation_type=mpl_inst.transformation_type,
+                    )
+                    _mplt_txf_name = "mplt_" + _agg_txf.name if _agg_txf.name else None
+                    if _mplt_txf_name and _mplt_txf_name not in self.transform_map:
+                        self.transform_map[_mplt_txf_name] = _agg_txf
+                    self.current_df_map[_mplt_inst.name] = _agg_input_df
+                    _agg_result = self._handle_aggregator(_mplt_inst, plan)
+                    if isinstance(_agg_result, list):
+                        for _s in _agg_result:
+                            if _s:
+                                _s.df_input = _agg_input_df
+                                steps.append(_s)
+                                mpl_df_map[mpl_inst_name] = _s.df_output
+                    elif _agg_result:
+                        _agg_result.df_input = _agg_input_df
+                        steps.append(_agg_result)
+                        mpl_df_map[mpl_inst_name] = _agg_result.df_output
+                    self.current_df_map.clear()
+                    self.current_df_map.update(_orig_map)
+                    if _mplt_txf_name and _mplt_txf_name in self.transform_map:
+                        del self.transform_map[_mplt_txf_name]
+
+            elif "Sorter" in mpl_inst_type:
+                _srt_txf = mpl_transforms.get(mpl_inst.transformation_name or mpl_inst.name)
+                if _srt_txf:
+                    _srt_input_df = None
+                    for conn in mpl_connectors:
+                        if conn.to_instance == mpl_inst_name:
+                            _srt_input_df = mpl_df_map.get(conn.from_instance)
+                            if _srt_input_df:
+                                break
+                    if not _srt_input_df:
+                        _srt_input_df = input_df
+                    _orig_map = self.current_df_map.copy()
+                    _mplt_txf_name = "mplt_" + _srt_txf.name if _srt_txf.name else None
+                    if _mplt_txf_name and _mplt_txf_name not in self.transform_map:
+                        self.transform_map[_mplt_txf_name] = _srt_txf
+                    _mplt_inst = Instance(
+                        name="mplt_" + mpl_inst.name,
+                        type=mpl_inst.type,
+                        transformation_name=_mplt_txf_name,
+                        transformation_type=mpl_inst.transformation_type,
+                    )
+                    self.current_df_map[_mplt_inst.name] = _srt_input_df
+                    _srt_result = self._handle_sorter(_mplt_inst, plan)
+                    if _srt_result:
+                        _srt_result.df_input = _srt_input_df
+                        steps.append(_srt_result)
+                        mpl_df_map[mpl_inst_name] = _srt_result.df_output
+                    self.current_df_map.clear()
+                    self.current_df_map.update(_orig_map)
 
         # --- 7. Map OUTPUT back to the calling mapping ----------------------------------
         if output_inst:

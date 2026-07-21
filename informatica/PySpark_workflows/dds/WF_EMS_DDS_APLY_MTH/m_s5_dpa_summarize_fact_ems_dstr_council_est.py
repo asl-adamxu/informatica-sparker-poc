@@ -317,7 +317,9 @@ AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN ed.BGN_DATE AND ed.END_DATE"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DIST1 = df_LKP_DIST1.dropDuplicates(subset=["EST_KEY"])
         # Join condition: EST_KEY=EST_KEY
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DIST1
         _lkp_right = _lkp_right.withColumnRenamed("EST_KEY", "_lkp_EST_KEY")
         # Drop lookup columns that would conflict with input columns (e.g. both
@@ -354,7 +356,9 @@ AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN ed.BGN_DATE AND ed.END_DATE"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_GEO = df_LKP_GEO.dropDuplicates(subset=["EST_KEY"])
         # Join condition: EST_KEY=EST_KEY
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_GEO
         _lkp_right = _lkp_right.withColumnRenamed("EST_KEY", "_lkp_EST_KEY")
         # Drop lookup columns that would conflict with input columns (e.g. both
@@ -391,7 +395,9 @@ AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN ed.BGN_DATE AND ed.END_DATE"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DIS = df_LKP_DIS.dropDuplicates(subset=["EST_KEY"])
         # Join condition: EST_KEY=EST_KEY
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DIS
         _lkp_right = _lkp_right.withColumnRenamed("EST_KEY", "_lkp_EST_KEY")
         # Drop lookup columns that would conflict with input columns (e.g. both
@@ -469,7 +475,9 @@ AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN ed.BGN_DATE AND ed.END_DATE"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_RGN = df_LKP_DDS_DMNS_EMS_RGN.dropDuplicates(subset=["RGN_CODE", "RGN_SCHM_CODE"])
         # Join condition: RGN_CODE=RGN_CODE AND RGN_SCHM_CODE=RGN_SCHM_CODE
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_EMS_RGN
         _lkp_right = _lkp_right.withColumnRenamed("RGN_CODE", "_lkp_RGN_CODE")
         _lkp_right = _lkp_right.withColumnRenamed("RGN_SCHM_CODE", "_lkp_RGN_SCHM_CODE")
@@ -498,9 +506,10 @@ AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN ed.BGN_DATE AND ed.END_DATE"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_TIME_1 = df_LKP_DDS_DMNS_TIME_1.dropDuplicates(subset=["TIME_VAL_DATE"])
         # Join condition: TIME=TIME_VAL_DATE
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_TIME_1
-        _lkp_right = _lkp_right.withColumnRenamed("TIME_VAL_DATE", "_lkp_TIME_VAL_DATE")
         # Drop lookup columns that would conflict with input columns (e.g. both
         # sides having EST_KEY but only one is a join key → ambiguity after join).
         __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_2.columns]
@@ -508,9 +517,9 @@ AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN ed.BGN_DATE AND ed.END_DATE"""
             _lkp_right = _lkp_right.select(*__lkp_keep)
         df_lkp_merge_2 = df_lkp_merge_2.join(
             broadcast(_lkp_right),
-            (df_lkp_merge_2["TIME"] == _lkp_right["_lkp_TIME_VAL_DATE"]),
+            (df_lkp_merge_2["TIME"] == _lkp_right["TIME_VAL_DATE"]),
             "left"
-        ).drop("_lkp_TIME_VAL_DATE")
+        )
 
         ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)
         
@@ -525,7 +534,9 @@ AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN ed.BGN_DATE AND ed.END_DATE"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_TNCY_SCHM_TYPE = df_LKP_DDS_DMNS_EMS_TNCY_SCHM_TYPE.dropDuplicates(subset=["TNCY_SCHM_TYPE_CODE", "TNCY_SCHM_TYPE_SCHM_CODE"])
         # Join condition: TNCY_SCHM_TYPE_CODE=TNCY_SCHM_TYPE_CODE AND TNCY_SCHM_TYPE_SCHM_CODE=TNCY_SCHM_TYPE_SCHM_CODE
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_EMS_TNCY_SCHM_TYPE
         _lkp_right = _lkp_right.withColumnRenamed("TNCY_SCHM_TYPE_CODE", "_lkp_TNCY_SCHM_TYPE_CODE")
         _lkp_right = _lkp_right.withColumnRenamed("TNCY_SCHM_TYPE_SCHM_CODE", "_lkp_TNCY_SCHM_TYPE_SCHM_CODE")
@@ -554,7 +565,9 @@ AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN ed.BGN_DATE AND ed.END_DATE"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_EST = df_LKP_DDS_DMNS_EMS_EST.dropDuplicates(subset=["EST_CODE"])
         # Join condition: EST_CODE=EST_CODE
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_EMS_EST
         _lkp_right = _lkp_right.withColumnRenamed("EST_CODE", "_lkp_EST_CODE")
         # Drop lookup columns that would conflict with input columns (e.g. both
@@ -581,7 +594,9 @@ AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN ed.BGN_DATE AND ed.END_DATE"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_BLK = df_LKP_DDS_DMNS_EMS_BLK.dropDuplicates(subset=["BLK_CODE", "EST_SCD_KEY"])
         # Join condition: BLK_CODE=BLK_CODE AND EST_SCD_KEY=EST_SCD_KEY
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_EMS_BLK
         _lkp_right = _lkp_right.withColumnRenamed("BLK_CODE", "_lkp_BLK_CODE")
         _lkp_right = _lkp_right.withColumnRenamed("EST_SCD_KEY", "_lkp_EST_SCD_KEY")

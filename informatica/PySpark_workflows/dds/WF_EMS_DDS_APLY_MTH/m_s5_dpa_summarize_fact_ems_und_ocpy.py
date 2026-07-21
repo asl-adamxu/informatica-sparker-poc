@@ -130,7 +130,9 @@ group by mbr.cust_key"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_SOR_CUST_DSBL = df_LKP_SOR_CUST_DSBL.dropDuplicates(subset=["CUST_KEY"])
         # Join condition: CUST_KEY=CUST_KEY
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_SOR_CUST_DSBL
         _lkp_right = _lkp_right.withColumnRenamed("CUST_KEY", "_lkp_CUST_KEY")
         # Drop lookup columns that would conflict with input columns (e.g. both
@@ -207,7 +209,9 @@ where a.cust_key = b.cust_key and a.hse_srvc_aply_key = b.hse_srvc_aply_key"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKPTRANS = df_LKPTRANS.dropDuplicates(subset=["UNIT_CODE_ADDR"])
         # Join condition: UNIT_CODE_ADDR=UNIT_CODE_ADDR
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKPTRANS
         _lkp_right = _lkp_right.withColumnRenamed("UNIT_CODE_ADDR", "_lkp_UNIT_CODE_ADDR")
         # Drop lookup columns that would conflict with input columns (e.g. both
@@ -246,7 +250,9 @@ where a.cust_key = b.cust_key and a.hse_srvc_aply_key = b.hse_srvc_aply_key"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_EST = df_LKP_DDS_DMNS_EMS_EST.dropDuplicates(subset=["EST_CODE"])
         # Join condition: EST_CODE=EST_CODE
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_EMS_EST
         _lkp_right = _lkp_right.withColumnRenamed("EST_CODE", "_lkp_EST_CODE")
         # Drop lookup columns that would conflict with input columns (e.g. both
@@ -273,10 +279,10 @@ where a.cust_key = b.cust_key and a.hse_srvc_aply_key = b.hse_srvc_aply_key"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_FLAT_TYPE = df_LKP_DDS_DMNS_EMS_FLAT_TYPE.dropDuplicates(subset=["FLAT_TYPE_CODE", "FLAT_TYPE_SCHM_CODE"])
         # Join condition: UNIT_TYPE_CODE=FLAT_TYPE_CODE AND SCHM_CODE=FLAT_TYPE_SCHM_CODE
-        # Rename right-side join keys to avoid ambiguous column references
+        # Rename right-side join keys ONLY when they share the same name as the
+        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
+        # Keys with different names on each side are kept as-is.
         _lkp_right = df_LKP_DDS_DMNS_EMS_FLAT_TYPE
-        _lkp_right = _lkp_right.withColumnRenamed("FLAT_TYPE_CODE", "_lkp_FLAT_TYPE_CODE")
-        _lkp_right = _lkp_right.withColumnRenamed("FLAT_TYPE_SCHM_CODE", "_lkp_FLAT_TYPE_SCHM_CODE")
         # Drop lookup columns that would conflict with input columns (e.g. both
         # sides having EST_KEY but only one is a join key → ambiguity after join).
         __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_2.columns]
@@ -284,10 +290,10 @@ where a.cust_key = b.cust_key and a.hse_srvc_aply_key = b.hse_srvc_aply_key"""
             _lkp_right = _lkp_right.select(*__lkp_keep)
         df_lkp_merge_2 = df_lkp_merge_2.join(
             broadcast(_lkp_right),
-            (df_lkp_merge_2["UNIT_TYPE_CODE"] == _lkp_right["_lkp_FLAT_TYPE_CODE"]) &
-            (df_lkp_merge_2["SCHM_CODE"] == _lkp_right["_lkp_FLAT_TYPE_SCHM_CODE"]),
+            (df_lkp_merge_2["UNIT_TYPE_CODE"] == _lkp_right["FLAT_TYPE_CODE"]) &
+            (df_lkp_merge_2["SCHM_CODE"] == _lkp_right["FLAT_TYPE_SCHM_CODE"]),
             "left"
-        ).drop("_lkp_FLAT_TYPE_CODE").drop("_lkp_FLAT_TYPE_SCHM_CODE")
+        )
 
         ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)
         
