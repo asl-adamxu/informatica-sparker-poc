@@ -155,24 +155,16 @@ FROM
         if _dup_cnt > 0:
             raise RuntimeError(f"Lookup apply_LKP_DDS_FACT_EMS_UND_OCPY: {_dup_cnt} duplicate keys found — Report Error policy")
         # Join condition: CODE_ADDR=CODE_ADDR
-        # Rename right-side join keys ONLY when they share the same name as the
-        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
-        # Keys with different names on each side are kept as-is.
-        _lkp_right = df_LKP_DDS_FACT_EMS_UND_OCPY
-        _lkp_right = _lkp_right.withColumnRenamed("CODE_ADDR", "_lkp_CODE_ADDR")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_EXPTRANS.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_1 = df_EXPTRANS.join(
-            broadcast(_lkp_right),
-            (df_EXPTRANS["CODE_ADDR"] == _lkp_right["_lkp_CODE_ADDR"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_1 = df_EXPTRANS.alias("_main").join(
+            broadcast(df_LKP_DDS_FACT_EMS_UND_OCPY).alias("_lkp"),
+            (col("_main.CODE_ADDR") == col("_lkp.CODE_ADDR")),
             "left"
-        ).drop("_lkp_CODE_ADDR")
-
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
-        
+        ).select(
+            *[df_EXPTRANS[c] for c in df_EXPTRANS.columns],
+            *[df_LKP_DDS_FACT_EMS_UND_OCPY[c] for c in df_LKP_DDS_FACT_EMS_UND_OCPY.columns if c not in df_EXPTRANS.columns]
+        )
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: read_LKP_DPA_FACT_EMS_UND_OCPY")
         # Reading Data From Source - read_LKP_DPA_FACT_EMS_UND_OCPY
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -184,45 +176,32 @@ FROM
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DPA_FACT_EMS_UND_OCPY = df_LKP_DPA_FACT_EMS_UND_OCPY.dropDuplicates(subset=["CODE_ADDR", "IFA_AREA", "FMLY_SIZE_NUM", "DSBL_CATG_CODE", "ELDR_IND", "FLAT_TYPE_DMNS_KEY", "EST_DMNS_KEY"])
         # Join condition: CODE_ADDR=CODE_ADDR AND IFA_AREA=IFA_AREA AND FMLY_SIZE_NUM=FMLY_SIZE_NUM AND DSBL_CODE=DSBL_CATG_CODE AND ELDR_IND=ELDR_IND AND FLAT_TYPE_DMNS_KEY=FLAT_TYPE_DMNS_KEY AND EST_DMNS_KEY=EST_DMNS_KEY
-        # Rename right-side join keys ONLY when they share the same name as the
-        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
-        # Keys with different names on each side are kept as-is.
-        _lkp_right = df_LKP_DPA_FACT_EMS_UND_OCPY
-        _lkp_right = _lkp_right.withColumnRenamed("CODE_ADDR", "_lkp_CODE_ADDR")
-        _lkp_right = _lkp_right.withColumnRenamed("IFA_AREA", "_lkp_IFA_AREA")
-        _lkp_right = _lkp_right.withColumnRenamed("FMLY_SIZE_NUM", "_lkp_FMLY_SIZE_NUM")
-        _lkp_right = _lkp_right.withColumnRenamed("ELDR_IND", "_lkp_ELDR_IND")
-        _lkp_right = _lkp_right.withColumnRenamed("FLAT_TYPE_DMNS_KEY", "_lkp_FLAT_TYPE_DMNS_KEY")
-        _lkp_right = _lkp_right.withColumnRenamed("EST_DMNS_KEY", "_lkp_EST_DMNS_KEY")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_EXPTRANS1.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_2 = df_EXPTRANS1.join(
-            broadcast(_lkp_right),
-            (df_EXPTRANS1["CODE_ADDR"] == _lkp_right["_lkp_CODE_ADDR"]) &
-            (df_EXPTRANS1["IFA_AREA"] == _lkp_right["_lkp_IFA_AREA"]) &
-            (df_EXPTRANS1["FMLY_SIZE_NUM"] == _lkp_right["_lkp_FMLY_SIZE_NUM"]) &
-            (df_EXPTRANS1["DSBL_CODE"] == _lkp_right["DSBL_CATG_CODE"]) &
-            (df_EXPTRANS1["ELDR_IND"] == _lkp_right["_lkp_ELDR_IND"]) &
-            (df_EXPTRANS1["FLAT_TYPE_DMNS_KEY"] == _lkp_right["_lkp_FLAT_TYPE_DMNS_KEY"]) &
-            (df_EXPTRANS1["EST_DMNS_KEY"] == _lkp_right["_lkp_EST_DMNS_KEY"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_2 = df_EXPTRANS1.alias("_main").join(
+            broadcast(df_LKP_DPA_FACT_EMS_UND_OCPY).alias("_lkp"),
+            (col("_main.CODE_ADDR") == col("_lkp.CODE_ADDR")) &
+            (col("_main.IFA_AREA") == col("_lkp.IFA_AREA")) &
+            (col("_main.FMLY_SIZE_NUM") == col("_lkp.FMLY_SIZE_NUM")) &
+            (col("_main.DSBL_CODE") == col("_lkp.DSBL_CATG_CODE")) &
+            (col("_main.ELDR_IND") == col("_lkp.ELDR_IND")) &
+            (col("_main.FLAT_TYPE_DMNS_KEY") == col("_lkp.FLAT_TYPE_DMNS_KEY")) &
+            (col("_main.EST_DMNS_KEY") == col("_lkp.EST_DMNS_KEY")),
             "left"
-        ).drop("_lkp_CODE_ADDR").drop("_lkp_IFA_AREA").drop("_lkp_FMLY_SIZE_NUM").drop("_lkp_ELDR_IND").drop("_lkp_FLAT_TYPE_DMNS_KEY").drop("_lkp_EST_DMNS_KEY")
-
-        ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)
-        
+        ).select(
+            *[df_EXPTRANS1[c] for c in df_EXPTRANS1.columns],
+            *[df_LKP_DPA_FACT_EMS_UND_OCPY[c] for c in df_LKP_DPA_FACT_EMS_UND_OCPY.columns if c not in df_EXPTRANS1.columns]
+        )
+        ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)        
         logger.info("Step: apply_FILTRANS")
         # Filter: apply_FILTRANS
-        __fil_input = df_lkp_merge_1
+        __fil_input = df_LKP_DPA_FACT_EMS_UND_OCPY
         __fil_input = __fil_input.drop("DSBL_CODE").withColumnRenamed("DSBL_CATG_CODE", "DSBL_CODE")
         df_FILTRANS = __fil_input.filter(expr("NewLookupRow > 0"))
         ctx.register_df("df_FILTRANS", df_FILTRANS)
         
         logger.info("Step: apply_FILTRANS1")
         # Filter: apply_FILTRANS1
-        __fil_input = df_lkp_merge_2
+        __fil_input = df_FILTRANS
         __fil_input = __fil_input.drop("TNCY_AGRMT_CMNC_DATE1").withColumnRenamed("IN_TNCY_AGRMT_CMNC_DATE", "TNCY_AGRMT_CMNC_DATE1")
         __fil_input = __fil_input.drop("UNIT_CODE_ADDR").withColumnRenamed("IN_UNIT_CODE_ADDR", "UNIT_CODE_ADDR")
         df_FILTRANS1 = __fil_input.filter(expr("(CODE_ADDR IS NULL)"))

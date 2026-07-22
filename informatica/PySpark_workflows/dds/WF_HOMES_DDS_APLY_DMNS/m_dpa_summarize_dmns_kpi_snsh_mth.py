@@ -194,24 +194,17 @@ select to_char(ss.SNSH_YEAR+1) dmns_year, to_char(ss.snsh_mth) dmns_mth,
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_KPI_SNSH_MTH = df_LKP_DDS_DMNS_KPI_SNSH_MTH.dropDuplicates(subset=["DMNS_YEAR", "DMNS_MTH"])
         # Join condition: SNSH_YEAR=DMNS_YEAR AND SNSH_MTH=DMNS_MTH
-        # Rename right-side join keys ONLY when they share the same name as the
-        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
-        # Keys with different names on each side are kept as-is.
-        _lkp_right = df_LKP_DDS_DMNS_KPI_SNSH_MTH
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_SQ_SOR_HOM_PRG_SNSH.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_1 = df_SQ_SOR_HOM_PRG_SNSH.join(
-            broadcast(_lkp_right),
-            (df_SQ_SOR_HOM_PRG_SNSH["SNSH_YEAR"] == _lkp_right["DMNS_YEAR"]) &
-            (df_SQ_SOR_HOM_PRG_SNSH["SNSH_MTH"] == _lkp_right["DMNS_MTH"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_1 = df_SQ_SOR_HOM_PRG_SNSH.alias("_main").join(
+            broadcast(df_LKP_DDS_DMNS_KPI_SNSH_MTH).alias("_lkp"),
+            (col("_main.SNSH_YEAR") == col("_lkp.DMNS_YEAR")) &
+            (col("_main.SNSH_MTH") == col("_lkp.DMNS_MTH")),
             "left"
+        ).select(
+            *[df_SQ_SOR_HOM_PRG_SNSH[c] for c in df_SQ_SOR_HOM_PRG_SNSH.columns],
+            *[df_LKP_DDS_DMNS_KPI_SNSH_MTH[c] for c in df_LKP_DDS_DMNS_KPI_SNSH_MTH.columns if c not in df_SQ_SOR_HOM_PRG_SNSH.columns]
         )
-
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
-        
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
         df_EXPTRANS = df_lkp_merge_1
@@ -221,7 +214,7 @@ select to_char(ss.SNSH_YEAR+1) dmns_year, to_char(ss.snsh_mth) dmns_mth,
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_DISP_QTR_TEXT", expr("DISP_QTR_TEXT"))
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_MTH_DISP_SEQ_NUM", expr("MTH_DISP_SEQ_NUM"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["DISP_MTH_TEXT", "IN_DMNS_MTH", "DMNS_YEAR", "DMNS_MTH", "DMNS_KPI_SNSH_MTH_KEY", "IN_DMNS_YEAR", "DISP_FIN_YEAR_TEXT", "DISP_QTR_TEXT", "MTH_DISP_SEQ_NUM"]:
+        for _col in ["IN_DMNS_YEAR", "IN_DMNS_MTH", "DMNS_MTH", "DISP_MTH_TEXT", "DMNS_YEAR", "DMNS_KPI_SNSH_MTH_KEY", "DISP_FIN_YEAR_TEXT", "DISP_QTR_TEXT", "MTH_DISP_SEQ_NUM"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)

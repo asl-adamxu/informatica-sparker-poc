@@ -121,36 +121,27 @@ select 'OTHR' rgn_code, 'Others' rgn_name, 'OTHR' dstr_code, 'Others'
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_DSTR = df_LKP_DDS_DMNS_DSTR.dropDuplicates(subset=["RGN_CODE", "DSTR_CODE"])
         # Join condition: RGN_CODE=RGN_CODE AND DSTR_CODE=DSTR_CODE
-        # Rename right-side join keys ONLY when they share the same name as the
-        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
-        # Keys with different names on each side are kept as-is.
-        _lkp_right = df_LKP_DDS_DMNS_DSTR
-        _lkp_right = _lkp_right.withColumnRenamed("RGN_CODE", "_lkp_RGN_CODE")
-        _lkp_right = _lkp_right.withColumnRenamed("DSTR_CODE", "_lkp_DSTR_CODE")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_SQ_SOR_HOM_REF_DSTR.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_1 = df_SQ_SOR_HOM_REF_DSTR.join(
-            broadcast(_lkp_right),
-            (df_SQ_SOR_HOM_REF_DSTR["RGN_CODE"] == _lkp_right["_lkp_RGN_CODE"]) &
-            (df_SQ_SOR_HOM_REF_DSTR["DSTR_CODE"] == _lkp_right["_lkp_DSTR_CODE"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_1 = df_SQ_SOR_HOM_REF_DSTR.alias("_main").join(
+            broadcast(df_LKP_DDS_DMNS_DSTR).alias("_lkp"),
+            (col("_main.RGN_CODE") == col("_lkp.RGN_CODE")) &
+            (col("_main.DSTR_CODE") == col("_lkp.DSTR_CODE")),
             "left"
-        ).drop("_lkp_RGN_CODE").drop("_lkp_DSTR_CODE")
-
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
-        
+        ).select(
+            *[df_SQ_SOR_HOM_REF_DSTR[c] for c in df_SQ_SOR_HOM_REF_DSTR.columns],
+            *[df_LKP_DDS_DMNS_DSTR[c] for c in df_LKP_DDS_DMNS_DSTR.columns if c not in df_SQ_SOR_HOM_REF_DSTR.columns]
+        )
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
         df_EXPTRANS = df_lkp_merge_1
-        df_EXPTRANS = df_EXPTRANS.withColumn("IN_RGN_NAME", expr("RGN_NAME"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_DSTR_KEY IS NULL) OR CASE WHEN RGN_NAME = RGN_NAME THEN false ELSE true END OR CASE WHEN DSTR_NAME = DSTR_NAME THEN false ELSE true END THEN 1 ELSE 0 END"))
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_DSTR_NAME", expr("DSTR_NAME"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_DSTR_KEY IS NULL) OR CASE WHEN RGN_NAME = RGN_NAME THEN false ELSE true END OR CASE WHEN DSTR_NAME = DSTR_NAME THEN false ELSE true END THEN 1 ELSE 0 END"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("IN_RGN_NAME", expr("RGN_NAME"))
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_RGN_DISP_SEQ_NUM", expr("RGN_DISP_SEQ_NUM"))
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_DSTR_DISP_SEQ_NUM", expr("DSTR_DISP_SEQ_NUM"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["RGN_NAME", "DMNS_DSTR_KEY", "DSTR_NAME", "RGN_CODE", "DSTR_CODE", "RGN_DISP_SEQ_NUM", "DSTR_DISP_SEQ_NUM", "IN_RGN_CODE", "IN_DSTR_CODE"]:
+        for _col in ["DSTR_NAME", "DMNS_DSTR_KEY", "RGN_NAME", "RGN_CODE", "DSTR_CODE", "RGN_DISP_SEQ_NUM", "DSTR_DISP_SEQ_NUM", "IN_RGN_CODE", "IN_DSTR_CODE"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)

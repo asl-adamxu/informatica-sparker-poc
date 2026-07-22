@@ -289,7 +289,7 @@ use default python to run pyspark workflow or mapping
 
 ## Conversion Progress
 
-As of **2026-07-20** (version **v2026.07.20**), 10 workflows (~1,130 mappings) have been converted from Informatica PowerCenter XML to PySpark.
+As of **2026-07-22** (version **v2026.07.22**), 10 workflows (~1,130 mappings) have been converted from Informatica PowerCenter XML to PySpark.
 
 ### ✅ Runtime Verified
 | Workflow | Mappings | XML Size | Status |

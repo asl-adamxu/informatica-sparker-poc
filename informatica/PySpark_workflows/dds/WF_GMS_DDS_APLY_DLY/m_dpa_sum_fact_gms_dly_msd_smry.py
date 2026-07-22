@@ -75,7 +75,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         _conn = lib.get_db_config(config, "DDS")
         # Parameterize schema from connection config
         _schema = _conn.get("schema", "") or "PDDS"
-        query = f"""SELECT DDS_FACT_GMS_DLY_MSD_SMRY.TIME_DMNS_KEY, DDS_FACT_GMS_DLY_MSD_SMRY.EST_SCD_KEY, DDS_FACT_GMS_DLY_MSD_SMRY.OFCR_TYPE_DMNS_KEY, DDS_FACT_GMS_DLY_MSD_SMRY.HSHLD_SIZE_DMNS_KEY, DDS_FACT_GMS_DLY_MSD_SMRY.MSD_CODE_SCD_KEY, DDS_FACT_GMS_DLY_MSD_SMRY.OFNDR_GNDR_DMNS_KEY, DDS_FACT_GMS_DLY_MSD_SMRY.OFNDR_AGE_GRP_DMNS_KEY, DDS_FACT_GMS_DLY_MSD_SMRY.OFNC_SCORE_GRP_DMNS_KEY, DDS_FACT_GMS_DLY_MSD_SMRY.ACTV_OFNC_TNCY_CNT, DDS_FACT_GMS_DLY_MSD_SMRY.CMLT_OFNC_TNCY_CNT, DDS_FACT_GMS_DLY_MSD_SMRY.AFT_CMLT_WRT_WARN_TNCY_CNT, DDS_FACT_GMS_DLY_MSD_SMRY.CMLT_WRT_WARN_CASE_CNT, DDS_FACT_GMS_DLY_MSD_SMRY.AFT_CMLT_WRT_WARN_CASE_CNT, DDS_FACT_GMS_DLY_MSD_SMRY.ACTV_PNT_ALLT_CASE_CNT, DDS_FACT_GMS_DLY_MSD_SMRY.CMLT_PNT_ALLT_CASE_CNT, DDS_FACT_GMS_DLY_MSD_SMRY.CMLT_MSD_TOT_CASE_CNT, DDS_FACT_GMS_DLY_MSD_SMRY.REC_RLS_IND, DDS_FACT_GMS_DLY_MSD_SMRY.LAST_REC_TXN_DATE, DDS_FACT_GMS_DLY_MSD_SMRY.LAST_REC_TXN_TYPE_CODE FROM a, b, c, cs, e, ee, es, g, h, hs, m, msd, n, ns, o, p, r, rs, s, ss, t, tc, tcs, ts, u WHERE with m as (
+        query = f"""with m as (
 select t.msd_txn_key, tc.msd_tncy_txn_key, c.msd_tncy_key, ts.msd_type_code, ts.msd_txn_sts_code, 
   ts.msd_pnt_num, ts.msd_schm_type_code, ts.msd_txn_cre_date, ts.incdt_date_time,
   ts.msd_code_key, ts.msd_del_rsn_code, ts.msd_iss_ofcr_type_code, ts.ofndr_gndr_code, ts.ofndr_dob_date,

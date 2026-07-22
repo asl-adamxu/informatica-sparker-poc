@@ -130,28 +130,18 @@ select 'Others' sub_div_name, 'Others' sctn_name, 'OTHR' proj_mgr_name, 9999 sub
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_ORG = df_LKP_DDS_DMNS_ORG.dropDuplicates(subset=["SUB_DIV_NAME", "SCTN_NAME", "PROJ_MGR_NAME"])
         # Join condition: SUB_DIV_NAME=SUB_DIV_NAME AND SCTN_NAME=SCTN_NAME AND PROJ_MGR_NAME=PROJ_MGR_NAME
-        # Rename right-side join keys ONLY when they share the same name as the
-        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
-        # Keys with different names on each side are kept as-is.
-        _lkp_right = df_LKP_DDS_DMNS_ORG
-        _lkp_right = _lkp_right.withColumnRenamed("SUB_DIV_NAME", "_lkp_SUB_DIV_NAME")
-        _lkp_right = _lkp_right.withColumnRenamed("SCTN_NAME", "_lkp_SCTN_NAME")
-        _lkp_right = _lkp_right.withColumnRenamed("PROJ_MGR_NAME", "_lkp_PROJ_MGR_NAME")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_SQ_SOR_HOM_SMT_ORG_STRC.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_1 = df_SQ_SOR_HOM_SMT_ORG_STRC.join(
-            broadcast(_lkp_right),
-            (df_SQ_SOR_HOM_SMT_ORG_STRC["SUB_DIV_NAME"] == _lkp_right["_lkp_SUB_DIV_NAME"]) &
-            (df_SQ_SOR_HOM_SMT_ORG_STRC["SCTN_NAME"] == _lkp_right["_lkp_SCTN_NAME"]) &
-            (df_SQ_SOR_HOM_SMT_ORG_STRC["PROJ_MGR_NAME"] == _lkp_right["_lkp_PROJ_MGR_NAME"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_1 = df_SQ_SOR_HOM_SMT_ORG_STRC.alias("_main").join(
+            broadcast(df_LKP_DDS_DMNS_ORG).alias("_lkp"),
+            (col("_main.SUB_DIV_NAME") == col("_lkp.SUB_DIV_NAME")) &
+            (col("_main.SCTN_NAME") == col("_lkp.SCTN_NAME")) &
+            (col("_main.PROJ_MGR_NAME") == col("_lkp.PROJ_MGR_NAME")),
             "left"
-        ).drop("_lkp_SUB_DIV_NAME").drop("_lkp_SCTN_NAME").drop("_lkp_PROJ_MGR_NAME")
-
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
-        
+        ).select(
+            *[df_SQ_SOR_HOM_SMT_ORG_STRC[c] for c in df_SQ_SOR_HOM_SMT_ORG_STRC.columns],
+            *[df_LKP_DDS_DMNS_ORG[c] for c in df_LKP_DDS_DMNS_ORG.columns if c not in df_SQ_SOR_HOM_SMT_ORG_STRC.columns]
+        )
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
         df_EXPTRANS = df_lkp_merge_1
@@ -160,7 +150,7 @@ select 'Others' sub_div_name, 'Others' sctn_name, 'OTHR' proj_mgr_name, 9999 sub
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_MGR_DISP_SEQ_NUM", expr("MGR_DISP_SEQ_NUM"))
         df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_ORG_KEY IS NULL) OR CASE WHEN SUB_DIV_NAME = IN_SUB_DIV_NAME THEN false ELSE true END OR CASE WHEN SCTN_NAME = IN_SCTN_NAME THEN false ELSE true END OR CASE WHEN PROJ_MGR_NAME = IN_PROJ_MGR_NAME THEN false ELSE true END THEN 1 ELSE 0 END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["DMNS_ORG_KEY", "IN_PROJ_MGR_NAME", "IN_SUB_DIV_NAME", "IN_SCTN_NAME"]:
+        for _col in ["IN_PROJ_MGR_NAME", "DMNS_ORG_KEY", "IN_SCTN_NAME", "IN_SUB_DIV_NAME"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)

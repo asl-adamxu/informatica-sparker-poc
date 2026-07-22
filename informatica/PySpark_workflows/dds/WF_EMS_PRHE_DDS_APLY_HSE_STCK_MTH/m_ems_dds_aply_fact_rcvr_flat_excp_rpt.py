@@ -428,24 +428,16 @@ SELECT     	RM.UNIT_KEY as UNIT_KEY,
         _w = _Window.partitionBy(col("UNIT_KEY")).orderBy(lit(0).desc())
         df_LKPTRANS = df_LKPTRANS.withColumn("_rn", row_number().over(_w)).filter(col("_rn") == 1).drop("_rn")
         # Join condition: UNIT_KEY=UNIT_KEY
-        # Rename right-side join keys ONLY when they share the same name as the
-        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
-        # Keys with different names on each side are kept as-is.
-        _lkp_right = df_LKPTRANS
-        _lkp_right = _lkp_right.withColumnRenamed("UNIT_KEY", "_lkp_UNIT_KEY")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_FILTRANS.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_1 = df_FILTRANS.join(
-            broadcast(_lkp_right),
-            (df_FILTRANS["UNIT_KEY"] == _lkp_right["_lkp_UNIT_KEY"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_1 = df_FILTRANS.alias("_main").join(
+            broadcast(df_LKPTRANS).alias("_lkp"),
+            (col("_main.UNIT_KEY") == col("_lkp.UNIT_KEY")),
             "left"
-        ).drop("_lkp_UNIT_KEY")
-
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
-        
+        ).select(
+            *[df_FILTRANS[c] for c in df_FILTRANS.columns],
+            *[df_LKPTRANS[c] for c in df_LKPTRANS.columns if c not in df_FILTRANS.columns]
+        )
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
         df_EXPTRANS = df_lkp_merge_1
@@ -496,23 +488,16 @@ select t1.unit_key, e1, e2, e3 from
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_UNIT_ADVS_ENV_CODE_IND = df_LKP_UNIT_ADVS_ENV_CODE_IND.dropDuplicates(subset=["UNIT_KEY"])
         # Join condition: UNIT_KEY1=UNIT_KEY
-        # Rename right-side join keys ONLY when they share the same name as the
-        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
-        # Keys with different names on each side are kept as-is.
-        _lkp_right = df_LKP_UNIT_ADVS_ENV_CODE_IND
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_FILTRANS1.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_2 = df_FILTRANS1.join(
-            broadcast(_lkp_right),
-            (df_FILTRANS1["UNIT_KEY1"] == _lkp_right["UNIT_KEY"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_2 = df_FILTRANS1.alias("_main").join(
+            broadcast(df_LKP_UNIT_ADVS_ENV_CODE_IND).alias("_lkp"),
+            (col("_main.UNIT_KEY1") == col("_lkp.UNIT_KEY")),
             "left"
+        ).select(
+            *[df_FILTRANS1[c] for c in df_FILTRANS1.columns],
+            *[df_LKP_UNIT_ADVS_ENV_CODE_IND[c] for c in df_LKP_UNIT_ADVS_ENV_CODE_IND.columns if c not in df_FILTRANS1.columns]
         )
-
-        ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)
-        
+        ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)        
         logger.info("Step: apply_EXPTRANS2")
         # Expression: apply_EXPTRANS2
         df_EXPTRANS2 = df_lkp_merge_2

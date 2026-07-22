@@ -143,24 +143,16 @@ and u.unit_key = ta2.unit_key"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_UNIT_ADDR_CODE = df_LKP_UNIT_ADDR_CODE.dropDuplicates(subset=["TNCY_AGRMT_BK"])
         # Join condition: TNCY_AGRMT_BK=TNCY_AGRMT_BK
-        # Rename right-side join keys ONLY when they share the same name as the
-        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
-        # Keys with different names on each side are kept as-is.
-        _lkp_right = df_LKP_UNIT_ADDR_CODE
-        _lkp_right = _lkp_right.withColumnRenamed("TNCY_AGRMT_BK", "_lkp_TNCY_AGRMT_BK")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_EXPTRANS2.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_1 = df_EXPTRANS2.join(
-            broadcast(_lkp_right),
-            (df_EXPTRANS2["TNCY_AGRMT_BK"] == _lkp_right["_lkp_TNCY_AGRMT_BK"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_1 = df_EXPTRANS2.alias("_main").join(
+            broadcast(df_LKP_UNIT_ADDR_CODE).alias("_lkp"),
+            (col("_main.TNCY_AGRMT_BK") == col("_lkp.TNCY_AGRMT_BK")),
             "left"
-        ).drop("_lkp_TNCY_AGRMT_BK")
-
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
-        
+        ).select(
+            *[df_EXPTRANS2[c] for c in df_EXPTRANS2.columns],
+            *[df_LKP_UNIT_ADDR_CODE[c] for c in df_LKP_UNIT_ADDR_CODE.columns if c not in df_EXPTRANS2.columns]
+        )
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: read_LKP_CUST_EXPCT_CHILD_NUM")
         # Reading Data From Source - read_LKP_CUST_EXPCT_CHILD_NUM
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -182,25 +174,18 @@ and ADD_MONTHS(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'), 1)-1 between SOR_EMS_CP
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_CUST_EXPCT_CHILD_NUM = df_LKP_CUST_EXPCT_CHILD_NUM.dropDuplicates(subset=["CUST_APLY_BK"])
         # Join condition: TNCY_AGRMT_BK=CUST_APLY_BK
-        # Rename right-side join keys ONLY when they share the same name as the
-        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
-        # Keys with different names on each side are kept as-is.
-        _lkp_right = df_LKP_CUST_EXPCT_CHILD_NUM
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_1.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_1 = df_lkp_merge_1.join(
-            broadcast(_lkp_right),
-            (df_lkp_merge_1["TNCY_AGRMT_BK"] == _lkp_right["CUST_APLY_BK"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_1 = df_lkp_merge_1.alias("_main").join(
+            broadcast(df_LKP_CUST_EXPCT_CHILD_NUM).alias("_lkp"),
+            (col("_main.TNCY_AGRMT_BK") == col("_lkp.CUST_APLY_BK")),
             "left"
+        ).select(
+            *[df_lkp_merge_1[c] for c in df_lkp_merge_1.columns],
+            *[df_LKP_CUST_EXPCT_CHILD_NUM[c] for c in df_LKP_CUST_EXPCT_CHILD_NUM.columns if c not in df_lkp_merge_1.columns]
         )
-
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
         
-        logger.info("Step: read_mplt_LKP_ELD_MTH")
-        # Reading Data From Source - read_mplt_LKP_ELD_MTH
+        logger.info("Step: read_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_LKP_ELD_MTH")
+        # Reading Data From Source - read_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_LKP_ELD_MTH
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "source_db")
         query = f"""SELECT
@@ -237,39 +222,31 @@ GROUP BY
   SOR_EMS_TAM_TNCY_AGRMT.TNCY_AGRMT_BK"""
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         query = query.replace("$$v_snsh_date", v_snsh_date)
-        df_mplt_lkp_2 = lib.read_sql(spark, _conn, query=query)
+        df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_LKP_ELD_MTH = lib.read_sql(spark, _conn, query=query)
         
-        logger.info("Step: apply_mplt_LKP_ELD_MTH")
-        # Lookup: apply_mplt_LKP_ELD_MTH
+        logger.info("Step: apply_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_LKP_ELD_MTH")
+        # Lookup: apply_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_LKP_ELD_MTH
         # Join condition: TNCY_AGRMT_BK=TNCY_AGRMT_BK
-        # Rename right-side join keys ONLY when they share the same name as the
-        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
-        # Keys with different names on each side are kept as-is.
-        _lkp_right = df_mplt_lkp_2
-        _lkp_right = _lkp_right.withColumnRenamed("TNCY_AGRMT_BK", "_lkp_TNCY_AGRMT_BK")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_1.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_mplt_LKP_ELD_MTH = df_lkp_merge_1.join(
-            broadcast(_lkp_right),
-            (df_lkp_merge_1["TNCY_AGRMT_BK"] == _lkp_right["_lkp_TNCY_AGRMT_BK"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_mplt_lkp_chain_2 = df_lkp_merge_1.alias("_main").join(
+            broadcast(df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_LKP_ELD_MTH).alias("_lkp"),
+            (col("_main.TNCY_AGRMT_BK") == col("_lkp.TNCY_AGRMT_BK")),
             "left"
-        ).drop("_lkp_TNCY_AGRMT_BK")
-
-        ctx.register_df("df_mplt_LKP_ELD_MTH", df_mplt_LKP_ELD_MTH)
-        
-        logger.info("Step: apply_mplt_EXPTRANS31")
-        # Expression: apply_mplt_EXPTRANS31
-        df_mplt_EXPTRANS31 = df_mplt_LKP_ELD_MTH
-        df_mplt_EXPTRANS31 = df_mplt_EXPTRANS31.withColumn("ELD_IND", expr("CASE WHEN NOT ((ELD_CNT IS NULL)) AND ELD_CNT > 0 THEN 'Y' ELSE 'N' END"))
-        df_mplt_EXPTRANS31 = df_mplt_EXPTRANS31.withColumn("AEM_IND", expr("CASE WHEN NOT ((ELD_CNT IS NULL)) AND ELD_CNT = HSHLD_SIZE THEN 'Y' ELSE 'N' END"))
-        ctx.register_df("df_mplt_EXPTRANS31", df_mplt_EXPTRANS31)
+        ).select(
+            *[df_lkp_merge_1[c] for c in df_lkp_merge_1.columns],
+            *[df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_LKP_ELD_MTH[c] for c in df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_LKP_ELD_MTH.columns if c not in df_lkp_merge_1.columns]
+        )
+        ctx.register_df("df_mplt_lkp_chain_2", df_mplt_lkp_chain_2)        
+        logger.info("Step: apply_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31")
+        # Expression: apply_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31
+        df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31 = df_mplt_lkp_chain_2
+        df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31 = df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31.withColumn("ELD_IND", expr("CASE WHEN NOT ((ELD_CNT IS NULL)) AND ELD_CNT > 0 THEN 'Y' ELSE 'N' END"))
+        df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31 = df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31.withColumn("AEM_IND", expr("CASE WHEN NOT ((ELD_CNT IS NULL)) AND ELD_CNT = HSHLD_SIZE THEN 'Y' ELSE 'N' END"))
+        ctx.register_df("df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31", df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31)
         
         logger.info("Step: apply_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY")
         # Expression: apply_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY
-        df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY = df_mplt_EXPTRANS31
+        df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY = df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31
         ctx.register_df("df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY", df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY)
         
         logger.info("Step: merge_EXPTRANS1_0")

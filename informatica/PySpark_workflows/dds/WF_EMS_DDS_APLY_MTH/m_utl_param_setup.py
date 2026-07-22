@@ -121,23 +121,16 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Use First Value / Use Any Value: dedup by join keys
         df_LKPTRANS = df_LKPTRANS.dropDuplicates(subset=["PRPTY"])
         # Join condition: PROPERTY=PRPTY
-        # Rename right-side join keys ONLY when they share the same name as the
-        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
-        # Keys with different names on each side are kept as-is.
-        _lkp_right = df_LKPTRANS
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_EXPTRANS.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_1 = df_EXPTRANS.join(
-            broadcast(_lkp_right),
-            (df_EXPTRANS["PROPERTY"] == _lkp_right["PRPTY"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_1 = df_EXPTRANS.alias("_main").join(
+            broadcast(df_LKPTRANS).alias("_lkp"),
+            (col("_main.PROPERTY") == col("_lkp.PRPTY")),
             "left"
+        ).select(
+            *[df_EXPTRANS[c] for c in df_EXPTRANS.columns],
+            *[df_LKPTRANS[c] for c in df_LKPTRANS.columns if c not in df_EXPTRANS.columns]
         )
-
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
-        
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
         df_EXPTRANS1 = df_lkp_merge_1

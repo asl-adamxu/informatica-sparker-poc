@@ -245,7 +245,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% if filter_renames %}
         __fil_input = {{ step.df_input }}
         {% for r in filter_renames %}
+        {% if r.from != r.to %}
         __fil_input = __fil_input.drop("{{ r.to }}").withColumnRenamed("{{ r.from }}", "{{ r.to }}")
+        {% endif %}
         {% endfor %}
         {% else %}
         __fil_input = {{ step.df_input }}
@@ -288,7 +290,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% endfor %}
         {% for rc in step.params.get('rename_columns', []) %}
         {% set _src, _tgt = rc %}
+        {% if _src != _tgt %}
         {{ step.df_output }} = {{ step.df_output }}.drop("{{ _tgt }}").withColumnRenamed("{{ _src }}", "{{ _tgt }}")
+        {% endif %}
         {% endfor %}
         {% set pass_through_cols = [] %}
         {% for col in step.params.get('computed_columns', []) %}
@@ -388,31 +392,24 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {{ lookup_df_name }} = {{ lookup_df_name }}.dropDuplicates(subset=[{% for k in dedup_keys %}"{{ k }}"{% if not loop.last %}, {% endif %}{% endfor %}])
         {% endif %}
         {% endif %}
-        # Join condition: {% for jp in join_predicates %}{{ jp.source_col }}={{ jp.lookup_col }}{% if not loop.last %} AND {% endif %}{% endfor %}{{ '\n' }}        # Rename right-side join keys ONLY when they share the same name as the
-        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
-        # Keys with different names on each side are kept as-is.
-        _lkp_right = {{ lookup_df_name }}
-        {% for jp in join_predicates %}
-        {% if jp.source_col == jp.lookup_col %}
-        _lkp_right = _lkp_right.withColumnRenamed("{{ jp.lookup_col }}", "_lkp_{{ jp.lookup_col }}")
-        {% endif %}
-        {% endfor %}
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in {{ step.df_input }}.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        {{ step.df_output }} = {{ step.df_input }}.join(
+        # Join condition: {% for jp in join_predicates %}{{ jp.source_col }}={{ jp.lookup_col }}{% if not loop.last %} AND {% endif %}{% endfor %}{{ '\n' }}        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        {{ step.df_output }} = {{ step.df_input }}.alias("_main").join(
             {% if step.params.get('broadcast', True) %}
-            broadcast(_lkp_right){% else %}_lkp_right
-            {% endif %},
+            broadcast({{ lookup_df_name }}).alias("_lkp"),
+            {% else %}
+            {{ lookup_df_name }}.alias("_lkp"),
+            {% endif %}
             {% for jp in join_predicates %}
-            {% set _lkp_col = "_lkp_" + jp.lookup_col if jp.source_col == jp.lookup_col else jp.lookup_col %}
-            ({{ step.df_input }}["{{ jp.source_col }}"] == _lkp_right["{{ _lkp_col }}"]){% if not loop.last %} &{{ '\n' }}{% endif %}
+            (col("_main.{{ jp.source_col }}") == col("_lkp.{{ jp.lookup_col }}")){% if not loop.last %} &{{ '\n' }}{% endif %}
             {% endfor %},
             "{{ step.params.get('lookup_type', 'left') }}"
-        ){% for jp in join_predicates %}{% if jp.source_col == jp.lookup_col %}.drop("_lkp_{{ jp.lookup_col }}"){% endif %}{% endfor %}{{ '\n' }}
+        ).select(
+            *[{{ step.df_input }}[c] for c in {{ step.df_input }}.columns],
+            *[{{ lookup_df_name }}[c] for c in {{ lookup_df_name }}.columns if c not in {{ step.df_input }}.columns]
+        )
+        {% if step.df_input != step.df_output %}
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
+        {%- endif %}
         {% elif join_expr %}
         {{ step.df_output }} = {{ step.df_input }}.join(
             {% if step.params.get('broadcast', True) %}
@@ -547,7 +544,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% if sorter_renames %}
         __srt_input = {{ step.df_input }}
         {% for r in sorter_renames %}
+        {% if r.from != r.to %}
         __srt_input = __srt_input.drop("{{ r.to }}").withColumnRenamed("{{ r.from }}", "{{ r.to }}")
+        {% endif %}
         {% endfor %}
         {% else %}
         __srt_input = {{ step.df_input }}
@@ -621,7 +620,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {{ group.get('df_output', 'df_group') }} = {{ step.df_input }}  # Default group
         {% endif %}
         {% for rename in group.get('renames', []) %}
+        {% if rename.from != rename.to %}
         {{ group.get('df_output', 'df_group') }} = {{ group.get('df_output', 'df_group') }}.drop("{{ rename.to }}").withColumnRenamed("{{ rename.from }}", "{{ rename.to }}")
+        {% endif %}
         {% endfor %}
         ctx.register_df("{{ group.get('df_output', 'df_group') }}", {{ group.get('df_output', 'df_group') }})
         {% endfor %}

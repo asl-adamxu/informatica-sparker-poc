@@ -117,24 +117,16 @@ select 'Others' flatmix_type_code, 'Others' flatmix_type_desp, 9999
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_FLATMIX = df_LKP_DDS_DMNS_FLATMIX.dropDuplicates(subset=["FLATMIX_TYPE_CODE"])
         # Join condition: FLATMIX_TYPE_CODE=FLATMIX_TYPE_CODE
-        # Rename right-side join keys ONLY when they share the same name as the
-        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
-        # Keys with different names on each side are kept as-is.
-        _lkp_right = df_LKP_DDS_DMNS_FLATMIX
-        _lkp_right = _lkp_right.withColumnRenamed("FLATMIX_TYPE_CODE", "_lkp_FLATMIX_TYPE_CODE")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_SQ_SOR_HOM_PRJ_FLATMIX.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_1 = df_SQ_SOR_HOM_PRJ_FLATMIX.join(
-            broadcast(_lkp_right),
-            (df_SQ_SOR_HOM_PRJ_FLATMIX["FLATMIX_TYPE_CODE"] == _lkp_right["_lkp_FLATMIX_TYPE_CODE"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_1 = df_SQ_SOR_HOM_PRJ_FLATMIX.alias("_main").join(
+            broadcast(df_LKP_DDS_DMNS_FLATMIX).alias("_lkp"),
+            (col("_main.FLATMIX_TYPE_CODE") == col("_lkp.FLATMIX_TYPE_CODE")),
             "left"
-        ).drop("_lkp_FLATMIX_TYPE_CODE")
-
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
-        
+        ).select(
+            *[df_SQ_SOR_HOM_PRJ_FLATMIX[c] for c in df_SQ_SOR_HOM_PRJ_FLATMIX.columns],
+            *[df_LKP_DDS_DMNS_FLATMIX[c] for c in df_LKP_DDS_DMNS_FLATMIX.columns if c not in df_SQ_SOR_HOM_PRJ_FLATMIX.columns]
+        )
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
         df_EXPTRANS = df_lkp_merge_1
@@ -142,7 +134,7 @@ select 'Others' flatmix_type_code, 'Others' flatmix_type_desp, 9999
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_RPT_SEQ_NUM", expr("RPT_SEQ_NUM"))
         df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_FLATMIX_KEY IS NULL) OR CASE WHEN FLATMIX_TYPE_CODE = IN_FLATMIX_TYPE_CODE THEN false ELSE true END OR CASE WHEN FLATMIX_TYPE_DESP = FLATMIX_DESP THEN false ELSE true END THEN 1 ELSE 0 END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["IN_FLATMIX_TYPE_CODE", "DMNS_FLATMIX_KEY", "FLATMIX_TYPE_CODE", "FLATMIX_TYPE_DESP", "DISP_SEQ_NUM"]:
+        for _col in ["DMNS_FLATMIX_KEY", "FLATMIX_TYPE_CODE", "FLATMIX_TYPE_DESP", "IN_FLATMIX_TYPE_CODE", "DISP_SEQ_NUM"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)

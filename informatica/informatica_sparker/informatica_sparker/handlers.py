@@ -264,9 +264,12 @@ class TransformHandlers:
             _processed_inst_names.add(inst_name)
 
             if inst_type in ("SOURCE", "Source Definition"):
-                # Skip source read when downstream SQ uses SQL pushdown (reads DB directly).
-                # The Source Qualifier will handle the entire read.
+                # Skip source read when ALL downstream SQs use SQL pushdown
+                # (reads DB directly). If ANY SQ has no pushdown, the Source
+                # must be kept for that SQ (e.g. SQ_SP_DELETE sharing a Source
+                # with a pushdown SQ like SQ_DPA_FACT_EMS_EST_PLT).
                 _sq_pushdown = False
+                _all_pushdown = True
                 for _conn in self.mapping.connectors:
                     if _conn.from_instance == inst_name:
                         _to_inst = self.instance_map.get(_conn.to_instance)
@@ -281,8 +284,10 @@ class TransformHandlers:
                                     _sqo = _sq_trans.table_attributes.get("Sql Query", "")
                                     if _udj.strip() or _sqo.strip():
                                         _sq_pushdown = True
+                                    else:
+                                        _all_pushdown = False
                                         break
-                if _sq_pushdown:
+                if _sq_pushdown and _all_pushdown:
                     self.logger.log_transformation(inst_name, "Source",
                         "Skipped (SQ uses SQL pushdown — read handled by SQ)",
                         LogLevel.INFO)
@@ -516,6 +521,19 @@ class TransformHandlers:
                     elif _result:
                         plan.add_step(_result)
 
+        # Post-process: upgrade filter steps that still reference a chain/merge
+        # df_input (e.g. df_lkp_merge_1) to use the first downstream non-chain
+        # DataFrame (e.g. df_EXPTRANS1). Scan plan steps backward from the
+        # filter step to find the nearest non-chain DF registered before the
+        # filter — this avoids picking up unrelated steps like ReadSQL.
+        for _sp in plan.steps:
+            if isinstance(_sp, ApplyFilterStep) and _sp.df_input and _sp.df_input.startswith(('df_lkp_merge', 'df_merge', 'df_sq_')):
+                _sp_idx = plan.steps.index(_sp)
+                for _p in reversed(plan.steps[:_sp_idx]):
+                    if not _p.df_output.startswith(('df_lkp_merge', 'df_merge', 'df_sq_')):
+                        _sp.df_input = _p.df_output
+                        break
+
         return plan
 
     def _normalize_instance_to_object_name(self, name: str) -> str:
@@ -649,7 +667,7 @@ class TransformHandlers:
 
         # If the SQL override is just a User Defined Join (not a complete SELECT),
         # construct a full SQL query: SELECT <cols> FROM <tables> WHERE <join> [AND <filter>]
-        if final_sql and not re.match(r'\s*SELECT\b', final_sql, re.IGNORECASE):
+        if final_sql and not re.match(r'\s*(SELECT|WITH)\b', final_sql, re.IGNORECASE):
             # Extract unique table names from the join condition and source filter
             _all_sql_text = final_sql
             if filter_cond:
@@ -1241,10 +1259,6 @@ class TransformHandlers:
                 output_columns=output_columns,
                 lookup_type="left"
             ))
-            # Detect if any join key shares the same name on both sides →
-            # needs _lkp_ rename to avoid ambiguous column references.
-            if any(jp.get("source_col", "") == jp.get("lookup_col", "") for jp in join_predicates):
-                steps[-1].params["needs_join_rename"] = True
             # Handle "Lookup policy on multiple match" — dedup the lookup
             # DataFrame by join keys when there could be multiple matches.
             # Options: Use First Value, Use Last Value, Use Any Value, Report Error.
@@ -2292,6 +2306,10 @@ class TransformHandlers:
             plan.add_warning(f"No input DataFrame found for mapplet {instance.name}")
             input_df = "df_input"
 
+        mapplet_name = instance.transformation_name or instance.name
+        _mplt_prefix = "df_" + re.sub(r'[^a-zA-Z0-9_]', '_', mapplet_name)
+        _mplt_step_prefix = _mplt_prefix[3:]  # safe name without df_ prefix, for step/hash keys
+
         # When a mapplet has multiple upstream DataFrames (e.g.
         # MPLT_GET_CMS_BLK_SCD_KEY receives columns from both
         # MPLT_LKP_EST_CODE and MPLT_LKP_BLK_CODE), merge them
@@ -2301,7 +2319,7 @@ class TransformHandlers:
         if extra_inputs and input_df != "df_input":
             _cur_df = input_df
             for _i, _extra_df in enumerate(extra_inputs):
-                _join_df = self._get_df_name("df_mplt_merge")
+                _join_df = self._get_df_name(f"{_mplt_prefix}_merge")
                 steps.append(ApplyLookupStep(
                     step_name=f"join_{instance.name}_{_i}",
                     df_input=_cur_df,
@@ -2314,8 +2332,6 @@ class TransformHandlers:
                 ))
                 _cur_df = _join_df
             input_df = _cur_df
-
-        mapplet_name = instance.transformation_name or instance.name
         mapplet_def = self.mapping.mapplets.get(mapplet_name) if hasattr(self.mapping, 'mapplets') else None
         if not mapplet_def:
             self.logger.log_mapplet(instance.name, f"Mapplet definition not found: {mapplet_name}", LogLevel.WARNING)
@@ -2397,7 +2413,7 @@ class TransformHandlers:
                         expression=from_field,
                         datatype="string",
                     ))
-                remap_input_df = self._get_df_name("df_mplt_input")
+                remap_input_df = self._get_df_name(f"{_mplt_prefix}_input")
                 steps.append(ApplyExpressionStep(
                     step_name=f"input_{instance.name}",
                     df_input=input_df,
@@ -2423,9 +2439,15 @@ class TransformHandlers:
             # connectors, so that column names fed into this transformation match
             # what its expressions/lookups expect.
             inst_field_remap: Dict[str, str] = dict(input_field_map)
+            # Internal-only remap (no external input_field_map). External port
+            # mappings are already handled by the input rename step, so they
+            # must NOT be applied to lookup/filter predicates — the DataFrame
+            # already uses the mapplet INPUT port names (e.g. IN_CASE_TYPE_KEY).
+            _internal_remap: Dict[str, str] = {}
             for conn in mpl_connectors:
                 if conn.to_instance == mpl_inst_name and conn.from_field != conn.to_field:
                     inst_field_remap[conn.to_field] = conn.from_field
+                    _internal_remap[conn.to_field] = conn.from_field
 
             if "Input Transformation" in mpl_inst_type:
                 # Input is already mapped to input_df
@@ -2465,12 +2487,14 @@ class TransformHandlers:
                 lookup_table = lookup_transform.table_attributes.get("Lookup table name", "")
                 lookup_cond = lookup_transform.table_attributes.get("Lookup condition", "")
 
-                # Create lookup read step when we have SQL or table
-                lookup_df_name = self._get_df_name("df_mplt_lkp")
+                # Create lookup read step when we have SQL or table.
+                # Use the lookup instance name (e.g. df_mplt_LKP_RENT_ADV_AMT)
+                # instead of a numeric counter for readability.
+                lookup_df_name = f"{_mplt_prefix}_" + re.sub(r'[^a-zA-Z0-9_]', '_', mpl_inst.name)
                 if lookup_sql:
                     lookup_conn = self._resolve_connection_alias(lookup_table or mpl_inst.name)
                     steps.append(ReadSQLStep(
-                        step_name=f"read_mplt_{mpl_inst.name}",
+                        step_name=f"read_{_mplt_step_prefix}_{mpl_inst.name}",
                         df_output=lookup_df_name,
                         connection_alias=lookup_conn,
                         query=lookup_sql,
@@ -2479,7 +2503,7 @@ class TransformHandlers:
                 elif lookup_table:
                     lookup_conn = self._resolve_connection_alias(lookup_table)
                     steps.append(ReadSQLStep(
-                        step_name=f"read_mplt_{mpl_inst.name}",
+                        step_name=f"read_{_mplt_step_prefix}_{mpl_inst.name}",
                         df_output=lookup_df_name,
                         connection_alias=lookup_conn,
                         table_name=lookup_table,
@@ -2494,7 +2518,7 @@ class TransformHandlers:
                     )
                     continue
 
-                plan.lookup_dfs[f"mplt_{mpl_inst.name}"] = lookup_df_name
+                plan.lookup_dfs[f"{_mplt_step_prefix}_{mpl_inst.name}"] = lookup_df_name
 
                 # Find which DataFrame feeds this lookup within the mapplet
                 mpl_input_df = None
@@ -2506,22 +2530,32 @@ class TransformHandlers:
 
                 if mpl_input_df and lookup_df_name:
                     parsed = self._parse_lookup_condition(lookup_cond, lookup_df_name)
-                    join_result_df = "df_mplt_" + re.sub(r'[^a-zA-Z0-9_]', '_', mpl_inst_name)
+                    # Chain lookups that share the same mapplet input into one
+                    # accumulating DataFrame, avoiding extra merge steps later.
+                    _mpl_chain_key = f"mpl_{mapplet_name}_{mpl_input_df}"
+                    if _mpl_chain_key in self._chain_df_map:
+                        join_result_df = self._chain_df_map[_mpl_chain_key]
+                        mpl_chain_input = join_result_df
+                    else:
+                        join_result_df = self._get_df_name("df_mplt_lkp_chain")
+                        self._chain_df_map[_mpl_chain_key] = join_result_df
+                        mpl_chain_input = mpl_input_df
                     mpl_df_map[mpl_inst_name] = join_result_df
 
-                    # Remap source columns: mapplet port names → actual upstream
-                    # column names from the connectors (internal + external).
+                    # Remap source columns using only internal connector remaps.
+                    # External input_field_map remaps are excluded — the input
+                    # rename step already aligned those column names.
                     join_predicates = parsed.get("join_columns", [])
                     for jc in join_predicates:
-                        if jc.get("source_col") in inst_field_remap:
-                            jc["source_col"] = inst_field_remap[jc["source_col"]]
+                        if jc.get("source_col") in _internal_remap:
+                            jc["source_col"] = _internal_remap[jc["source_col"]]
 
                     # Also remap column names in complex join expressions
                     join_expr = parsed.get("condition_expr") or ""
                     if join_expr:
-                        for mpl_port, actual_col in inst_field_remap.items():
-                            if mpl_port != actual_col:
-                                join_expr = join_expr.replace(mpl_port, actual_col)
+                        for _port, _col in _internal_remap.items():
+                            if _port != _col:
+                                join_expr = join_expr.replace(_port, _col)
 
                     # Collect output columns from the lookup
                     output_cols = []
@@ -2530,11 +2564,11 @@ class TransformHandlers:
                         if "OUTPUT" in port_type and "RETURN" not in port_type:
                             output_cols.append(field.name)
 
-                    plan.lookup_return_ports[f"mplt_{mpl_inst.name}"] = output_cols
+                    plan.lookup_return_ports[f"{_mplt_step_prefix}_{mpl_inst.name}"] = output_cols
 
                     steps.append(ApplyLookupStep(
-                        step_name=f"apply_mplt_{mpl_inst.name}",
-                        df_input=mpl_input_df,
+                        step_name=f"apply_{_mplt_step_prefix}_{mpl_inst.name}",
+                        df_input=mpl_chain_input,
                         df_output=join_result_df,
                         lookup_df=lookup_df_name,
                         join_predicates=join_predicates,
@@ -2588,7 +2622,7 @@ class TransformHandlers:
                 if _expr_renames:
                     # Rename upstream columns to match expression port names via
                     # a single withColumnRenamed chain (efficient, no column copy).
-                    _rename_df = self._get_df_name("df_mplt_rename")
+                    _rename_df = self._get_df_name(f"{_mplt_prefix}_rename")
                     _rename_step = ApplyExpressionStep(
                         step_name=f"rename_{mpl_inst_name}",
                         df_input=mpl_input_df,
@@ -2617,10 +2651,10 @@ class TransformHandlers:
                         ))
 
                 if computed_cols:
-                    expr_df_name = "df_mplt_" + re.sub(r'[^a-zA-Z0-9_]', '_', mpl_inst_name)
+                    expr_df_name = f"{_mplt_prefix}_" + re.sub(r'[^a-zA-Z0-9_]', '_', mpl_inst_name)
                     mpl_df_map[mpl_inst_name] = expr_df_name
                     steps.append(ApplyExpressionStep(
-                        step_name=f"apply_mplt_{mpl_inst.name}",
+                        step_name=f"apply_{_mplt_step_prefix}_{mpl_inst.name}",
                         df_input=mpl_input_df,
                         df_output=expr_df_name,
                         computed_columns=computed_cols,
@@ -2645,17 +2679,19 @@ class TransformHandlers:
                                     break
                         if not _mpl_filt_input:
                             _mpl_filt_input = input_df
-                        # Remap port names in filter condition using inst_field_remap
+                        # Remap port names in filter condition using internal-only
+                        # remaps (external input_field_map excluded — input rename
+                        # step already aligned those column names).
                         _filter_expr = filter_cond
-                        for _mpl_port, _actual_col in inst_field_remap.items():
+                        for _mpl_port, _actual_col in _internal_remap.items():
                             if _mpl_port != _actual_col:
                                 _filter_expr = _filter_expr.replace(_mpl_port, _actual_col)
                         # Translate the filter condition (handles Informatica SQL syntax)
                         _filter_expr = self.expr_translator.translate_for_filter(_filter_expr)
-                        _mpl_filt_df = "df_mplt_" + re.sub(r'[^a-zA-Z0-9_]', '_', mpl_inst_name)
+                        _mpl_filt_df = f"{_mplt_prefix}_" + re.sub(r'[^a-zA-Z0-9_]', '_', mpl_inst_name)
                         mpl_df_map[mpl_inst_name] = _mpl_filt_df
                         steps.append(ApplyFilterStep(
-                            step_name=f"apply_mplt_{mpl_inst.name}",
+                            step_name=f"apply_{_mplt_step_prefix}_{mpl_inst.name}",
                             df_input=_mpl_filt_input,
                             df_output=_mpl_filt_df,
                             condition=_filter_expr,
@@ -2677,12 +2713,12 @@ class TransformHandlers:
                         _agg_input_df = input_df
                     _orig_map = self.current_df_map.copy()
                     _mplt_inst = Instance(
-                        name="mplt_" + mpl_inst.name,
+                        name=_mplt_prefix + "_" + mpl_inst.name,
                         type=mpl_inst.type,
-                        transformation_name=("mplt_" + mpl_inst.transformation_name) if mpl_inst.transformation_name else None,
+                        transformation_name=(_mplt_prefix + "_" + mpl_inst.transformation_name) if mpl_inst.transformation_name else None,
                         transformation_type=mpl_inst.transformation_type,
                     )
-                    _mplt_txf_name = "mplt_" + _agg_txf.name if _agg_txf.name else None
+                    _mplt_txf_name = _mplt_prefix + "_" + _agg_txf.name if _agg_txf.name else None
                     if _mplt_txf_name and _mplt_txf_name not in self.transform_map:
                         self.transform_map[_mplt_txf_name] = _agg_txf
                     self.current_df_map[_mplt_inst.name] = _agg_input_df
@@ -2714,11 +2750,11 @@ class TransformHandlers:
                     if not _srt_input_df:
                         _srt_input_df = input_df
                     _orig_map = self.current_df_map.copy()
-                    _mplt_txf_name = "mplt_" + _srt_txf.name if _srt_txf.name else None
+                    _mplt_txf_name = _mplt_prefix + "_" + _srt_txf.name if _srt_txf.name else None
                     if _mplt_txf_name and _mplt_txf_name not in self.transform_map:
                         self.transform_map[_mplt_txf_name] = _srt_txf
                     _mplt_inst = Instance(
-                        name="mplt_" + mpl_inst.name,
+                        name=_mplt_prefix + "_" + mpl_inst.name,
                         type=mpl_inst.type,
                         transformation_name=_mplt_txf_name,
                         transformation_type=mpl_inst.transformation_type,
@@ -2754,7 +2790,7 @@ class TransformHandlers:
 
             # When OUTPUT has multiple upstream internal DataFrames, merge them
             for _i, _extra_df in enumerate(output_extra_dfs):
-                _join_df = self._get_df_name("df_mplt_merge")
+                _join_df = self._get_df_name(f"{_mplt_prefix}_merge")
                 steps.append(ApplyLookupStep(
                     step_name=f"join_output_{instance.name}_{_i}",
                     df_input=output_input_df,
@@ -2776,7 +2812,7 @@ class TransformHandlers:
                     if "OUTPUT" in port_type:
                         output_ports.append(field.name)
 
-            df_output = self._get_df_name("df_mplt", instance)
+            df_output = self._get_df_name(_mplt_prefix, instance)
             self._register_df(instance, df_output)
 
             if steps:

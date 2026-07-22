@@ -263,26 +263,17 @@ GROUP BY RGN.RGN_CODE, ABU_STS.ABU_SCP_CODE"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_RGN = df_LKP_DDS_DMNS_EMS_RGN.dropDuplicates(subset=["RGN_CODE", "RGN_SCHM_CODE"])
         # Join condition: RGN_CODE=RGN_CODE AND RGN_SCHM_CODE=RGN_SCHM_CODE
-        # Rename right-side join keys ONLY when they share the same name as the
-        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
-        # Keys with different names on each side are kept as-is.
-        _lkp_right = df_LKP_DDS_DMNS_EMS_RGN
-        _lkp_right = _lkp_right.withColumnRenamed("RGN_CODE", "_lkp_RGN_CODE")
-        _lkp_right = _lkp_right.withColumnRenamed("RGN_SCHM_CODE", "_lkp_RGN_SCHM_CODE")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_EXPTRANS.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_1 = df_EXPTRANS.join(
-            broadcast(_lkp_right),
-            (df_EXPTRANS["RGN_CODE"] == _lkp_right["_lkp_RGN_CODE"]) &
-            (df_EXPTRANS["RGN_SCHM_CODE"] == _lkp_right["_lkp_RGN_SCHM_CODE"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_1 = df_EXPTRANS.alias("_main").join(
+            broadcast(df_LKP_DDS_DMNS_EMS_RGN).alias("_lkp"),
+            (col("_main.RGN_CODE") == col("_lkp.RGN_CODE")) &
+            (col("_main.RGN_SCHM_CODE") == col("_lkp.RGN_SCHM_CODE")),
             "left"
-        ).drop("_lkp_RGN_CODE").drop("_lkp_RGN_SCHM_CODE")
-
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
-        
+        ).select(
+            *[df_EXPTRANS[c] for c in df_EXPTRANS.columns],
+            *[df_LKP_DDS_DMNS_EMS_RGN[c] for c in df_LKP_DDS_DMNS_EMS_RGN.columns if c not in df_EXPTRANS.columns]
+        )
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: read_LKP_DDS_DMNS_TIME_1")
         # Reading Data From Source - read_LKP_DDS_DMNS_TIME_1
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -294,22 +285,15 @@ GROUP BY RGN.RGN_CODE, ABU_STS.ABU_SCP_CODE"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_TIME_1 = df_LKP_DDS_DMNS_TIME_1.dropDuplicates(subset=["TIME_VAL_DATE"])
         # Join condition: TIME=TIME_VAL_DATE
-        # Rename right-side join keys ONLY when they share the same name as the
-        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
-        # Keys with different names on each side are kept as-is.
-        _lkp_right = df_LKP_DDS_DMNS_TIME_1
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_1.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_1 = df_lkp_merge_1.join(
-            broadcast(_lkp_right),
-            (df_lkp_merge_1["TIME"] == _lkp_right["TIME_VAL_DATE"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_1 = df_lkp_merge_1.alias("_main").join(
+            broadcast(df_LKP_DDS_DMNS_TIME_1).alias("_lkp"),
+            (col("_main.TIME") == col("_lkp.TIME_VAL_DATE")),
             "left"
+        ).select(
+            *[df_lkp_merge_1[c] for c in df_lkp_merge_1.columns],
+            *[df_LKP_DDS_DMNS_TIME_1[c] for c in df_LKP_DDS_DMNS_TIME_1.columns if c not in df_lkp_merge_1.columns]
         )
-
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_ABU")
         # Reading Data From Source - read_LKP_DDS_DMNS_EMS_ABU
@@ -322,24 +306,16 @@ GROUP BY RGN.RGN_CODE, ABU_STS.ABU_SCP_CODE"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_ABU = df_LKP_DDS_DMNS_EMS_ABU.dropDuplicates(subset=["ABU_TYPE_CODE", "ABU_SCHM_CODE"])
         # Join condition: ABU_SCP_CODE=ABU_TYPE_CODE AND ABU_SCHM_CODE=ABU_SCHM_CODE
-        # Rename right-side join keys ONLY when they share the same name as the
-        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
-        # Keys with different names on each side are kept as-is.
-        _lkp_right = df_LKP_DDS_DMNS_EMS_ABU
-        _lkp_right = _lkp_right.withColumnRenamed("ABU_SCHM_CODE", "_lkp_ABU_SCHM_CODE")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_1.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_1 = df_lkp_merge_1.join(
-            broadcast(_lkp_right),
-            (df_lkp_merge_1["ABU_SCP_CODE"] == _lkp_right["ABU_TYPE_CODE"]) &
-            (df_lkp_merge_1["ABU_SCHM_CODE"] == _lkp_right["_lkp_ABU_SCHM_CODE"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_1 = df_lkp_merge_1.alias("_main").join(
+            broadcast(df_LKP_DDS_DMNS_EMS_ABU).alias("_lkp"),
+            (col("_main.ABU_SCP_CODE") == col("_lkp.ABU_TYPE_CODE")) &
+            (col("_main.ABU_SCHM_CODE") == col("_lkp.ABU_SCHM_CODE")),
             "left"
-        ).drop("_lkp_ABU_SCHM_CODE")
-
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
+        ).select(
+            *[df_lkp_merge_1[c] for c in df_lkp_merge_1.columns],
+            *[df_LKP_DDS_DMNS_EMS_ABU[c] for c in df_LKP_DDS_DMNS_EMS_ABU.columns if c not in df_lkp_merge_1.columns]
+        )
         
         logger.info("Step: write_DPA_FACT_EMS_PRH_ABU")
         # Write to Target: write_DPA_FACT_EMS_PRH_ABU

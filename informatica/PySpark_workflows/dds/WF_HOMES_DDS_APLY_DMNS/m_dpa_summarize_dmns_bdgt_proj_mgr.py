@@ -115,23 +115,16 @@ and     TO_DATE ($$v_snsh_date, 'YYYYMMDD') BETWEEN ss.bgn_date AND ss.end_date"
         # Use First Value / Use Any Value: dedup by join keys
         df_DDS_DMNS_BDGT_PROJ_MGR = df_DDS_DMNS_BDGT_PROJ_MGR.dropDuplicates(subset=["BDGT_PROJ_MGR_POST_NAME"])
         # Join condition: POST_NAME=BDGT_PROJ_MGR_POST_NAME
-        # Rename right-side join keys ONLY when they share the same name as the
-        # left-side key (e.g. TNCY_AGRMT_BK=TNCY_AGRMT_BK → _lkp_TNCY_AGRMT_BK).
-        # Keys with different names on each side are kept as-is.
-        _lkp_right = df_DDS_DMNS_BDGT_PROJ_MGR
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_SQ_SOR_HOM_BUD_PROJ_TEAM.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_1 = df_SQ_SOR_HOM_BUD_PROJ_TEAM.join(
-            broadcast(_lkp_right),
-            (df_SQ_SOR_HOM_BUD_PROJ_TEAM["POST_NAME"] == _lkp_right["BDGT_PROJ_MGR_POST_NAME"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_1 = df_SQ_SOR_HOM_BUD_PROJ_TEAM.alias("_main").join(
+            broadcast(df_DDS_DMNS_BDGT_PROJ_MGR).alias("_lkp"),
+            (col("_main.POST_NAME") == col("_lkp.BDGT_PROJ_MGR_POST_NAME")),
             "left"
+        ).select(
+            *[df_SQ_SOR_HOM_BUD_PROJ_TEAM[c] for c in df_SQ_SOR_HOM_BUD_PROJ_TEAM.columns],
+            *[df_DDS_DMNS_BDGT_PROJ_MGR[c] for c in df_DDS_DMNS_BDGT_PROJ_MGR.columns if c not in df_SQ_SOR_HOM_BUD_PROJ_TEAM.columns]
         )
-
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
-        
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
         df_EXPTRANS1 = df_lkp_merge_1
