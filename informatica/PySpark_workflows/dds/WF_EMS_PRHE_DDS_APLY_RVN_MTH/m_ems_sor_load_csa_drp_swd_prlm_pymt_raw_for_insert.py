@@ -95,22 +95,16 @@ FROM SOR_EMS_CSA_DRP_PRLM_PYMT_RAW"""
         if _dup_cnt > 0:
             raise RuntimeError(f"Lookup apply_LKPTRANS: {_dup_cnt} duplicate keys found — Report Error policy")
         # Join condition: PRLM_FILE_REC_KEY1=PRLM_FILE_REC_KEY1
-        # Rename right-side join keys to avoid ambiguous column references
-        _lkp_right = df_LKPTRANS
-        _lkp_right = _lkp_right.withColumnRenamed("PRLM_FILE_REC_KEY1", "_lkp_PRLM_FILE_REC_KEY1")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_EXPTRANS1.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_1 = df_EXPTRANS1.join(
-            broadcast(_lkp_right),
-            (df_EXPTRANS1["PRLM_FILE_REC_KEY1"] == _lkp_right["_lkp_PRLM_FILE_REC_KEY1"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_1 = df_EXPTRANS1.alias("_main").join(
+            broadcast(df_LKPTRANS).alias("_lkp"),
+            (col("_main.PRLM_FILE_REC_KEY1") == col("_lkp.PRLM_FILE_REC_KEY1")),
             "left"
-        ).drop("_lkp_PRLM_FILE_REC_KEY1")
-
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
-        
+        ).select(
+            *[df_EXPTRANS1[c] for c in df_EXPTRANS1.columns],
+            *[df_LKPTRANS[c] for c in df_LKPTRANS.columns if c not in df_EXPTRANS1.columns]
+        )
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: write_SOR_EMS_CSA_DRP_PRLM_PYMT_RAW")
         # Write to Target: write_SOR_EMS_CSA_DRP_PRLM_PYMT_RAW
         df_write = df_lkp_merge_1

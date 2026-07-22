@@ -120,29 +120,23 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_RPT_CATG = df_LKP_DDS_DMNS_RPT_CATG.dropDuplicates(subset=["RPT_CATG_CODE"])
         # Join condition: RPT_CATG_CODE=RPT_CATG_CODE
-        # Rename right-side join keys to avoid ambiguous column references
-        _lkp_right = df_LKP_DDS_DMNS_RPT_CATG
-        _lkp_right = _lkp_right.withColumnRenamed("RPT_CATG_CODE", "_lkp_RPT_CATG_CODE")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_SQ_SOR_HOM_BUD_RPT_CATG.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_1 = df_SQ_SOR_HOM_BUD_RPT_CATG.join(
-            broadcast(_lkp_right),
-            (df_SQ_SOR_HOM_BUD_RPT_CATG["RPT_CATG_CODE"] == _lkp_right["_lkp_RPT_CATG_CODE"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_1 = df_SQ_SOR_HOM_BUD_RPT_CATG.alias("_main").join(
+            broadcast(df_LKP_DDS_DMNS_RPT_CATG).alias("_lkp"),
+            (col("_main.RPT_CATG_CODE") == col("_lkp.RPT_CATG_CODE")),
             "left"
-        ).drop("_lkp_RPT_CATG_CODE")
-
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
-        
+        ).select(
+            *[df_SQ_SOR_HOM_BUD_RPT_CATG[c] for c in df_SQ_SOR_HOM_BUD_RPT_CATG.columns],
+            *[df_LKP_DDS_DMNS_RPT_CATG[c] for c in df_LKP_DDS_DMNS_RPT_CATG.columns if c not in df_SQ_SOR_HOM_BUD_RPT_CATG.columns]
+        )
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
         df_EXPTRANS = df_lkp_merge_1
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_RPT_CATG_DESP", expr("RPT_CATG_DESP"))
         df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_RPT_CATG_KEY IS NULL) OR CASE WHEN RPT_CATG_CODE = IN_RPT_CATG_CODE THEN false ELSE true END OR CASE WHEN RPT_CATG_DESP = RPT_CATG_DESP THEN false ELSE true END THEN 1 ELSE 0 END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["IN_RPT_CATG_CODE", "RPT_CATG_CODE", "RPT_CATG_DESP", "DMNS_RPT_CATG_KEY", "RPT_CATG_DISP_SEQ_NUM"]:
+        for _col in ["IN_RPT_CATG_CODE", "RPT_CATG_DESP", "RPT_CATG_CODE", "DMNS_RPT_CATG_KEY", "RPT_CATG_DISP_SEQ_NUM"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)

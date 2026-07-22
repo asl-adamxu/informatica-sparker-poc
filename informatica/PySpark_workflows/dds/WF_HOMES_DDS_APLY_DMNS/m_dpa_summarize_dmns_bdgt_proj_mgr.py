@@ -115,29 +115,23 @@ and     TO_DATE ($$v_snsh_date, 'YYYYMMDD') BETWEEN ss.bgn_date AND ss.end_date"
         # Use First Value / Use Any Value: dedup by join keys
         df_DDS_DMNS_BDGT_PROJ_MGR = df_DDS_DMNS_BDGT_PROJ_MGR.dropDuplicates(subset=["BDGT_PROJ_MGR_POST_NAME"])
         # Join condition: POST_NAME=BDGT_PROJ_MGR_POST_NAME
-        # Rename right-side join keys to avoid ambiguous column references
-        _lkp_right = df_DDS_DMNS_BDGT_PROJ_MGR
-        _lkp_right = _lkp_right.withColumnRenamed("BDGT_PROJ_MGR_POST_NAME", "_lkp_BDGT_PROJ_MGR_POST_NAME")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_SQ_SOR_HOM_BUD_PROJ_TEAM.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_1 = df_SQ_SOR_HOM_BUD_PROJ_TEAM.join(
-            broadcast(_lkp_right),
-            (df_SQ_SOR_HOM_BUD_PROJ_TEAM["POST_NAME"] == _lkp_right["_lkp_BDGT_PROJ_MGR_POST_NAME"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_1 = df_SQ_SOR_HOM_BUD_PROJ_TEAM.alias("_main").join(
+            broadcast(df_DDS_DMNS_BDGT_PROJ_MGR).alias("_lkp"),
+            (col("_main.POST_NAME") == col("_lkp.BDGT_PROJ_MGR_POST_NAME")),
             "left"
-        ).drop("_lkp_BDGT_PROJ_MGR_POST_NAME")
-
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
-        
+        ).select(
+            *[df_SQ_SOR_HOM_BUD_PROJ_TEAM[c] for c in df_SQ_SOR_HOM_BUD_PROJ_TEAM.columns],
+            *[df_DDS_DMNS_BDGT_PROJ_MGR[c] for c in df_DDS_DMNS_BDGT_PROJ_MGR.columns if c not in df_SQ_SOR_HOM_BUD_PROJ_TEAM.columns]
+        )
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
         df_EXPTRANS1 = df_lkp_merge_1
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("IN_bdgt_proj_mgr_disp_seq_num", expr("bdgt_proj_mgr_disp_seq_num"))
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_BDGT_PROJ_MGR_KEY IS NULL) OR CASE WHEN BDGT_PROJ_MGR_POST_NAME = IN_BDGT_PROJ_MGR_POST_NAME THEN false ELSE true END THEN 1 ELSE 0 END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["DMNS_BDGT_PROJ_MGR_KEY", "BDGT_PROJ_MGR_POST_NAME", "IN_BDGT_PROJ_MGR_POST_NAME", "BDGT_PROJ_MGR_DISP_SEQ_NUM"]:
+        for _col in ["BDGT_PROJ_MGR_POST_NAME", "DMNS_BDGT_PROJ_MGR_KEY", "IN_BDGT_PROJ_MGR_POST_NAME", "BDGT_PROJ_MGR_DISP_SEQ_NUM"]:
             if _col not in df_EXPTRANS1.columns:
                 df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)

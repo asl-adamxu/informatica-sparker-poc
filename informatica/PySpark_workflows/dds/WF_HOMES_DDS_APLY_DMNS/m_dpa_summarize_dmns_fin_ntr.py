@@ -115,22 +115,16 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_FIN_NTR = df_LKP_DDS_DMNS_FIN_NTR.dropDuplicates(subset=["FIN_NTR_CODE"])
         # Join condition: FIN_NTR_CODE=FIN_NTR_CODE
-        # Rename right-side join keys to avoid ambiguous column references
-        _lkp_right = df_LKP_DDS_DMNS_FIN_NTR
-        _lkp_right = _lkp_right.withColumnRenamed("FIN_NTR_CODE", "_lkp_FIN_NTR_CODE")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_SQ_SOR_HOM_REF_FIN_NTR.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_1 = df_SQ_SOR_HOM_REF_FIN_NTR.join(
-            broadcast(_lkp_right),
-            (df_SQ_SOR_HOM_REF_FIN_NTR["FIN_NTR_CODE"] == _lkp_right["_lkp_FIN_NTR_CODE"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_1 = df_SQ_SOR_HOM_REF_FIN_NTR.alias("_main").join(
+            broadcast(df_LKP_DDS_DMNS_FIN_NTR).alias("_lkp"),
+            (col("_main.FIN_NTR_CODE") == col("_lkp.FIN_NTR_CODE")),
             "left"
-        ).drop("_lkp_FIN_NTR_CODE")
-
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
-        
+        ).select(
+            *[df_SQ_SOR_HOM_REF_FIN_NTR[c] for c in df_SQ_SOR_HOM_REF_FIN_NTR.columns],
+            *[df_LKP_DDS_DMNS_FIN_NTR[c] for c in df_LKP_DDS_DMNS_FIN_NTR.columns if c not in df_SQ_SOR_HOM_REF_FIN_NTR.columns]
+        )
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
         df_EXPTRANS = df_lkp_merge_1

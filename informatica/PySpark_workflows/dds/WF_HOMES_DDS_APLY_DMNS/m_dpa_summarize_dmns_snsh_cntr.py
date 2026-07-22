@@ -125,24 +125,17 @@ and TO_DATE ($$v_snsh_date, 'YYYYMMDD') BETWEEN ss.bgn_date AND ss.end_date"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_SNSH_CNTR = df_LKP_DDS_DMNS_SNSH_CNTR.dropDuplicates(subset=["CNTR_KEY", "SNSH_KEY"])
         # Join condition: CNTR_KEY=CNTR_KEY AND SNSH_KEY=SNSH_KEY
-        # Rename right-side join keys to avoid ambiguous column references
-        _lkp_right = df_LKP_DDS_DMNS_SNSH_CNTR
-        _lkp_right = _lkp_right.withColumnRenamed("CNTR_KEY", "_lkp_CNTR_KEY")
-        _lkp_right = _lkp_right.withColumnRenamed("SNSH_KEY", "_lkp_SNSH_KEY")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_SQ_SOR_HOM_PRG_SNSH_CNTR.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_1 = df_SQ_SOR_HOM_PRG_SNSH_CNTR.join(
-            broadcast(_lkp_right),
-            (df_SQ_SOR_HOM_PRG_SNSH_CNTR["CNTR_KEY"] == _lkp_right["_lkp_CNTR_KEY"]) &
-            (df_SQ_SOR_HOM_PRG_SNSH_CNTR["SNSH_KEY"] == _lkp_right["_lkp_SNSH_KEY"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_1 = df_SQ_SOR_HOM_PRG_SNSH_CNTR.alias("_main").join(
+            broadcast(df_LKP_DDS_DMNS_SNSH_CNTR).alias("_lkp"),
+            (col("_main.CNTR_KEY") == col("_lkp.CNTR_KEY")) &
+            (col("_main.SNSH_KEY") == col("_lkp.SNSH_KEY")),
             "left"
-        ).drop("_lkp_CNTR_KEY").drop("_lkp_SNSH_KEY")
-
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
-        
+        ).select(
+            *[df_SQ_SOR_HOM_PRG_SNSH_CNTR[c] for c in df_SQ_SOR_HOM_PRG_SNSH_CNTR.columns],
+            *[df_LKP_DDS_DMNS_SNSH_CNTR[c] for c in df_LKP_DDS_DMNS_SNSH_CNTR.columns if c not in df_SQ_SOR_HOM_PRG_SNSH_CNTR.columns]
+        )
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
         df_EXPTRANS = df_lkp_merge_1
@@ -151,7 +144,7 @@ and TO_DATE ($$v_snsh_date, 'YYYYMMDD') BETWEEN ss.bgn_date AND ss.end_date"""
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_CNTR_NUM", expr("CNTR_NUM"))
         df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_SNSH_CNTR_KEY IS NULL) OR CASE WHEN CNTR_KEY = IN_CNTR_KEY THEN false ELSE true END OR CASE WHEN SNSH_KEY = IN_SNSH_KEY THEN false ELSE true END OR CASE WHEN CNTR_NUM = CNTR_NUM THEN false ELSE true END OR CASE WHEN CNTR_TTL = CNTR_TTL THEN false ELSE true END THEN 1 ELSE 0 END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["CNTR_TTL", "DMNS_SNSH_CNTR_KEY", "IN_SNSH_KEY", "CNTR_NUM", "CNTR_KEY", "SNSH_KEY", "IN_CNTR_KEY", "TNDR_NUM", "SNSH_CNTR_DISP_SEQ_NUM"]:
+        for _col in ["IN_SNSH_KEY", "IN_CNTR_KEY", "CNTR_TTL", "CNTR_NUM", "DMNS_SNSH_CNTR_KEY", "SNSH_KEY", "CNTR_KEY", "TNDR_NUM", "SNSH_CNTR_DISP_SEQ_NUM"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)

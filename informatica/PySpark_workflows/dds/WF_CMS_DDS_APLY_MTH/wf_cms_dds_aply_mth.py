@@ -45,13 +45,13 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_FACT_CMS_CASE_PRNT_SMRY",
-            "mapping_name": "M_DPA_SUMMARIZE_FACT_CMS_CASE_PRNT_SMRY"
+            "name": "S_DPA_SUMMARIZE_FACT_CMS_CASE_SMRY",
+            "mapping_name": "M_DPA_SUMMARIZE_FACT_CMS_CASE_SMRY"
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_FACT_CMS_CASE_SMRY",
-            "mapping_name": "M_DPA_SUMMARIZE_FACT_CMS_CASE_SMRY"
+            "name": "S_DPA_SUMMARIZE_FACT_CMS_CASE_PRNT_SMRY",
+            "mapping_name": "M_DPA_SUMMARIZE_FACT_CMS_CASE_PRNT_SMRY"
           }
         ]
       },

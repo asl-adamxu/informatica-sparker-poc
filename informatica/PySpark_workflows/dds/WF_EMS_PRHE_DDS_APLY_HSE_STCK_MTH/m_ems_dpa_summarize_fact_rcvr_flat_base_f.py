@@ -224,25 +224,19 @@ group by RM.unit_key
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_UNIT_VALID_MAX_DOT = df_LKP_UNIT_VALID_MAX_DOT.dropDuplicates(subset=["UNIT_KEY"])
         # Join condition: UNIT_KEY=UNIT_KEY
-        # Rename right-side join keys to avoid ambiguous column references
-        _lkp_right = df_LKP_UNIT_VALID_MAX_DOT
-        _lkp_right = _lkp_right.withColumnRenamed("UNIT_KEY", "_lkp_UNIT_KEY")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_SQ_SOR_HSM_UNIT.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_1 = df_SQ_SOR_HSM_UNIT.join(
-            broadcast(_lkp_right),
-            (df_SQ_SOR_HSM_UNIT["UNIT_KEY"] == _lkp_right["_lkp_UNIT_KEY"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_1 = df_SQ_SOR_HSM_UNIT.alias("_main").join(
+            broadcast(df_LKP_UNIT_VALID_MAX_DOT).alias("_lkp"),
+            (col("_main.UNIT_KEY") == col("_lkp.UNIT_KEY")),
             "left"
-        ).drop("_lkp_UNIT_KEY")
-
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
-        
+        ).select(
+            *[df_SQ_SOR_HSM_UNIT[c] for c in df_SQ_SOR_HSM_UNIT.columns],
+            *[df_LKP_UNIT_VALID_MAX_DOT[c] for c in df_LKP_UNIT_VALID_MAX_DOT.columns if c not in df_SQ_SOR_HSM_UNIT.columns]
+        )
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_FILTRANS1")
         # Filter: apply_FILTRANS1
-        __fil_input = df_lkp_merge_1
+        __fil_input = df_LKP_UNIT_VALID_MAX_DOT
         df_FILTRANS1 = __fil_input.filter(expr("TNCY_AGRMT_TM_TRMT_DATE >= to_date('20080201','yyyyMMdd')"))
         ctx.register_df("df_FILTRANS1", df_FILTRANS1)
         
@@ -329,27 +323,20 @@ GROUP BY
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_FRZ_WO = df_LKP_FRZ_WO.dropDuplicates(subset=["WORK_VFRA_TYPE_CODE", "WORK_ORD_KEY"])
         # Join condition: WORK_VFRA_TYPE_CODE=WORK_VFRA_TYPE_CODE AND WORK_ORD_KEY=WORK_ORD_KEY
-        # Rename right-side join keys to avoid ambiguous column references
-        _lkp_right = df_LKP_FRZ_WO
-        _lkp_right = _lkp_right.withColumnRenamed("WORK_VFRA_TYPE_CODE", "_lkp_WORK_VFRA_TYPE_CODE")
-        _lkp_right = _lkp_right.withColumnRenamed("WORK_ORD_KEY", "_lkp_WORK_ORD_KEY")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_EXPTRANS12.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_2 = df_EXPTRANS12.join(
-            broadcast(_lkp_right),
-            (df_EXPTRANS12["WORK_VFRA_TYPE_CODE"] == _lkp_right["_lkp_WORK_VFRA_TYPE_CODE"]) &
-            (df_EXPTRANS12["WORK_ORD_KEY"] == _lkp_right["_lkp_WORK_ORD_KEY"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_2 = df_EXPTRANS12.alias("_main").join(
+            broadcast(df_LKP_FRZ_WO).alias("_lkp"),
+            (col("_main.WORK_VFRA_TYPE_CODE") == col("_lkp.WORK_VFRA_TYPE_CODE")) &
+            (col("_main.WORK_ORD_KEY") == col("_lkp.WORK_ORD_KEY")),
             "left"
-        ).drop("_lkp_WORK_VFRA_TYPE_CODE").drop("_lkp_WORK_ORD_KEY")
-
-        ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)
-        
+        ).select(
+            *[df_EXPTRANS12[c] for c in df_EXPTRANS12.columns],
+            *[df_LKP_FRZ_WO[c] for c in df_LKP_FRZ_WO.columns if c not in df_EXPTRANS12.columns]
+        )
+        ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)        
         logger.info("Step: apply_NULL_FROZEN_DATE_FILTER")
         # Filter: apply_NULL_FROZEN_DATE_FILTER
-        __fil_input = df_lkp_merge_2
+        __fil_input = df_LKP_FRZ_WO
         df_NULL_FROZEN_DATE_FILTER = __fil_input.filter(expr("(FRZ_IND IS NULL)"))
         ctx.register_df("df_NULL_FROZEN_DATE_FILTER", df_NULL_FROZEN_DATE_FILTER)
         
@@ -414,22 +401,16 @@ GROUP BY
         _w = _Window.partitionBy(col("UNIT_KEY")).orderBy(lit(0).desc())
         df_LKPTRANS1 = df_LKPTRANS1.withColumn("_rn", row_number().over(_w)).filter(col("_rn") == 1).drop("_rn")
         # Join condition: UNIT_KEY=UNIT_KEY
-        # Rename right-side join keys to avoid ambiguous column references
-        _lkp_right = df_LKPTRANS1
-        _lkp_right = _lkp_right.withColumnRenamed("UNIT_KEY", "_lkp_UNIT_KEY")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_FILTRANS.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_3 = df_FILTRANS.join(
-            broadcast(_lkp_right),
-            (df_FILTRANS["UNIT_KEY"] == _lkp_right["_lkp_UNIT_KEY"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_3 = df_FILTRANS.alias("_main").join(
+            broadcast(df_LKPTRANS1).alias("_lkp"),
+            (col("_main.UNIT_KEY") == col("_lkp.UNIT_KEY")),
             "left"
-        ).drop("_lkp_UNIT_KEY")
-
-        ctx.register_df("df_lkp_merge_3", df_lkp_merge_3)
-        
+        ).select(
+            *[df_FILTRANS[c] for c in df_FILTRANS.columns],
+            *[df_LKPTRANS1[c] for c in df_LKPTRANS1.columns if c not in df_FILTRANS.columns]
+        )
+        ctx.register_df("df_lkp_merge_3", df_lkp_merge_3)        
         logger.info("Step: apply_RTRTRANS")
         # Router: apply_RTRTRANS - splits into multiple output groups
         df_rtr_wo_4 = df_lkp_merge_3.filter(expr("WORK_VFRA_TYPE_CODE = 'L' OR WORK_VFRA_TYPE_CODE = 'O'"))
@@ -477,74 +458,104 @@ GROUP BY
         
         logger.info("Step: input_MPLT_DPA_RCVR_FLAT_CALC1")
         # Expression: input_MPLT_DPA_RCVR_FLAT_CALC1
-        df_mplt_input_7 = df_rtr_tchup_wo_5
-        df_mplt_input_7 = df_mplt_input_7.withColumn("UNIT_KEY", expr("UNIT_KEY_IN3"))
-        df_mplt_input_7 = df_mplt_input_7.withColumn("BGN_DATE", expr("PRVS_ACPT_DATE3"))
-        df_mplt_input_7 = df_mplt_input_7.withColumn("END_DATE", expr("WORK_CMPLT_CERT_DATE3"))
-        df_mplt_input_7 = df_mplt_input_7.withColumn("EST_KEY", expr("EST_KEY3"))
-        df_mplt_input_7 = df_mplt_input_7.withColumn("EMMS_DSTR_CHC_DSTR_KEY", expr("EMMS_DTSR_CHC_DSTR_KEY3"))
-        df_mplt_input_7 = df_mplt_input_7.withColumn("EMMS_DSTR_BRD_DSTR_KEY", expr("EMMS_DTSR_BRD_DSTR_KEY3"))
-        df_mplt_input_7 = df_mplt_input_7.withColumn("UNIT_TYPE_CODE", expr("UNIT_TYPE_CODE3"))
-        df_mplt_input_7 = df_mplt_input_7.withColumn("UNIT_IFA_AREA", expr("UNIT_IFA_AREA3"))
-        df_mplt_input_7 = df_mplt_input_7.withColumn("MAX_UNIT_HEAD_CNT", expr("MAX_UNIT_HEAD_CNT3"))
-        df_mplt_input_7 = df_mplt_input_7.withColumn("MIN_UNIT_HEAD_CNT", expr("MIN_UNIT_HEAD_CNT3"))
-        ctx.register_df("df_mplt_input_7", df_mplt_input_7)
+        df_MPLT_DPA_RCVR_FLAT_CALC_input_7 = df_rtr_tchup_wo_5
+        df_MPLT_DPA_RCVR_FLAT_CALC_input_7 = df_MPLT_DPA_RCVR_FLAT_CALC_input_7.withColumn("UNIT_KEY", expr("UNIT_KEY_IN3"))
+        df_MPLT_DPA_RCVR_FLAT_CALC_input_7 = df_MPLT_DPA_RCVR_FLAT_CALC_input_7.withColumn("BGN_DATE", expr("PRVS_ACPT_DATE3"))
+        df_MPLT_DPA_RCVR_FLAT_CALC_input_7 = df_MPLT_DPA_RCVR_FLAT_CALC_input_7.withColumn("END_DATE", expr("WORK_CMPLT_CERT_DATE3"))
+        df_MPLT_DPA_RCVR_FLAT_CALC_input_7 = df_MPLT_DPA_RCVR_FLAT_CALC_input_7.withColumn("EST_KEY", expr("EST_KEY3"))
+        df_MPLT_DPA_RCVR_FLAT_CALC_input_7 = df_MPLT_DPA_RCVR_FLAT_CALC_input_7.withColumn("EMMS_DSTR_CHC_DSTR_KEY", expr("EMMS_DTSR_CHC_DSTR_KEY3"))
+        df_MPLT_DPA_RCVR_FLAT_CALC_input_7 = df_MPLT_DPA_RCVR_FLAT_CALC_input_7.withColumn("EMMS_DSTR_BRD_DSTR_KEY", expr("EMMS_DTSR_BRD_DSTR_KEY3"))
+        df_MPLT_DPA_RCVR_FLAT_CALC_input_7 = df_MPLT_DPA_RCVR_FLAT_CALC_input_7.withColumn("UNIT_TYPE_CODE", expr("UNIT_TYPE_CODE3"))
+        df_MPLT_DPA_RCVR_FLAT_CALC_input_7 = df_MPLT_DPA_RCVR_FLAT_CALC_input_7.withColumn("UNIT_IFA_AREA", expr("UNIT_IFA_AREA3"))
+        df_MPLT_DPA_RCVR_FLAT_CALC_input_7 = df_MPLT_DPA_RCVR_FLAT_CALC_input_7.withColumn("MAX_UNIT_HEAD_CNT", expr("MAX_UNIT_HEAD_CNT3"))
+        df_MPLT_DPA_RCVR_FLAT_CALC_input_7 = df_MPLT_DPA_RCVR_FLAT_CALC_input_7.withColumn("MIN_UNIT_HEAD_CNT", expr("MIN_UNIT_HEAD_CNT3"))
+        ctx.register_df("df_MPLT_DPA_RCVR_FLAT_CALC_input_7", df_MPLT_DPA_RCVR_FLAT_CALC_input_7)
         
-        logger.info("Step: apply_mplt_EXPTRANS")
-        # Expression: apply_mplt_EXPTRANS
-        df_mplt_expr_8 = df_mplt_input_7
-        df_mplt_expr_8 = df_mplt_expr_8.withColumn("UNIT_KEY", expr("UNIT_KEY_IN3"))
-        df_mplt_expr_8 = df_mplt_expr_8.withColumn("BGN_DATE", expr("PRVS_ACPT_DATE3"))
-        df_mplt_expr_8 = df_mplt_expr_8.withColumn("END_DATE", expr("WORK_CMPLT_CERT_DATE3"))
-        df_mplt_expr_8 = df_mplt_expr_8.withColumn("DIFF_DAY_NUM", expr("floor(datediff(V_WORK_CMPLT_CERT_DATE3, V_PRVS_ACPT_DATE3))"))
-        df_mplt_expr_8 = df_mplt_expr_8.withColumn("EST_KEY", expr("EST_KEY3"))
-        df_mplt_expr_8 = df_mplt_expr_8.withColumn("EMMS_DSTR_CHC_DSTR_KEY", expr("EMMS_DTSR_CHC_DSTR_KEY3"))
-        df_mplt_expr_8 = df_mplt_expr_8.withColumn("EMMS_DSTR_BRD_DSTR_KEY", expr("EMMS_DTSR_BRD_DSTR_KEY3"))
-        df_mplt_expr_8 = df_mplt_expr_8.withColumn("UNIT_TYPE_CODE", expr("UNIT_TYPE_CODE3"))
-        df_mplt_expr_8 = df_mplt_expr_8.withColumn("UNIT_IFA_AREA", expr("UNIT_IFA_AREA3"))
-        df_mplt_expr_8 = df_mplt_expr_8.withColumn("MAX_UNIT_HEAD_CNT", expr("MAX_UNIT_HEAD_CNT3"))
-        df_mplt_expr_8 = df_mplt_expr_8.withColumn("MIN_UNIT_HEAD_CNT", expr("MIN_UNIT_HEAD_CNT3"))
-        ctx.register_df("df_mplt_expr_8", df_mplt_expr_8)
+        logger.info("Step: rename_EXPTRANS")
+        # Expression: rename_EXPTRANS
+        df_MPLT_DPA_RCVR_FLAT_CALC_rename_8 = df_MPLT_DPA_RCVR_FLAT_CALC_input_7
+        df_MPLT_DPA_RCVR_FLAT_CALC_rename_8 = df_MPLT_DPA_RCVR_FLAT_CALC_rename_8.drop("UNIT_KEY").withColumnRenamed("UNIT_KEY_IN3", "UNIT_KEY")
+        df_MPLT_DPA_RCVR_FLAT_CALC_rename_8 = df_MPLT_DPA_RCVR_FLAT_CALC_rename_8.drop("BGN_DATE").withColumnRenamed("PRVS_ACPT_DATE3", "BGN_DATE")
+        df_MPLT_DPA_RCVR_FLAT_CALC_rename_8 = df_MPLT_DPA_RCVR_FLAT_CALC_rename_8.drop("END_DATE").withColumnRenamed("WORK_CMPLT_CERT_DATE3", "END_DATE")
+        df_MPLT_DPA_RCVR_FLAT_CALC_rename_8 = df_MPLT_DPA_RCVR_FLAT_CALC_rename_8.drop("EST_KEY").withColumnRenamed("EST_KEY3", "EST_KEY")
+        df_MPLT_DPA_RCVR_FLAT_CALC_rename_8 = df_MPLT_DPA_RCVR_FLAT_CALC_rename_8.drop("EMMS_DSTR_CHC_DSTR_KEY").withColumnRenamed("EMMS_DTSR_CHC_DSTR_KEY3", "EMMS_DSTR_CHC_DSTR_KEY")
+        df_MPLT_DPA_RCVR_FLAT_CALC_rename_8 = df_MPLT_DPA_RCVR_FLAT_CALC_rename_8.drop("EMMS_DSTR_BRD_DSTR_KEY").withColumnRenamed("EMMS_DTSR_BRD_DSTR_KEY3", "EMMS_DSTR_BRD_DSTR_KEY")
+        df_MPLT_DPA_RCVR_FLAT_CALC_rename_8 = df_MPLT_DPA_RCVR_FLAT_CALC_rename_8.drop("UNIT_TYPE_CODE").withColumnRenamed("UNIT_TYPE_CODE3", "UNIT_TYPE_CODE")
+        df_MPLT_DPA_RCVR_FLAT_CALC_rename_8 = df_MPLT_DPA_RCVR_FLAT_CALC_rename_8.drop("UNIT_IFA_AREA").withColumnRenamed("UNIT_IFA_AREA3", "UNIT_IFA_AREA")
+        df_MPLT_DPA_RCVR_FLAT_CALC_rename_8 = df_MPLT_DPA_RCVR_FLAT_CALC_rename_8.drop("MAX_UNIT_HEAD_CNT").withColumnRenamed("MAX_UNIT_HEAD_CNT3", "MAX_UNIT_HEAD_CNT")
+        df_MPLT_DPA_RCVR_FLAT_CALC_rename_8 = df_MPLT_DPA_RCVR_FLAT_CALC_rename_8.drop("MIN_UNIT_HEAD_CNT").withColumnRenamed("MIN_UNIT_HEAD_CNT3", "MIN_UNIT_HEAD_CNT")
+        ctx.register_df("df_MPLT_DPA_RCVR_FLAT_CALC_rename_8", df_MPLT_DPA_RCVR_FLAT_CALC_rename_8)
+        
+        logger.info("Step: apply_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS")
+        # Expression: apply_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS
+        df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS = df_MPLT_DPA_RCVR_FLAT_CALC_rename_8
+        df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS = df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS.withColumn("DIFF_DAY_NUM", expr("floor(datediff(V_END_DATE, V_BGN_DATE))"))
+        ctx.register_df("df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS", df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS)
+        
+        logger.info("Step: apply_df_MPLT_DPA_RCVR_FLAT_CALC_AGGTRANS")
+        # Aggregator: apply_df_MPLT_DPA_RCVR_FLAT_CALC_AGGTRANS
+        df_df_MPLT_DPA_RCVR_FLAT_CALC_AGGTRANS = df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS.groupBy("UNIT_KEY", "EST_KEY", "EMMS_DSTR_CHC_DSTR_KEY", "EMMS_DSTR_BRD_DSTR_KEY", "UNIT_TYPE_CODE", "UNIT_IFA_AREA", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT")
+        df_df_MPLT_DPA_RCVR_FLAT_CALC_AGGTRANS = df_df_MPLT_DPA_RCVR_FLAT_CALC_AGGTRANS.agg(
+            sum("DIFF_DAY_NUM_IN").alias("DIFF_DAY_NUM"),
+            count("END_DATE").alias("END_DAY_CNT"),
+            sum("COUNT_IN").alias("COUNT_OUT")
+        )
+        ctx.register_df("df_df_MPLT_DPA_RCVR_FLAT_CALC_AGGTRANS", df_df_MPLT_DPA_RCVR_FLAT_CALC_AGGTRANS)
         
         logger.info("Step: apply_MPLT_DPA_RCVR_FLAT_CALC1")
         # Expression: apply_MPLT_DPA_RCVR_FLAT_CALC1
-        df_MPLT_DPA_RCVR_FLAT_CALC1 = df_mplt_input_7
+        df_MPLT_DPA_RCVR_FLAT_CALC1 = df_df_MPLT_DPA_RCVR_FLAT_CALC_AGGTRANS
         ctx.register_df("df_MPLT_DPA_RCVR_FLAT_CALC1", df_MPLT_DPA_RCVR_FLAT_CALC1)
         
         logger.info("Step: input_MPLT_DPA_RCVR_FLAT_CALC")
         # Expression: input_MPLT_DPA_RCVR_FLAT_CALC
-        df_mplt_input_9 = df_rtr_wo_4
-        df_mplt_input_9 = df_mplt_input_9.withColumn("END_DATE", expr("WORK_CMPLT_CERT_DATE1"))
-        df_mplt_input_9 = df_mplt_input_9.withColumn("EST_KEY", expr("EST_KEY1"))
-        df_mplt_input_9 = df_mplt_input_9.withColumn("EMMS_DSTR_CHC_DSTR_KEY", expr("EMMS_DTSR_CHC_DSTR_KEY1"))
-        df_mplt_input_9 = df_mplt_input_9.withColumn("EMMS_DSTR_BRD_DSTR_KEY", expr("EMMS_DTSR_BRD_DSTR_KEY1"))
-        df_mplt_input_9 = df_mplt_input_9.withColumn("UNIT_TYPE_CODE", expr("UNIT_TYPE_CODE1"))
-        df_mplt_input_9 = df_mplt_input_9.withColumn("UNIT_IFA_AREA", expr("UNIT_IFA_AREA1"))
-        df_mplt_input_9 = df_mplt_input_9.withColumn("MAX_UNIT_HEAD_CNT", expr("MAX_UNIT_HEAD_CNT1"))
-        df_mplt_input_9 = df_mplt_input_9.withColumn("MIN_UNIT_HEAD_CNT", expr("MIN_UNIT_HEAD_CNT1"))
-        df_mplt_input_9 = df_mplt_input_9.withColumn("UNIT_KEY", expr("UNIT_KEY_IN1"))
-        df_mplt_input_9 = df_mplt_input_9.withColumn("BGN_DATE", expr("PRVS_ACPT_DATE1"))
-        ctx.register_df("df_mplt_input_9", df_mplt_input_9)
+        df_MPLT_DPA_RCVR_FLAT_CALC_input_9 = df_rtr_wo_4
+        df_MPLT_DPA_RCVR_FLAT_CALC_input_9 = df_MPLT_DPA_RCVR_FLAT_CALC_input_9.withColumn("END_DATE", expr("WORK_CMPLT_CERT_DATE1"))
+        df_MPLT_DPA_RCVR_FLAT_CALC_input_9 = df_MPLT_DPA_RCVR_FLAT_CALC_input_9.withColumn("EST_KEY", expr("EST_KEY1"))
+        df_MPLT_DPA_RCVR_FLAT_CALC_input_9 = df_MPLT_DPA_RCVR_FLAT_CALC_input_9.withColumn("EMMS_DSTR_CHC_DSTR_KEY", expr("EMMS_DTSR_CHC_DSTR_KEY1"))
+        df_MPLT_DPA_RCVR_FLAT_CALC_input_9 = df_MPLT_DPA_RCVR_FLAT_CALC_input_9.withColumn("EMMS_DSTR_BRD_DSTR_KEY", expr("EMMS_DTSR_BRD_DSTR_KEY1"))
+        df_MPLT_DPA_RCVR_FLAT_CALC_input_9 = df_MPLT_DPA_RCVR_FLAT_CALC_input_9.withColumn("UNIT_TYPE_CODE", expr("UNIT_TYPE_CODE1"))
+        df_MPLT_DPA_RCVR_FLAT_CALC_input_9 = df_MPLT_DPA_RCVR_FLAT_CALC_input_9.withColumn("UNIT_IFA_AREA", expr("UNIT_IFA_AREA1"))
+        df_MPLT_DPA_RCVR_FLAT_CALC_input_9 = df_MPLT_DPA_RCVR_FLAT_CALC_input_9.withColumn("MAX_UNIT_HEAD_CNT", expr("MAX_UNIT_HEAD_CNT1"))
+        df_MPLT_DPA_RCVR_FLAT_CALC_input_9 = df_MPLT_DPA_RCVR_FLAT_CALC_input_9.withColumn("MIN_UNIT_HEAD_CNT", expr("MIN_UNIT_HEAD_CNT1"))
+        df_MPLT_DPA_RCVR_FLAT_CALC_input_9 = df_MPLT_DPA_RCVR_FLAT_CALC_input_9.withColumn("UNIT_KEY", expr("UNIT_KEY_IN1"))
+        df_MPLT_DPA_RCVR_FLAT_CALC_input_9 = df_MPLT_DPA_RCVR_FLAT_CALC_input_9.withColumn("BGN_DATE", expr("PRVS_ACPT_DATE1"))
+        ctx.register_df("df_MPLT_DPA_RCVR_FLAT_CALC_input_9", df_MPLT_DPA_RCVR_FLAT_CALC_input_9)
         
-        logger.info("Step: apply_mplt_EXPTRANS")
-        # Expression: apply_mplt_EXPTRANS
-        df_mplt_expr_10 = df_mplt_input_9
-        df_mplt_expr_10 = df_mplt_expr_10.withColumn("UNIT_KEY", expr("UNIT_KEY_IN1"))
-        df_mplt_expr_10 = df_mplt_expr_10.withColumn("BGN_DATE", expr("PRVS_ACPT_DATE1"))
-        df_mplt_expr_10 = df_mplt_expr_10.withColumn("END_DATE", expr("WORK_CMPLT_CERT_DATE1"))
-        df_mplt_expr_10 = df_mplt_expr_10.withColumn("DIFF_DAY_NUM", expr("floor(datediff(V_WORK_CMPLT_CERT_DATE1, V_PRVS_ACPT_DATE1))"))
-        df_mplt_expr_10 = df_mplt_expr_10.withColumn("EST_KEY", expr("EST_KEY1"))
-        df_mplt_expr_10 = df_mplt_expr_10.withColumn("EMMS_DSTR_CHC_DSTR_KEY", expr("EMMS_DTSR_CHC_DSTR_KEY1"))
-        df_mplt_expr_10 = df_mplt_expr_10.withColumn("EMMS_DSTR_BRD_DSTR_KEY", expr("EMMS_DTSR_BRD_DSTR_KEY1"))
-        df_mplt_expr_10 = df_mplt_expr_10.withColumn("UNIT_TYPE_CODE", expr("UNIT_TYPE_CODE1"))
-        df_mplt_expr_10 = df_mplt_expr_10.withColumn("UNIT_IFA_AREA", expr("UNIT_IFA_AREA1"))
-        df_mplt_expr_10 = df_mplt_expr_10.withColumn("MAX_UNIT_HEAD_CNT", expr("MAX_UNIT_HEAD_CNT1"))
-        df_mplt_expr_10 = df_mplt_expr_10.withColumn("MIN_UNIT_HEAD_CNT", expr("MIN_UNIT_HEAD_CNT1"))
-        ctx.register_df("df_mplt_expr_10", df_mplt_expr_10)
+        logger.info("Step: rename_EXPTRANS")
+        # Expression: rename_EXPTRANS
+        df_MPLT_DPA_RCVR_FLAT_CALC_rename_10 = df_MPLT_DPA_RCVR_FLAT_CALC_input_9
+        df_MPLT_DPA_RCVR_FLAT_CALC_rename_10 = df_MPLT_DPA_RCVR_FLAT_CALC_rename_10.drop("END_DATE").withColumnRenamed("WORK_CMPLT_CERT_DATE1", "END_DATE")
+        df_MPLT_DPA_RCVR_FLAT_CALC_rename_10 = df_MPLT_DPA_RCVR_FLAT_CALC_rename_10.drop("EST_KEY").withColumnRenamed("EST_KEY1", "EST_KEY")
+        df_MPLT_DPA_RCVR_FLAT_CALC_rename_10 = df_MPLT_DPA_RCVR_FLAT_CALC_rename_10.drop("EMMS_DSTR_CHC_DSTR_KEY").withColumnRenamed("EMMS_DTSR_CHC_DSTR_KEY1", "EMMS_DSTR_CHC_DSTR_KEY")
+        df_MPLT_DPA_RCVR_FLAT_CALC_rename_10 = df_MPLT_DPA_RCVR_FLAT_CALC_rename_10.drop("EMMS_DSTR_BRD_DSTR_KEY").withColumnRenamed("EMMS_DTSR_BRD_DSTR_KEY1", "EMMS_DSTR_BRD_DSTR_KEY")
+        df_MPLT_DPA_RCVR_FLAT_CALC_rename_10 = df_MPLT_DPA_RCVR_FLAT_CALC_rename_10.drop("UNIT_TYPE_CODE").withColumnRenamed("UNIT_TYPE_CODE1", "UNIT_TYPE_CODE")
+        df_MPLT_DPA_RCVR_FLAT_CALC_rename_10 = df_MPLT_DPA_RCVR_FLAT_CALC_rename_10.drop("UNIT_IFA_AREA").withColumnRenamed("UNIT_IFA_AREA1", "UNIT_IFA_AREA")
+        df_MPLT_DPA_RCVR_FLAT_CALC_rename_10 = df_MPLT_DPA_RCVR_FLAT_CALC_rename_10.drop("MAX_UNIT_HEAD_CNT").withColumnRenamed("MAX_UNIT_HEAD_CNT1", "MAX_UNIT_HEAD_CNT")
+        df_MPLT_DPA_RCVR_FLAT_CALC_rename_10 = df_MPLT_DPA_RCVR_FLAT_CALC_rename_10.drop("MIN_UNIT_HEAD_CNT").withColumnRenamed("MIN_UNIT_HEAD_CNT1", "MIN_UNIT_HEAD_CNT")
+        df_MPLT_DPA_RCVR_FLAT_CALC_rename_10 = df_MPLT_DPA_RCVR_FLAT_CALC_rename_10.drop("UNIT_KEY").withColumnRenamed("UNIT_KEY_IN1", "UNIT_KEY")
+        df_MPLT_DPA_RCVR_FLAT_CALC_rename_10 = df_MPLT_DPA_RCVR_FLAT_CALC_rename_10.drop("BGN_DATE").withColumnRenamed("PRVS_ACPT_DATE1", "BGN_DATE")
+        ctx.register_df("df_MPLT_DPA_RCVR_FLAT_CALC_rename_10", df_MPLT_DPA_RCVR_FLAT_CALC_rename_10)
+        
+        logger.info("Step: apply_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS")
+        # Expression: apply_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS
+        df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS = df_MPLT_DPA_RCVR_FLAT_CALC_rename_10
+        df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS = df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS.withColumn("DIFF_DAY_NUM", expr("floor(datediff(V_END_DATE, V_BGN_DATE))"))
+        ctx.register_df("df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS", df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS)
+        
+        logger.info("Step: apply_df_MPLT_DPA_RCVR_FLAT_CALC_AGGTRANS")
+        # Aggregator: apply_df_MPLT_DPA_RCVR_FLAT_CALC_AGGTRANS
+        df_df_MPLT_DPA_RCVR_FLAT_CALC_AGGTRANS = df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS.groupBy("UNIT_KEY", "EST_KEY", "EMMS_DSTR_CHC_DSTR_KEY", "EMMS_DSTR_BRD_DSTR_KEY", "UNIT_TYPE_CODE", "UNIT_IFA_AREA", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT")
+        df_df_MPLT_DPA_RCVR_FLAT_CALC_AGGTRANS = df_df_MPLT_DPA_RCVR_FLAT_CALC_AGGTRANS.agg(
+            sum("DIFF_DAY_NUM_IN").alias("DIFF_DAY_NUM"),
+            count("END_DATE").alias("END_DAY_CNT"),
+            sum("COUNT_IN").alias("COUNT_OUT")
+        )
+        ctx.register_df("df_df_MPLT_DPA_RCVR_FLAT_CALC_AGGTRANS", df_df_MPLT_DPA_RCVR_FLAT_CALC_AGGTRANS)
         
         logger.info("Step: apply_MPLT_DPA_RCVR_FLAT_CALC")
         # Expression: apply_MPLT_DPA_RCVR_FLAT_CALC
-        df_MPLT_DPA_RCVR_FLAT_CALC = df_mplt_input_9
+        df_MPLT_DPA_RCVR_FLAT_CALC = df_df_MPLT_DPA_RCVR_FLAT_CALC_AGGTRANS
         ctx.register_df("df_MPLT_DPA_RCVR_FLAT_CALC", df_MPLT_DPA_RCVR_FLAT_CALC)
         
         logger.info("Step: apply_DIFF_DAY_NUM_FILTER1")
@@ -662,30 +673,24 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_HRCHY_EMS_EST = df_LKP_DDS_HRCHY_EMS_EST.dropDuplicates(subset=["EST_KEY"])
         # Join condition: EST_KEY1=EST_KEY
-        # Rename right-side join keys to avoid ambiguous column references
-        _lkp_right = df_LKP_DDS_HRCHY_EMS_EST
-        _lkp_right = _lkp_right.withColumnRenamed("EST_KEY", "_lkp_EST_KEY")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_Union_Transformation.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_11 = df_Union_Transformation.join(
-            broadcast(_lkp_right),
-            (df_Union_Transformation["EST_KEY1"] == _lkp_right["_lkp_EST_KEY"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_11 = df_Union_Transformation.alias("_main").join(
+            broadcast(df_LKP_DDS_HRCHY_EMS_EST).alias("_lkp"),
+            (col("_main.EST_KEY1") == col("_lkp.EST_KEY")),
             "left"
-        ).drop("_lkp_EST_KEY")
-
-        ctx.register_df("df_lkp_merge_11", df_lkp_merge_11)
-        
+        ).select(
+            *[df_Union_Transformation[c] for c in df_Union_Transformation.columns],
+            *[df_LKP_DDS_HRCHY_EMS_EST[c] for c in df_LKP_DDS_HRCHY_EMS_EST.columns if c not in df_Union_Transformation.columns]
+        )
+        ctx.register_df("df_lkp_merge_11", df_lkp_merge_11)        
         logger.info("Step: input_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY")
         # Expression: input_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY
-        df_mplt_input_12 = df_lkp_merge_11
-        df_mplt_input_12 = df_mplt_input_12.withColumn("EST_KEY", expr("EST_KEY1"))
-        ctx.register_df("df_mplt_input_12", df_mplt_input_12)
+        df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_input_12 = df_lkp_merge_11
+        df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_input_12 = df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_input_12.withColumn("EST_KEY", expr("EST_KEY1"))
+        ctx.register_df("df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_input_12", df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_input_12)
         
-        logger.info("Step: read_mplt_LKPTRANS")
-        # Reading Data From Source - read_mplt_LKPTRANS
+        logger.info("Step: read_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_LKPTRANS")
+        # Reading Data From Source - read_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_LKPTRANS
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "source_db")
         query = f"""SELECT 
@@ -710,30 +715,24 @@ GROUP BY
 	SOR_HSM_EST.EST_KEY"""
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         query = query.replace("$$v_snsh_date", v_snsh_date)
-        df_mplt_lkp_13 = lib.read_sql(spark, _conn, query=query)
+        df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_LKPTRANS = lib.read_sql(spark, _conn, query=query)
         
-        logger.info("Step: apply_mplt_LKPTRANS")
-        # Lookup: apply_mplt_LKPTRANS
+        logger.info("Step: apply_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_LKPTRANS")
+        # Lookup: apply_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_LKPTRANS
         # Join condition: EST_KEY=EST_KEY
-        # Rename right-side join keys to avoid ambiguous column references
-        _lkp_right = df_mplt_lkp_13
-        _lkp_right = _lkp_right.withColumnRenamed("EST_KEY", "_lkp_EST_KEY")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_mplt_input_12.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_mplt_join_14 = df_mplt_input_12.join(
-            broadcast(_lkp_right),
-            (df_mplt_input_12["EST_KEY"] == _lkp_right["_lkp_EST_KEY"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_mplt_lkp_chain_13 = df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_input_12.alias("_main").join(
+            broadcast(df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_LKPTRANS).alias("_lkp"),
+            (col("_main.EST_KEY") == col("_lkp.EST_KEY")),
             "left"
-        ).drop("_lkp_EST_KEY")
-
-        ctx.register_df("df_mplt_join_14", df_mplt_join_14)
-        
+        ).select(
+            *[df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_input_12[c] for c in df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_input_12.columns],
+            *[df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_LKPTRANS[c] for c in df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_LKPTRANS.columns if c not in df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_input_12.columns]
+        )
+        ctx.register_df("df_mplt_lkp_chain_13", df_mplt_lkp_chain_13)        
         logger.info("Step: apply_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY")
         # Expression: apply_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY
-        df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY = df_mplt_join_14
+        df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY = df_mplt_lkp_chain_13
         ctx.register_df("df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY", df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY)
         
         logger.info("Step: read_LKP_DDS_DMNS_UNIT_SIZE")
@@ -762,21 +761,15 @@ GROUP BY
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_FLAT_TYPE = df_LKP_DDS_DMNS_EMS_FLAT_TYPE.dropDuplicates(subset=["FLAT_TYPE_CODE"])
         # Join condition: UNIT_TYPE_CODE1=FLAT_TYPE_CODE
-        # Rename right-side join keys to avoid ambiguous column references
-        _lkp_right = df_LKP_DDS_DMNS_EMS_FLAT_TYPE
-        _lkp_right = _lkp_right.withColumnRenamed("FLAT_TYPE_CODE", "_lkp_FLAT_TYPE_CODE")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_11.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_11 = df_lkp_merge_11.join(
-            broadcast(_lkp_right),
-            (df_lkp_merge_11["UNIT_TYPE_CODE1"] == _lkp_right["_lkp_FLAT_TYPE_CODE"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_11 = df_lkp_merge_11.alias("_main").join(
+            broadcast(df_LKP_DDS_DMNS_EMS_FLAT_TYPE).alias("_lkp"),
+            (col("_main.UNIT_TYPE_CODE1") == col("_lkp.FLAT_TYPE_CODE")),
             "left"
-        ).drop("_lkp_FLAT_TYPE_CODE")
-
-        ctx.register_df("df_lkp_merge_11", df_lkp_merge_11)
+        ).select(
+            *[df_lkp_merge_11[c] for c in df_lkp_merge_11.columns],
+            *[df_LKP_DDS_DMNS_EMS_FLAT_TYPE[c] for c in df_LKP_DDS_DMNS_EMS_FLAT_TYPE.columns if c not in df_lkp_merge_11.columns]
+        )
         
         logger.info("Step: read_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR")
         # Reading Data From Source - read_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR
@@ -796,21 +789,15 @@ WHERE LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','yyyymmdd')) between bgn_date and e
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR = df_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR.dropDuplicates(subset=["EMMS_SBDSTR_KEY"])
         # Join condition: EMMS_DSTR_CHC_DSTR_KEY1=EMMS_SBDSTR_KEY
-        # Rename right-side join keys to avoid ambiguous column references
-        _lkp_right = df_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR
-        _lkp_right = _lkp_right.withColumnRenamed("EMMS_SBDSTR_KEY", "_lkp_EMMS_SBDSTR_KEY")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_11.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_11 = df_lkp_merge_11.join(
-            broadcast(_lkp_right),
-            (df_lkp_merge_11["EMMS_DSTR_CHC_DSTR_KEY1"] == _lkp_right["_lkp_EMMS_SBDSTR_KEY"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_11 = df_lkp_merge_11.alias("_main").join(
+            broadcast(df_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR).alias("_lkp"),
+            (col("_main.EMMS_DSTR_CHC_DSTR_KEY1") == col("_lkp.EMMS_SBDSTR_KEY")),
             "left"
-        ).drop("_lkp_EMMS_SBDSTR_KEY")
-
-        ctx.register_df("df_lkp_merge_11", df_lkp_merge_11)
+        ).select(
+            *[df_lkp_merge_11[c] for c in df_lkp_merge_11.columns],
+            *[df_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR[c] for c in df_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR.columns if c not in df_lkp_merge_11.columns]
+        )
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR")
         # Reading Data From Source - read_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR
@@ -823,21 +810,15 @@ WHERE LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','yyyymmdd')) between bgn_date and e
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR = df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR.dropDuplicates(subset=["EMMS_DSTR_KEY"])
         # Join condition: EMMS_DSTR_BRD_DSTR_KEY1=EMMS_DSTR_KEY
-        # Rename right-side join keys to avoid ambiguous column references
-        _lkp_right = df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR
-        _lkp_right = _lkp_right.withColumnRenamed("EMMS_DSTR_KEY", "_lkp_EMMS_DSTR_KEY")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_11.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_11 = df_lkp_merge_11.join(
-            broadcast(_lkp_right),
-            (df_lkp_merge_11["EMMS_DSTR_BRD_DSTR_KEY1"] == _lkp_right["_lkp_EMMS_DSTR_KEY"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_11 = df_lkp_merge_11.alias("_main").join(
+            broadcast(df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR).alias("_lkp"),
+            (col("_main.EMMS_DSTR_BRD_DSTR_KEY1") == col("_lkp.EMMS_DSTR_KEY")),
             "left"
-        ).drop("_lkp_EMMS_DSTR_KEY")
-
-        ctx.register_df("df_lkp_merge_11", df_lkp_merge_11)
+        ).select(
+            *[df_lkp_merge_11[c] for c in df_lkp_merge_11.columns],
+            *[df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR[c] for c in df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR.columns if c not in df_lkp_merge_11.columns]
+        )
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_MGT_MODE")
         # Reading Data From Source - read_LKP_DDS_DMNS_EMS_MGT_MODE
@@ -850,43 +831,37 @@ WHERE LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','yyyymmdd')) between bgn_date and e
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_MGT_MODE = df_LKP_DDS_DMNS_EMS_MGT_MODE.dropDuplicates(subset=["MGT_MODE_CODE"])
         # Join condition: MGT_MODE_CODE=MGT_MODE_CODE
-        # Rename right-side join keys to avoid ambiguous column references
-        _lkp_right = df_LKP_DDS_DMNS_EMS_MGT_MODE
-        _lkp_right = _lkp_right.withColumnRenamed("MGT_MODE_CODE", "_lkp_MGT_MODE_CODE")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_15 = df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY.join(
-            broadcast(_lkp_right),
-            (df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY["MGT_MODE_CODE"] == _lkp_right["_lkp_MGT_MODE_CODE"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_14 = df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY.alias("_main").join(
+            broadcast(df_LKP_DDS_DMNS_EMS_MGT_MODE).alias("_lkp"),
+            (col("_main.MGT_MODE_CODE") == col("_lkp.MGT_MODE_CODE")),
             "left"
-        ).drop("_lkp_MGT_MODE_CODE")
-
-        ctx.register_df("df_lkp_merge_15", df_lkp_merge_15)
-        
+        ).select(
+            *[df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY[c] for c in df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY.columns],
+            *[df_LKP_DDS_DMNS_EMS_MGT_MODE[c] for c in df_LKP_DDS_DMNS_EMS_MGT_MODE.columns if c not in df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY.columns]
+        )
+        ctx.register_df("df_lkp_merge_14", df_lkp_merge_14)        
         logger.info("Step: merge_EXPTRANS2_0")
         # Lookup: merge_EXPTRANS2_0
         # Merge on common columns — drop lookup columns that duplicate non-key
         # input columns (e.g. EST_KEY from both sides → ambiguity).
-        _cc = list(dict.fromkeys(c for c in df_lkp_merge_11.columns if c in df_lkp_merge_15.columns))
+        _cc = list(dict.fromkeys(c for c in df_lkp_merge_11.columns if c in df_lkp_merge_14.columns))
         if _cc:
-            __lkp_dup = [c for c in df_lkp_merge_15.columns if c in df_lkp_merge_11.columns and c not in _cc]
-            df_merge_16 = df_lkp_merge_11.join(
-                df_lkp_merge_15.drop(*__lkp_dup) if __lkp_dup else df_lkp_merge_15,
+            __lkp_dup = [c for c in df_lkp_merge_14.columns if c in df_lkp_merge_11.columns and c not in _cc]
+            df_merge_15 = df_lkp_merge_11.join(
+                df_lkp_merge_14.drop(*__lkp_dup) if __lkp_dup else df_lkp_merge_14,
                 on=_cc, how="left"
             )
         else:
-            logger.warning("No common columns between df_lkp_merge_11 and df_lkp_merge_15 — using synthetic key join")
-            df_merge_16 = df_lkp_merge_11.withColumn("_join_key", lit(1)).join(
-                df_lkp_merge_15.withColumn("_join_key", lit(1)),
+            logger.warning("No common columns between df_lkp_merge_11 and df_lkp_merge_14 — using synthetic key join")
+            df_merge_15 = df_lkp_merge_11.withColumn("_join_key", lit(1)).join(
+                df_lkp_merge_14.withColumn("_join_key", lit(1)),
                 on="_join_key", how="left").drop("_join_key")
-        ctx.register_df("df_merge_16", df_merge_16)
+        ctx.register_df("df_merge_15", df_merge_15)
         
         logger.info("Step: apply_EXPTRANS2")
         # Expression: apply_EXPTRANS2
-        df_EXPTRANS2 = df_merge_16
+        df_EXPTRANS2 = df_merge_15
         df_EXPTRANS2 = df_EXPTRANS2.withColumn("TIME_DMNS_KEY1", expr("CASE WHEN (TIME_DMNS_KEY IS NULL) THEN 0 ELSE TIME_DMNS_KEY END"))
         df_EXPTRANS2 = df_EXPTRANS2.withColumn("EST_SCD_KEY1", expr("CASE WHEN (EST_SCD_KEY IS NULL) THEN 0 ELSE EST_SCD_KEY END"))
         df_EXPTRANS2 = df_EXPTRANS2.withColumn("DSTR_CHC_DSTR_SCD_KEY1", expr("CASE WHEN (DSTR_CHC_DSTR_SCD_KEY IS NULL) THEN 0 ELSE DSTR_CHC_DSTR_SCD_KEY END"))

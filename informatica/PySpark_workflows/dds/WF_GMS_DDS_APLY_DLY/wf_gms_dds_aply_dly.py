@@ -67,13 +67,13 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_DDS_APL_FACT_GMS_DLY_MSD_SMRY",
-            "mapping_name": "M_DDS_APL_FACT_GMS_DLY_MSD_SMRY"
+            "name": "S_DDS_APL_FACT_GMS_DLY_DOG_RGSTR",
+            "mapping_name": "M_DDS_APL_FACT_GMS_DLY_DOG_RGSTR"
           },
           {
             "type": "session",
-            "name": "S_DDS_APL_FACT_GMS_DLY_DOG_RGSTR",
-            "mapping_name": "M_DDS_APL_FACT_GMS_DLY_DOG_RGSTR"
+            "name": "S_DDS_APL_FACT_GMS_DLY_MSD_SMRY",
+            "mapping_name": "M_DDS_APL_FACT_GMS_DLY_MSD_SMRY"
           },
           {
             "type": "session",

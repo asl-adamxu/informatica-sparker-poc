@@ -104,22 +104,16 @@ ORDER BY SOR_HOM_CON_CNTR_REF.CNTR_KEY"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_CNTR = df_LKP_DDS_DMNS_CNTR.dropDuplicates(subset=["CNTR_KEY"])
         # Join condition: CNTR_KEY=CNTR_KEY
-        # Rename right-side join keys to avoid ambiguous column references
-        _lkp_right = df_LKP_DDS_DMNS_CNTR
-        _lkp_right = _lkp_right.withColumnRenamed("CNTR_KEY", "_lkp_CNTR_KEY")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_EXPTRANS.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_1 = df_EXPTRANS.join(
-            broadcast(_lkp_right),
-            (df_EXPTRANS["CNTR_KEY"] == _lkp_right["_lkp_CNTR_KEY"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_1 = df_EXPTRANS.alias("_main").join(
+            broadcast(df_LKP_DDS_DMNS_CNTR).alias("_lkp"),
+            (col("_main.CNTR_KEY") == col("_lkp.CNTR_KEY")),
             "left"
-        ).drop("_lkp_CNTR_KEY")
-
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
-        
+        ).select(
+            *[df_EXPTRANS[c] for c in df_EXPTRANS.columns],
+            *[df_LKP_DDS_DMNS_CNTR[c] for c in df_LKP_DDS_DMNS_CNTR.columns if c not in df_EXPTRANS.columns]
+        )
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
         df_EXPTRANS1 = df_lkp_merge_1
@@ -128,7 +122,7 @@ ORDER BY SOR_HOM_CON_CNTR_REF.CNTR_KEY"""
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_CNTR_KEY IS NULL) OR CASE WHEN TNDR_NUM = TNDR_NUM THEN false ELSE true END OR CASE WHEN CNTR_NUM = CNTR_NUM_OUT THEN false ELSE true END OR CASE WHEN CNTR_TTL = CNTR_TTL THEN false ELSE true END THEN 1 ELSE 0 END"))
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("IN_TNDR_NUM", expr("TNDR_NUM"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["CNTR_TTL", "DMNS_CNTR_KEY", "CNTR_NUM", "TNDR_NUM", "CNTR_KEY", "CNTR_DISP_SEQ_NUM", "IN_CNTR_KEY"]:
+        for _col in ["CNTR_TTL", "CNTR_NUM", "DMNS_CNTR_KEY", "TNDR_NUM", "CNTR_KEY", "CNTR_DISP_SEQ_NUM", "IN_CNTR_KEY"]:
             if _col not in df_EXPTRANS1.columns:
                 df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)

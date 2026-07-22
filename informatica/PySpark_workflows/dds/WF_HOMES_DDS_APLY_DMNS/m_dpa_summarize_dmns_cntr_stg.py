@@ -116,22 +116,16 @@ ORDER BY SOR_HOM_CON_CNTR_STG.CNTR_STG_CODE"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_CNTR_STG = df_LKP_DDS_DMNS_CNTR_STG.dropDuplicates(subset=["CNTR_STG_CODE"])
         # Join condition: CNTR_STG_CODE=CNTR_STG_CODE
-        # Rename right-side join keys to avoid ambiguous column references
-        _lkp_right = df_LKP_DDS_DMNS_CNTR_STG
-        _lkp_right = _lkp_right.withColumnRenamed("CNTR_STG_CODE", "_lkp_CNTR_STG_CODE")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_SQ_SOR_HOM_CON_CNTR_STG.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_1 = df_SQ_SOR_HOM_CON_CNTR_STG.join(
-            broadcast(_lkp_right),
-            (df_SQ_SOR_HOM_CON_CNTR_STG["CNTR_STG_CODE"] == _lkp_right["_lkp_CNTR_STG_CODE"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_1 = df_SQ_SOR_HOM_CON_CNTR_STG.alias("_main").join(
+            broadcast(df_LKP_DDS_DMNS_CNTR_STG).alias("_lkp"),
+            (col("_main.CNTR_STG_CODE") == col("_lkp.CNTR_STG_CODE")),
             "left"
-        ).drop("_lkp_CNTR_STG_CODE")
-
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
-        
+        ).select(
+            *[df_SQ_SOR_HOM_CON_CNTR_STG[c] for c in df_SQ_SOR_HOM_CON_CNTR_STG.columns],
+            *[df_LKP_DDS_DMNS_CNTR_STG[c] for c in df_LKP_DDS_DMNS_CNTR_STG.columns if c not in df_SQ_SOR_HOM_CON_CNTR_STG.columns]
+        )
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
         df_EXPTRANS = df_lkp_merge_1

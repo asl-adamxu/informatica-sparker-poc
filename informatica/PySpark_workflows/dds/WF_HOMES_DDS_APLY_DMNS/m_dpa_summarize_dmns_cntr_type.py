@@ -118,24 +118,17 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_CNTR_TYPE = df_LKP_DDS_DMNS_CNTR_TYPE.dropDuplicates(subset=["CNTR_CLASS_CODE", "CNTR_TYPE_CODE"])
         # Join condition: CNTR_CLASS_CODE=CNTR_CLASS_CODE AND CNTR_TYPE_CODE=CNTR_TYPE_CODE
-        # Rename right-side join keys to avoid ambiguous column references
-        _lkp_right = df_LKP_DDS_DMNS_CNTR_TYPE
-        _lkp_right = _lkp_right.withColumnRenamed("CNTR_CLASS_CODE", "_lkp_CNTR_CLASS_CODE")
-        _lkp_right = _lkp_right.withColumnRenamed("CNTR_TYPE_CODE", "_lkp_CNTR_TYPE_CODE")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_SQ_SOR_HOM_CON_CNTR_TYPE.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_1 = df_SQ_SOR_HOM_CON_CNTR_TYPE.join(
-            broadcast(_lkp_right),
-            (df_SQ_SOR_HOM_CON_CNTR_TYPE["CNTR_CLASS_CODE"] == _lkp_right["_lkp_CNTR_CLASS_CODE"]) &
-            (df_SQ_SOR_HOM_CON_CNTR_TYPE["CNTR_TYPE_CODE"] == _lkp_right["_lkp_CNTR_TYPE_CODE"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_1 = df_SQ_SOR_HOM_CON_CNTR_TYPE.alias("_main").join(
+            broadcast(df_LKP_DDS_DMNS_CNTR_TYPE).alias("_lkp"),
+            (col("_main.CNTR_CLASS_CODE") == col("_lkp.CNTR_CLASS_CODE")) &
+            (col("_main.CNTR_TYPE_CODE") == col("_lkp.CNTR_TYPE_CODE")),
             "left"
-        ).drop("_lkp_CNTR_CLASS_CODE").drop("_lkp_CNTR_TYPE_CODE")
-
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
-        
+        ).select(
+            *[df_SQ_SOR_HOM_CON_CNTR_TYPE[c] for c in df_SQ_SOR_HOM_CON_CNTR_TYPE.columns],
+            *[df_LKP_DDS_DMNS_CNTR_TYPE[c] for c in df_LKP_DDS_DMNS_CNTR_TYPE.columns if c not in df_SQ_SOR_HOM_CON_CNTR_TYPE.columns]
+        )
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
         df_EXPTRANS = df_lkp_merge_1

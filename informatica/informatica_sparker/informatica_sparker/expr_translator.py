@@ -156,6 +156,7 @@ class ExpressionTranslator:
         result = self._translate_operators(result)
         result = self._translate_string_literals(result)
         result = self._translate_date_format_patterns(result)
+        result = self._translate_dd_keywords(result)
         result = self._clean_up(result)
 
         if self.logger and field_name:
@@ -812,6 +813,20 @@ class ExpressionTranslator:
         result = re.sub(r'\s+', ' ', result)
 
         return result
+
+    def _translate_dd_keywords(self, expr: str) -> str:
+        """Convert bare Informatica DD_INSERT/DD_UPDATE/DD_DELETE to string literals.
+        
+        In Informatica, DD_INSERT, DD_UPDATE, DD_DELETE are built-in constants
+        for update strategy operations. In PySpark, they must be quoted strings.
+        Uses word-boundary matching to avoid modifying column names that happen
+        to contain these substrings.
+        """
+        return re.sub(
+            r'\b(DD_INSERT|DD_UPDATE|DD_DELETE)\b',
+            r"'\1'",
+            expr
+        )
 
     def _clean_up(self, expr: str) -> str:
         result = expr

@@ -298,29 +298,23 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_PRCS_YEAR = df_LKP_DDS_DMNS_PRCS_YEAR.dropDuplicates(subset=["PRCS_YEAR_NUM"])
         # Join condition: PRCS_YEAR=PRCS_YEAR_NUM
-        # Rename right-side join keys to avoid ambiguous column references
-        _lkp_right = df_LKP_DDS_DMNS_PRCS_YEAR
-        _lkp_right = _lkp_right.withColumnRenamed("PRCS_YEAR_NUM", "_lkp_PRCS_YEAR_NUM")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_SQ_SOR_HOM_BUD_PARM.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_1 = df_SQ_SOR_HOM_BUD_PARM.join(
-            broadcast(_lkp_right),
-            (df_SQ_SOR_HOM_BUD_PARM["PRCS_YEAR"] == _lkp_right["_lkp_PRCS_YEAR_NUM"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_1 = df_SQ_SOR_HOM_BUD_PARM.alias("_main").join(
+            broadcast(df_LKP_DDS_DMNS_PRCS_YEAR).alias("_lkp"),
+            (col("_main.PRCS_YEAR") == col("_lkp.PRCS_YEAR_NUM")),
             "left"
-        ).drop("_lkp_PRCS_YEAR_NUM")
-
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
-        
+        ).select(
+            *[df_SQ_SOR_HOM_BUD_PARM[c] for c in df_SQ_SOR_HOM_BUD_PARM.columns],
+            *[df_LKP_DDS_DMNS_PRCS_YEAR[c] for c in df_LKP_DDS_DMNS_PRCS_YEAR.columns if c not in df_SQ_SOR_HOM_BUD_PARM.columns]
+        )
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
         df_EXPTRANS = df_lkp_merge_1
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_PARM_TEXT", expr("PARM_TEXT"))
         df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_PRCS_YEAR_KEY IS NULL) OR CASE WHEN PRCS_YEAR_NUM = IN_PRCS_YEAR_NUM THEN false ELSE true END OR CASE WHEN PRCS_YEAR_TEXT = PARM_TEXT THEN false ELSE true END THEN 1 ELSE 0 END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["PRCS_YEAR_TEXT", "IN_PRCS_YEAR_NUM", "PRCS_YEAR_NUM", "DMNS_PRCS_YEAR_KEY", "YEAR_DISP_SEQ_NUM"]:
+        for _col in ["IN_PRCS_YEAR_NUM", "PRCS_YEAR_TEXT", "DMNS_PRCS_YEAR_KEY", "PRCS_YEAR_NUM", "YEAR_DISP_SEQ_NUM"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)

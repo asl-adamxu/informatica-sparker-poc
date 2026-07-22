@@ -144,22 +144,16 @@ where substr(LTNG_RTN_STAT_YEAR_MTH,1,4) = substr('$$v_rpt_mth',1,4) and substr(
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_PRPTY_TYPE = df_LKP_DDS_DMNS_PRPTY_TYPE.dropDuplicates(subset=["PRPTY_SBTYP_CODE"])
         # Join condition: PART_CODE=PRPTY_SBTYP_CODE
-        # Rename right-side join keys to avoid ambiguous column references
-        _lkp_right = df_LKP_DDS_DMNS_PRPTY_TYPE
-        _lkp_right = _lkp_right.withColumnRenamed("PRPTY_SBTYP_CODE", "_lkp_PRPTY_SBTYP_CODE")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_EXPTRANS2.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_1 = df_EXPTRANS2.join(
-            broadcast(_lkp_right),
-            (df_EXPTRANS2["PART_CODE"] == _lkp_right["_lkp_PRPTY_SBTYP_CODE"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_1 = df_EXPTRANS2.alias("_main").join(
+            broadcast(df_LKP_DDS_DMNS_PRPTY_TYPE).alias("_lkp"),
+            (col("_main.PART_CODE") == col("_lkp.PRPTY_SBTYP_CODE")),
             "left"
-        ).drop("_lkp_PRPTY_SBTYP_CODE")
-
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
-        
+        ).select(
+            *[df_EXPTRANS2[c] for c in df_EXPTRANS2.columns],
+            *[df_LKP_DDS_DMNS_PRPTY_TYPE[c] for c in df_LKP_DDS_DMNS_PRPTY_TYPE.columns if c not in df_EXPTRANS2.columns]
+        )
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: read_LKP_SOR_RVC_COST_CTR")
         # Reading Data From Source - read_LKP_SOR_RVC_COST_CTR
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -179,23 +173,16 @@ FROM
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_SOR_RVC_COST_CTR = df_LKP_SOR_RVC_COST_CTR.dropDuplicates(subset=["COST_CTR_CODE", "COST_CTR_BSNS_ACTV_CODE"])
         # Join condition: COST_CTR_CODE=COST_CTR_CODE AND BSNS_ACTV_CODE=COST_CTR_BSNS_ACTV_CODE
-        # Rename right-side join keys to avoid ambiguous column references
-        _lkp_right = df_LKP_SOR_RVC_COST_CTR
-        _lkp_right = _lkp_right.withColumnRenamed("COST_CTR_CODE", "_lkp_COST_CTR_CODE")
-        _lkp_right = _lkp_right.withColumnRenamed("COST_CTR_BSNS_ACTV_CODE", "_lkp_COST_CTR_BSNS_ACTV_CODE")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_1.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_1 = df_lkp_merge_1.join(
-            broadcast(_lkp_right),
-            (df_lkp_merge_1["COST_CTR_CODE"] == _lkp_right["_lkp_COST_CTR_CODE"]) &
-            (df_lkp_merge_1["BSNS_ACTV_CODE"] == _lkp_right["_lkp_COST_CTR_BSNS_ACTV_CODE"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_1 = df_lkp_merge_1.alias("_main").join(
+            broadcast(df_LKP_SOR_RVC_COST_CTR).alias("_lkp"),
+            (col("_main.COST_CTR_CODE") == col("_lkp.COST_CTR_CODE")) &
+            (col("_main.BSNS_ACTV_CODE") == col("_lkp.COST_CTR_BSNS_ACTV_CODE")),
             "left"
-        ).drop("_lkp_COST_CTR_CODE").drop("_lkp_COST_CTR_BSNS_ACTV_CODE")
-
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
+        ).select(
+            *[df_lkp_merge_1[c] for c in df_lkp_merge_1.columns],
+            *[df_LKP_SOR_RVC_COST_CTR[c] for c in df_LKP_SOR_RVC_COST_CTR.columns if c not in df_lkp_merge_1.columns]
+        )
         
         logger.info("Step: read_LKP_SOR_HSM_EST")
         # Reading Data From Source - read_LKP_SOR_HSM_EST
@@ -230,21 +217,15 @@ GROUP BY
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_SOR_HSM_EST = df_LKP_SOR_HSM_EST.dropDuplicates(subset=["EST_CODE"])
         # Join condition: ESTATE_CODE=EST_CODE
-        # Rename right-side join keys to avoid ambiguous column references
-        _lkp_right = df_LKP_SOR_HSM_EST
-        _lkp_right = _lkp_right.withColumnRenamed("EST_CODE", "_lkp_EST_CODE")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_1.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_1 = df_lkp_merge_1.join(
-            broadcast(_lkp_right),
-            (df_lkp_merge_1["ESTATE_CODE"] == _lkp_right["_lkp_EST_CODE"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_1 = df_lkp_merge_1.alias("_main").join(
+            broadcast(df_LKP_SOR_HSM_EST).alias("_lkp"),
+            (col("_main.ESTATE_CODE") == col("_lkp.EST_CODE")),
             "left"
-        ).drop("_lkp_EST_CODE")
-
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
+        ).select(
+            *[df_lkp_merge_1[c] for c in df_lkp_merge_1.columns],
+            *[df_LKP_SOR_HSM_EST[c] for c in df_LKP_SOR_HSM_EST.columns if c not in df_lkp_merge_1.columns]
+        )
         
         logger.info("Step: read_LKP_DDS_HRCHY_EMS_COST_CTR")
         # Reading Data From Source - read_LKP_DDS_HRCHY_EMS_COST_CTR
@@ -257,22 +238,16 @@ GROUP BY
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_HRCHY_EMS_COST_CTR = df_LKP_DDS_HRCHY_EMS_COST_CTR.dropDuplicates(subset=["COST_CTR_KEY"])
         # Join condition: COST_CTR_KEY=COST_CTR_KEY
-        # Rename right-side join keys to avoid ambiguous column references
-        _lkp_right = df_LKP_DDS_HRCHY_EMS_COST_CTR
-        _lkp_right = _lkp_right.withColumnRenamed("COST_CTR_KEY", "_lkp_COST_CTR_KEY")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_1.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_2 = df_lkp_merge_1.join(
-            broadcast(_lkp_right),
-            (df_lkp_merge_1["COST_CTR_KEY"] == _lkp_right["_lkp_COST_CTR_KEY"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_2 = df_lkp_merge_1.alias("_main").join(
+            broadcast(df_LKP_DDS_HRCHY_EMS_COST_CTR).alias("_lkp"),
+            (col("_main.COST_CTR_KEY") == col("_lkp.COST_CTR_KEY")),
             "left"
-        ).drop("_lkp_COST_CTR_KEY")
-
-        ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)
-        
+        ).select(
+            *[df_lkp_merge_1[c] for c in df_lkp_merge_1.columns],
+            *[df_LKP_DDS_HRCHY_EMS_COST_CTR[c] for c in df_LKP_DDS_HRCHY_EMS_COST_CTR.columns if c not in df_lkp_merge_1.columns]
+        )
+        ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)        
         logger.info("Step: read_LKP_DDS_DMNS_EMS_MGT_MODE")
         # Reading Data From Source - read_LKP_DDS_DMNS_EMS_MGT_MODE
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -284,22 +259,16 @@ GROUP BY
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_MGT_MODE = df_LKP_DDS_DMNS_EMS_MGT_MODE.dropDuplicates(subset=["MGT_MODE_CODE"])
         # Join condition: MGT_MODE_CODE=MGT_MODE_CODE
-        # Rename right-side join keys to avoid ambiguous column references
-        _lkp_right = df_LKP_DDS_DMNS_EMS_MGT_MODE
-        _lkp_right = _lkp_right.withColumnRenamed("MGT_MODE_CODE", "_lkp_MGT_MODE_CODE")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_lkp_merge_1.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_3 = df_lkp_merge_1.join(
-            broadcast(_lkp_right),
-            (df_lkp_merge_1["MGT_MODE_CODE"] == _lkp_right["_lkp_MGT_MODE_CODE"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_3 = df_lkp_merge_1.alias("_main").join(
+            broadcast(df_LKP_DDS_DMNS_EMS_MGT_MODE).alias("_lkp"),
+            (col("_main.MGT_MODE_CODE") == col("_lkp.MGT_MODE_CODE")),
             "left"
-        ).drop("_lkp_MGT_MODE_CODE")
-
-        ctx.register_df("df_lkp_merge_3", df_lkp_merge_3)
-        
+        ).select(
+            *[df_lkp_merge_1[c] for c in df_lkp_merge_1.columns],
+            *[df_LKP_DDS_DMNS_EMS_MGT_MODE[c] for c in df_LKP_DDS_DMNS_EMS_MGT_MODE.columns if c not in df_lkp_merge_1.columns]
+        )
+        ctx.register_df("df_lkp_merge_3", df_lkp_merge_3)        
         logger.info("Step: merge_EXPTRANS1_0")
         # Lookup: merge_EXPTRANS1_0
         # Merge on common columns — drop lookup columns that duplicate non-key
@@ -343,7 +312,7 @@ GROUP BY
         
         logger.info("Step: apply_FILTRANS")
         # Filter: apply_FILTRANS
-        __fil_input = df_lkp_merge_1
+        __fil_input = df_EXPTRANS1
         df_FILTRANS = __fil_input.filter(expr("PRPTY_TYPE_DESP = 'Domestic'"))
         ctx.register_df("df_FILTRANS", df_FILTRANS)
         

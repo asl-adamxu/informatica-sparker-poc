@@ -116,22 +116,16 @@ select 'Others' blk_type_code, 'Others' blk_type_desp, 9999 disp_seq_num
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_PRJ_BLK_TYPE = df_LKP_DDS_DMNS_PRJ_BLK_TYPE.dropDuplicates(subset=["BLK_TYPE_CODE"])
         # Join condition: BLK_TYPE_CODE=BLK_TYPE_CODE
-        # Rename right-side join keys to avoid ambiguous column references
-        _lkp_right = df_LKP_DDS_DMNS_PRJ_BLK_TYPE
-        _lkp_right = _lkp_right.withColumnRenamed("BLK_TYPE_CODE", "_lkp_BLK_TYPE_CODE")
-        # Drop lookup columns that would conflict with input columns (e.g. both
-        # sides having EST_KEY but only one is a join key → ambiguity after join).
-        __lkp_keep = [c for c in _lkp_right.columns if c.startswith("_lkp_") or c not in df_SQ_SOR_HOM_REF_BLK_TYPE.columns]
-        if len(__lkp_keep) < len(_lkp_right.columns):
-            _lkp_right = _lkp_right.select(*__lkp_keep)
-        df_lkp_merge_1 = df_SQ_SOR_HOM_REF_BLK_TYPE.join(
-            broadcast(_lkp_right),
-            (df_SQ_SOR_HOM_REF_BLK_TYPE["BLK_TYPE_CODE"] == _lkp_right["_lkp_BLK_TYPE_CODE"]),
+        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
+        df_lkp_merge_1 = df_SQ_SOR_HOM_REF_BLK_TYPE.alias("_main").join(
+            broadcast(df_LKP_DDS_DMNS_PRJ_BLK_TYPE).alias("_lkp"),
+            (col("_main.BLK_TYPE_CODE") == col("_lkp.BLK_TYPE_CODE")),
             "left"
-        ).drop("_lkp_BLK_TYPE_CODE")
-
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)
-        
+        ).select(
+            *[df_SQ_SOR_HOM_REF_BLK_TYPE[c] for c in df_SQ_SOR_HOM_REF_BLK_TYPE.columns],
+            *[df_LKP_DDS_DMNS_PRJ_BLK_TYPE[c] for c in df_LKP_DDS_DMNS_PRJ_BLK_TYPE.columns if c not in df_SQ_SOR_HOM_REF_BLK_TYPE.columns]
+        )
+        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
         df_EXPTRANS = df_lkp_merge_1
@@ -139,7 +133,7 @@ select 'Others' blk_type_code, 'Others' blk_type_desp, 9999 disp_seq_num
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_BLK_TYPE_DESP", expr("BLK_TYPE_DESP"))
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_DISP_SEQ_NUM", expr("DISP_SEQ_NUM"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["BLK_TYPE_CODE", "DMNS_BLK_TYPE_KEY", "IN_BLK_TYPE_CODE", "BLK_TYPE_DESP", "DISP_SEQ_NUM"]:
+        for _col in ["IN_BLK_TYPE_CODE", "BLK_TYPE_CODE", "DMNS_BLK_TYPE_KEY", "BLK_TYPE_DESP", "DISP_SEQ_NUM"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
