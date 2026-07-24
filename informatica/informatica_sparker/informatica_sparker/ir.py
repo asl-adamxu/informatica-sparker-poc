@@ -445,6 +445,7 @@ class IRPlan(BaseModel):
     source_db_type: str = "oracle"
     target_db_type: str = "spark"
     mapping_variables: Dict[str, str] = Field(default_factory=dict)
+    needs_window_import: bool = False
 
     def add_step(self, step: IRStep):
         self.steps.append(step)

@@ -7,10 +7,7 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
-_builtin_max = max
-_builtin_min = min
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 
@@ -213,15 +210,17 @@ GROUP BY
         
         logger.info("Step: apply_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_LKPTRANS")
         # Lookup: apply_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_LKPTRANS
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_SQ_SOR_HSM_UNIT
         # Join condition: EST_KEY=EST_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_1 = df_SQ_SOR_HSM_UNIT.alias("_main").join(
+        df_mplt_lkp_chain_1 = _lkp_input.alias("_main").join(
             broadcast(df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_LKPTRANS).alias("_lkp"),
             (col("_main.EST_KEY") == col("_lkp.EST_KEY")),
             "left"
         ).select(
-            *[df_SQ_SOR_HSM_UNIT[c] for c in df_SQ_SOR_HSM_UNIT.columns],
-            *[df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_LKPTRANS[c] for c in df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_LKPTRANS.columns if c not in df_SQ_SOR_HSM_UNIT.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_LKPTRANS[c] for c in df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_LKPTRANS.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_mplt_lkp_chain_1", df_mplt_lkp_chain_1)        
         logger.info("Step: apply_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY")
@@ -244,15 +243,18 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 BETWEEN BGN_DATE 
         # Lookup: apply_LKP_SCD_BLK_KEY
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_SCD_BLK_KEY = df_LKP_SCD_BLK_KEY.dropDuplicates(subset=["OUT_BLK_KEY"])
-        # Join condition: BLK_KEY=OUT_BLK_KEY
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_SQ_SOR_HSM_UNIT
+        _lkp_input = _lkp_input.withColumn("IN_BLK_KEY", col("BLK_KEY"))
+        # Join condition: IN_BLK_KEY=OUT_BLK_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_2 = df_SQ_SOR_HSM_UNIT.alias("_main").join(
+        df_lkp_merge_2 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_SCD_BLK_KEY).alias("_lkp"),
-            (col("_main.BLK_KEY") == col("_lkp.OUT_BLK_KEY")),
+            (col("_main.IN_BLK_KEY") == col("_lkp.OUT_BLK_KEY")),
             "left"
         ).select(
-            *[df_SQ_SOR_HSM_UNIT[c] for c in df_SQ_SOR_HSM_UNIT.columns],
-            *[df_LKP_SCD_BLK_KEY[c] for c in df_LKP_SCD_BLK_KEY.columns if c not in df_SQ_SOR_HSM_UNIT.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_SCD_BLK_KEY[c] for c in df_LKP_SCD_BLK_KEY.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)        
         logger.info("Step: read_LKP_DDS_HRCHY_EMS_EST")
@@ -286,15 +288,18 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         # Lookup: apply_LKP_DDS_HRCHY_EMS_EST
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_HRCHY_EMS_EST = df_LKP_DDS_HRCHY_EMS_EST.dropDuplicates(subset=["EST_KEY"])
-        # Join condition: EST_KEY=EST_KEY
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_lkp_merge_2
+        _lkp_input = _lkp_input.withColumn("EST_KEY1", col("EST_KEY"))
+        # Join condition: EST_KEY1=EST_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_2 = df_lkp_merge_2.alias("_main").join(
+        df_lkp_merge_2 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_HRCHY_EMS_EST).alias("_lkp"),
-            (col("_main.EST_KEY") == col("_lkp.EST_KEY")),
+            (col("_main.EST_KEY1") == col("_lkp.EST_KEY")),
             "left"
         ).select(
-            *[df_lkp_merge_2[c] for c in df_lkp_merge_2.columns],
-            *[df_LKP_DDS_HRCHY_EMS_EST[c] for c in df_LKP_DDS_HRCHY_EMS_EST.columns if c not in df_lkp_merge_2.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_HRCHY_EMS_EST[c] for c in df_LKP_DDS_HRCHY_EMS_EST.columns if c not in _lkp_input.columns]
         )
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR")
@@ -307,15 +312,18 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         # Lookup: apply_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR = df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR.dropDuplicates(subset=["EMMS_DSTR_KEY"])
-        # Join condition: DSTR_BRD_EMMS_DSTR_KEY=EMMS_DSTR_KEY
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_lkp_merge_2
+        _lkp_input = _lkp_input.withColumn("DSTR_BRD_DSTR_EMMS_KEY", col("DSTR_BRD_EMMS_DSTR_KEY"))
+        # Join condition: DSTR_BRD_DSTR_EMMS_KEY=EMMS_DSTR_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_2 = df_lkp_merge_2.alias("_main").join(
+        df_lkp_merge_2 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR).alias("_lkp"),
-            (col("_main.DSTR_BRD_EMMS_DSTR_KEY") == col("_lkp.EMMS_DSTR_KEY")),
+            (col("_main.DSTR_BRD_DSTR_EMMS_KEY") == col("_lkp.EMMS_DSTR_KEY")),
             "left"
         ).select(
-            *[df_lkp_merge_2[c] for c in df_lkp_merge_2.columns],
-            *[df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR[c] for c in df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR.columns if c not in df_lkp_merge_2.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR[c] for c in df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR.columns if c not in _lkp_input.columns]
         )
         
         logger.info("Step: read_LKP_UNIT_ADVS_ENV_CODE_IND")
@@ -341,15 +349,18 @@ group by UNIT_ADDR_CODE"""
         # Lookup: apply_LKP_UNIT_ADVS_ENV_CODE_IND
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_UNIT_ADVS_ENV_CODE_IND = df_LKP_UNIT_ADVS_ENV_CODE_IND.dropDuplicates(subset=["UNIT_ADDR_CODE"])
-        # Join condition: UNIT_ADDR_CODE=UNIT_ADDR_CODE
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_lkp_merge_2
+        _lkp_input = _lkp_input.withColumn("UNIT_ADDR_CODE1", col("UNIT_ADDR_CODE"))
+        # Join condition: UNIT_ADDR_CODE1=UNIT_ADDR_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_2 = df_lkp_merge_2.alias("_main").join(
+        df_lkp_merge_2 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_UNIT_ADVS_ENV_CODE_IND).alias("_lkp"),
-            (col("_main.UNIT_ADDR_CODE") == col("_lkp.UNIT_ADDR_CODE")),
+            (col("_main.UNIT_ADDR_CODE1") == col("_lkp.UNIT_ADDR_CODE")),
             "left"
         ).select(
-            *[df_lkp_merge_2[c] for c in df_lkp_merge_2.columns],
-            *[df_LKP_UNIT_ADVS_ENV_CODE_IND[c] for c in df_LKP_UNIT_ADVS_ENV_CODE_IND.columns if c not in df_lkp_merge_2.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_UNIT_ADVS_ENV_CODE_IND[c] for c in df_LKP_UNIT_ADVS_ENV_CODE_IND.columns if c not in _lkp_input.columns]
         )
         
         logger.info("Step: read_LKP_DDS_DMNS_UNIT_SIZE")
@@ -388,15 +399,17 @@ UNIT_SIZE_CODE IN ('A','B','C','D','E','F','G','H','I','J')"""
         # Lookup: apply_LKP_DDS_DMNS_EMS_FLAT_TYPE
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_FLAT_TYPE = df_LKP_DDS_DMNS_EMS_FLAT_TYPE.dropDuplicates(subset=["FLAT_TYPE_CODE"])
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_lkp_merge_2
         # Join condition: UNIT_TYPE_CODE=FLAT_TYPE_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_2 = df_lkp_merge_2.alias("_main").join(
+        df_lkp_merge_2 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_FLAT_TYPE).alias("_lkp"),
             (col("_main.UNIT_TYPE_CODE") == col("_lkp.FLAT_TYPE_CODE")),
             "left"
         ).select(
-            *[df_lkp_merge_2[c] for c in df_lkp_merge_2.columns],
-            *[df_LKP_DDS_DMNS_EMS_FLAT_TYPE[c] for c in df_LKP_DDS_DMNS_EMS_FLAT_TYPE.columns if c not in df_lkp_merge_2.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_EMS_FLAT_TYPE[c] for c in df_LKP_DDS_DMNS_EMS_FLAT_TYPE.columns if c not in _lkp_input.columns]
         )
         
         logger.info("Step: apply_EXPTRANS")
@@ -427,15 +440,18 @@ WHERE add_months(to_date('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         # Lookup: apply_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR = df_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR.dropDuplicates(subset=["EMMS_SBDSTR_KEY"])
-        # Join condition: DSTR_CHC_EMMS_DSTR_KEY=EMMS_SBDSTR_KEY
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_lkp_merge_2
+        _lkp_input = _lkp_input.withColumn("DSTR_CHC_DSTR_EMMS_KEY", col("DSTR_CHC_EMMS_DSTR_KEY"))
+        # Join condition: DSTR_CHC_DSTR_EMMS_KEY=EMMS_SBDSTR_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_2 = df_lkp_merge_2.alias("_main").join(
+        df_lkp_merge_2 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR).alias("_lkp"),
-            (col("_main.DSTR_CHC_EMMS_DSTR_KEY") == col("_lkp.EMMS_SBDSTR_KEY")),
+            (col("_main.DSTR_CHC_DSTR_EMMS_KEY") == col("_lkp.EMMS_SBDSTR_KEY")),
             "left"
         ).select(
-            *[df_lkp_merge_2[c] for c in df_lkp_merge_2.columns],
-            *[df_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR[c] for c in df_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR.columns if c not in df_lkp_merge_2.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR[c] for c in df_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR.columns if c not in _lkp_input.columns]
         )
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_MGT_MODE")
@@ -448,33 +464,42 @@ WHERE add_months(to_date('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         # Lookup: apply_LKP_DDS_DMNS_EMS_MGT_MODE
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_MGT_MODE = df_LKP_DDS_DMNS_EMS_MGT_MODE.dropDuplicates(subset=["MGT_MODE_CODE"])
-        # Join condition: MGT_MODE_CODE=MGT_MODE_CODE
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY
+        _lkp_input = _lkp_input.withColumn("MGT_MODE_CODE_IN", col("MGT_MODE_CODE"))
+        # Join condition: MGT_MODE_CODE_IN=MGT_MODE_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_3 = df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY.alias("_main").join(
+        df_lkp_merge_3 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_MGT_MODE).alias("_lkp"),
-            (col("_main.MGT_MODE_CODE") == col("_lkp.MGT_MODE_CODE")),
+            (col("_main.MGT_MODE_CODE_IN") == col("_lkp.MGT_MODE_CODE")),
             "left"
         ).select(
-            *[df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY[c] for c in df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY.columns],
-            *[df_LKP_DDS_DMNS_EMS_MGT_MODE[c] for c in df_LKP_DDS_DMNS_EMS_MGT_MODE.columns if c not in df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_EMS_MGT_MODE[c] for c in df_LKP_DDS_DMNS_EMS_MGT_MODE.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_3", df_lkp_merge_3)        
         logger.info("Step: apply_LKP_ALCT_STS_CODE")
         # Lookup: apply_LKP_ALCT_STS_CODE
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_ALCT_STS_CODE = df_LKP_ALCT_STS_CODE.dropDuplicates(subset=["EST_TYPE", "ESTATE", "BLK", "ROOM"])
-        # Join condition: EST_TYPE=EST_TYPE AND ESTATE=ESTATE AND BLK=BLK AND ROOM=ROOM
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_EXPTRANS
+        _lkp_input = _lkp_input.withColumn("EST_TYPE1", col("EST_TYPE"))
+        _lkp_input = _lkp_input.withColumn("ESTATE1", col("ESTATE"))
+        _lkp_input = _lkp_input.withColumn("BLK1", col("BLK"))
+        _lkp_input = _lkp_input.withColumn("ROOM1", col("ROOM"))
+        # Join condition: EST_TYPE1=EST_TYPE AND ESTATE1=ESTATE AND BLK1=BLK AND ROOM1=ROOM
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_4 = df_EXPTRANS.alias("_main").join(
+        df_lkp_merge_4 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_ALCT_STS_CODE).alias("_lkp"),
-            (col("_main.EST_TYPE") == col("_lkp.EST_TYPE")) &
-            (col("_main.ESTATE") == col("_lkp.ESTATE")) &
-            (col("_main.BLK") == col("_lkp.BLK")) &
-            (col("_main.ROOM") == col("_lkp.ROOM")),
+            (col("_main.EST_TYPE1") == col("_lkp.EST_TYPE")) &
+            (col("_main.ESTATE1") == col("_lkp.ESTATE")) &
+            (col("_main.BLK1") == col("_lkp.BLK")) &
+            (col("_main.ROOM1") == col("_lkp.ROOM")),
             "left"
         ).select(
-            *[df_EXPTRANS[c] for c in df_EXPTRANS.columns],
-            *[df_LKP_ALCT_STS_CODE[c] for c in df_LKP_ALCT_STS_CODE.columns if c not in df_EXPTRANS.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_ALCT_STS_CODE[c] for c in df_LKP_ALCT_STS_CODE.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_4", df_lkp_merge_4)        
         logger.info("Step: apply_EXPTRANS4")
@@ -498,15 +523,17 @@ WHERE add_months(to_date('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         # Lookup: apply_LKP_DDS_DMNS_ALCT_STS
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_ALCT_STS = df_LKP_DDS_DMNS_ALCT_STS.dropDuplicates(subset=["ALCT_STS_CODE"])
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_EXPTRANS4
         # Join condition: UNIT_ALCT_STS_CODE=ALCT_STS_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_5 = df_EXPTRANS4.alias("_main").join(
+        df_lkp_merge_5 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_ALCT_STS).alias("_lkp"),
             (col("_main.UNIT_ALCT_STS_CODE") == col("_lkp.ALCT_STS_CODE")),
             "left"
         ).select(
-            *[df_EXPTRANS4[c] for c in df_EXPTRANS4.columns],
-            *[df_LKP_DDS_DMNS_ALCT_STS[c] for c in df_LKP_DDS_DMNS_ALCT_STS.columns if c not in df_EXPTRANS4.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_ALCT_STS[c] for c in df_LKP_DDS_DMNS_ALCT_STS.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_5", df_lkp_merge_5)        
         logger.info("Step: merge_EXPTRANS2_0")
@@ -577,15 +604,18 @@ WHERE LAST_DAY(TO_DATE($$v_rpt_mth||'01','YYYYMMDD')) BETWEEN STS.BGN_DATE AND S
         # Lookup: apply_LKP_SOR_EMS_HSM_PRH_UNIT_STS
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_SOR_EMS_HSM_PRH_UNIT_STS = df_LKP_SOR_EMS_HSM_PRH_UNIT_STS.dropDuplicates(subset=["UNIT_KEY"])
-        # Join condition: HSM_UNIT_KEY=UNIT_KEY
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_EXPTRANS2
+        _lkp_input = _lkp_input.withColumn("IN_UNIT_KEY", col("HSM_UNIT_KEY"))
+        # Join condition: IN_UNIT_KEY=UNIT_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_8 = df_EXPTRANS2.alias("_main").join(
+        df_lkp_merge_8 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_SOR_EMS_HSM_PRH_UNIT_STS).alias("_lkp"),
-            (col("_main.HSM_UNIT_KEY") == col("_lkp.UNIT_KEY")),
+            (col("_main.IN_UNIT_KEY") == col("_lkp.UNIT_KEY")),
             "left"
         ).select(
-            *[df_EXPTRANS2[c] for c in df_EXPTRANS2.columns],
-            *[df_LKP_SOR_EMS_HSM_PRH_UNIT_STS[c] for c in df_LKP_SOR_EMS_HSM_PRH_UNIT_STS.columns if c not in df_EXPTRANS2.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_SOR_EMS_HSM_PRH_UNIT_STS[c] for c in df_LKP_SOR_EMS_HSM_PRH_UNIT_STS.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_8", df_lkp_merge_8)        
         logger.info("Step: read_LKP_DDS_DMNS_EMS_HSC_UNIT_TYPE")
@@ -605,15 +635,18 @@ WHERE HSC_UNIT_TYPE_SCHM_CODE = 'TYP123'"""
         # Lookup: apply_LKP_DDS_DMNS_EMS_HSC_UNIT_TYPE
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_HSC_UNIT_TYPE = df_LKP_DDS_DMNS_EMS_HSC_UNIT_TYPE.dropDuplicates(subset=["HSC_UNIT_TYPE_CODE"])
-        # Join condition: UNIT_HSC_TYPE_CODE=HSC_UNIT_TYPE_CODE
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_lkp_merge_8
+        _lkp_input = _lkp_input.withColumn("IN_UNIT_HSC_TYPE_CODE", col("UNIT_HSC_TYPE_CODE"))
+        # Join condition: IN_UNIT_HSC_TYPE_CODE=HSC_UNIT_TYPE_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_9 = df_lkp_merge_8.alias("_main").join(
+        df_lkp_merge_9 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_HSC_UNIT_TYPE).alias("_lkp"),
-            (col("_main.UNIT_HSC_TYPE_CODE") == col("_lkp.HSC_UNIT_TYPE_CODE")),
+            (col("_main.IN_UNIT_HSC_TYPE_CODE") == col("_lkp.HSC_UNIT_TYPE_CODE")),
             "left"
         ).select(
-            *[df_lkp_merge_8[c] for c in df_lkp_merge_8.columns],
-            *[df_LKP_DDS_DMNS_EMS_HSC_UNIT_TYPE[c] for c in df_LKP_DDS_DMNS_EMS_HSC_UNIT_TYPE.columns if c not in df_lkp_merge_8.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_EMS_HSC_UNIT_TYPE[c] for c in df_LKP_DDS_DMNS_EMS_HSC_UNIT_TYPE.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_9", df_lkp_merge_9)        
         logger.info("Step: apply_EXPTRANS6")
@@ -641,11 +674,11 @@ WHERE HSC_UNIT_TYPE_SCHM_CODE = 'TYP123'"""
             col("UNIT_ADVS_ENV_CODE_IND1").alias("UNIT_ADVS_ENV_IND"),
             col("RCVR_UNIT_CNT"),
             col("UNIT_SIZE_DMNS_KEY1").alias("UNIT_SIZE_DMNS_KEY"),
-            col("BLK_SCD_KEY1")        )
-        df_AGGTRANS = _agg_input.groupBy("TIME_DMNS_KEY", "EST_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "ALCT_STS_DMNS_KEY", "MGT_MODE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_ADVS_ENV_IND", "BLK_SCD_KEY1", "HSC_UNIT_TYPE_DMNS_KEY")
+            col("BLK_SCD_KEY1"),
+            expr("0").alias("DUMMY")        )
+        df_AGGTRANS = _agg_input.groupBy("TIME_DMNS_KEY", "EST_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "ALCT_STS_DMNS_KEY", "MGT_MODE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_ADVS_ENV_IND", "BLK_SCD_KEY1", "HSC_UNIT_TYPE_DMNS_KEY", "DUMMY")
         df_AGGTRANS = df_AGGTRANS.agg(
-            sum("RCVR_UNIT_CNT").alias("RCVR_UNIT_CNT1"),
-            0.alias("DUMMY")
+            sum("RCVR_UNIT_CNT").alias("RCVR_UNIT_CNT1")
         )
         ctx.register_df("df_AGGTRANS", df_AGGTRANS)
         

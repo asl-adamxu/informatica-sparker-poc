@@ -570,15 +570,17 @@ class TransformHandlers:
                         plan.add_step(_result)
 
         # Post-process: upgrade filter steps that still reference a chain/merge
-        # df_input (e.g. df_lkp_merge_1) to use the first downstream non-chain
-        # DataFrame (e.g. df_EXPTRANS1). Scan plan steps backward from the
-        # filter step to find the nearest non-chain DF registered before the
-        # filter — this avoids picking up unrelated steps like ReadSQL.
+        # df_input (e.g. df_lkp_merge_1) to use the downstream non-chain
+        # DataFrame that directly consumes that chain (e.g. df_EXPTRANS1
+        # whose df_input IS df_lkp_merge_1). Scan plan steps backward from
+        # the filter to find the last step that consumes the same chain DF.
+        # This avoids picking up unrelated steps from other pipelines.
         for _sp in plan.steps:
             if isinstance(_sp, ApplyFilterStep) and _sp.df_input and _sp.df_input.startswith(('df_lkp_merge', 'df_merge', 'df_sq_')):
+                _chain = _sp.df_input
                 _sp_idx = plan.steps.index(_sp)
                 for _p in reversed(plan.steps[:_sp_idx]):
-                    if not _p.df_output.startswith(('df_lkp_merge', 'df_merge', 'df_sq_')):
+                    if _p.df_input == _chain and _p.df_output and not _p.df_output.startswith(('df_lkp_merge', 'df_merge', 'df_sq_')):
                         _sp.df_input = _p.df_output
                         break
 
@@ -1006,9 +1008,11 @@ class TransformHandlers:
 
                 # Remap INPUT port names to actual upstream column names
                 # (e.g. IN_HSHLD_SIZE → HSHLD_SIZE) based on main mapping connectors.
+                # Use word boundaries to avoid substring corruption (e.g. replacing
+                # OFR_BFR_SUCC_RLET_CNT inside TOT_OFR_BFR_SUCC_RLET_CNT).
                 for _port, _col in _expr_field_remap.items():
                     if _port != _col:
-                        expr_text = expr_text.replace(_port, _col)
+                        expr_text = re.sub(r'\b' + re.escape(_port) + r'\b', _col, expr_text)
 
                 if "OUTPUT" in field.port_type:
                     output_columns.append(field.name)
@@ -1094,6 +1098,23 @@ class TransformHandlers:
             computed_columns=computed_columns
         )
         step.params["output_columns"] = output_columns
+        # Detect columns referenced in expressions but not defined as ports —
+        # these are external references that should get NULL at runtime.
+        if transform:
+            _known_cols = set(output_columns) | {f.name for f in transform.fields}
+            _expr_refs: Set[str] = set()
+            for _f in transform.fields:
+                if _f.expression and _f.expression.strip():
+                    # Find words that look like column names (ALL_CAPS_UNDERSCORE)
+                    for _m in re.finditer(r'\b[A-Z][A-Z0-9_]{2,}(?:\s*\.\s*[A-Z][A-Z0-9_]{2,})?\b', _f.expression):
+                        _ref = _m.group(0).strip()
+                        # Skip SQL keywords / common operators
+                        if _ref.upper() in ('AND', 'OR', 'NOT', 'IS', 'NULL', 'TRUE', 'FALSE', 'IN', 'IIF', 'DECODE', 'NVL', 'NVL2', 'COALESCE', 'NULLIF', 'SUBSTR', 'SUBSTRING', 'COUNT', 'SUM', 'MIN', 'MAX', 'AVG', 'FIRST', 'LAST', 'UPPER', 'LOWER', 'TRIM', 'LTRIM', 'RTRIM', 'LENGTH', 'INSTR', 'LPAD', 'RPAD', 'REPLACE', 'REG_REPLACE', 'TO_DATE', 'TO_CHAR', 'TO_NUMBER', 'TO_DECIMAL', 'TO_INTEGER', 'TO_FLOAT', 'TO_BIGINT', 'SYSDATE', 'CURRENT_TIMESTAMP', 'ROUND', 'TRUNC', 'ABS', 'MOD', 'POWER', 'SQRT', 'FLOOR', 'CEIL', 'SIGN', 'GREATEST', 'LEAST', 'ADD_TO_DATE', 'DATE_DIFF', 'GET_DATE_PART', 'SET_DATE_PART', 'LAST_DAY', 'NEXT_DAY', 'MONTHS_BETWEEN', 'ADD_MONTHS', 'MAKE_DATE_TIME', 'ERROR', 'ABORT', 'WHEN', 'THEN', 'ELSE', 'CASE', 'END'):
+                            continue
+                        if _ref not in _known_cols:
+                            _expr_refs.add(_ref)
+            if _expr_refs:
+                step.params["expression_external_refs"] = sorted(_expr_refs)
         if _expr_window_imports:
             step.params["window_imports"] = True
 
@@ -1279,9 +1300,17 @@ class TransformHandlers:
             # Build field remap from connectors: lookup INPUT port → upstream column
             # (Informatica adds numeric suffixes like TNCY_AGRMT_BK1 when multiple
             # connectors feed the same lookup port name; the actual column has no suffix.)
+            # Only include INPUT/OUTPUT ports (not pure LOOKUP/OUTPUT return columns).
+            _lkp_input_ports: Set[str] = set()
+            if transform:
+                for _f in transform.fields:
+                    if _f.port_type and 'INPUT' in _f.port_type.upper():
+                        _lkp_input_ports.add(_f.name)
             _lkp_field_remap: Dict[str, str] = {}
             for conn in self.mapping.connectors:
-                if conn.to_instance == instance.name and conn.from_field != conn.to_field:
+                if (conn.to_instance == instance.name
+                    and conn.from_field != conn.to_field
+                    and conn.to_field in _lkp_input_ports):
                     _lkp_field_remap[conn.to_field] = conn.from_field
 
             lookup_cond = transform.table_attributes.get("Lookup condition", "")
@@ -1290,17 +1319,11 @@ class TransformHandlers:
             join_predicates = parsed_condition.get("join_columns", [])
             join_expr = parsed_condition.get("condition_expr") or ""
 
-            # Remap source_col in join predicates to actual upstream column names
-            for jp in join_predicates:
-                _src = jp.get("source_col", "")
-                if _src in _lkp_field_remap:
-                    jp["source_col"] = _lkp_field_remap[_src]
-
             # Also remap column references in complex join expressions
             if join_expr:
                 for _port, _col in _lkp_field_remap.items():
                     if _port != _col:
-                        join_expr = join_expr.replace(_port, _col)
+                        join_expr = re.sub(r'\b' + re.escape(_port) + r'\b', _col, join_expr)
 
             steps.append(ApplyLookupStep(
                 step_name=f"apply_{instance.name}",
@@ -1312,6 +1335,8 @@ class TransformHandlers:
                 output_columns=output_columns,
                 lookup_type="left"
             ))
+            if _lkp_field_remap:
+                steps[-1].params["lkp_field_remap"] = _lkp_field_remap
             # Handle "Lookup policy on multiple match" — dedup the lookup
             # DataFrame by join keys when there could be multiple matches.
             # Options: Use First Value, Use Last Value, Use Any Value, Report Error.
@@ -1514,6 +1539,18 @@ class TransformHandlers:
         if _detail_selects:
             step.params["detail_selects"] = _detail_selects
 
+        # Detect Joiner output ports without upstream connectors — add NULL
+        if transform:
+            _mapped_to = {s["to"] for s in _master_selects} | {s["to"] for s in _detail_selects}
+            _missing = []
+            for _f in transform.fields:
+                _pt = (_f.port_type or "").upper()
+                if "OUTPUT" in _pt or "INPUT/OUTPUT" in _pt:
+                    if _f.name not in _mapped_to:
+                        _missing.append(_f.name)
+            if _missing:
+                step.params["joiner_missing_cols"] = _missing
+
         return step
 
     def _handle_aggregator(self, instance: Instance, plan: IRPlan) -> Optional[IRStep]:
@@ -1567,40 +1604,52 @@ class TransformHandlers:
                         })
                         self.logger.log_transformation(instance.name, "Aggregator", f"LITERAL: {field.name} = {field.expression}", LogLevel.INFO)
                 elif field.expression and "OUTPUT" in field.port_type.upper():
-                    # Replace $$ mapping variables with f-string placeholders
-                    # (e.g. $$v_rpt_mth → {v_rpt_mth}) so they resolve at runtime
-                    # from the Python variables loaded via job_params.
-                    expr_text = field.expression
-                    has_agg_dollar = False
-                    for _mv_name in plan.mapping_variables:
-                        if _mv_name in expr_text:
-                            _py_name = _mv_name.replace('$', '')
-                            expr_text = expr_text.replace(_mv_name, '{' + _py_name + '}')
-                            has_agg_dollar = True
-                    # Signal to _translate_aggregation_expr to use f-string for expr()
-                    pyspark_agg = self._translate_aggregation_expr(expr_text, field.name, use_fstr=has_agg_dollar)
-                    if pyspark_agg:
-                        aggregations[field.name] = pyspark_agg
-                        self.logger.log_transformation(instance.name, "Aggregator", f"Aggregation: {field.name} = {pyspark_agg}", LogLevel.INFO)
-                    elif "INPUT" in (field.port_type or "").upper():
-                        # INPUT/OUTPUT field with pass-through expression that isn't
-                        # an aggregation. Check that it is NOT used as an argument to
-                        # any aggregate function before adding to groupBy (e.g.
-                        # TIME_DMNS_KEY in MAX(TIME_DMNS_KEY) should NOT be grouped).
-                        _agg_args = set()
-                        for _af in transform.fields:
-                            if _af.expression and "OUTPUT" in (_af.port_type or "").upper():
-                                _agg_match = re.search(
-                                    r'\b(MAX|MIN|SUM|COUNT|AVG|FIRST|LAST|MEDIAN|STDDEV|VARIANCE)\s*\(\s*(\w+)\s*\)',
-                                    _af.expression, re.IGNORECASE
-                                )
-                                if _agg_match:
-                                    _agg_args.add(_agg_match.group(2))
-                        if field.name not in _agg_args:
-                            group_by.append(field.name)
-                            self.logger.log_transformation(instance.name, "Aggregator", f"GROUP BY (implicit): {field.name}", LogLevel.INFO)
-                        else:
-                            self.logger.log_transformation(instance.name, "Aggregator", f"SKIP GROUP BY (agg arg): {field.name}", LogLevel.INFO)
+                    # Literal constant (e.g. 0 as DUMMY, 'N' as FLAG) not marked as
+                    # GROUP BY — treat as literal: add to select + groupBy so it
+                    # survives agg(), rather than rendering 0.alias("DUMMY") in agg().
+                    if is_literal:
+                        _agg_literals.append({
+                            "name": field.name,
+                            "expression": field.expression,
+                            "datatype": field.datatype,
+                        })
+                        group_by.append(field.name)
+                        self.logger.log_transformation(instance.name, "Aggregator", f"LITERAL (non-GROUPBY): {field.name} = {field.expression}", LogLevel.INFO)
+                    else:
+                        # Replace $$ mapping variables with f-string placeholders
+                        # (e.g. $$v_rpt_mth M-bM-^FM-^R {v_rpt_mth}) so they resolve at runtime
+                        # from the Python variables loaded via job_params.
+                        expr_text = field.expression
+                        has_agg_dollar = False
+                        for _mv_name in plan.mapping_variables:
+                            if _mv_name in expr_text:
+                                _py_name = _mv_name.replace('$', '')
+                                expr_text = expr_text.replace(_mv_name, '{' + _py_name + '}')
+                                has_agg_dollar = True
+                        # Signal to _translate_aggregation_expr to use f-string for expr()
+                        pyspark_agg = self._translate_aggregation_expr(expr_text, field.name, use_fstr=has_agg_dollar)
+                        if pyspark_agg:
+                            aggregations[field.name] = pyspark_agg
+                            self.logger.log_transformation(instance.name, "Aggregator", f"Aggregation: {field.name} = {pyspark_agg}", LogLevel.INFO)
+                        elif "INPUT" in (field.port_type or "").upper():
+                            # INPUT/OUTPUT field with pass-through expression that isn't
+                            # an aggregation. Check that it is NOT used as an argument to
+                            # any aggregate function before adding to groupBy (e.g.
+                            # TIME_DMNS_KEY in MAX(TIME_DMNS_KEY) should NOT be grouped).
+                            _agg_args = set()
+                            for _af in transform.fields:
+                                if _af.expression and "OUTPUT" in (_af.port_type or "").upper():
+                                    _agg_match = re.search(
+                                        r'\b(MAX|MIN|SUM|COUNT|AVG|FIRST|LAST|MEDIAN|STDDEV|VARIANCE)\s*\(\s*(\w+)\s*\)',
+                                        _af.expression, re.IGNORECASE
+                                    )
+                                    if _agg_match:
+                                        _agg_args.add(_agg_match.group(2))
+                            if field.name not in _agg_args:
+                                group_by.append(field.name)
+                                self.logger.log_transformation(instance.name, "Aggregator", f"GROUP BY (implicit): {field.name}", LogLevel.INFO)
+                            else:
+                                self.logger.log_transformation(instance.name, "Aggregator", f"SKIP GROUP BY (agg arg): {field.name}", LogLevel.INFO)
 
             self.logger.log_transformation(instance.name, "Aggregator", f"Found {len(group_by)} GROUP BY keys, {len(aggregations)} aggregations", LogLevel.INFO)
 
@@ -1638,7 +1687,7 @@ class TransformHandlers:
 
         for func_name, pyspark_func in agg_funcs.items():
             _pat = r'^' + func_name + r'\s*\(\s*(.+)\s*\)\s*$'
-            match = re.match(_pat, expr, re.IGNORECASE)
+            match = re.match(_pat, expr, re.IGNORECASE | re.DOTALL)
             if match:
                 inner_expr = match.group(1).strip()
 
@@ -1962,21 +2011,41 @@ class TransformHandlers:
             if condition:
                 translated = self.expr_translator.translate_for_filter(condition, f"router_{group_name}")
                 all_conditions.append(translated)
+                # For $$ mapping variables: extract inner text for runtime .replace()
+                _filter_inner = ""
+                if '$$' in translated:
+                    _m_i = re.match(r'expr\(["\'](.+)["\']\)', translated)
+                    if _m_i:
+                        _filter_inner = _m_i.group(1)
             else:
                 translated = ""
+                _filter_inner = ""
 
-            groups.append({
+            _grp = {
                 "name": group_name,
                 "df_output": df_output,
                 "condition": translated,
                 "renames": group_renames.get(group_name, [])
-            })
+            }
+            if _filter_inner:
+                _grp["filter_inner"] = _filter_inner
+            groups.append(_grp)
 
         if groups:
             default_group = next((g for g in groups if g["name"] == "DEFAULT"), None)
             if default_group and all_conditions:
-                negated = " & ".join([f"~({c})" for c in all_conditions if c])
+                _valid = [c for c in all_conditions if c]
+                negated = " & ".join([f"~({c})" for c in _valid])
                 default_group["condition"] = negated
+                # DEFAULT group: build list of negated conditions for chained filter
+                # (PySpark ~ inside expr() is bitwise NOT, not logical NOT)
+                if any('$$' in c for c in _valid):
+                    _d_negated = []
+                    for _g in groups:
+                        if _g.get("filter_inner") and '$$' in _g["filter_inner"]:
+                            _d_negated.append({"name": _g["name"], "inner": _g["filter_inner"]})
+                    if _d_negated:
+                        default_group["default_negated"] = _d_negated
 
         plan.router_outputs[instance.name] = [g["df_output"] for g in groups]
 
@@ -2119,6 +2188,8 @@ class TransformHandlers:
         )
         if plan.mapping_variables:
             step.params["mapping_variables"] = plan.mapping_variables
+        if group_by:
+            plan.needs_window_import = True
         return step
 
     def _handle_sequence(self, instance: Instance, plan: IRPlan) -> Optional[IRStep]:
@@ -2616,7 +2687,34 @@ class TransformHandlers:
             if conn.to_instance == instance.name:
                 input_field_map[conn.to_field] = conn.from_field
 
-        # --- 5. Remap external input columns to mapplet INPUT port names ---------------
+        # --- 5. Handle mapplet INPUT port alignment ------------------------------------
+        # Detect INPUT ports with no external connector — add as NULL
+        _input_output_ports: Set[str] = set()
+        if input_inst:
+            _input_txf = mpl_transforms.get(input_inst.transformation_name or input_inst.name)
+            if _input_txf:
+                for _f in _input_txf.fields:
+                    if "OUTPUT" in (_f.port_type or "").upper():
+                        _input_output_ports.add(_f.name)
+        _unconnected_inputs = _input_output_ports - set(input_field_map.keys())
+        if _unconnected_inputs:
+            _null_cols = []
+            for _c in sorted(_unconnected_inputs):
+                if _c not in input_df:
+                    _null_cols.append({"name": _c, "expression": "NULL"})
+            if _null_cols:
+                _null_input_df = self._get_df_name(f"{_mplt_prefix}_nullinput")
+                steps.append(ApplyExpressionStep(
+                    step_name=f"nullinput_{instance.name}",
+                    df_input=input_df,
+                    df_output=_null_input_df,
+                    computed_columns=[ComputedColumn(name=n["name"], expression=n["expression"], datatype="string") for n in _null_cols],
+                ))
+                input_df = _null_input_df
+                self.logger.log_mapplet(instance.name,
+                    f"Added NULL columns for {len(_null_cols)} unconnected INPUT ports: {_unconnected_inputs}",
+                    LogLevel.INFO)
+
         # The external upstream DataFrame uses its own column names (e.g.
         # ACTL_CMS_HSE_UNIT_KEY), but the mapplet's internal transformations
         # reference the mapplet's INPUT port names (e.g. IN_CMS_HSE_UNIT_KEY).
@@ -2775,7 +2873,7 @@ class TransformHandlers:
                     if join_expr:
                         for _port, _col in _internal_remap.items():
                             if _port != _col:
-                                join_expr = join_expr.replace(_port, _col)
+                                join_expr = re.sub(r'\b' + re.escape(_port) + r'\b', _col, join_expr)
 
                     # Collect output columns from the lookup
                     output_cols = []
@@ -2858,8 +2956,13 @@ class TransformHandlers:
                         LogLevel.INFO)
 
                 computed_cols = []
+                mpl_output_ports = []
                 for field in transform.fields:
-                    if field.expression and "OUTPUT" in (field.port_type or "").upper():
+                    if not field.expression:
+                        continue
+                    if "OUTPUT" in (field.port_type or "").upper() or "LOCAL VARIABLE" in (field.port_type or "").upper():
+                        if "OUTPUT" in (field.port_type or "").upper():
+                            mpl_output_ports.append(field.name)
                         expr_text = field.expression
                         translated = self.expr_translator.translate(
                             expr_text, "column", field.name
@@ -2873,12 +2976,15 @@ class TransformHandlers:
                 if computed_cols:
                     expr_df_name = f"{_mplt_prefix}_" + re.sub(r'[^a-zA-Z0-9_]', '_', mpl_inst_name)
                     mpl_df_map[mpl_inst_name] = expr_df_name
-                    steps.append(ApplyExpressionStep(
+                    _expr_step = ApplyExpressionStep(
                         step_name=f"apply_{_mplt_step_prefix}_{mpl_inst.name}",
                         df_input=mpl_input_df,
                         df_output=expr_df_name,
                         computed_columns=computed_cols,
-                    ))
+                    )
+                    if mpl_output_ports:
+                        _expr_step.params["output_columns"] = mpl_output_ports
+                    steps.append(_expr_step)
                 else:
                     # Expression with no computed columns → pass-through
                     mpl_df_map[mpl_inst_name] = mpl_input_df
@@ -2905,7 +3011,7 @@ class TransformHandlers:
                         _filter_expr = filter_cond
                         for _mpl_port, _actual_col in _internal_remap.items():
                             if _mpl_port != _actual_col:
-                                _filter_expr = _filter_expr.replace(_mpl_port, _actual_col)
+                                _filter_expr = re.sub(r'\b' + re.escape(_mpl_port) + r'\b', _actual_col, _filter_expr)
                         # Translate the filter condition (handles Informatica SQL syntax)
                         _filter_expr = self.expr_translator.translate_for_filter(_filter_expr)
                         _mpl_filt_df = f"{_mplt_prefix}_" + re.sub(r'[^a-zA-Z0-9_]', '_', mpl_inst_name)
@@ -2931,6 +3037,19 @@ class TransformHandlers:
                                 break
                     if not _agg_input_df:
                         _agg_input_df = input_df
+                    # Build field remap from mapplet internal connectors
+                    _agg_remap = []
+                    _agg_mapped_to = set()
+                    for conn in mpl_connectors:
+                        if conn.to_instance == mpl_inst_name:
+                            _agg_remap.append({"from": conn.from_field, "to": conn.to_field})
+                            _agg_mapped_to.add(conn.to_field)
+                    # Detect Aggregator INPUT ports without connectors — add as null
+                    if _agg_txf:
+                        for _f in _agg_txf.fields:
+                            _pt = (_f.port_type or "").upper()
+                            if "INPUT" in _pt and _f.name not in _agg_mapped_to:
+                                _agg_remap.append({"from": "__null__", "to": _f.name})
                     _orig_map = self.current_df_map.copy()
                     _mplt_inst = Instance(
                         name=_mplt_prefix + "_" + mpl_inst.name,
@@ -2947,10 +3066,14 @@ class TransformHandlers:
                         for _s in _agg_result:
                             if _s:
                                 _s.df_input = _agg_input_df
+                                if _agg_remap and not _s.params.get('agg_selects'):
+                                    _s.params["agg_selects"] = _agg_remap
                                 steps.append(_s)
                                 mpl_df_map[mpl_inst_name] = _s.df_output
                     elif _agg_result:
                         _agg_result.df_input = _agg_input_df
+                        if _agg_remap and not _agg_result.params.get('agg_selects'):
+                            _agg_result.params["agg_selects"] = _agg_remap
                         steps.append(_agg_result)
                         mpl_df_map[mpl_inst_name] = _agg_result.df_output
                     self.current_df_map.clear()
@@ -3035,18 +3158,26 @@ class TransformHandlers:
             df_output = self._get_df_name(_mplt_prefix, instance)
             self._register_df(instance, df_output)
 
+            # Build output field remap: internal column → OUTPUT port name
+            _output_renames = []
+            for conn in mpl_connectors:
+                if conn.to_instance == output_inst.name and conn.from_field != conn.to_field:
+                    _output_renames.append([conn.from_field, conn.to_field])
             if steps:
                 # There are real transformation steps — the final step's df_output
                 # is the mapplet result; register it under the mapplet instance name
                 self.current_df_map[instance.name] = df_output
                 if output_ports:
-                    steps.append(ApplyExpressionStep(
+                    _out_step = ApplyExpressionStep(
                         step_name=f"apply_{instance.name}",
                         df_input=output_input_df,
                         df_output=df_output,
                         computed_columns=[],
                         output_columns=output_ports,
-                    ))
+                    )
+                    if _output_renames:
+                        _out_step.params["rename_columns"] = _output_renames
+                    steps.append(_out_step)
                 else:
                     # Pass-through of the last internal DataFrame as output
                     steps.append(ApplyExpressionStep(

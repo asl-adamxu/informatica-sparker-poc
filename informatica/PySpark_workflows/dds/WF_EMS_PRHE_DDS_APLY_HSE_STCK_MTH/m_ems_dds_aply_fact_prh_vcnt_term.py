@@ -7,10 +7,7 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
-_builtin_max = max
-_builtin_min = min
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 

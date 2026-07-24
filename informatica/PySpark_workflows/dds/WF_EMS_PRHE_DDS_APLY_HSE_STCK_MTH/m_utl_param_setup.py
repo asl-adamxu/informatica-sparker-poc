@@ -7,10 +7,7 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
-_builtin_max = max
-_builtin_min = min
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 
@@ -81,6 +78,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         if _csv_cols:
             # Rename CSV columns by position to match Informatica source definition field names
             _src_cols = ["SESSION"]
+            _builtin_min = min
             for _i in range(_builtin_min([len(_csv_cols), len(_src_cols)])):
                 if _csv_cols[_i].lower() != _src_cols[_i].lower():
                     df_UTL_SESSION_LIST = df_UTL_SESSION_LIST.withColumnRenamed(_csv_cols[_i], _src_cols[_i])
@@ -120,15 +118,17 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Lookup: apply_LKPTRANS
         # Use First Value / Use Any Value: dedup by join keys
         df_LKPTRANS = df_LKPTRANS.dropDuplicates(subset=["PRPTY"])
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_EXPTRANS
         # Join condition: PROPERTY=PRPTY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_EXPTRANS.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_LKPTRANS).alias("_lkp"),
             (col("_main.PROPERTY") == col("_lkp.PRPTY")),
             "left"
         ).select(
-            *[df_EXPTRANS[c] for c in df_EXPTRANS.columns],
-            *[df_LKPTRANS[c] for c in df_LKPTRANS.columns if c not in df_EXPTRANS.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKPTRANS[c] for c in df_LKPTRANS.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS1")

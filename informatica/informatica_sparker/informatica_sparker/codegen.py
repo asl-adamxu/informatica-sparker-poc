@@ -111,8 +111,9 @@ class CodeGenerator:
                 source_conn_name=source_conn_name,
                 lookup_conn_name=lookup_conn_name,
                 target_conn_name=target_conn_name,
-                mapping_variables=mapping_vars
-                , generation_date=datetime.date.today().isoformat()
+                mapping_variables=mapping_vars,
+                needs_window_import=plan.needs_window_import,
+                generation_date=datetime.date.today().isoformat()
             )
         except Exception as e:
             import traceback

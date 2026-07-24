@@ -412,7 +412,7 @@ def execute_sql(spark: SparkSession, conn_config: Dict[str, Any], sql: str) -> N
     user = conn_config.get("username", "")
     password = _resolve_password(spark, conn_config)
     driver = conn_config.get("driver", "oracle.jdbc.driver.OracleDriver")
-    
+
     spark._jvm.java.lang.Class.forName(driver)
     conn = spark._jvm.java.sql.DriverManager.getConnection(jdbc_url, user, password)
     try:
@@ -422,6 +422,52 @@ def execute_sql(spark: SparkSession, conn_config: Dict[str, Any], sql: str) -> N
         stmt.close()
     finally:
         conn.close()
+
+
+def execute_stored_procedure(spark: SparkSession, conn_config: Dict[str, Any], sp_call: str) -> None:
+    """Execute an Oracle stored procedure (BEGIN ... END;) and raise on any error.
+
+    Captures:
+      - SP not found (ORA-06550 / PLS-00201)
+      - SP execution error (ORA-xxxxx)
+      - Connection / JDBC errors
+    """
+    jdbc_url = get_jdbc_url(conn_config)
+    user = conn_config.get("username", "")
+    password = _resolve_password(spark, conn_config)
+    driver = conn_config.get("driver", "oracle.jdbc.driver.OracleDriver")
+
+    spark._jvm.java.lang.Class.forName(driver)
+    conn = spark._jvm.java.sql.DriverManager.getConnection(jdbc_url, user, password)
+    cs = None
+    try:
+        cs = conn.prepareCall(sp_call)
+        cs.execute()
+    except Exception as e:
+        err_msg = str(e)
+        # Py4JJavaError wraps the Java exception in java_exception
+        if hasattr(e, 'java_exception'):
+            try:
+                je = e.java_exception
+                err_msg = je.getMessage()
+                # Also include SQLState / error code if available
+                if hasattr(je, 'getSQLState') and je.getSQLState():
+                    err_msg += f" (SQLState: {je.getSQLState()})"
+                if hasattr(je, 'getErrorCode') and je.getErrorCode():
+                    err_msg += f" (ErrorCode: {je.getErrorCode()})"
+            except Exception:
+                pass
+        raise RuntimeError(f"Stored procedure execution failed: {err_msg[:1000]}")
+    finally:
+        if cs:
+            try:
+                cs.close()
+            except Exception:
+                pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 def batch_delete(spark: SparkSession, conn_config: Dict[str, Any],

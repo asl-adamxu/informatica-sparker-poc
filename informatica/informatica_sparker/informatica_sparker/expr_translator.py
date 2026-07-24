@@ -151,8 +151,8 @@ class ExpressionTranslator:
         result = self._translate_movingsum(result)
         result = self._translate_movingavg(result)
         result = self._translate_replacechr(result)
-        result = self._translate_functions(result)
         result = self._translate_date_trunc(result)
+        result = self._translate_functions(result)
         result = self._translate_operators(result)
         result = self._translate_string_literals(result)
         result = self._translate_date_format_patterns(result)
@@ -788,8 +788,14 @@ class ExpressionTranslator:
             _args_start = _m.end() - 1  # position of '('
             _args = self._extract_function_args(_result, _args_start)
 
+            # Single-argument TRUNC(date) — truncate time to start of day
+            if len(_args) == 1 and _func_name == 'TRUNC':
+                _date_expr = _args[0].strip()
+                _replacement = f"date_trunc('day', {_date_expr})"
+                _full_match_end = self._find_closing_paren(_result, _args_start) + 1
+                _result = _result[:_m.start()] + _replacement + _result[_full_match_end:]
             # Only convert 2-argument calls where arg 2 is a quoted date-part
-            if len(_args) == 2:
+            elif len(_args) == 2:
                 _arg2 = _args[1].strip()
                 _part_match = re.match(r"['\"]([A-Za-z0-9]+)['\"]", _arg2)
                 if _part_match:

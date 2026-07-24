@@ -8,13 +8,11 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
-_builtin_max = max
-_builtin_min = min
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
-from pyspark.sql import Window
+{% if needs_window_import %}from pyspark.sql import Window
+{% endif %}
 
 # =============================================================================
 # MAPPING LOGIC
@@ -138,6 +136,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         if _csv_cols:
             # Rename CSV columns by position to match Informatica source definition field names
             _src_cols = [{% for f in src_fields %}"{{ f }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+            _builtin_min = min
             for _i in range(_builtin_min([len(_csv_cols), len(_src_cols)])):
                 if _csv_cols[_i].lower() != _src_cols[_i].lower():
                     {{ step.df_output }} = {{ step.df_output }}.withColumnRenamed(_csv_cols[_i], _src_cols[_i])
@@ -393,8 +392,18 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {{ lookup_df_name }} = {{ lookup_df_name }}.dropDuplicates(subset=[{% for k in dedup_keys %}"{{ k }}"{% if not loop.last %}, {% endif %}{% endfor %}])
         {% endif %}
         {% endif %}
+        {% set _lkp_remap = step.params.get('lkp_field_remap', {}) %}
+        # Rename upstream columns to match lookup input port names before join
+        {% if _lkp_remap %}
+        _lkp_input = {{ step.df_input }}
+        {% for _port, _col in _lkp_remap.items() %}
+        _lkp_input = _lkp_input.withColumn("{{ _port }}", col("{{ _col }}"))
+        {% endfor %}
+        {% else %}
+        _lkp_input = {{ step.df_input }}
+        {% endif %}
         # Join condition: {% for jp in join_predicates %}{{ jp.source_col }}={{ jp.lookup_col }}{% if not loop.last %} AND {% endif %}{% endfor %}{{ '\n' }}        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        {{ step.df_output }} = {{ step.df_input }}.alias("_main").join(
+        {{ step.df_output }} = _lkp_input.alias("_main").join(
             {% if step.params.get('broadcast', True) %}
             broadcast({{ lookup_df_name }}).alias("_lkp"),
             {% else %}
@@ -405,8 +414,8 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             {% endfor %},
             "{{ step.params.get('lookup_type', 'left') }}"
         ).select(
-            *[{{ step.df_input }}[c] for c in {{ step.df_input }}.columns],
-            *[{{ lookup_df_name }}[c] for c in {{ lookup_df_name }}.columns if c not in {{ step.df_input }}.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[{{ lookup_df_name }}[c] for c in {{ lookup_df_name }}.columns if c not in _lkp_input.columns]
         )
         {% if step.df_input != step.df_output %}
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
@@ -497,6 +506,12 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             "{{ join_type }}"
         )
         {% endif %}
+        {% if step.params.get('joiner_missing_cols') %}
+        # Add NULL for Joiner ports without upstream connectors
+        for _col in [{% for c in step.params['joiner_missing_cols'] %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %}]:
+            if _col not in {{ step.df_output }}.columns:
+                {{ step.df_output }} = {{ step.df_output }}.withColumn(_col, lit(None))
+        {% endif %}
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
         
         {% elif step.step_type == IRStepType.APPLY_AGGREGATOR %}
@@ -510,7 +525,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Select only mapped upstream columns with correct port names
         _agg_input = {{ step.df_input }}.select(
             {% for s in agg_selects %}
-            {% if s.from == s.to %}
+            {% if s.from == '__null__' %}
+            lit(None).alias("{{ s.to }}"){% if not loop.last %},{{ '\n' }}{% endif %}
+            {% elif s.from == s.to %}
             col("{{ s.from }}"){% if not loop.last %},{{ '\n' }}{% endif %}
             {% else %}
             col("{{ s.from }}").alias("{{ s.to }}"){% if not loop.last %},{{ '\n' }}{% endif %}
@@ -614,8 +631,26 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         
         {% elif step.step_type == IRStepType.APPLY_ROUTER %}
         # Router: {{ step.step_name }} - splits into multiple output groups
+        {# First pass: define named filter variables for reuse across groups #}
         {% for group in step.params.get('groups', []) %}
-        {% if group.get('condition') %}
+        {% if mapping_variables and group.get('filter_inner') and '$$' in group.get('filter_inner') %}
+        {% set _rtr_var = '_rtr_' + group.name | lower + '_filter' %}
+        {{ _rtr_var }} = """{{ group.get('filter_inner') }}"""
+        {% for var_name, var_default in mapping_variables.items() %}{% set clean_name = var_name | replace('$', '') %}
+        {{ _rtr_var }} = {{ _rtr_var }}.replace("{{ var_name }}", {{ clean_name }}){{ '\n' }}{% endfor %}
+        {% endif %}
+        {% endfor %}
+        {# Second pass: render each group using the predefined variables #}
+        {% for group in step.params.get('groups', []) %}
+        {% if mapping_variables and group.get('filter_inner') and '$$' in group.get('filter_inner') %}
+        {% set _rtr_var = '_rtr_' + group.name | lower + '_filter' %}
+        {{ group.get('df_output', 'df_group') }} = {{ step.df_input }}.filter(expr({{ _rtr_var }}))
+        {% elif group.get('default_negated') %}
+        {# DEFAULT group: chain negated filters via pre-defined variables #}
+        {{ group.get('df_output', 'df_group') }} = {{ step.df_input }}
+        {% for _neg in group.get('default_negated') %}{% set _rtr_var = '_rtr_' + _neg.name | lower + '_filter' %}
+        {{ group.get('df_output', 'df_group') }} = {{ group.get('df_output', 'df_group') }}.filter(~expr({{ _rtr_var }})){{ '\n' }}{% endfor %}
+        {% elif group.get('condition') %}
         {{ group.get('df_output', 'df_group') }} = {{ step.df_input }}.filter({{ group.get('condition') }})
         {% else %}
         {{ group.get('df_output', 'df_group') }} = {{ step.df_input }}  # Default group

@@ -7,10 +7,7 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
-_builtin_max = max
-_builtin_min = min
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 
@@ -825,15 +822,18 @@ LAST_DAY(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD')) BETWEEN prh.BGN_DATE AND prh.
         # Lookup: apply_LKP_EST_DSTR_BY_UNIT
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_EST_DSTR_BY_UNIT = df_LKP_EST_DSTR_BY_UNIT.dropDuplicates(subset=["UNIT_KEY"])
-        # Join condition: UNIT_KEY=UNIT_KEY
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_Union_Transformation
+        _lkp_input = _lkp_input.withColumn("UNIT_KEY_IN", col("UNIT_KEY"))
+        # Join condition: UNIT_KEY_IN=UNIT_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_Union_Transformation.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_EST_DSTR_BY_UNIT).alias("_lkp"),
-            (col("_main.UNIT_KEY") == col("_lkp.UNIT_KEY")),
+            (col("_main.UNIT_KEY_IN") == col("_lkp.UNIT_KEY")),
             "left"
         ).select(
-            *[df_Union_Transformation[c] for c in df_Union_Transformation.columns],
-            *[df_LKP_EST_DSTR_BY_UNIT[c] for c in df_LKP_EST_DSTR_BY_UNIT.columns if c not in df_Union_Transformation.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_EST_DSTR_BY_UNIT[c] for c in df_LKP_EST_DSTR_BY_UNIT.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS")
@@ -876,6 +876,11 @@ LAST_DAY(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD')) BETWEEN prh.BGN_DATE AND prh.
         df_MPLT_LKP_EMS_REHSE_ANLS_KEY_EXPTRANS1 = df_MPLT_LKP_EMS_REHSE_ANLS_KEY_rename_3
         df_MPLT_LKP_EMS_REHSE_ANLS_KEY_EXPTRANS1 = df_MPLT_LKP_EMS_REHSE_ANLS_KEY_EXPTRANS1.withColumn("TIME_DMNS_KEY", expr("200000000+SYS_RPT_YEAR*10000+SYS_RPT_MTH*100"))
         df_MPLT_LKP_EMS_REHSE_ANLS_KEY_EXPTRANS1 = df_MPLT_LKP_EMS_REHSE_ANLS_KEY_EXPTRANS1.withColumn("TRF_CASE_RSN_CODE", expr("REF_CASE_TYPE_CODE || TRF_RSN_CODE"))
+        # Ensure any missing pass-through columns exist (no connector feeding them)
+        for _col in ["SYS_RPT_YEAR", "SYS_RPT_MTH", "EST_KEY", "EMMS_DSTR_BRD_DSTR_KEY", "EMMS_DSTR_CHC_DSTR_KEY", "REF_CASE_TYPE_CODE", "TRF_RSN_CODE"]:
+            if _col not in df_MPLT_LKP_EMS_REHSE_ANLS_KEY_EXPTRANS1.columns:
+                df_MPLT_LKP_EMS_REHSE_ANLS_KEY_EXPTRANS1 = df_MPLT_LKP_EMS_REHSE_ANLS_KEY_EXPTRANS1.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_MPLT_LKP_EMS_REHSE_ANLS_KEY_EXPTRANS1", df_MPLT_LKP_EMS_REHSE_ANLS_KEY_EXPTRANS1)
         
         logger.info("Step: read_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_HRCHY_EMS_EST")
@@ -907,15 +912,17 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         
         logger.info("Step: apply_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_HRCHY_EMS_EST")
         # Lookup: apply_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_HRCHY_EMS_EST
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_MPLT_LKP_EMS_REHSE_ANLS_KEY_EXPTRANS1
         # Join condition: EST_KEY=EST_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_4 = df_MPLT_LKP_EMS_REHSE_ANLS_KEY_EXPTRANS1.alias("_main").join(
+        df_mplt_lkp_chain_4 = _lkp_input.alias("_main").join(
             broadcast(df_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_HRCHY_EMS_EST).alias("_lkp"),
             (col("_main.EST_KEY") == col("_lkp.EST_KEY")),
             "left"
         ).select(
-            *[df_MPLT_LKP_EMS_REHSE_ANLS_KEY_EXPTRANS1[c] for c in df_MPLT_LKP_EMS_REHSE_ANLS_KEY_EXPTRANS1.columns],
-            *[df_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_HRCHY_EMS_EST[c] for c in df_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_HRCHY_EMS_EST.columns if c not in df_MPLT_LKP_EMS_REHSE_ANLS_KEY_EXPTRANS1.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_HRCHY_EMS_EST[c] for c in df_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_HRCHY_EMS_EST.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_mplt_lkp_chain_4", df_mplt_lkp_chain_4)        
         logger.info("Step: read_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR")
@@ -926,15 +933,17 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         
         logger.info("Step: apply_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR")
         # Lookup: apply_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_mplt_lkp_chain_4
         # Join condition: EMMS_DSTR_BRD_DSTR_KEY=EMMS_DSTR_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_4 = df_mplt_lkp_chain_4.alias("_main").join(
+        df_mplt_lkp_chain_4 = _lkp_input.alias("_main").join(
             broadcast(df_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR).alias("_lkp"),
             (col("_main.EMMS_DSTR_BRD_DSTR_KEY") == col("_lkp.EMMS_DSTR_KEY")),
             "left"
         ).select(
-            *[df_mplt_lkp_chain_4[c] for c in df_mplt_lkp_chain_4.columns],
-            *[df_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR[c] for c in df_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR.columns if c not in df_mplt_lkp_chain_4.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR[c] for c in df_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR.columns if c not in _lkp_input.columns]
         )
         
         logger.info("Step: read_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR")
@@ -952,15 +961,17 @@ WHERE LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','yyyymmdd')) between bgn_date and e
         
         logger.info("Step: apply_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR")
         # Lookup: apply_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_mplt_lkp_chain_4
         # Join condition: EMMS_DSTR_CHC_DSTR_KEY=EMMS_SBDSTR_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_4 = df_mplt_lkp_chain_4.alias("_main").join(
+        df_mplt_lkp_chain_4 = _lkp_input.alias("_main").join(
             broadcast(df_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR).alias("_lkp"),
             (col("_main.EMMS_DSTR_CHC_DSTR_KEY") == col("_lkp.EMMS_SBDSTR_KEY")),
             "left"
         ).select(
-            *[df_mplt_lkp_chain_4[c] for c in df_mplt_lkp_chain_4.columns],
-            *[df_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR[c] for c in df_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR.columns if c not in df_mplt_lkp_chain_4.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR[c] for c in df_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR.columns if c not in _lkp_input.columns]
         )
         
         logger.info("Step: read_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_DMNS_EMS_TFR_CASE_RSN")
@@ -976,15 +987,17 @@ WHERE TFR_CASE_RSN_SCHM_CODE = 'EMS'"""
         
         logger.info("Step: apply_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_DMNS_EMS_TFR_CASE_RSN")
         # Lookup: apply_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_DMNS_EMS_TFR_CASE_RSN
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_mplt_lkp_chain_4
         # Join condition: TRF_CASE_RSN_CODE=TFR_CASE_RSN_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_4 = df_mplt_lkp_chain_4.alias("_main").join(
+        df_mplt_lkp_chain_4 = _lkp_input.alias("_main").join(
             broadcast(df_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_DMNS_EMS_TFR_CASE_RSN).alias("_lkp"),
             (col("_main.TRF_CASE_RSN_CODE") == col("_lkp.TFR_CASE_RSN_CODE")),
             "left"
         ).select(
-            *[df_mplt_lkp_chain_4[c] for c in df_mplt_lkp_chain_4.columns],
-            *[df_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_DMNS_EMS_TFR_CASE_RSN[c] for c in df_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_DMNS_EMS_TFR_CASE_RSN.columns if c not in df_mplt_lkp_chain_4.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_DMNS_EMS_TFR_CASE_RSN[c] for c in df_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_DMNS_EMS_TFR_CASE_RSN.columns if c not in _lkp_input.columns]
         )
         
         logger.info("Step: read_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_DMNS_EMS_TFR_TYPE")
@@ -995,15 +1008,17 @@ WHERE TFR_CASE_RSN_SCHM_CODE = 'EMS'"""
         
         logger.info("Step: apply_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_DMNS_EMS_TFR_TYPE")
         # Lookup: apply_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_DMNS_EMS_TFR_TYPE
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_mplt_lkp_chain_4
         # Join condition: REF_CASE_TYPE_CODE=TFR_TYPE_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_4 = df_mplt_lkp_chain_4.alias("_main").join(
+        df_mplt_lkp_chain_4 = _lkp_input.alias("_main").join(
             broadcast(df_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_DMNS_EMS_TFR_TYPE).alias("_lkp"),
             (col("_main.REF_CASE_TYPE_CODE") == col("_lkp.TFR_TYPE_CODE")),
             "left"
         ).select(
-            *[df_mplt_lkp_chain_4[c] for c in df_mplt_lkp_chain_4.columns],
-            *[df_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_DMNS_EMS_TFR_TYPE[c] for c in df_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_DMNS_EMS_TFR_TYPE.columns if c not in df_mplt_lkp_chain_4.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_DMNS_EMS_TFR_TYPE[c] for c in df_MPLT_LKP_EMS_REHSE_ANLS_KEY_LKP_DDS_DMNS_EMS_TFR_TYPE.columns if c not in _lkp_input.columns]
         )
         
         logger.info("Step: rename_EXPTRANS2")
@@ -1023,11 +1038,19 @@ WHERE TFR_CASE_RSN_SCHM_CODE = 'EMS'"""
         df_MPLT_LKP_EMS_REHSE_ANLS_KEY_EXPTRANS2 = df_MPLT_LKP_EMS_REHSE_ANLS_KEY_EXPTRANS2.withColumn("DSTR_BRD_DSTR_DMNS_KEY1", expr("CASE WHEN (DSTR_BRD_DSTR_DMNS_KEY IS NULL) THEN 0 ELSE DSTR_BRD_DSTR_DMNS_KEY END"))
         df_MPLT_LKP_EMS_REHSE_ANLS_KEY_EXPTRANS2 = df_MPLT_LKP_EMS_REHSE_ANLS_KEY_EXPTRANS2.withColumn("TFR_CASE_RSN_DMNS_KEY1", expr("CASE WHEN (TFR_CASE_RSN_DMNS_KEY IS NULL) THEN 0 ELSE TFR_CASE_RSN_DMNS_KEY END"))
         df_MPLT_LKP_EMS_REHSE_ANLS_KEY_EXPTRANS2 = df_MPLT_LKP_EMS_REHSE_ANLS_KEY_EXPTRANS2.withColumn("TFR_TYPE_DMNS_KEY1", expr("CASE WHEN (TFR_TYPE_DMNS_KEY IS NULL) THEN 0 ELSE TFR_TYPE_DMNS_KEY END"))
+        # Ensure any missing pass-through columns exist (no connector feeding them)
+        # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_MPLT_LKP_EMS_REHSE_ANLS_KEY_EXPTRANS2", df_MPLT_LKP_EMS_REHSE_ANLS_KEY_EXPTRANS2)
         
         logger.info("Step: apply_MPLT_LKP_EMS_REHSE_ANLS_KEY")
         # Expression: apply_MPLT_LKP_EMS_REHSE_ANLS_KEY
         df_MPLT_LKP_EMS_REHSE_ANLS_KEY = df_MPLT_LKP_EMS_REHSE_ANLS_KEY_EXPTRANS2
+        df_MPLT_LKP_EMS_REHSE_ANLS_KEY = df_MPLT_LKP_EMS_REHSE_ANLS_KEY.drop("TIME_DMNS_KEY").withColumnRenamed("TIME_DMNS_KEY1", "TIME_DMNS_KEY")
+        df_MPLT_LKP_EMS_REHSE_ANLS_KEY = df_MPLT_LKP_EMS_REHSE_ANLS_KEY.drop("EST_SCD_KEY").withColumnRenamed("EST_SCD_KEY1", "EST_SCD_KEY")
+        df_MPLT_LKP_EMS_REHSE_ANLS_KEY = df_MPLT_LKP_EMS_REHSE_ANLS_KEY.drop("DSTR_CHC_DSTR_SCD_KEY").withColumnRenamed("DSTR_CHC_DSTR_SCD_KEY1", "DSTR_CHC_DSTR_SCD_KEY")
+        df_MPLT_LKP_EMS_REHSE_ANLS_KEY = df_MPLT_LKP_EMS_REHSE_ANLS_KEY.drop("DSTR_BRD_DSTR_DMNS_KEY").withColumnRenamed("DSTR_BRD_DSTR_DMNS_KEY1", "DSTR_BRD_DSTR_DMNS_KEY")
+        df_MPLT_LKP_EMS_REHSE_ANLS_KEY = df_MPLT_LKP_EMS_REHSE_ANLS_KEY.drop("TFR_CASE_RSN_DMNS_KEY").withColumnRenamed("TFR_CASE_RSN_DMNS_KEY1", "TFR_CASE_RSN_DMNS_KEY")
+        df_MPLT_LKP_EMS_REHSE_ANLS_KEY = df_MPLT_LKP_EMS_REHSE_ANLS_KEY.drop("TFR_TYPE_DMNS_KEY").withColumnRenamed("TFR_TYPE_DMNS_KEY1", "TFR_TYPE_DMNS_KEY")
         ctx.register_df("df_MPLT_LKP_EMS_REHSE_ANLS_KEY", df_MPLT_LKP_EMS_REHSE_ANLS_KEY)
         
         logger.info("Step: apply_AGGTRANS")
@@ -1041,14 +1064,14 @@ WHERE TFR_CASE_RSN_SCHM_CODE = 'EMS'"""
             col("DSTR_CHC_DSTR_SCD_KEY"),
             col("DSTR_BRD_DSTR_DMNS_KEY"),
             col("TFR_CASE_RSN_DMNS_KEY"),
-            col("TFR_TYPE_DMNS_KEY")        )
-        df_AGGTRANS = _agg_input.groupBy("EST_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "TFR_TYPE_DMNS_KEY", "TFR_CASE_RSN_DMNS_KEY", "TIME_DMNS_KEY", "OR_TYPE_CODE")
+            col("TFR_TYPE_DMNS_KEY"),
+            expr("0").alias("REHSE_BF_CASE_CNT")        )
+        df_AGGTRANS = _agg_input.groupBy("EST_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "TFR_TYPE_DMNS_KEY", "TFR_CASE_RSN_DMNS_KEY", "TIME_DMNS_KEY", "OR_TYPE_CODE", "REHSE_BF_CASE_CNT")
         df_AGGTRANS = df_AGGTRANS.agg(
-            count(cast(TIME_DMNS_KEY as string) || cast(EST_SCD_KEY as string) || cast(DSTR_CHC_DSTR_SCD_KEY as string) || cast(DSTR_BRD_DSTR_DMNS_KEY as string) || cast(TFR_CASE_RSN_DMNS_KEY as string) || cast(TFR_TYPE_DMNS_KEY as string) || cast(OR_TYPE_CODE as string) , SEQ = 1).alias("REHSE_NEW_CASE_CNT"),
-            count(cast(TIME_DMNS_KEY as string) || cast(EST_SCD_KEY as string) || cast(DSTR_CHC_DSTR_SCD_KEY as string) || cast(DSTR_BRD_DSTR_DMNS_KEY as string) || cast(TFR_CASE_RSN_DMNS_KEY as string) || cast(TFR_TYPE_DMNS_KEY as string) || cast(OR_TYPE_CODE as string) , SEQ = 2).alias("REHSE_OSTD_CASE_CNT"),
-            count(cast(TIME_DMNS_KEY as string) || cast(EST_SCD_KEY as string) || cast(DSTR_CHC_DSTR_SCD_KEY as string) || cast(DSTR_BRD_DSTR_DMNS_KEY as string) || cast(TFR_CASE_RSN_DMNS_KEY as string) || cast(TFR_TYPE_DMNS_KEY as string) || cast(OR_TYPE_CODE as string) , SEQ = 3).alias("REHSE_STL_CASE_CNT"),
-            count(cast(TIME_DMNS_KEY as string) || cast(EST_SCD_KEY as string) || cast(DSTR_CHC_DSTR_SCD_KEY as string) || cast(DSTR_BRD_DSTR_DMNS_KEY as string) || cast(TFR_CASE_RSN_DMNS_KEY as string) || cast(TFR_TYPE_DMNS_KEY as string) || cast(OR_TYPE_CODE as string) , SEQ = 4).alias("REHSE_CNCL_CASE_CNT"),
-            0.alias("REHSE_BF_CASE_CNT")
+            count(when(expr("""SEQ = 1"""), expr("cast(TIME_DMNS_KEY as string) || cast(EST_SCD_KEY as string) || cast(DSTR_CHC_DSTR_SCD_KEY as string) || cast(DSTR_BRD_DSTR_DMNS_KEY as string) || cast(TFR_CASE_RSN_DMNS_KEY as string) || cast(TFR_TYPE_DMNS_KEY as string) || cast(OR_TYPE_CODE as string)"))).alias("REHSE_NEW_CASE_CNT"),
+            count(when(expr("""SEQ = 2"""), expr("cast(TIME_DMNS_KEY as string) || cast(EST_SCD_KEY as string) || cast(DSTR_CHC_DSTR_SCD_KEY as string) || cast(DSTR_BRD_DSTR_DMNS_KEY as string) || cast(TFR_CASE_RSN_DMNS_KEY as string) || cast(TFR_TYPE_DMNS_KEY as string) || cast(OR_TYPE_CODE as string)"))).alias("REHSE_OSTD_CASE_CNT"),
+            count(when(expr("""SEQ = 3"""), expr("cast(TIME_DMNS_KEY as string) || cast(EST_SCD_KEY as string) || cast(DSTR_CHC_DSTR_SCD_KEY as string) || cast(DSTR_BRD_DSTR_DMNS_KEY as string) || cast(TFR_CASE_RSN_DMNS_KEY as string) || cast(TFR_TYPE_DMNS_KEY as string) || cast(OR_TYPE_CODE as string)"))).alias("REHSE_STL_CASE_CNT"),
+            count(when(expr("""SEQ = 4"""), expr("cast(TIME_DMNS_KEY as string) || cast(EST_SCD_KEY as string) || cast(DSTR_CHC_DSTR_SCD_KEY as string) || cast(DSTR_BRD_DSTR_DMNS_KEY as string) || cast(TFR_CASE_RSN_DMNS_KEY as string) || cast(TFR_TYPE_DMNS_KEY as string) || cast(OR_TYPE_CODE as string)"))).alias("REHSE_CNCL_CASE_CNT")
         )
         ctx.register_df("df_AGGTRANS", df_AGGTRANS)
         

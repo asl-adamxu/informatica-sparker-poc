@@ -22,8 +22,8 @@ EXECUTION_PLAN = [
     "steps": [
       {
         "type": "session",
-        "name": "S_EMS_PRHE_HSE_STCK_MTH_DPA_TRUNCATE",
-        "mapping_name": "M_UTL_DPA_TRUNCATE"
+        "name": "S_EIS_PRHE_HSE_STCK_MTH_SSA_TRUNCATE",
+        "mapping_name": "M_UTL_SSA_TRUNCATE"
       },
       {
         "type": "session",
@@ -32,8 +32,8 @@ EXECUTION_PLAN = [
       },
       {
         "type": "session",
-        "name": "S_EIS_PRHE_HSE_STCK_MTH_SSA_TRUNCATE",
-        "mapping_name": "M_UTL_SSA_TRUNCATE"
+        "name": "S_EMS_PRHE_HSE_STCK_MTH_DPA_TRUNCATE",
+        "mapping_name": "M_UTL_DPA_TRUNCATE"
       }
     ]
   },
@@ -51,11 +51,6 @@ EXECUTION_PLAN = [
       },
       {
         "type": "session",
-        "name": "S_EMS_DPA_SUMMARIZE_FACT_REHSE_ANLS",
-        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_REHSE_ANLS"
-      },
-      {
-        "type": "session",
         "name": "S_EMS_DPA_SUMMARIZE_FACT_IH_STCK_MTH_ANLS",
         "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_IH_STCK_MTH_ANLS"
       },
@@ -63,6 +58,11 @@ EXECUTION_PLAN = [
         "type": "session",
         "name": "S_EMS_DPA_SUMMARIZE_FACT_IH_CASE_MTH_ANLS",
         "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_IH_CASE_MTH_ANLS"
+      },
+      {
+        "type": "session",
+        "name": "S_EMS_DPA_SUMMARIZE_FACT_REHSE_ANLS",
+        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_REHSE_ANLS"
       },
       {
         "type": "session",
@@ -76,11 +76,6 @@ EXECUTION_PLAN = [
     "steps": [
       {
         "type": "session",
-        "name": "S_EMS_DPA_SUMMARIZE_FACT_PRH_STCK_MTH_ANLS_A",
-        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_PRH_STCK_MTH_ANLS_A"
-      },
-      {
-        "type": "session",
         "name": "S_EMS_DDS_APLY_FACT_RCVR_FLAT_EXCP_RPT",
         "mapping_name": "M_EMS_DDS_APLY_FACT_RCVR_FLAT_EXCP_RPT"
       },
@@ -91,8 +86,18 @@ EXECUTION_PLAN = [
       },
       {
         "type": "session",
+        "name": "S_EMS_DPA_SUMMARIZE_FACT_PRH_STCK_MTH_ANLS_A",
+        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_PRH_STCK_MTH_ANLS_A"
+      },
+      {
+        "type": "session",
         "name": "S_EMS_DDS_APLY_FACT_IH_CASE_MTH_ANLS",
         "mapping_name": "M_EMS_DDS_APLY_FACT_IH_CASE_MTH_ANLS"
+      },
+      {
+        "type": "session",
+        "name": "S_EMS_DDS_APLY_FACT_IH_STCK_MTH_ANLS",
+        "mapping_name": "M_EMS_DDS_APLY_FACT_IH_STCK_MTH_ANLS"
       },
       {
         "type": "session",
@@ -103,11 +108,6 @@ EXECUTION_PLAN = [
         "type": "session",
         "name": "S_EMS_DDS_APLY_FACT_REHSE_ANLS",
         "mapping_name": "M_EMS_DDS_APLY_FACT_REHSE_ANLS"
-      },
-      {
-        "type": "session",
-        "name": "S_EMS_DDS_APLY_FACT_IH_STCK_MTH_ANLS",
-        "mapping_name": "M_EMS_DDS_APLY_FACT_IH_STCK_MTH_ANLS"
       },
       {
         "type": "session",
@@ -151,6 +151,11 @@ EXECUTION_PLAN = [
     "steps": [
       {
         "type": "session",
+        "name": "S_EMS_DPA_SUMMARIZE_FACT_RCVR_FLAT_BASE_E",
+        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_RCVR_FLAT_BASE_E"
+      },
+      {
+        "type": "session",
         "name": "S_EMS_DDS_APLY_FACT_PRH_VCNT_TERM",
         "mapping_name": "M_EMS_DDS_APLY_FACT_PRH_VCNT_TERM"
       },
@@ -158,11 +163,6 @@ EXECUTION_PLAN = [
         "type": "session",
         "name": "S_EMS_DDS_APLY_FACT_PRH_STCK_MTH_ANLS",
         "mapping_name": "M_EMS_DDS_APLY_FACT_PRH_STCK_MTH_ANLS"
-      },
-      {
-        "type": "session",
-        "name": "S_EMS_DPA_SUMMARIZE_FACT_RCVR_FLAT_BASE_E",
-        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_RCVR_FLAT_BASE_E"
       }
     ]
   },

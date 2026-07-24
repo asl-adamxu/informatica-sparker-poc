@@ -7,10 +7,7 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
-_builtin_max = max
-_builtin_min = min
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 
@@ -427,15 +424,19 @@ SELECT     	RM.UNIT_KEY as UNIT_KEY,
         from pyspark.sql.window import Window as _Window
         _w = _Window.partitionBy(col("UNIT_KEY")).orderBy(lit(0).desc())
         df_LKPTRANS = df_LKPTRANS.withColumn("_rn", row_number().over(_w)).filter(col("_rn") == 1).drop("_rn")
-        # Join condition: UNIT_KEY=UNIT_KEY
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_FILTRANS
+        _lkp_input = _lkp_input.withColumn("UNIT_KEY_IN", col("UNIT_KEY"))
+        _lkp_input = _lkp_input.withColumn("TNCY_AGRMT_CMNC_DATE_IN", col("TNCY_AGRMT_CMNC_DATE"))
+        # Join condition: UNIT_KEY_IN=UNIT_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_FILTRANS.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_LKPTRANS).alias("_lkp"),
-            (col("_main.UNIT_KEY") == col("_lkp.UNIT_KEY")),
+            (col("_main.UNIT_KEY_IN") == col("_lkp.UNIT_KEY")),
             "left"
         ).select(
-            *[df_FILTRANS[c] for c in df_FILTRANS.columns],
-            *[df_LKPTRANS[c] for c in df_LKPTRANS.columns if c not in df_FILTRANS.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKPTRANS[c] for c in df_LKPTRANS.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS")
@@ -487,15 +488,18 @@ select t1.unit_key, e1, e2, e3 from
         # Lookup: apply_LKP_UNIT_ADVS_ENV_CODE_IND
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_UNIT_ADVS_ENV_CODE_IND = df_LKP_UNIT_ADVS_ENV_CODE_IND.dropDuplicates(subset=["UNIT_KEY"])
-        # Join condition: UNIT_KEY1=UNIT_KEY
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_FILTRANS1
+        _lkp_input = _lkp_input.withColumn("UNIT_KEY_IN", col("UNIT_KEY1"))
+        # Join condition: UNIT_KEY_IN=UNIT_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_2 = df_FILTRANS1.alias("_main").join(
+        df_lkp_merge_2 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_UNIT_ADVS_ENV_CODE_IND).alias("_lkp"),
-            (col("_main.UNIT_KEY1") == col("_lkp.UNIT_KEY")),
+            (col("_main.UNIT_KEY_IN") == col("_lkp.UNIT_KEY")),
             "left"
         ).select(
-            *[df_FILTRANS1[c] for c in df_FILTRANS1.columns],
-            *[df_LKP_UNIT_ADVS_ENV_CODE_IND[c] for c in df_LKP_UNIT_ADVS_ENV_CODE_IND.columns if c not in df_FILTRANS1.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_UNIT_ADVS_ENV_CODE_IND[c] for c in df_LKP_UNIT_ADVS_ENV_CODE_IND.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)        
         logger.info("Step: apply_EXPTRANS2")

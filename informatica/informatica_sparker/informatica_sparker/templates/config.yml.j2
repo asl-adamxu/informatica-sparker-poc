@@ -135,7 +135,7 @@ objects:
   
   {{ table_name }}:
     format: "csv"
-    path: "{{ table_info.get('path', '/tmp/' + table_name) | replace('__SOURCE_FILE_DIR__', paths.source_file_dir) }}"
+    path: "{{ table_info.get('path', '/var/lib/airflow/dags/' + table_name) | replace('__SOURCE_FILE_DIR__', paths.source_file_dir) }}"
     delimiter: "{{ table_info.get('delimiter', ',') }}"
     header: "{{ table_info.get('header', 'true') }}"
   {%- endif %}

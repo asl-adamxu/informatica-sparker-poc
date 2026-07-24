@@ -7,10 +7,7 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
-_builtin_max = max
-_builtin_min = min
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 
@@ -81,6 +78,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         if _csv_cols:
             # Rename CSV columns by position to match Informatica source definition field names
             _src_cols = ["TABLE"]
+            _builtin_min = min
             for _i in range(_builtin_min([len(_csv_cols), len(_src_cols)])):
                 if _csv_cols[_i].lower() != _src_cols[_i].lower():
                     df_UTL_SSA_TBL_LIST = df_UTL_SSA_TBL_LIST.withColumnRenamed(_csv_cols[_i], _src_cols[_i])
