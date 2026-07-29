@@ -8,6 +8,8 @@
 
 import env.runtime_lib as lib
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
+_builtin_max = max
+_builtin_min = min
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 
@@ -729,7 +731,7 @@ WHERE
         df_EXPTRANS_1 = df_EXPTRANS_1.withColumn("TRF_DMND_CNT", expr("0"))
         df_EXPTRANS_1 = df_EXPTRANS_1.withColumn("OCPY_UNIT_CNT", expr("UNIT_CNT - VCNT_UNIT_CNT - UND_OFR_UNIT_CNT"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["EST_KEY", "DSTR_BRD_EMMS_DSTR_KEY", "DSTR_CHC_EMMS_DSTR_KEY", "UNIT_TYPE_CODE", "MIN_UNIT_HEAD_CNT", "MAX_UNIT_HEAD_CNT", "UNIT_IFA_AREA", "UNIT_CNT", "VCNT_UNIT_CNT", "UND_OFR_UNIT_CNT"]:
+        for _col in ["EST_KEY", "DSTR_BRD_EMMS_DSTR_KEY", "DSTR_CHC_EMMS_DSTR_KEY", "UNIT_TYPE_CODE", "MIN_UNIT_HEAD_CNT", "MAX_UNIT_HEAD_CNT", "UNIT_IFA_AREA", "UNIT_CNT", "UND_OFR_UNIT_CNT", "VCNT_UNIT_CNT"]:
             if _col not in df_EXPTRANS_1.columns:
                 df_EXPTRANS_1 = df_EXPTRANS_1.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
@@ -987,7 +989,10 @@ TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN SOR_EMS_TAM_TNCY_AGRMT_STS.BGN_DATE
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup_4, allowMissingColumns=True)
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup_5, allowMissingColumns=True)
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup_6, allowMissingColumns=True)
-        # Select only union output columns
+        # Select only union output columns (add lit(None) for any missing)
+        for _col in ["TIME_DMNS_KEY", "EST_KEY", "DSTR_BRD_EMMS_DSTR_KEY", "DSTR_CHC_EMMS_DSTR_KEY", "UNIT_TYPE_CODE", "MIN_UNIT_HEAD_CNT", "MAX_UNIT_HEAD_CNT", "FCST_IND", "BLK_CNT", "UNIT_CNT", "OCPY_UNIT_CNT", "VCNT_UNIT_CNT", "UND_OFR_UNIT_CNT", "RCVR_UNIT_CNT", "RCVR_UNIT_TRWL_SIX_MTH_CNT", "RCVR_UNIT_GWL_SIX_MTH_CNT", "TRF_DMND_CNT", "EMMS_CLR_DMND_CNT", "EST_TNCY_ACT_DMND_CNT", "UNIT_IFA_AREA"]:
+            if _col not in df_Union_Transformation.columns:
+                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("TIME_DMNS_KEY", "EST_KEY", "DSTR_BRD_EMMS_DSTR_KEY", "DSTR_CHC_EMMS_DSTR_KEY", "UNIT_TYPE_CODE", "MIN_UNIT_HEAD_CNT", "MAX_UNIT_HEAD_CNT", "FCST_IND", "BLK_CNT", "UNIT_CNT", "OCPY_UNIT_CNT", "VCNT_UNIT_CNT", "UND_OFR_UNIT_CNT", "RCVR_UNIT_CNT", "RCVR_UNIT_TRWL_SIX_MTH_CNT", "RCVR_UNIT_GWL_SIX_MTH_CNT", "TRF_DMND_CNT", "EMMS_CLR_DMND_CNT", "EST_TNCY_ACT_DMND_CNT", "UNIT_IFA_AREA")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
@@ -1221,6 +1226,11 @@ WHERE add_months(to_date('$$v_rpt_mth'||'01', 'YYYYMMDD'),-1)-1 between DDS_HRCH
         _field_map = {"BLK_CNT": "BLK_CNT", "DSTR_BRD_DSTR_DMNS_KEY": "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY": "DSTR_CHC_DSTR_SCD_KEY", "EMMS_CLR_DMND_CNT": "EMMS_CLR_DMND_CNT", "EST_SCD_KEY": "EST_SCD_KEY", "EST_TNCY_ACT_DMND_CNT": "EST_TNCY_ACT_DMND_CNT", "FLAT_TYPE_DMNS_KEY": "FLAT_TYPE_DMNS_KEY", "LU_CLR_DMND_CNT": "LU_CLR_DMND_CNT", "LU_CLR_EXRC_DMND_CNT": "LU_CLR_EXRC_DMND_CNT", "LU_FCST_IND": "LU_FCST_IND", "MAX_UNIT_HEAD_CNT": "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT": "MIN_UNIT_HEAD_CNT", "OCPY_UNIT_CNT": "OCPY_UNIT_CNT", "RCVR_UNIT_CNT": "RCVR_UNIT_CNT", "RCVR_UNIT_GWL_CNT": "RCVR_UNIT_GWL_CNT", "RCVR_UNIT_TRWL_CNT": "RCVR_UNIT_TRWL_CNT", "TFR_DMND_CNT": "TFR_DMND_CNT", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "UNIT_CNT": "UNIT_CNT", "UNIT_IFA_AREA": "UNIT_IFA_AREA", "UNIT_UND_OFR_CNT": "UNIT_UND_OFR_CNT", "VCNT_UNIT_CNT": "VCNT_UNIT_CNT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['TIME_DMNS_KEY', 'EST_SCD_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'FLAT_TYPE_DMNS_KEY', 'MAX_UNIT_HEAD_CNT', 'MIN_UNIT_HEAD_CNT', 'LU_FCST_IND', 'UNIT_IFA_AREA', 'BLK_CNT', 'UNIT_CNT', 'OCPY_UNIT_CNT', 'VCNT_UNIT_CNT', 'UNIT_UND_OFR_CNT', 'RCVR_UNIT_CNT', 'RCVR_UNIT_TRWL_CNT', 'RCVR_UNIT_GWL_CNT', 'LU_CLR_DMND_CNT', 'LU_CLR_EXRC_DMND_CNT', 'EMMS_CLR_DMND_CNT', 'EST_TNCY_ACT_DMND_CNT', 'TFR_DMND_CNT']

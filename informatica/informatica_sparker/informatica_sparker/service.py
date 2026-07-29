@@ -48,6 +48,13 @@ class ConversionService:
 
         workflow_analysis = parser.get_workflow_analysis()
 
+        # Collect file source info from session configurations (overrides default paths)
+        # Must be done before mapping loop so handlers can resolve flat file lookups.
+        session_file_sources = {}
+        for sess in workflow_analysis.get("sessions", []):
+            for src_inst, src_info in sess.get("file_sources", {}).items():
+                session_file_sources[src_inst] = src_info
+
         all_files: List[GeneratedFile] = []
         all_warnings: List[str] = []
         all_errors: List[str] = []
@@ -65,7 +72,8 @@ class ConversionService:
             all_source_detections.extend(source_detections)
 
             try:
-                handlers = TransformHandlers(mapping, self.user_config, self.logger)
+                handlers = TransformHandlers(mapping, self.user_config, self.logger,
+                                             session_file_sources=session_file_sources)
                 ir_plan = handlers.build_ir_plan()
                 # Set source/target DB type on plan
                 if self.user_config.source_db_type:
@@ -113,12 +121,6 @@ class ConversionService:
         )
         if workflow_files:
             all_files.extend(workflow_files)
-
-        # Collect file source info from session configurations (overrides default paths)
-        session_file_sources = {}
-        for sess in workflow_analysis.get("sessions", []):
-            for src_inst, src_info in sess.get("file_sources", {}).items():
-                session_file_sources[src_inst] = src_info
 
         config_file = self._generate_config_file(
             mapping_names, mappings, all_source_detections, parser.folder_name,
@@ -869,7 +871,10 @@ class ConversionService:
             paths = {
                 "input_base": "${INPUT_PATH:/tmp}",
                 "output_base": "${OUTPUT_PATH:/tmp}",
-                "source_file_dir": "${PMSOURCE_FILE_DIR:/tmp}",
+                "source_file_dir": "${PMSOURCE_FILE_DIR:/var/lib/airflow/dags}",
+                "source_file_dir_ref": "${PMSOURCE_FILE_DIR:/var/lib/airflow/dags}",
+                "target_file_dir": "${PMTargetFileDir:/var/lib/airflow/dags}",
+                "target_file_dir_ref": "${PMTargetFileDir}",
             }
 
             for mapping in mappings:
@@ -947,6 +952,25 @@ class ConversionService:
                             "datatype": var.datatype or "string",
                             "default_value": var.default_value or "",
                         }
+
+            # Collect flat file lookups from session_file_sources (no SQL/table — file-based)
+            if session_file_sources:
+                for _lkp_name, _lkp_info in session_file_sources.items():
+                    if _lkp_info.get("source_type") == "lookup" and _lkp_name not in tables:
+                        _fdir = _lkp_info.get("file directory", "")
+                        _fname = _lkp_info.get("filename", "")
+                        if _fname:
+                            _fdir_clean = _fdir.replace("$PMLookupFileDir", "__SOURCE_FILE_DIR__").replace("\\", "/").strip("/")
+                            _lkp_path = f"{_fdir_clean}/{_fname}" if _fdir_clean else f"__SOURCE_FILE_DIR__/{_fname}"
+                            tables[_lkp_name] = {
+                                "connection": "flatfile",
+                                "database": "FlatFile",
+                                "schema": "",
+                                "type": "source",
+                                "is_flat_file": True,
+                                "format": "csv",
+                                "path": _lkp_path,
+                            }
 
             # Also collect from source_detections to ensure full coverage
             for sd in source_detections:

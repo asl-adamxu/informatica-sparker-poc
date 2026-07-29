@@ -8,6 +8,8 @@
 
 import env.runtime_lib as lib
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
+_builtin_max = max
+_builtin_min = min
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 
@@ -478,6 +480,46 @@ WHERE add_months(to_date('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
             *[df_LKP_DDS_DMNS_EMS_MGT_MODE[c] for c in df_LKP_DDS_DMNS_EMS_MGT_MODE.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_3", df_lkp_merge_3)        
+        logger.info("Step: read_LKP_ALCT_STS_CODE")
+        # Read from file (prefer config.yml objects metadata if present)
+        # Determine object/table name emitted by the generator (if any)
+        _obj_name = "LKP_ALCT_STS_CODE"
+        _file_options = {}
+        if _obj_name:
+            _obj = objects.get(_obj_name)
+            if _obj and isinstance(_obj, dict):
+                _file_path = _obj.get('path')
+                _file_format = _obj.get('format', 'csv')
+                # merge options if present
+                try:
+                    _file_opts_from_obj = _obj.get('options', {})
+                    if isinstance(_file_opts_from_obj, dict):
+                        _file_options = {**_file_options, **_file_opts_from_obj}
+                except Exception:
+                    pass
+        if not _file_path:
+            # No file path found in config.yml or step params — fail fast so generator users must provide paths
+            raise RuntimeError(f"Missing file path for object '{_obj_name}' in config.yml or step params for mapping 'M_EMS_DPA_SUMMARIZE_FACT_PRH_STCK_MTH_ANLS_A'. Please define the file.path for this object.")
+        df_LKP_ALCT_STS_CODE = lib.read_file(
+            spark,
+            _file_path,
+            format=_file_format,
+            options=_file_options
+        )
+        _src_cols = ["RPT_DATE", "EST_TYPE", "ESTATE", "BLK", "ROOM", "FLAT_STAT", "FL_ALLO_ST", "DT_ST_CHG", "APPN_NO", "FLAT_TYPE", "IFA", "LIVE_AREA", "ENV_IND", "TOILET", "ORIENT", "LIFT_SERV", "CV", "DT_TK_OVER", "DT_AVIL", "NO_REFUSE", "RES_CAT", "RES_OP", "DT_RES_EFF", "REMARK", "HEAD_MIN", "HEAD_MAX", "DIST", "NET_RENT", "NET_RATE", "OFFER_STAT", "DT_COM", "DT_INTAKE", "ALLO_TYPE", "EIS_RES_CAT", "VAC_PERIOD", "FIN_YR", "RF_REF_DT", "BLK_TYPE", "FBE_ID", "PACK_SIZE", "DT_OFFER", "MAAS", "EST_TYPE1", "ESTATE1", "BLK1", "ROOM1"]
+        _csv_cols = df_LKP_ALCT_STS_CODE.columns
+        if _csv_cols:
+            # Rename CSV columns by position to match Informatica source definition field names
+            for _i in range(_builtin_min([len(_csv_cols), len(_src_cols)])):
+                if _csv_cols[_i].lower() != _src_cols[_i].lower():
+                    df_LKP_ALCT_STS_CODE = df_LKP_ALCT_STS_CODE.withColumnRenamed(_csv_cols[_i], _src_cols[_i])
+        else:
+            logger.warning("Source file '%s' is empty or has no columns", _file_path)
+            df_LKP_ALCT_STS_CODE = spark.createDataFrame([], StructType(
+                [StructField(f, StringType(), True) for f in _src_cols]
+            ))
+        ctx.register_df("df_LKP_ALCT_STS_CODE", df_LKP_ALCT_STS_CODE)
+        
         logger.info("Step: apply_LKP_ALCT_STS_CODE")
         # Lookup: apply_LKP_ALCT_STS_CODE
         # Use First Value / Use Any Value: dedup by join keys
@@ -657,10 +699,28 @@ WHERE HSC_UNIT_TYPE_SCHM_CODE = 'TYP123'"""
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS6", df_EXPTRANS6)
         
+        logger.info("Step: merge_AGGTRANS_0")
+        # Lookup: merge_AGGTRANS_0
+        # Merge on common columns — drop lookup columns that duplicate non-key
+        # input columns (e.g. EST_KEY from both sides → ambiguity).
+        _cc = list(dict.fromkeys(c for c in df_EXPTRANS6.columns if c in df_lkp_merge_9.columns))
+        if _cc:
+            __lkp_dup = [c for c in df_lkp_merge_9.columns if c in df_EXPTRANS6.columns and c not in _cc]
+            df_merge_10 = df_EXPTRANS6.join(
+                df_lkp_merge_9.drop(*__lkp_dup) if __lkp_dup else df_lkp_merge_9,
+                on=_cc, how="left"
+            )
+        else:
+            logger.warning("No common columns between df_EXPTRANS6 and df_lkp_merge_9 — using synthetic key join")
+            df_merge_10 = df_EXPTRANS6.withColumn("_join_key", lit(1)).join(
+                df_lkp_merge_9.withColumn("_join_key", lit(1)),
+                on="_join_key", how="left").drop("_join_key")
+        ctx.register_df("df_merge_10", df_merge_10)
+        
         logger.info("Step: apply_AGGTRANS")
         # Aggregator: apply_AGGTRANS
         # Select only mapped upstream columns with correct port names
-        _agg_input = df_EXPTRANS6.select(
+        _agg_input = df_merge_10.select(
             col("OUT_HSC_UNIT_TYPE_DMNS_KEY").alias("HSC_UNIT_TYPE_DMNS_KEY"),
             col("TIME_DMNS_KEY"),
             col("EST_SCD_KEY"),
@@ -726,6 +786,11 @@ WHERE HSC_UNIT_TYPE_SCHM_CODE = 'TYP123'"""
         _field_map = {"ALCT_STS_DMNS_KEY": "ALCT_STS_DMNS_KEY", "BLK_SCD_KEY": "BLK_SCD_KEY1", "DSTR_BRD_DSTR_DMNS_KEY": "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY": "DSTR_CHC_DSTR_SCD_KEY", "EST_SCD_KEY": "EST_SCD_KEY", "FLAT_TYPE_DMNS_KEY": "FLAT_TYPE_DMNS_KEY", "HSC_UNIT_TYPE_DMNS_KEY": "HSC_UNIT_TYPE_DMNS_KEY", "MAX_UNIT_HEAD_CNT": "MAX_UNIT_HEAD_CNT", "MAX_UNIT_VCNCY_DAY_NUM": "DUMMY", "MGT_MODE_DMNS_KEY": "MGT_MODE_DMNS_KEY", "MIN_UNIT_HEAD_CNT": "MIN_UNIT_HEAD_CNT", "RCVR_UNIT_CNT": "RCVR_UNIT_CNT1", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TOT_UNIT_VCNCY_DAY_NUM": "DUMMY", "UNIT_ADVS_ENV_IND": "UNIT_ADVS_ENV_IND", "UNIT_SIZE_DMNS_KEY": "UNIT_SIZE_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['TIME_DMNS_KEY', 'EST_SCD_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'FLAT_TYPE_DMNS_KEY', 'UNIT_SIZE_DMNS_KEY', 'ALCT_STS_DMNS_KEY', 'MGT_MODE_DMNS_KEY', 'MAX_UNIT_HEAD_CNT', 'MIN_UNIT_HEAD_CNT', 'UNIT_ADVS_ENV_IND', 'BLK_CNT', 'PRVS_UNIT_CNT', 'RCVR_UNIT_CNT', 'MAX_UNIT_VCNCY_DAY_NUM', 'TOT_UNIT_VCNCY_DAY_NUM', 'RNTL_UNIT_CNT', 'MAX_UNIT_MTH_RENT_AMT', 'MIN_UNIT_MTH_RENT_AMT', 'TOT_UNIT_MTH_RENT_AMT', 'MAX_UNIT_IFA_RENT_AMT', 'MIN_UNIT_IFA_RENT_AMT', 'TOT_UNIT_IFA_RENT_AMT', 'STA_UNIT_CNT', 'STA_OCPY_UNIT_CNT', 'STA_VCNT_UNIT_ALCT_CNT', 'STA_UNIT_UND_OFR_CNT', 'VCNT_UNIT_UND_RFBH_CNT', 'UNIT_UND_OFR_RFBH_CNT', 'RLET_UNIT_CNT', 'RLET_AFT_RFBH_CNT', 'RLET_AFT_TCHUP_WO_CNT', 'UNIT_UND_FRZ_RFBH_CNT', 'BLK_SCD_KEY', 'HSC_UNIT_TYPE_DMNS_KEY', 'STA_NONLTB_UNIT_CNT', 'REC_RLS_IND']

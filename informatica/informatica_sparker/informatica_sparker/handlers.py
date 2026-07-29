@@ -21,11 +21,14 @@ from .logger import ConversionLogger, LogLevel, LogStage
 
 class TransformHandlers:
 
-    def __init__(self, mapping: MappingDefinition, user_config: UserConfig, logger: Optional[ConversionLogger] = None):
+    def __init__(self, mapping: MappingDefinition, user_config: UserConfig,
+                 logger: Optional[ConversionLogger] = None,
+                 session_file_sources: Optional[Dict[str, Any]] = None):
         self.mapping = mapping
         self.user_config = user_config
         self.logger = logger or ConversionLogger()
         self.logger.set_current_mapping(mapping.name)
+        self.session_file_sources = session_file_sources or {}
         self.expr_translator = ExpressionTranslator(mapping_name=mapping.name, logger=self.logger)
         self._plan = None  # built in build_ir_plan
         self.transform_map: Dict[str, Transformation] = {}
@@ -670,7 +673,38 @@ class TransformHandlers:
             )
             if _has_upstream and not _has_sql_override:
                 plan.add_warning(f"No input DataFrame found for {instance.name}")
-            input_df = "df_source"
+
+            # When the Source Definition and Source Qualifier share the same
+            # instance name (e.g. HA_PRH_RNTL_UNIT), the Source is silently
+            # overwritten in instance_map and never dispatched. Detect this by
+            # checking for a same-named Source Definition in mapping.sources
+            # and generate the read step here on the fly.
+            if not _has_sql_override:
+                _src_def = None
+                for _s in self.mapping.sources:
+                    if _s.name == instance.name or instance.name.startswith(_s.name):
+                        _src_def = _s
+                        break
+                if _src_def:
+                    # Build a minimal source instance so we can call _handle_source
+                    _src_instance = Instance(
+                        name=instance.name,
+                        type="SOURCE",
+                        transformation_type="Source Definition",
+                        transformation_name=instance.name,
+                    )
+                    _src_step = self._handle_source(_src_instance, plan)
+                    if _src_step:
+                        _src_df = _src_step.df_output
+                        plan.add_step(_src_step)
+                        input_df = _src_df
+                        self.logger.log_transformation(
+                            instance.name, "SourceQualifier",
+                            f"Generated inline source read step for same-named Source {_src_def.name}",
+                            LogLevel.INFO,
+                        )
+            if not input_df:
+                input_df = "df_source"
 
         df_output = self._get_df_name("df_sq", instance)
         self._register_df(instance, df_output)
@@ -770,6 +804,20 @@ class TransformHandlers:
                 from .models import normalize_db_type
                 source_db_type = normalize_db_type(raw_type)
 
+        # When the SQL override is a complete SELECT, alias columns to match
+        # output port names by position.  This prevents ORA-00918 (ambiguous
+        # column) when the SELECT has duplicate bare column names (e.g. two
+        # APLY_KEY columns from different tables) — the aliases make them unique.
+        if use_sql_pushdown and final_sql and output_columns:
+            _aliased_sql = self._alias_sql_columns(final_sql, output_columns)
+            if _aliased_sql and _aliased_sql != final_sql:
+                self.logger.log_transformation(
+                    instance.name, "Source Qualifier",
+                    f"Aliased {len(output_columns)} columns in SQL pushdown query",
+                    LogLevel.INFO,
+                )
+                final_sql = _aliased_sql
+
         if use_sql_pushdown:
             # SQL Pushdown: execute native SQL on source database — no dialect translation
             # (Oracle (+) outer-join syntax, DECODE, etc. must be preserved as-is)
@@ -829,6 +877,72 @@ class TransformHandlers:
                         "database_type": source.database_type
                     })
         return sources
+
+    def _alias_sql_columns(self, sql: str, output_columns: List[str]) -> str:
+        """Add inline aliases only to duplicate columns in the SQL SELECT.
+        Preserves original SQL formatting — only inserts ' AS alias' after
+        duplicate column expressions without touching the rest of the text.
+        """
+        import re as _re
+        _sel_match = _re.match(
+            r'^\s*(SELECT\s+(?:DISTINCT\s+)?)(.*?)\bFROM\b',
+            sql, _re.IGNORECASE | _re.DOTALL
+        )
+        if not _sel_match:
+            return sql
+        _sel_prefix = _sel_match.group(1)
+        _col_list_str = _sel_match.group(2)
+        # Preserve the original spacing before FROM by using the raw match end
+        _from_part = sql[_sel_match.start(2) + len(_col_list_str):]
+        # Parse column list into (start, end, text) tuples, preserving original positions
+        _col_spans = []
+        _depth = 0
+        _start = 0
+        for _i, _ch in enumerate(_col_list_str):
+            if _ch == '(':
+                _depth += 1
+            elif _ch == ')':
+                _depth -= 1
+            elif _ch == ',' and _depth == 0:
+                _col_spans.append((_start, _i, _col_list_str[_start:_i]))
+                _start = _i + 1
+        _col_spans.append((_start, len(_col_list_str), _col_list_str[_start:]))
+
+        if len(_col_spans) != len(output_columns):
+            return sql
+
+        # Extract bare column names per span
+        _bare_names = []
+        for _s, _e, _txt in _col_spans:
+            _clean = _txt.strip()
+            _as_match = _re.search(r'\bAS\s+(\w+)', _clean, _re.IGNORECASE)
+            if _as_match:
+                _bare_names.append(_as_match.group(1))
+            else:
+                _dot_split = _clean.split('.')
+                _bare_names.append(_dot_split[-1].strip())
+
+        if len(_bare_names) == len(set(n.lower() for n in _bare_names)):
+            return sql
+
+        # Build result by inserting ' AS alias' at the end of duplicate columns only
+        _seen: Dict[str, int] = {}
+        _parts = []
+        _prev_end = 0
+        for _i, (_s, _e, _txt) in enumerate(_col_spans):
+            _bare = _bare_names[_i].lower()
+            _part = _col_list_str[_prev_end:_e]
+            if _bare in _seen:
+                # Strip trailing whitespace before appending alias, then restore it
+                _stripped = _part.rstrip()
+                _ws = _part[len(_stripped):]
+                _part = f"{_stripped} AS {output_columns[_i]}{_ws}"
+            _seen.setdefault(_bare, _i)
+            _parts.append(_part)
+            _prev_end = _e
+        _parts.append(_col_list_str[_prev_end:])
+
+        return f"{_sel_prefix}{''.join(_parts)}{_from_part}"
 
     def _handle_filter(self, instance: Instance, plan: IRPlan) -> Optional[IRStep]:
         input_df = self._get_input_df(instance.name)
@@ -1237,6 +1351,39 @@ class TransformHandlers:
                 table_name=lookup_table,
                 is_lookup=True
             ))
+        elif self.session_file_sources:
+            # Flat file lookup — read from file using session file source info
+            _lkp_file_info = self.session_file_sources.get(instance.name)
+            if _lkp_file_info and _lkp_file_info.get("filename"):
+                _lkp_file_dir = _lkp_file_info.get("file directory", "")
+                _lkp_file_name = _lkp_file_info.get("filename", "")
+                if _lkp_file_dir:
+                    _lkp_file_dir = _lkp_file_dir.replace("$PMLookupFileDir", "__SOURCE_FILE_DIR__")
+                _lkp_path = f"{_lkp_file_dir}/{_lkp_file_name}" if _lkp_file_dir else _lkp_file_name
+                # Collect field names from lookup transformation to rename CSV columns
+                # by position (the template's source_field_names mechanism).
+                _lkp_field_names = []
+                for _f in transform.fields:
+                    _pt = (_f.port_type or "").upper()
+                    if "OUTPUT" in _pt or "LOOKUP" in _pt or "INPUT/OUTPUT" in _pt:
+                        if "RETURN" not in _pt:
+                            _lkp_field_names.append(_f.name)
+                _rf_step = ReadFileStep(
+                    step_name=f"read_{instance.name}",
+                    df_output=lookup_df,
+                    file_path=_lkp_path,
+                    file_format="csv",
+                    is_lookup=True,
+                    table_name=instance.name,
+                )
+                if _lkp_field_names:
+                    _rf_step.params["source_field_names"] = _lkp_field_names
+                steps.append(_rf_step)
+                self.logger.log_transformation(
+                    instance.name, "Lookup",
+                    f"Flat file lookup: {_lkp_path} ({len(_lkp_field_names)} fields)",
+                    LogLevel.INFO,
+                )
 
         plan.lookup_dfs[instance.name] = lookup_df
 
@@ -1570,7 +1717,28 @@ class TransformHandlers:
                     "to": conn.to_field
                 })
 
-        # All columns are available through the chain — no merge steps needed.
+        # When the Aggregator has multiple upstream DataFrames (e.g. columns
+        # spread across EXPTRANS5 + EXPTRANS6 + JNRTRANS), merge extra inputs
+        # onto the primary input via common-column join (same as Expression handler).
+        all_inputs = self._get_all_input_dfs(instance.name)
+        extra_inputs = [df for df in all_inputs if df != input_df]
+        _pre_steps: List[IRStep] = []
+        if extra_inputs and input_df != "df_input":
+            _cur_df = input_df
+            for _i, _extra_df in enumerate(extra_inputs):
+                _merge_df = self._get_df_name("df_merge")
+                _pre_steps.append(ApplyLookupStep(
+                    step_name=f"merge_{instance.name}_{_i}",
+                    df_input=_cur_df,
+                    df_output=_merge_df,
+                    lookup_df=_extra_df,
+                    join_predicates=[],
+                    join_expr="__common_cols__",
+                    output_columns=[],
+                    lookup_type="left",
+                ))
+                _cur_df = _merge_df
+            input_df = _cur_df
 
         df_output = self._get_df_name("df_agg", instance)
         self._register_df(instance, df_output)
@@ -1667,6 +1835,9 @@ class TransformHandlers:
         # Pass mapping variables so template can do runtime $$ substitution
         if plan.mapping_variables:
             step.params["mapping_variables"] = plan.mapping_variables
+        if _pre_steps:
+            _pre_steps.append(step)
+            return _pre_steps
         return step
 
     def _translate_aggregation_expr(self, expr: str, field_name: str, use_fstr: bool = False) -> str:
@@ -1743,6 +1914,16 @@ class TransformHandlers:
 
         # Fallback: try general translation
         translated = self.expr_translator.translate(expr, "aggregation", field_name)
+        if use_fstr and '{' in translated:
+            # Bare mapping variable placeholder like {v_REC_RLS_IND} would be
+            # interpreted as a set literal in Python — wrap with lit() so the
+            # runtime Python variable resolves as a Column expression.
+            _mv_match = re.match(r'^\s*\{(\w+)\}\s*$', translated)
+            if _mv_match:
+                return f'lit({_mv_match.group(1)})'
+            # Complex expression with embedded mapping variable — use f-string
+            # expr() so {varname} is resolved at runtime via Python f-string.
+            return f'expr(f"""{translated}""")'
         return translated
 
     def _handle_sorter(self, instance: Instance, plan: IRPlan) -> Optional[IRStep]:
@@ -2671,15 +2852,35 @@ class TransformHandlers:
             plan.add_warning(f"Mapplet {mapplet_name} has cyclic dependencies; order may be incorrect")
             mpl_order = list(mpl_instances.keys())
 
-        # Identify INPUT / OUTPUT boundary instances
+        # Identify INPUT / OUTPUT boundary instances.
+        # When multiple Output Transformation instances exist (e.g. OUTPUT_RLS_CNTL
+        # and OUTPUT_DUMMY), pick the one with the most upstream connectors as the
+        # "main" output — not the last one found in iteration order.
         input_inst = None
         output_inst = None
+        _all_output_insts: List[Instance] = []
         for inst_obj in mpl_instances.values():
             itype = inst_obj.transformation_type or ""
             if "Input Transformation" in itype:
                 input_inst = inst_obj
             elif "Output Transformation" in itype:
-                output_inst = inst_obj
+                _all_output_insts.append(inst_obj)
+        if _all_output_insts:
+            # Count connectors feeding each output instance; pick the one with
+            # the most (the "main" data path, vs. e.g. OUTPUT_DUMMY for SP calls).
+            _output_conn_counts: Dict[str, int] = {}
+            for _conn in mpl_connectors:
+                if _conn.to_instance in [o.name for o in _all_output_insts]:
+                    _output_conn_counts[_conn.to_instance] = \
+                        _output_conn_counts.get(_conn.to_instance, 0) + 1
+            if _output_conn_counts:
+                _main_output_name = max(_output_conn_counts, key=_output_conn_counts.get)
+                for _oi in _all_output_insts:
+                    if _oi.name == _main_output_name:
+                        output_inst = _oi
+                        break
+            if not output_inst:
+                output_inst = _all_output_insts[0]
 
         # --- 4. Map INPUT ports to upstream columns ------------------------------------
         input_field_map: Dict[str, str] = {}

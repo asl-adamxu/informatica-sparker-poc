@@ -9,6 +9,8 @@
 
 import env.runtime_lib as lib
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
+_builtin_max = max
+_builtin_min = min
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 {% if needs_window_import %}from pyspark.sql import Window
@@ -132,22 +134,18 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         )
         {% if step.params.get('source_field_names') %}
         {% set src_fields = step.params.get('source_field_names') %}
+        _src_cols = [{% for f in src_fields %}"{{ f }}"{% if not loop.last %}, {% endif %}{% endfor %}]
         _csv_cols = {{ step.df_output }}.columns
         if _csv_cols:
             # Rename CSV columns by position to match Informatica source definition field names
-            _src_cols = [{% for f in src_fields %}"{{ f }}"{% if not loop.last %}, {% endif %}{% endfor %}]
-            _builtin_min = min
             for _i in range(_builtin_min([len(_csv_cols), len(_src_cols)])):
                 if _csv_cols[_i].lower() != _src_cols[_i].lower():
                     {{ step.df_output }} = {{ step.df_output }}.withColumnRenamed(_csv_cols[_i], _src_cols[_i])
         else:
             logger.warning("Source file '%s' is empty or has no columns", _file_path)
-            {{ step.df_output }} = spark.createDataFrame([], StructType([
-                {% for f in src_fields %}
-                StructField("{{ f }}", StringType(), True)
-                {% if not loop.last %}, {% endif %}
-                {% endfor %}
-            ]))
+            {{ step.df_output }} = spark.createDataFrame([], StructType(
+                [StructField(f, StringType(), True) for f in _src_cols]
+            ))
         {% endif %}
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
         
@@ -222,7 +220,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         _filter_text = """{{ step.params.get('filter_inner') }}"""
         {% for var_name, var_default in mapping_variables.items() %}
         {% set clean_name = var_name | replace('$', '') %}
-        _filter_text = _filter_text.replace("{{ var_name }}", {{ clean_name }})
+        {% if var_name in step.params.get('filter_inner', '') %}
+        _filter_text = _filter_text.replace("{{ var_name }}", str({{ clean_name }} or "0"))
+        {% endif %}
         {% endfor %}
         {{ step.df_output }} = {{ step.df_output }}.filter(expr(_filter_text))
         {% else %}
@@ -256,7 +256,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         _filter_text = """{{ step.params.get('filter_inner') }}"""
         {% for var_name, var_default in mapping_variables.items() %}
         {% set clean_name = var_name | replace('$', '') %}
-        _filter_text = _filter_text.replace("{{ var_name }}", {{ clean_name }})
+        {% if var_name in step.params.get('filter_inner', '') %}
+        _filter_text = _filter_text.replace("{{ var_name }}", str({{ clean_name }} or "0"))
+        {% endif %}
         {% endfor %}
         {{ step.df_output }} = __fil_input.filter(expr(_filter_text))
         {% else %}
@@ -525,7 +527,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Select only mapped upstream columns with correct port names
         _agg_input = {{ step.df_input }}.select(
             {% for s in agg_selects %}
-            {% if s.from == '__null__' %}
+            {% if s.from in ('__null__', 'DUMMY') %}
             lit(None).alias("{{ s.to }}"){% if not loop.last %},{{ '\n' }}{% endif %}
             {% elif s.from == s.to %}
             col("{{ s.from }}"){% if not loop.last %},{{ '\n' }}{% endif %}
@@ -549,7 +551,21 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         )
         {% elif group_by and not aggs %}
         {#- GROUP BY with no aggregations → equivalent to DISTINCT #}
+        {% if agg_selects %}
+        {{ step.df_output }} = {{ step.df_input }}.select(
+            {% for s in agg_selects %}
+            {% if s.from in ('__null__', 'DUMMY') %}
+            lit(None).alias("{{ s.to }}"){% if not loop.last %},{{ '\n' }}{% endif %}
+            {% elif s.from == s.to %}
+            col("{{ s.from }}"){% if not loop.last %},{{ '\n' }}{% endif %}
+            {% else %}
+            col("{{ s.from }}").alias("{{ s.to }}"){% if not loop.last %},{{ '\n' }}{% endif %}
+            {% endif %}
+            {% endfor %}
+        ).distinct()
+        {% else %}
         {{ step.df_output }} = {{ step.df_input }}.select({% for c in group_by %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %}).distinct()
+        {% endif %}
         {% else %}
         {{ step.df_output }} = {{ step.df_input }}
         {% endif %}
@@ -624,7 +640,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {{ step.df_output }} = {{ step.df_input }}
         {% endif %}
         {% if union_output_columns %}
-        # Select only union output columns
+        # Select only union output columns (add lit(None) for any missing)
+        for _col in [{% for c in union_output_columns %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %}]:
+            if _col not in {{ step.df_output }}.columns:
+                {{ step.df_output }} = {{ step.df_output }}.withColumn(_col, lit(None))
         {{ step.df_output }} = {{ step.df_output }}.select({% for c in union_output_columns %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %})
         {% endif %}
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
@@ -902,6 +921,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         _field_map = {{ field_map | tojson }}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         {% endif %}
         # Select only target-defined columns (field_map already handled name alignment)

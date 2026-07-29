@@ -921,6 +921,8 @@ finally:
         lines.append('paths:')
         lines.append('  input_base: "${INPUT_PATH:/tmp}"')
         lines.append('  output_base: "${OUTPUT_PATH:/tmp}"')
+        lines.append('  source_file_dir: "${PMSOURCE_FILE_DIR:/var/lib/airflow/dags}"')
+        lines.append('  target_file_dir: "${PMTargetFileDir:/var/lib/airflow/dags}"')
         lines.append('')
         lines.append('options:')
         lines.append('  use_delta_format: true')

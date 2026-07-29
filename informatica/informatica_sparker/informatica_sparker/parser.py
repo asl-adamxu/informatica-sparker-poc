@@ -606,6 +606,18 @@ class InfaXMLParser:
                             src_info[_an] = _av
                     if src_info:
                         file_sources[source_inst] = src_info
+                # Flat File Lookup (e.g. $PMLookupFileDir based lookups)
+                elif _subtype == "Flat File Lookup" and _type == "LOOKUPEXTENSION":
+                    src_info = {"source_type": "lookup"}
+                    for attr in ext.findall("ATTRIBUTE"):
+                        _an = attr.get("NAME", "")
+                        _av = attr.get("VALUE", "")
+                        if _an in ("Lookup source filename", "Lookup source file directory",
+                                   "Lookup source filetype"):
+                            _key = _an.replace("Lookup source ", "").replace("lookup_source_", "")
+                            src_info[_key] = _av
+                    if src_info.get("filename"):
+                        file_sources[source_inst] = src_info
                 # File Writer (flat file target)
                 elif _subtype == "File Writer" and _type == "WRITER":
                     src_info = {}

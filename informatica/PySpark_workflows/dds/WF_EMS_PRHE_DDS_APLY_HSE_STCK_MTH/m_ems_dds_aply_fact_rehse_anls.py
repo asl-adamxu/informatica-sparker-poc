@@ -8,6 +8,8 @@
 
 import env.runtime_lib as lib
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
+_builtin_max = max
+_builtin_min = min
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 
@@ -217,8 +219,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         
         logger.info("Step: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD")
         # Expression: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD
-        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE
-        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD.drop("DUMMY").withColumnRenamed("CALL_SP", "DUMMY")
+        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_FILTRANS
+        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD.drop("RLS_CNTL_FACT_TBL_NAME").withColumnRenamed("FACT_TBL_NAME", "RLS_CNTL_FACT_TBL_NAME")
+        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD.drop("RLS_CNTL_BGN_TIME_DMNS_KEY").withColumnRenamed("RLS_CNTL_BGN_DMNS_KEY", "RLS_CNTL_BGN_TIME_DMNS_KEY")
+        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD.drop("RLS_CNTL_END_TIME_DMNS_KEY").withColumnRenamed("RLS_CNTL_END_DMNS_KEY", "RLS_CNTL_END_TIME_DMNS_KEY")
         ctx.register_df("df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD", df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD)
         
         logger.info("Step: write_DDS_FACT_EMS_REHSE_ANLS")
@@ -236,6 +240,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         _field_map = {"DSTR_BRD_DSTR_DMNS_KEY": "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY": "DSTR_CHC_DSTR_SCD_KEY", "EST_SCD_KEY": "EST_SCD_KEY", "OR_TYPE_CODE": "OR_TYPE_CODE", "REHSE_BF_CASE_CNT": "REHSE_BF_CASE_CNT1", "REHSE_CNCL_CASE_CNT": "REHSE_CNCL_CASE_CNT1", "REHSE_NEW_CASE_CNT": "REHSE_NEW_CASE_CNT1", "REHSE_OSTD_CASE_CNT": "REHSE_OSTD_CASE_CNT1", "REHSE_STL_CASE_CNT": "REHSE_STL_CASE_CNT1", "TFR_CASE_RSN_DMNS_KEY": "TFR_CASE_RSN_DMNS_KEY", "TFR_TYPE_DMNS_KEY": "TFR_TYPE_DMNS_KEY", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['EST_SCD_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'TFR_TYPE_DMNS_KEY', 'TFR_CASE_RSN_DMNS_KEY', 'TIME_DMNS_KEY', 'OR_TYPE_CODE', 'REHSE_NEW_CASE_CNT', 'REHSE_OSTD_CASE_CNT', 'REHSE_STL_CASE_CNT', 'REHSE_CNCL_CASE_CNT', 'REHSE_BF_CASE_CNT']
@@ -303,6 +312,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         _field_map = {"RLS_CNTL_BGN_TIME_DMNS_KEY": "RLS_CNTL_BGN_TIME_DMNS_KEY", "RLS_CNTL_DMNS_TYPE_CODE": "RLS_CNTL_DMNS_TYPE_CODE", "RLS_CNTL_END_TIME_DMNS_KEY": "RLS_CNTL_END_TIME_DMNS_KEY", "RLS_CNTL_FACT_TBL_NAME": "RLS_CNTL_FACT_TBL_NAME"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['RLS_CNTL_FACT_TBL_NAME', 'RLS_CNTL_DMNS_TYPE_CODE', 'RLS_CNTL_BGN_TIME_DMNS_KEY', 'RLS_CNTL_END_TIME_DMNS_KEY']

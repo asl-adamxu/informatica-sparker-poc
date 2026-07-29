@@ -8,6 +8,8 @@
 
 import env.runtime_lib as lib
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
+_builtin_max = max
+_builtin_min = min
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 
@@ -363,10 +365,8 @@ order by  HSU.UNIT_KEY"""
         logger.info("Step: apply_FILTRANS")
         # Filter: apply_FILTRANS
         __fil_input = df_EXPTRANS1
-        _filter_text = """$$v_rpt_mth = cast(TNCY_AGRMT_CMNC_DATE as string)"""
-        _filter_text = _filter_text.replace("$$v_rpt_mth", v_rpt_mth)
-        _filter_text = _filter_text.replace("$$v_rcvr_day_num", v_rcvr_day_num)
-        _filter_text = _filter_text.replace("$$v_snsh_date", v_snsh_date)
+        _filter_text = """$$v_rpt_mth = date_format(TNCY_AGRMT_CMNC_DATE, 'yyyyMM')"""
+        _filter_text = _filter_text.replace("$$v_rpt_mth", str(v_rpt_mth or "0"))
         df_FILTRANS = __fil_input.filter(expr(_filter_text))
         ctx.register_df("df_FILTRANS", df_FILTRANS)
         
@@ -456,9 +456,7 @@ SELECT     	RM.UNIT_KEY as UNIT_KEY,
         # Filter: apply_FILTRANS1
         __fil_input = df_EXPTRANS
         _filter_text = """DAY_NUM_FROM_LATEST_TRMT_DATE > $$v_rcvr_day_num"""
-        _filter_text = _filter_text.replace("$$v_rpt_mth", v_rpt_mth)
-        _filter_text = _filter_text.replace("$$v_rcvr_day_num", v_rcvr_day_num)
-        _filter_text = _filter_text.replace("$$v_snsh_date", v_snsh_date)
+        _filter_text = _filter_text.replace("$$v_rcvr_day_num", str(v_rcvr_day_num or "0"))
         df_FILTRANS1 = __fil_input.filter(expr(_filter_text))
         ctx.register_df("df_FILTRANS1", df_FILTRANS1)
         
@@ -672,6 +670,11 @@ select t1.unit_key, e1, e2, e3 from
         _field_map = {"HSE_UNIT_ENV_CODE": "HSE_UNIT_ENV_CODE", "HSE_UNIT_ENV_CODE2": "EI2", "HSE_UNIT_ENV_CODE3": "EI3", "HSE_UNIT_ENV_CODE4": "EI4", "TNCY_AGRMT_CMNC_DATE": "TNCY_AGRMT_CMNC_DATE", "TNCY_AGRMT_TM_TRMT_DATE": "TNCY_AGRMT_TM_TRMT_DATE", "UNIT_ADDR_CODE": "UNIT_ADDR_CODE", "UNIT_MAX_RFSL_DATE": "MAX_RFSL_DATE", "UNIT_OFR_RFSL_CNT": "ORF_RFSL_CNT", "UNIT_RSRV_BGN_DATE": "BGN_DATE", "UNIT_RSRV_CATG_CODE": "UNIT_RSRV_CATG_CODE", "UNIT_RSRV_END_DATE": "END_DATE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['UNIT_ADDR_CODE', 'TNCY_AGRMT_CMNC_DATE', 'TNCY_AGRMT_TM_TRMT_DATE', 'UNIT_RSRV_CATG_CODE', 'UNIT_RSRV_BGN_DATE', 'UNIT_RSRV_END_DATE', 'HSE_UNIT_ENV_CODE', 'HSE_UNIT_ENV_CODE2', 'HSE_UNIT_ENV_CODE3', 'HSE_UNIT_ENV_CODE4', 'UNIT_OFR_RFSL_CNT', 'UNIT_MAX_RFSL_DATE']

@@ -8,6 +8,8 @@
 
 import env.runtime_lib as lib
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
+_builtin_max = max
+_builtin_min = min
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 
@@ -442,10 +444,10 @@ GROUP BY
         
         logger.info("Step: apply_RTRTRANS")
         # Router: apply_RTRTRANS - splits into multiple output groups
-        _rtr_wo_cert_end_rlet_filter = """(WORK_VFRA_TYPE_CODE = 'L' OR WORK_VFRA_TYPE_CODE= 'O') AND WORK_CMPLT_CERT_DATE <= TNCY_AGRMT_CMNC_DATE AND cast(TNCY_AGRMT_CMNC_DATE as string) = $$v_rpt_mth"""
+        _rtr_wo_cert_end_rlet_filter = """(WORK_VFRA_TYPE_CODE = 'L' OR WORK_VFRA_TYPE_CODE= 'O') AND WORK_CMPLT_CERT_DATE <= TNCY_AGRMT_CMNC_DATE AND date_format(TNCY_AGRMT_CMNC_DATE, 'yyyymm') = $$v_rpt_mth"""
         _rtr_wo_cert_end_rlet_filter = _rtr_wo_cert_end_rlet_filter.replace("$$v_rpt_mth", v_rpt_mth)
         _rtr_wo_cert_end_rlet_filter = _rtr_wo_cert_end_rlet_filter.replace("$$v_snsh_date", v_snsh_date)
-        _rtr_tchup_end_rlet_filter = """WORK_VFRA_TYPE_CODE = 'T' AND WORK_CMPLT_CERT_DATE <= TNCY_AGRMT_CMNC_DATE AND cast(TNCY_AGRMT_CMNC_DATE as string) = $$v_rpt_mth"""
+        _rtr_tchup_end_rlet_filter = """WORK_VFRA_TYPE_CODE = 'T' AND WORK_CMPLT_CERT_DATE <= TNCY_AGRMT_CMNC_DATE AND date_format(TNCY_AGRMT_CMNC_DATE, 'yyyymm') = $$v_rpt_mth"""
         _rtr_tchup_end_rlet_filter = _rtr_tchup_end_rlet_filter.replace("$$v_rpt_mth", v_rpt_mth)
         _rtr_tchup_end_rlet_filter = _rtr_tchup_end_rlet_filter.replace("$$v_snsh_date", v_snsh_date)
         df_rtr_wo_cert_end_rlet_3 = df_FIL_FRZ_WO.filter(expr(_rtr_wo_cert_end_rlet_filter))
@@ -723,7 +725,10 @@ GROUP BY
             col("TCHUP_END_RLET_CNT").alias("TCHUP_END_RLET_CNT")        )
         df_Union_Transformation = df_Union_Transformation_wo_cert_end_rlet
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_tchup_end_rlet_cnt, allowMissingColumns=True)
-        # Select only union output columns
+        # Select only union output columns (add lit(None) for any missing)
+        for _col in ["UNIT_KEY1", "WO_CERT_END_RLET_DAY_NUM", "WO_CERT_END_RLET_CNT", "EST_KEY1", "EMMS_DSTR_CHC_DSTR_KEY1", "EMMS_DSTR_BRD_DSTR_KEY1", "UNIT_TYPE_CODE1", "UNIT_IFA_AREA1", "MAX_UNIT_HEAD_CNT1", "MIN_UNIT_HEAD_CNT1", "TCHUP_END_RLET_DAY_NUM", "TCHUP_END_RLET_CNT"]:
+            if _col not in df_Union_Transformation.columns:
+                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("UNIT_KEY1", "WO_CERT_END_RLET_DAY_NUM", "WO_CERT_END_RLET_CNT", "EST_KEY1", "EMMS_DSTR_CHC_DSTR_KEY1", "EMMS_DSTR_BRD_DSTR_KEY1", "UNIT_TYPE_CODE1", "UNIT_IFA_AREA1", "MAX_UNIT_HEAD_CNT1", "MIN_UNIT_HEAD_CNT1", "TCHUP_END_RLET_DAY_NUM", "TCHUP_END_RLET_CNT")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
@@ -792,7 +797,7 @@ GROUP BY
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
         query = f"""SELECT 
-DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_DSTR_SCD_KEY as DSTR_CHC_DSTR_SCD_KEY, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_DSTR_CODE as DSTR_CHC_DSTR_CODE, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_DSTR_ENG_NAME as DSTR_CHC_DSTR_ENG_NAME, DDS_HRCHY_EMS_DSTR_CHC_DSTR.EMMS_DSTR_KEY as EMMS_DSTR_KEY, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_SBDSTR_CODE as DSTR_CHC_SBDSTR_CODE, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_SBDSTR_ENG_NAME as DSTR_CHC_SBDSTR_ENG_NAME
+DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_DSTR_SCD_KEY as DSTR_CHC_DSTR_SCD_KEY, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_DSTR_CODE as DSTR_CHC_DSTR_CODE, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_DSTR_ENG_NAME as DSTR_CHC_DSTR_ENG_NAME, DDS_HRCHY_EMS_DSTR_CHC_DSTR.EMMS_DSTR_KEY as EMMS_DSTR_KEY, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_SBDSTR_CODE as DSTR_CHC_SBDSTR_CODE, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_SBDSTR_ENG_NAME as DSTR_CHC_SBDSTR_ENG_NAME,
 DDS_HRCHY_EMS_DSTR_CHC_DSTR.EMMS_SBDSTR_KEY as EMMS_SBDSTR_KEY 
 FROM DDS_HRCHY_EMS_DSTR_CHC_DSTR
 WHERE LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','yyyymmdd')) between bgn_date and end_date"""
@@ -1036,6 +1041,11 @@ GROUP BY
         _field_map = {"DSTR_BRD_DSTR_DMNS_KEY": "DSTR_BRD_DSTR_DMNS_KEY1", "DSTR_CHC_DSTR_SCD_KEY": "DSTR_CHC_DSTR_SCD_KEY1", "EST_SCD_KEY": "EST_SCD_KEY1", "FLAT_TYPE_DMNS_KEY": "FLAT_TYPE_DMNS_KEY1", "MAX_UNIT_HEAD_CNT": "MAX_UNIT_HEAD_CNT1", "MGT_MODE_DMNS_KEY": "MGT_MODE_DMNS_KEY1", "MIN_UNIT_HEAD_CNT": "MIN_UNIT_HEAD_CNT1", "TCHUP_CMPLT_RLET_CNT": "TCHUP_END_RLET_CNT", "TCHUP_CMPLT_RLET_DAY_NUM": "TCHUP_END_RLET_DAY_NUM", "TIME_DMNS_KEY": "TIME_DMNS_KEY1", "UNIT_SIZE_DMNS_KEY": "UNIT_SIZE_DMNS_KEY1", "WO_CMPLT_RLET_CNT": "WO_CMPLT_RLET_CNT", "WO_CMPLT_RLET_DAY_NUM": "WO_CMPLT_RLET_DAY_NUM"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['TIME_DMNS_KEY', 'EST_SCD_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'FLAT_TYPE_DMNS_KEY', 'MAX_UNIT_HEAD_CNT', 'MIN_UNIT_HEAD_CNT', 'UNIT_SIZE_DMNS_KEY', 'MGT_MODE_DMNS_KEY', 'DOT_WO_DRFT_DAY_NUM', 'DOT_WO_DRFT_CNT', 'WO_DRFT_WO_ISS_DAY_NUM', 'WO_DRFT_WO_ISS_CNT', 'WO_ISS_WO_RPT_DAY_NUM', 'WO_ISS_WO_RPT_CNT', 'WO_RPT_WO_CMPLT_DAY_NUM', 'WO_RPT_WO_CMPLT_CNT', 'WO_CMPLT_FRST_OFR_DAY_NUM', 'WO_CMPLT_FRST_OFR_CNT', 'OFR_RLET_DAY_NUM', 'OFR_RLET_CNT', 'FRST_OFR_RLET_DAY_NUM', 'FRST_OFR_RLET_CNT', 'OFR_PRVS_ACPT_DAY_NUM', 'OFR_PRVS_ACPT_CNT', 'PRVS_ACPT_WO_CMPLT_DAY_NUM', 'PRVS_ACPT_WO_CMPLT_CNT', 'WO_CMPLT_RLET_DAY_NUM', 'WO_CMPLT_RLET_CNT', 'PRVS_ACPT_TCHUP_CMPLT_DAY_NUM', 'PRVS_ACPT_TCHUP_CMPLT_CNT', 'TCHUP_CMPLT_RLET_DAY_NUM', 'TCHUP_CMPLT_RLET_CNT', 'WO_ISS_WO_CMPLT_DAY_NUM', 'WO_ISS_WO_CMPLT_CNT', 'TOT_OFR_BFR_SUCC_RLET_CNT', 'OFR_BFR_SUCC_RLET_CNT', 'DOT_RLET_DAY_NUM', 'DOT_RLET_CNT', 'DOT_FRZ_FLAT_RTN_DAY_NUM', 'DOT_FRZ_FLAT_RTN_CNT', 'WO_ISS_FRST_OFR_DAY_NUM', 'WO_ISS_FRST_OFR_CNT']

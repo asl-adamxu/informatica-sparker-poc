@@ -8,6 +8,8 @@
 
 import env.runtime_lib as lib
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
+_builtin_max = max
+_builtin_min = min
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 
@@ -429,10 +431,10 @@ from EIS_HA_PRH_RNTL_UNIT"""
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
         df_EXPTRANS1 = df_lkp_merge_1
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("UNIT_TAKE_OVER_DATE1", expr("cast(UNIT_TAKE_OVER_DATE as string)"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("HSE_UNIT_TM_VOID_STS_BGN_DATE1", expr("cast(HSE_UNIT_TM_VOID_STS_BGN_DATE as string)"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("LAST_TPS_DOT1", expr("cast(LAST_TPS_DOT as string)"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("LAST_DOT1", expr("cast(LAST_DOT as string)"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("UNIT_TAKE_OVER_DATE1", expr("date_format(UNIT_TAKE_OVER_DATE, 'yyyyMMdd')"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("HSE_UNIT_TM_VOID_STS_BGN_DATE1", expr("date_format(HSE_UNIT_TM_VOID_STS_BGN_DATE, 'yyyyMMdd')"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("LAST_TPS_DOT1", expr("date_format(LAST_TPS_DOT, 'yyyyMMdd')"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("LAST_DOT1", expr("date_format(LAST_DOT, 'yyyyMMdd')"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["LAST_TPS_DOT", "LAST_DOT"]:
             if _col not in df_EXPTRANS1.columns:
@@ -697,6 +699,11 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         _field_map = {"ALCT_STS_CODE": "ALCT_STS_CODE", "DSTR_BRD_DSTR_CODE": "DSTR_BRD_DSTR_CODE", "DSTR_CHC_DSTR_CODE": "DSTR_CHC_DSTR_CODE", "DSTR_CHC_SBDSTR_CODE": "DSTR_CHC_SBDSTR_CODE", "DTMO_CODE": "DTMO_CODE", "EI1": "HSE_UNIT_ENV_CODE", "EI2": "EI2", "EI3": "EI3", "EI4": "EI4", "EMMS_ALCT_STS_CODE": "UNIT_ALCT_STS_CODE", "FLAT_IND": "INDICATOR", "FLAT_STS": "HSE_UNIT_TM_STS_CODE", "FLAT_TYPE": "UNIT_TYPE_CODE", "HEAD_MAX": "MAX_UNIT_HEAD_CNT", "HEAD_MIN": "MIN_UNIT_HEAD_CNT", "IFA": "UNIT_IFA_AREA", "LAST_DOT": "LAST_DOT1", "LAST_TPS_DOT": "LAST_TPS_DOT1", "MGT_DSTR_CODE": "MGT_DSTR_CODE", "MTH_RENT": "UNIT_GRS_RENT_AMT", "RGN_CODE": "RGN_CODE", "RSRV_CATG": "UNIT_RSRV_CATG_CODE", "RSRV_OPR": "HSE_UNIT_RSRV_OPR_CODE", "TAKE_OVER_DATE": "UNIT_TAKE_OVER_DATE1", "UNIT_ADDR_CODE": "UNIT_ADDR_CODE", "VOID_SINCE_DATE": "HSE_UNIT_TM_VOID_STS_BGN_DATE1"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['UNIT_ADDR_CODE', 'FLAT_TYPE', 'HEAD_MIN', 'HEAD_MAX', 'IFA', 'EI1', 'EI2', 'EI3', 'EI4', 'FLAT_STS', 'FLAT_IND', 'EMMS_ALCT_STS_CODE', 'ALCT_STS_CODE', 'RSRV_OPR', 'RSRV_CATG', 'MTH_RENT', 'VOID_SINCE_DATE', 'TAKE_OVER_DATE', 'LAST_DOT', 'LAST_TPS_DOT', 'RGN_CODE', 'MGT_DSTR_CODE', 'DTMO_CODE', 'DSTR_BRD_DSTR_CODE', 'DSTR_CHC_DSTR_CODE', 'DSTR_CHC_SBDSTR_CODE']

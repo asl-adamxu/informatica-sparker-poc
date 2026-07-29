@@ -126,6 +126,15 @@ validation:
     password: "credential:connections.oracle-informatica.password"
 
 # =============================================================================
+# FILE PATH ROOT DIRECTORIES
+# =============================================================================
+# These paths serve as root directories for file source objects.
+# Override via environment variables or modify the defaults below.
+paths:
+  source_file_dir: "{{ paths.source_file_dir }}"
+  target_file_dir: "{{ paths.target_file_dir }}"
+
+# =============================================================================
 # FILE OBJECTS (Only file-type objects; database tables use connections directly)
 # =============================================================================
 objects:
@@ -135,7 +144,7 @@ objects:
   
   {{ table_name }}:
     format: "csv"
-    path: "{{ table_info.get('path', '/var/lib/airflow/dags/' + table_name) | replace('__SOURCE_FILE_DIR__', paths.source_file_dir) }}"
+    path: "{{ table_info.get('path', '/var/lib/airflow/dags/' + table_name) | replace('__SOURCE_FILE_DIR__', paths.source_file_dir_ref) }}"
     delimiter: "{{ table_info.get('delimiter', ',') }}"
     header: "{{ table_info.get('header', 'true') }}"
   {%- endif %}

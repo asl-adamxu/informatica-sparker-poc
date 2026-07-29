@@ -8,6 +8,8 @@
 
 import env.runtime_lib as lib
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
+_builtin_max = max
+_builtin_min = min
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 
@@ -74,19 +76,18 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             format=_file_format,
             options=_file_options
         )
+        _src_cols = ["SESSION"]
         _csv_cols = df_UTL_SESSION_LIST.columns
         if _csv_cols:
             # Rename CSV columns by position to match Informatica source definition field names
-            _src_cols = ["SESSION"]
-            _builtin_min = min
             for _i in range(_builtin_min([len(_csv_cols), len(_src_cols)])):
                 if _csv_cols[_i].lower() != _src_cols[_i].lower():
                     df_UTL_SESSION_LIST = df_UTL_SESSION_LIST.withColumnRenamed(_csv_cols[_i], _src_cols[_i])
         else:
             logger.warning("Source file '%s' is empty or has no columns", _file_path)
-            df_UTL_SESSION_LIST = spark.createDataFrame([], StructType([
-                StructField("SESSION", StringType(), True)
-            ]))
+            df_UTL_SESSION_LIST = spark.createDataFrame([], StructType(
+                [StructField(f, StringType(), True) for f in _src_cols]
+            ))
         ctx.register_df("df_UTL_SESSION_LIST", df_UTL_SESSION_LIST)
         
         logger.info("Step: apply_SQ_UTL_SESSION_LIST")
@@ -154,6 +155,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         _field_map = {"LINE": "LINE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['LINE']

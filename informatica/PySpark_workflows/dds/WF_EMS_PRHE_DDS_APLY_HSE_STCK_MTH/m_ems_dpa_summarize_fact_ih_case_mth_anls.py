@@ -8,6 +8,8 @@
 
 import env.runtime_lib as lib
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
+_builtin_max = max
+_builtin_min = min
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 
@@ -581,6 +583,11 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         _field_map = {"ACTV_TNCY_CNT": "ACTV_TNCY_CNT", "CATG_USER_TYPE_CODE": "CATG_USER_TYPE_CODE", "DSTR_BRD_DSTR_DMNS_KEY": "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY": "DSTR_CHC_DSTR_SCD_KEY", "EST_SCD_KEY": "EST_SCD_KEY", "FLAT_TYPE_DMNS_KEY": "FLAT_TYPE_DMNS_KEY", "IH_NEW_CASE_CNT": "IH_NEW_CASE_CNT", "MAX_UNIT_HEAD_CNT": "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT": "MIN_UNIT_HEAD_CNT", "OPR_TYPE_DMNS_KEY": "OPR_TYPE_DMNS_KEY", "RENT_FCTR_DMNS_KEY": "RENT_FCTR_DMNS_KEY", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['TIME_DMNS_KEY', 'EST_SCD_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'CATG_USER_TYPE_CODE', 'FLAT_TYPE_DMNS_KEY', 'MAX_UNIT_HEAD_CNT', 'MIN_UNIT_HEAD_CNT', 'RENT_FCTR_DMNS_KEY', 'OPR_TYPE_DMNS_KEY', 'IH_NEW_CASE_CNT', 'ACTV_TNCY_CNT']

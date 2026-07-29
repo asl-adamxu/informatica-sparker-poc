@@ -8,6 +8,8 @@
 
 import env.runtime_lib as lib
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
+_builtin_max = max
+_builtin_min = min
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 
@@ -336,9 +338,8 @@ WHERE
         logger.info("Step: apply_SQ_DDS_FACT_EMS_REHSE_ANLS")
         # Source Qualifier: apply_SQ_DDS_FACT_EMS_REHSE_ANLS
         df_SQ_DDS_FACT_EMS_REHSE_ANLS = df_DDS_FACT_EMS_REHSE_ANLS
-        _filter_text = """to_date(TIME_DMNS_KEY-200000000+1, 'yyyyMMdd') = add_months(to_date($$v_rpt_mth || '01', 'yyyyMMdd'),-1)"""
-        _filter_text = _filter_text.replace("$$v_rpt_mth", v_rpt_mth)
-        _filter_text = _filter_text.replace("$$v_snsh_date", v_snsh_date)
+        _filter_text = """to_date(cast(TIME_DMNS_KEY-200000000+1 as string), 'yyyyMMdd') = add_months(to_date(cast($$v_rpt_mth || '01' as string), 'yyyyMMdd'),-1)"""
+        _filter_text = _filter_text.replace("$$v_rpt_mth", str(v_rpt_mth or "0"))
         df_SQ_DDS_FACT_EMS_REHSE_ANLS = df_SQ_DDS_FACT_EMS_REHSE_ANLS.filter(expr(_filter_text))
         # Select only SQ output ports (matches Informatica behavior)
         df_SQ_DDS_FACT_EMS_REHSE_ANLS = df_SQ_DDS_FACT_EMS_REHSE_ANLS.select("EST_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "TFR_TYPE_DMNS_KEY", "TFR_RSN_DMNS_KEY", "TIME_DMNS_KEY", "OR_TYPE_CODE", "REHSE_OSTD_CASE_CNT")
@@ -453,7 +454,7 @@ where
 	, OPR_TYPE_CODE
 	, CMM_STS.HSE_SRVC_APLY_CRE_DATE
 	, APLY_STS.APLY_KEY
-	, APLY.APLY_KEY
+	, APLY.APLY_KEY AS APLY_KEY1
 	, OPR.OPR_KEY
 FROM                                                                                                       
 	SOR_EMS_PHA_APLY APLY
@@ -660,6 +661,11 @@ WHERE
         _field_map = {"DSTR_BRD_DSTR_DMNS_KEY": "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY": "DSTR_CHC_DSTR_SCD_KEY", "EST_SCD_KEY": "EST_SCD_KEY", "OR_TYPE_CODE": "OR_TYPE_CODE", "REHSE_BF_CASE_CNT": "REHSE_OSTD_CASE_CNT", "TFR_CASE_RSN_DMNS_KEY": "TFR_CASE_RSN_DMNS_KEY", "TFR_TYPE_DMNS_KEY": "TFR_TYPE_DMNS_KEY", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['EST_SCD_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'TFR_TYPE_DMNS_KEY', 'TFR_CASE_RSN_DMNS_KEY', 'TIME_DMNS_KEY', 'OR_TYPE_CODE', 'REHSE_NEW_CASE_CNT', 'REHSE_OSTD_CASE_CNT', 'REHSE_STL_CASE_CNT', 'REHSE_CNCL_CASE_CNT', 'REHSE_BF_CASE_CNT']
@@ -695,7 +701,10 @@ WHERE
             col("APLY_KEY").alias("APLY_KEY")        )
         df_NEW_CASE = df_NEW_CASE_ref_case_with_without_aply
         df_NEW_CASE = df_NEW_CASE.unionByName(df_NEW_CASE_aply_without_ref_case, allowMissingColumns=True)
-        # Select only union output columns
+        # Select only union output columns (add lit(None) for any missing)
+        for _col in ["UNIT_KEY", "REF_CASE_TYPE_CODE", "OR_TYPE_CODE", "TFR_RSN_CODE", "REF_CASE_CRE_DATE", "REF_CASE_KEY", "APLY_KEY"]:
+            if _col not in df_NEW_CASE.columns:
+                df_NEW_CASE = df_NEW_CASE.withColumn(_col, lit(None))
         df_NEW_CASE = df_NEW_CASE.select("UNIT_KEY", "REF_CASE_TYPE_CODE", "OR_TYPE_CODE", "TFR_RSN_CODE", "REF_CASE_CRE_DATE", "REF_CASE_KEY", "APLY_KEY")
         ctx.register_df("df_NEW_CASE", df_NEW_CASE)
         
@@ -730,7 +739,10 @@ WHERE
             col("LU_STS_CODE").alias("LU_STS_CODE")        )
         df_OSTD_CASE = df_OSTD_CASE_ref_case_with_without_aply
         df_OSTD_CASE = df_OSTD_CASE.unionByName(df_OSTD_CASE_aply_without_ref_case, allowMissingColumns=True)
-        # Select only union output columns
+        # Select only union output columns (add lit(None) for any missing)
+        for _col in ["UNIT_KEY", "REF_CASE_TYPE_CODE", "OR_TYPE_CODE", "TFR_RSN_CODE", "PRH_APLY_STS_UPD_DATE", "PRH_APLY_STG_UPD_DATE", "REF_CASE_STS_UPD_DATE", "REF_CASE_KEY", "APLY_KEY", "PRH_APLY_STG_STS_CODE", "REF_CASE_STS_CODE", "LU_STS_CODE"]:
+            if _col not in df_OSTD_CASE.columns:
+                df_OSTD_CASE = df_OSTD_CASE.withColumn(_col, lit(None))
         df_OSTD_CASE = df_OSTD_CASE.select("UNIT_KEY", "REF_CASE_TYPE_CODE", "OR_TYPE_CODE", "TFR_RSN_CODE", "PRH_APLY_STS_UPD_DATE", "PRH_APLY_STG_UPD_DATE", "REF_CASE_STS_UPD_DATE", "REF_CASE_KEY", "APLY_KEY", "PRH_APLY_STG_STS_CODE", "REF_CASE_STS_CODE", "LU_STS_CODE")
         ctx.register_df("df_OSTD_CASE", df_OSTD_CASE)
         
@@ -787,7 +799,10 @@ WHERE
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup1, allowMissingColumns=True)
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup2, allowMissingColumns=True)
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup3, allowMissingColumns=True)
-        # Select only union output columns
+        # Select only union output columns (add lit(None) for any missing)
+        for _col in ["UNIT_KEY", "REF_CASE_TYPE_CODE", "OR_TYPE_CODE", "TFR_RSN_CODE", "SEQ"]:
+            if _col not in df_Union_Transformation.columns:
+                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("UNIT_KEY", "REF_CASE_TYPE_CODE", "OR_TYPE_CODE", "TFR_RSN_CODE", "SEQ")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
@@ -951,7 +966,7 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "source_db")
         query = f"""SELECT 
-DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_DSTR_SCD_KEY as DSTR_CHC_DSTR_SCD_KEY, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_DSTR_CODE as DSTR_CHC_DSTR_CODE, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_DSTR_ENG_NAME as DSTR_CHC_DSTR_ENG_NAME, DDS_HRCHY_EMS_DSTR_CHC_DSTR.EMMS_DSTR_KEY as EMMS_DSTR_KEY, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_SBDSTR_CODE as DSTR_CHC_SBDSTR_CODE, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_SBDSTR_ENG_NAME as DSTR_CHC_SBDSTR_ENG_NAME
+DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_DSTR_SCD_KEY as DSTR_CHC_DSTR_SCD_KEY, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_DSTR_CODE as DSTR_CHC_DSTR_CODE, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_DSTR_ENG_NAME as DSTR_CHC_DSTR_ENG_NAME, DDS_HRCHY_EMS_DSTR_CHC_DSTR.EMMS_DSTR_KEY as EMMS_DSTR_KEY, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_SBDSTR_CODE as DSTR_CHC_SBDSTR_CODE, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_SBDSTR_ENG_NAME as DSTR_CHC_SBDSTR_ENG_NAME,
 DDS_HRCHY_EMS_DSTR_CHC_DSTR.EMMS_SBDSTR_KEY as EMMS_SBDSTR_KEY 
 FROM DDS_HRCHY_EMS_DSTR_CHC_DSTR
 WHERE LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','yyyymmdd')) between bgn_date and end_date"""
@@ -1053,10 +1068,28 @@ WHERE TFR_CASE_RSN_SCHM_CODE = 'EMS'"""
         df_MPLT_LKP_EMS_REHSE_ANLS_KEY = df_MPLT_LKP_EMS_REHSE_ANLS_KEY.drop("TFR_TYPE_DMNS_KEY").withColumnRenamed("TFR_TYPE_DMNS_KEY1", "TFR_TYPE_DMNS_KEY")
         ctx.register_df("df_MPLT_LKP_EMS_REHSE_ANLS_KEY", df_MPLT_LKP_EMS_REHSE_ANLS_KEY)
         
+        logger.info("Step: merge_AGGTRANS_0")
+        # Lookup: merge_AGGTRANS_0
+        # Merge on common columns — drop lookup columns that duplicate non-key
+        # input columns (e.g. EST_KEY from both sides → ambiguity).
+        _cc = list(dict.fromkeys(c for c in df_MPLT_LKP_EMS_REHSE_ANLS_KEY.columns if c in df_EXPTRANS.columns))
+        if _cc:
+            __lkp_dup = [c for c in df_EXPTRANS.columns if c in df_MPLT_LKP_EMS_REHSE_ANLS_KEY.columns and c not in _cc]
+            df_merge_6 = df_MPLT_LKP_EMS_REHSE_ANLS_KEY.join(
+                df_EXPTRANS.drop(*__lkp_dup) if __lkp_dup else df_EXPTRANS,
+                on=_cc, how="left"
+            )
+        else:
+            logger.warning("No common columns between df_MPLT_LKP_EMS_REHSE_ANLS_KEY and df_EXPTRANS — using synthetic key join")
+            df_merge_6 = df_MPLT_LKP_EMS_REHSE_ANLS_KEY.withColumn("_join_key", lit(1)).join(
+                df_EXPTRANS.withColumn("_join_key", lit(1)),
+                on="_join_key", how="left").drop("_join_key")
+        ctx.register_df("df_merge_6", df_merge_6)
+        
         logger.info("Step: apply_AGGTRANS")
         # Aggregator: apply_AGGTRANS
         # Select only mapped upstream columns with correct port names
-        _agg_input = df_MPLT_LKP_EMS_REHSE_ANLS_KEY.select(
+        _agg_input = df_merge_6.select(
             col("SEQ"),
             col("OR_TYPE_CODE1").alias("OR_TYPE_CODE"),
             col("TIME_DMNS_KEY"),
@@ -1090,6 +1123,11 @@ WHERE TFR_CASE_RSN_SCHM_CODE = 'EMS'"""
         _field_map = {"DSTR_BRD_DSTR_DMNS_KEY": "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY": "DSTR_CHC_DSTR_SCD_KEY", "EST_SCD_KEY": "EST_SCD_KEY", "OR_TYPE_CODE": "OR_TYPE_CODE", "REHSE_BF_CASE_CNT": "REHSE_BF_CASE_CNT", "REHSE_CNCL_CASE_CNT": "REHSE_CNCL_CASE_CNT", "REHSE_NEW_CASE_CNT": "REHSE_NEW_CASE_CNT", "REHSE_OSTD_CASE_CNT": "REHSE_OSTD_CASE_CNT", "REHSE_STL_CASE_CNT": "REHSE_STL_CASE_CNT", "TFR_CASE_RSN_DMNS_KEY": "TFR_CASE_RSN_DMNS_KEY", "TFR_TYPE_DMNS_KEY": "TFR_TYPE_DMNS_KEY", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['EST_SCD_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'TFR_TYPE_DMNS_KEY', 'TFR_CASE_RSN_DMNS_KEY', 'TIME_DMNS_KEY', 'OR_TYPE_CODE', 'REHSE_NEW_CASE_CNT', 'REHSE_OSTD_CASE_CNT', 'REHSE_STL_CASE_CNT', 'REHSE_CNCL_CASE_CNT', 'REHSE_BF_CASE_CNT']

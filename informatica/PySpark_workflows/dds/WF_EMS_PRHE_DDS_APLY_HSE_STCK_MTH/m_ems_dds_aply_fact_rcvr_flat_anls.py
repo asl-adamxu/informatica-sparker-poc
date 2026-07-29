@@ -8,6 +8,8 @@
 
 import env.runtime_lib as lib
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
+_builtin_max = max
+_builtin_min = min
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 
@@ -277,8 +279,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         
         logger.info("Step: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD")
         # Expression: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD
-        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE
-        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD.drop("DUMMY").withColumnRenamed("CALL_SP", "DUMMY")
+        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_FILTRANS
+        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD.drop("RLS_CNTL_FACT_TBL_NAME").withColumnRenamed("FACT_TBL_NAME", "RLS_CNTL_FACT_TBL_NAME")
+        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD.drop("RLS_CNTL_BGN_TIME_DMNS_KEY").withColumnRenamed("RLS_CNTL_BGN_DMNS_KEY", "RLS_CNTL_BGN_TIME_DMNS_KEY")
+        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD.drop("RLS_CNTL_END_TIME_DMNS_KEY").withColumnRenamed("RLS_CNTL_END_DMNS_KEY", "RLS_CNTL_END_TIME_DMNS_KEY")
         ctx.register_df("df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD", df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD)
         
         logger.info("Step: write_DDS_FACT_EMS_RCVR_FLAT_ANLS")
@@ -289,6 +293,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         _field_map = {"DOT_FRZ_FLAT_RTN_CNT": "WO_DRFT_FRZ_FLAT_RTN_CNT1", "DOT_FRZ_FLAT_RTN_DAY_NUM": "WO_DRFT_FRZ_FLAT_RTN_DAY_NUM1", "DOT_RLET_CNT": "DOT_RLET_CNT1", "DOT_RLET_DAY_NUM": "DOT_RLET_DAY_NUM1", "DOT_WO_DRFT_CNT": "DOT_WO_DRFT_CNT1", "DOT_WO_DRFT_DAY_NUM": "DOT_WO_DRFT_DAY_NUM1", "DSTR_BRD_DSTR_DMNS_KEY": "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY": "DSTR_CHC_DSTR_SCD_KEY", "EST_SCD_KEY": "EST_SCD_KEY", "FLAT_TYPE_DMNS_KEY": "FLAT_TYPE_DMNS_KEY", "FRST_OFR_RLET_CNT": "FRST_OFR_RLET_CNT1", "FRST_OFR_RLET_DAY_NUM": "FRST_OFR_RLET_DAY_NUM1", "MAX_UNIT_HEAD_CNT": "MAX_UNIT_HEAD_CNT", "MGT_MODE_DMNS_KEY": "MGT_MODE_DMNS_KEY", "MIN_UNIT_HEAD_CNT": "MIN_UNIT_HEAD_CNT", "OFR_BFR_SUCC_RLET_CNT": "OFR_BFR_SUCC_RLET_CNT1", "OFR_PRVS_ACPT_CNT": "OFR_PRVS_ACPT_CNT1", "OFR_PRVS_ACPT_DAY_NUM": "OFR_PRVS_ACPT_DAY_NUM1", "OFR_RLET_CNT": "OFR_RLET_CNT1", "OFR_RLET_DAY_NUM": "OFR_RLET_DAY_NUM1", "PRVS_ACPT_TCHUP_CMPLT_CNT": "PRVS_ACPT_TCHUP_CMPLT_CNT1", "PRVS_ACPT_TCHUP_CMPLT_DAY_NUM": "PRVS_ACPT_TCHUP_CMPLT_DAY_NUM1", "PRVS_ACPT_WO_CMPLT_CNT": "PRVS_ACPT_WO_CMPLT_CNT1", "PRVS_ACPT_WO_CMPLT_DAY_NUM": "PRVS_ACPT_WO_CMPLT_DAY_NUM1", "TCHUP_CMPLT_RLET_CNT": "TCHUP_END_RLET_CNT1", "TCHUP_CMPLT_RLET_DAY_NUM": "TCHUP_END_RLET_DAY_NUM1", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TOT_OFR_BFR_SUCC_RLET_CNT": "TOT_OFR_BFR_SUCC_RLET_CNT1", "UNIT_SIZE_DMNS_KEY": "UNIT_SIZE_DMNS_KEY", "WO_CMPLT_FRST_OFR_CNT": "WO_CMPLT_FRST_OFR_CNT1", "WO_CMPLT_FRST_OFR_DAY_NUM": "WO_CMPLT_FRST_OFR_DAY_NUM1", "WO_CMPLT_RLET_CNT": "WO_CMPLT_RLET_CNT1", "WO_CMPLT_RLET_DAY_NUM": "WO_CMPLT_RLET_DAY_NUM1", "WO_DRFT_WO_ISS_CNT": "WO_DRFT_WO_ISS_CNT1", "WO_DRFT_WO_ISS_DAY_NUM": "WO_DRFT_WO_ISS_DAY_NUM1", "WO_ISS_FRST_OFR_CNT": "WO_ISS_FRST_OFR_CNT1", "WO_ISS_FRST_OFR_DAY_NUM": "WO_ISS_FRST_OFR_DAY_NUM1", "WO_ISS_WO_CMPLT_CNT": "WO_ISS_WO_CMPLT_CNT1", "WO_ISS_WO_CMPLT_DAY_NUM": "WO_ISS_WO_CMPLT_DAY_NUM1", "WO_ISS_WO_RPT_CNT": "WO_ISS_WO_RPT_CNT1", "WO_ISS_WO_RPT_DAY_NUM": "WO_ISS_WO_RPT_DAY_NUM1", "WO_RPT_WO_CMPLT_CNT": "WO_RPT_WO_CMPLT_CNT1", "WO_RPT_WO_CMPLT_DAY_NUM": "WO_RPT_WO_CMPLT_DAY_NUM1"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['TIME_DMNS_KEY', 'EST_SCD_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'FLAT_TYPE_DMNS_KEY', 'MAX_UNIT_HEAD_CNT', 'MIN_UNIT_HEAD_CNT', 'UNIT_SIZE_DMNS_KEY', 'MGT_MODE_DMNS_KEY', 'DOT_WO_DRFT_DAY_NUM', 'DOT_WO_DRFT_CNT', 'WO_DRFT_WO_ISS_DAY_NUM', 'WO_DRFT_WO_ISS_CNT', 'WO_ISS_WO_RPT_DAY_NUM', 'WO_ISS_WO_RPT_CNT', 'WO_RPT_WO_CMPLT_DAY_NUM', 'WO_RPT_WO_CMPLT_CNT', 'WO_CMPLT_FRST_OFR_DAY_NUM', 'WO_CMPLT_FRST_OFR_CNT', 'OFR_RLET_DAY_NUM', 'OFR_RLET_CNT', 'FRST_OFR_RLET_DAY_NUM', 'FRST_OFR_RLET_CNT', 'OFR_PRVS_ACPT_DAY_NUM', 'OFR_PRVS_ACPT_CNT', 'PRVS_ACPT_WO_CMPLT_DAY_NUM', 'PRVS_ACPT_WO_CMPLT_CNT', 'WO_CMPLT_RLET_DAY_NUM', 'WO_CMPLT_RLET_CNT', 'PRVS_ACPT_TCHUP_CMPLT_DAY_NUM', 'PRVS_ACPT_TCHUP_CMPLT_CNT', 'TCHUP_CMPLT_RLET_DAY_NUM', 'TCHUP_CMPLT_RLET_CNT', 'WO_ISS_WO_CMPLT_DAY_NUM', 'WO_ISS_WO_CMPLT_CNT', 'TOT_OFR_BFR_SUCC_RLET_CNT', 'OFR_BFR_SUCC_RLET_CNT', 'DOT_RLET_DAY_NUM', 'DOT_RLET_CNT', 'DOT_FRZ_FLAT_RTN_DAY_NUM', 'DOT_FRZ_FLAT_RTN_CNT', 'WO_ISS_FRST_OFR_DAY_NUM', 'WO_ISS_FRST_OFR_CNT']
@@ -356,6 +365,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         _field_map = {"RLS_CNTL_BGN_TIME_DMNS_KEY": "RLS_CNTL_BGN_TIME_DMNS_KEY", "RLS_CNTL_DMNS_TYPE_CODE": "RLS_CNTL_DMNS_TYPE_CODE", "RLS_CNTL_END_TIME_DMNS_KEY": "RLS_CNTL_END_TIME_DMNS_KEY", "RLS_CNTL_FACT_TBL_NAME": "RLS_CNTL_FACT_TBL_NAME"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['RLS_CNTL_FACT_TBL_NAME', 'RLS_CNTL_DMNS_TYPE_CODE', 'RLS_CNTL_BGN_TIME_DMNS_KEY', 'RLS_CNTL_END_TIME_DMNS_KEY']

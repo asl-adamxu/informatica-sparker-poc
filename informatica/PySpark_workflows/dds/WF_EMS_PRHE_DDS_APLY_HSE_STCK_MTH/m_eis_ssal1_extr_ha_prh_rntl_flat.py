@@ -8,6 +8,8 @@
 
 import env.runtime_lib as lib
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
+_builtin_max = max
+_builtin_min = min
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 
@@ -48,16 +50,56 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
 
     
     try:
+        logger.info("Step: read_HA_PRH_RNTL_UNIT")
+        # Read from file (prefer config.yml objects metadata if present)
+        # Determine object/table name emitted by the generator (if any)
+        _obj_name = "HA_PRH_RNTL_UNIT"
+        _file_options = {}
+        if _obj_name:
+            _obj = objects.get(_obj_name)
+            if _obj and isinstance(_obj, dict):
+                _file_path = _obj.get('path')
+                _file_format = _obj.get('format', 'csv')
+                # merge options if present
+                try:
+                    _file_opts_from_obj = _obj.get('options', {})
+                    if isinstance(_file_opts_from_obj, dict):
+                        _file_options = {**_file_options, **_file_opts_from_obj}
+                except Exception:
+                    pass
+        if not _file_path:
+            # No file path found in config.yml or step params — fail fast so generator users must provide paths
+            raise RuntimeError(f"Missing file path for object '{_obj_name}' in config.yml or step params for mapping 'M_EIS_SSAL1_EXTR_HA_PRH_RNTL_FLAT'. Please define the file.path for this object.")
+        df_HA_PRH_RNTL_UNIT = lib.read_file(
+            spark,
+            _file_path,
+            format=_file_format,
+            options=_file_options
+        )
+        _src_cols = ["estate", "block", "unit", "con_ref", "shrind", "indicator", "vcnt_ind"]
+        _csv_cols = df_HA_PRH_RNTL_UNIT.columns
+        if _csv_cols:
+            # Rename CSV columns by position to match Informatica source definition field names
+            for _i in range(_builtin_min([len(_csv_cols), len(_src_cols)])):
+                if _csv_cols[_i].lower() != _src_cols[_i].lower():
+                    df_HA_PRH_RNTL_UNIT = df_HA_PRH_RNTL_UNIT.withColumnRenamed(_csv_cols[_i], _src_cols[_i])
+        else:
+            logger.warning("Source file '%s' is empty or has no columns", _file_path)
+            df_HA_PRH_RNTL_UNIT = spark.createDataFrame([], StructType(
+                [StructField(f, StringType(), True) for f in _src_cols]
+            ))
+        ctx.register_df("df_HA_PRH_RNTL_UNIT", df_HA_PRH_RNTL_UNIT)
+        
         logger.info("Step: apply_HA_PRH_RNTL_UNIT")
         # Source Qualifier: apply_HA_PRH_RNTL_UNIT
-        df_HA_PRH_RNTL_UNIT = df_source
+        df_HA_PRH_RNTL_UNIT_1 = df_HA_PRH_RNTL_UNIT
         # Select only SQ output ports (matches Informatica behavior)
-        df_HA_PRH_RNTL_UNIT = df_HA_PRH_RNTL_UNIT.select("estate", "block", "unit", "con_ref", "shrind", "indicator", "vcnt_ind")
-        ctx.register_df("df_HA_PRH_RNTL_UNIT", df_HA_PRH_RNTL_UNIT)
+        df_HA_PRH_RNTL_UNIT_1 = df_HA_PRH_RNTL_UNIT_1.select("estate", "block", "unit", "con_ref", "shrind", "indicator", "vcnt_ind")
+        ctx.register_df("df_HA_PRH_RNTL_UNIT_1", df_HA_PRH_RNTL_UNIT_1)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_HA_PRH_RNTL_UNIT
+        df_EXPTRANS = df_HA_PRH_RNTL_UNIT_1
         df_EXPTRANS = df_EXPTRANS.withColumn("out_vcnt_ind", expr("CASE WHEN ltrim(rtrim(vcnt_ind)) = '' THEN null ELSE cast(vcnt_ind as decimal) END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         # Keep all upstream columns + computed columns (no select filtering)
@@ -106,6 +148,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         _field_map = {"BLOCK": "block", "CON_REF": "con_ref", "ESTATE": "estate", "INDICATOR": "indicator", "SHRIND": "shrind", "UNIT": "unit", "VCNT_IND": "out_vcnt_ind"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['ESTATE', 'BLOCK', 'UNIT', 'CON_REF', 'SHRIND', 'INDICATOR', 'VCNT_IND']

@@ -152,7 +152,9 @@ class ExpressionTranslator:
         result = self._translate_movingavg(result)
         result = self._translate_replacechr(result)
         result = self._translate_date_trunc(result)
+        result = self._translate_to_char(result)
         result = self._translate_functions(result)
+        result = self._translate_to_date_to_string(result)
         result = self._translate_operators(result)
         result = self._translate_string_literals(result)
         result = self._translate_date_format_patterns(result)
@@ -759,6 +761,48 @@ class ExpressionTranslator:
 
         return result
 
+    def _translate_to_date_to_string(self, expr: str) -> str:
+        """Wrap to_date's first argument with cast(... as string) for numeric inputs.
+        PySpark's to_date expects string as first arg, but Informatica TO_DATE also
+        accepts numbers.  Skip string literals (single/double quoted).
+        Also skip simple column references (they may be date/timestamp type already).
+        """
+        _pat = re.compile(r'\bto_date\s*\(', re.IGNORECASE)
+        result = expr
+        for _m in reversed(list(_pat.finditer(result))):
+            _args = self._extract_function_args(result, _m.end() - 1)
+            if len(_args) >= 2:
+                _arg1 = _args[0].strip()
+                # Skip string literals (already correct type)
+                if (_arg1.startswith("'") and _arg1.endswith("'")) or \
+                   (_arg1.startswith('"') and _arg1.endswith('"')):
+                    continue
+                # Skip simple column references (may already be date/timestamp)
+                if re.match(r'^[A-Za-z_]\w*$', _arg1):
+                    continue
+                _full_end = self._find_closing_paren(result, _m.end() - 1) + 1
+                _old_str = result[_m.start():_full_end]
+                _new_str = f"to_date(cast({_arg1} as string), {_args[1]})"
+                result = result[:_m.start()] + _new_str + result[_full_end:]
+        return result
+
+    def _translate_to_char(self, expr: str) -> str:
+        """Translate Informatica TO_CHAR to Spark.
+        - TO_CHAR(value) -> cast(value as string)
+        - TO_CHAR(date, format) -> date_format(date, format)
+        """
+        _pat = re.compile(r'\bTO_CHAR\s*\(', re.IGNORECASE)
+        result = expr
+        for _m in reversed(list(_pat.finditer(result))):
+            _args = self._extract_function_args(result, _m.end() - 1)
+            if len(_args) == 2:
+                _date_expr = _args[0].strip()
+                _format_expr = _args[1].strip()
+                _full_end = self._find_closing_paren(result, _m.end() - 1) + 1
+                _new_str = f"date_format({_date_expr}, {_format_expr})"
+                result = result[:_m.start()] + _new_str + result[_full_end:]
+        return result
+
     def _translate_date_trunc(self, expr: str) -> str:
         """Translate Informatica TRUNC(date, 'format') and FLOOR(date, 'format')
         to Spark date_trunc('format', date).  Only fires when the second argument
@@ -788,9 +832,14 @@ class ExpressionTranslator:
             _args_start = _m.end() - 1  # position of '('
             _args = self._extract_function_args(_result, _args_start)
 
-            # Single-argument TRUNC(date) — truncate time to start of day
+            # Single-argument TRUNC(date) — truncate time to start of day.
+            # Only applies when the argument is a date expression; skip numeric
+            # expressions (datediff, arithmetic operators) so they fall through
+            # to the generic TRUNC → floor mapping in _translate_functions.
             if len(_args) == 1 and _func_name == 'TRUNC':
                 _date_expr = _args[0].strip()
+                if re.search(r'\bdatediff\b', _date_expr, re.IGNORECASE) or re.search(r'[-+*/]', _date_expr):
+                    continue
                 _replacement = f"date_trunc('day', {_date_expr})"
                 _full_match_end = self._find_closing_paren(_result, _args_start) + 1
                 _result = _result[:_m.start()] + _replacement + _result[_full_match_end:]

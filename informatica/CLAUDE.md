@@ -287,10 +287,65 @@ use default python to run pyspark workflow or mapping
   from pyspark.sql.functions import *
   ```
 - Use `_builtin_max([a, b])` and `_builtin_min([a, b])` where the Python builtin is intended.
+- `_builtin_min`/`_builtin_max` MUST be assigned **before** `from pyspark.sql.functions import *` at module level (not inside a function after the import), or they will capture the PySpark column functions instead of Python builtins.
+
+### Flat File Lookup Support (v2026.07.29)
+- **Flat file lookups** — Lookup Procedure with `Source Type = Flat File` and no SQL/table name now reads from a file instead of skipping.
+- **Parser** (`parser.py`): Added `Flat File Lookup` session extension extraction capturing `Lookup source filename` and `Lookup source file directory`.
+- **Handler** (`handlers.py`): `_handle_lookup` now checks `session_file_sources` for flat file lookup info, creates a `ReadFileStep` with source field names for column-by-position renaming.
+- **Config gen** (`service.py`): Flat file lookups are registered in config.yml `objects:` section with `__SOURCE_FILE_DIR__` path markers.
+- **Replaces the previous behavior of silently skipping the lookup** — now a proper read step is generated.
+
+### Same-Name Source + Source Qualifier Fix (v2026.07.29)
+- **Problem**: When Source Definition and Source Qualifier share the same instance name (e.g. `HA_PRH_RNTL_UNIT`), the Source was silently overwritten in `instance_map` and never dispatched, causing `NameError: name 'df_source' is not defined`.
+- **Fix** (`handlers.py:675-700`): In `_handle_source_qualifier`, when `_get_input_df()` returns None and a same-named Source Definition exists in `mapping.sources`, generate the source read step inline by calling `_handle_source` on a minimal Source instance.
+
+### Aggregator Multi-Upstream Merge (v2026.07.29)
+- **`_handle_aggregator`** now detects multiple upstream DataFrames via `_get_all_input_dfs()` and generates common-column left-join pre-steps before the aggregation, matching the Expression handler's multi-input pattern.
+- **DISTINCT path** (template): GROUP BY with no aggregations now uses `agg_selects` (connector field mappings) with proper `col("from").alias("to")` patterns instead of raw `group_by` names — ensures correct field name remapping.
+- **DUMMY port fallback**: Both the DISTINCT path and regular `_agg_input.select()` path treat `from == 'DUMMY'` as unconnected (uses `lit(None)` instead of `col("DUMMY")`).
+
+### Mapplet Multiple OUTPUT Instances (v2026.07.29)
+- **Problem**: Mapplets with multiple Output Transformation instances (e.g. `OUTPUT_RLS_CNTL` + `OUTPUT_DUMMY`) only used the last one found, which could pick a dummy/spill output over the main data path.
+- **Fix** (`handlers.py:2674-2702`): Collects all output instances and selects the one with the most upstream connectors (the "main" data path).
+
+### $$ Mapping Variable in Aggregator (v2026.07.29)
+- **Set-literal fix**: In `_translate_aggregation_expr`, bare mapping variable placeholders like `{v_REC_RLS_IND}` are now wrapped with `lit(v_REC_RLS_IND)` instead of being rendered as `{v_REC_RLS_IND}.alias("REC_RLS_IND")` — which Python interprets as a set literal.
+
+### TRUNC Numeric Detection (v2026.07.29)
+- **`_translate_date_trunc`**: Single-argument `TRUNC(expr)` now skips `date_trunc('day', ...)` conversion when the argument contains `datediff` or arithmetic operators — numeric TRUNC falls through to the generic `TRUNC → floor` mapping instead.
+
+### TO_DATE Numeric Cast (v2026.07.29)
+- **`_translate_to_date_to_string`**: `to_date(numeric_expr, format)` wraps the first argument with `cast(... as string)` because PySpark's `to_date` expects a string, not a number. Skips string literals and simple column references.
+
+### TO_CHAR Date Format (v2026.07.29)
+- **`_translate_to_char`**: Two-argument `TO_CHAR(date, format)` now produces `date_format(date, format)` instead of `cast(date as string)` (which ignored the format). Single-argument `TO_CHAR(value)` still uses `cast(value as string)`.
+
+### SQL Duplicate Column Alias (v2026.07.29)
+- **`_alias_sql_columns`**: When a SQL pushdown query's SELECT has duplicate bare column names (e.g. two `APLY_KEY` columns from different tables), inline `AS` aliases are added to the duplicates only, using the corresponding `output_columns` port names — prevents `ORA-00918: column ambiguously defined`.
+
+### Filter Variable Substitution (v2026.07.29)
+- **Conditional replace**: The `_filter_text.replace("$$var", ...)` calls are only generated for mapping variables that actually appear in the filter expression — unused variables don't generate unnecessary replace code.
+- **Empty variable fallback**: Uses `str(v_var or "0")` to prevent invalid SQL when a mapping variable's value is empty (e.g. `COL > ` → `COL > 0`).
+
+### Target Column Case-Insensitive Drop (v2026.07.29)
+- **Template** (mapping.py.j2): The target field_map rename loop now drops any column that case-insensitively matches the target name before `withColumnRenamed`, preventing Spark ambiguity errors when a column and its computed replacement share the same name (e.g. `vcnt_ind` vs `VCNT_IND`).
+
+### Union Missing Column Fallback (v2026.07.29)
+- **Template** (mapping.py.j2): Union output column select now adds `lit(None)` for any column not present in the DataFrame before the select, preventing `cannot resolve column` errors.
+
+### Config.yml Path Defaults (v2026.07.29)
+- Added `paths:` section to config.yml with `source_file_dir` and `target_file_dir` documented at the top.
+- Object paths use `__SOURCE_FILE_DIR__` marker replaced at render time; defaults changed from `/tmp` to `/var/lib/airflow/dags`.
+- Path variables use `${VAR:default}` syntax resolvable via `os.environ` at runtime.
+
+### Code Quality (v2026.07.29)
+- **StructField list comprehension**: Empty DataFrame creation uses `[StructField(f, StringType(), True) for f in _src_cols]` instead of listing 40+ individual StructField lines.
+- **`_src_cols` / `_csv_cols` scope**: `_src_cols` is defined before `if _csv_cols:` so both branches can access it.
 
 ## Conversion Progress
 
-As of **2026-07-22** (version **v2026.07.22**), 10 workflows (~1,130 mappings) have been converted from Informatica PowerCenter XML to PySpark.
+As of **2026-07-29** (version **v2026.07.29**), 10 workflows (~1,130 mappings) have been converted from Informatica PowerCenter XML to PySpark.
 
 ### ✅ Runtime Verified
 | Workflow | Mappings | XML Size | Status |
@@ -299,7 +354,7 @@ As of **2026-07-22** (version **v2026.07.22**), 10 workflows (~1,130 mappings) h
 | WF_CMS_DDS_APLY_MTH | 10 | 1.2M | **3/3 mappings SUCCESS**, 16 mapplets inlined |
 | WF_HOMES_DDS_APLY_DMNS | 67 | 2.4M | **Zero warnings**, Sequence Generator tested |
 | WF_EMS_PRHE_DDS_APLY_RVN_MTH | 25 | 3.1M | **Zero warnings** (fixed 8) |
-| WF_EMS_PRHE_DDS_APLY_HSE_STCK_MTH | 28 | 3.9M | **Zero warnings** (fixed 2) |
+| WF_EMS_PRHE_DDS_APLY_HSE_STCK_MTH | 28 | 3.9M | **Data-validated** (fixed 15+) |
 
 ### ⚠️ Converted (Not Yet Runtime Tested)
 | Workflow | Mappings | XML Size | Notes |
@@ -341,4 +396,11 @@ As of **2026-07-22** (version **v2026.07.22**), 10 workflows (~1,130 mappings) h
 | Flat File config.yml object registration | WF_EMS_PRHE_DDS_APLY_RVN_MTH | ✅ |
 | REPLACECHR, TO_NUMBER, date format | WF_EMS_PRHE_DDS_APLY_RVN_MTH | ✅ |
 | Source Filter table prefix stripping | WF_EMS_PRHE_DDS_APLY_RVN_MTH | ✅ |
+| Flat File Lookup | WF_EMS_PRHE_DDS_APLY_HSE_STCK_MTH | ✅ |
+| Same-name Source+SQ (flat file) | WF_EMS_PRHE_DDS_APLY_HSE_STCK_MTH | ✅ |
+| Aggregator multi-upstream merge | WF_EMS_PRHE_DDS_APLY_HSE_STCK_MTH | ✅ |
+| Mapplet multiple OUTPUT instances | WF_EMS_PRHE_DDS_APLY_HSE_STCK_MTH | ✅ |
+| SQL duplicate column alias (ORA-00918) | WF_EMS_PRHE_DDS_APLY_HSE_STCK_MTH | ✅ |
+| TO_CHAR → date_format | WF_EMS_PRHE_DDS_APLY_HSE_STCK_MTH | ✅ |
+| TO_DATE numeric cast | WF_EMS_PRHE_DDS_APLY_HSE_STCK_MTH | ✅ |
 | Normalizer | — | ⏳ Pending |

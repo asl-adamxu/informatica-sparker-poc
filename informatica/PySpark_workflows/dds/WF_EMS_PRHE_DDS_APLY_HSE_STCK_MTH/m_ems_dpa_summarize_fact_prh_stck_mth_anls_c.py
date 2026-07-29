@@ -8,6 +8,8 @@
 
 import env.runtime_lib as lib
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
+_builtin_max = max
+_builtin_min = min
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 
@@ -167,6 +169,46 @@ AND     M1.UNIT_IFA_AREA = AST.UNIT_IFA_AREA
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
+        
+        logger.info("Step: read_LKP_ALCT_STS_CODE")
+        # Read from file (prefer config.yml objects metadata if present)
+        # Determine object/table name emitted by the generator (if any)
+        _obj_name = "LKP_ALCT_STS_CODE"
+        _file_options = {}
+        if _obj_name:
+            _obj = objects.get(_obj_name)
+            if _obj and isinstance(_obj, dict):
+                _file_path = _obj.get('path')
+                _file_format = _obj.get('format', 'csv')
+                # merge options if present
+                try:
+                    _file_opts_from_obj = _obj.get('options', {})
+                    if isinstance(_file_opts_from_obj, dict):
+                        _file_options = {**_file_options, **_file_opts_from_obj}
+                except Exception:
+                    pass
+        if not _file_path:
+            # No file path found in config.yml or step params — fail fast so generator users must provide paths
+            raise RuntimeError(f"Missing file path for object '{_obj_name}' in config.yml or step params for mapping 'M_EMS_DPA_SUMMARIZE_FACT_PRH_STCK_MTH_ANLS_C'. Please define the file.path for this object.")
+        df_LKP_ALCT_STS_CODE = lib.read_file(
+            spark,
+            _file_path,
+            format=_file_format,
+            options=_file_options
+        )
+        _src_cols = ["RPT_DATE", "EST_TYPE", "ESTATE", "BLK", "ROOM", "FLAT_STAT", "FL_ALLO_ST", "DT_ST_CHG", "APPN_NO", "FLAT_TYPE", "IFA", "LIVE_AREA", "ENV_IND", "TOILET", "ORIENT", "LIFT_SERV", "CV", "DT_TK_OVER", "DT_AVIL", "NO_REFUSE", "RES_CAT", "RES_OP", "DT_RES_EFF", "REMARK", "HEAD_MIN", "HEAD_MAX", "DIST", "NET_RENT", "NET_RATE", "OFFER_STAT", "DT_COM", "DT_INTAKE", "ALLO_TYPE", "EIS_RES_CAT", "VAC_PERIOD", "FIN_YR", "RF_REF_DT", "BLK_TYPE", "FBE_ID", "PACK_SIZE", "DT_OFFER", "MAAS", "EST_TYPE1", "ESTATE1", "BLK1", "ROOM1"]
+        _csv_cols = df_LKP_ALCT_STS_CODE.columns
+        if _csv_cols:
+            # Rename CSV columns by position to match Informatica source definition field names
+            for _i in range(_builtin_min([len(_csv_cols), len(_src_cols)])):
+                if _csv_cols[_i].lower() != _src_cols[_i].lower():
+                    df_LKP_ALCT_STS_CODE = df_LKP_ALCT_STS_CODE.withColumnRenamed(_csv_cols[_i], _src_cols[_i])
+        else:
+            logger.warning("Source file '%s' is empty or has no columns", _file_path)
+            df_LKP_ALCT_STS_CODE = spark.createDataFrame([], StructType(
+                [StructField(f, StringType(), True) for f in _src_cols]
+            ))
+        ctx.register_df("df_LKP_ALCT_STS_CODE", df_LKP_ALCT_STS_CODE)
         
         logger.info("Step: apply_LKP_ALCT_STS_CODE")
         # Lookup: apply_LKP_ALCT_STS_CODE
@@ -687,7 +729,21 @@ WHERE LAST_DAY(TO_DATE($$v_rpt_mth||'01','YYYYMMDD')) BETWEEN STS.BGN_DATE AND S
         ctx.register_df("df_lkp_merge_9", df_lkp_merge_9)        
         logger.info("Step: apply_AGGTRANS2")
         # Aggregator: apply_AGGTRANS2
-        df_AGGTRANS2 = df_lkp_merge_9.select("EMMS_BLK_KEY", "TIME_DMNS_KEY", "EST_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "ALCT_STS_DMNS_KEY1", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_ADVS_ENV_CODE_IND1", "MGT_MODE_DMNS_KEY1", "BLK_SCD_KEY1", "OUT_HSC_UNIT_TYPE_DMNS_KEY").distinct()
+        df_AGGTRANS2 = df_lkp_merge_9.select(
+            col("BLK_SCD_KEY1"),
+            lit(None).alias("OUT_HSC_UNIT_TYPE_DMNS_KEY"),
+            col("TIME_DMNS_KEY"),
+            col("EST_SCD_KEY"),
+            lit(None).alias("FLAT_TYPE_DMNS_KEY"),
+            lit(None).alias("UNIT_SIZE_DMNS_KEY"),
+            lit(None).alias("ALCT_STS_DMNS_KEY1"),
+            lit(None).alias("MAX_UNIT_HEAD_CNT"),
+            lit(None).alias("MIN_UNIT_HEAD_CNT"),
+            lit(None).alias("UNIT_ADVS_ENV_CODE_IND1"),
+            col("DSTR_BRD_DSTR_DMNS_KEY"),
+            col("DSTR_CHC_DSTR_SCD_KEY"),
+            col("MGT_MODE_DMNS_KEY1"),
+            col("EMMS_BLK_KEY")        ).distinct()
         ctx.register_df("df_AGGTRANS2", df_AGGTRANS2)
         
         logger.info("Step: apply_EXPTRANS5")
@@ -842,6 +898,11 @@ WHERE
         _field_map = {"ALCT_STS_DMNS_KEY": "ALCT_STS_DMNS_KEY1", "BLK_CNT": "BLK_CNT", "BLK_SCD_KEY": "BLK_SCD_KEY1", "DSTR_BRD_DSTR_DMNS_KEY": "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY": "DSTR_CHC_DSTR_SCD_KEY", "EST_SCD_KEY": "EST_SCD_KEY", "FLAT_TYPE_DMNS_KEY": "FLAT_TYPE_DMNS_KEY", "HSC_UNIT_TYPE_DMNS_KEY": "OUT_HSC_UNIT_TYPE_DMNS_KEY", "MAX_UNIT_HEAD_CNT": "MAX_UNIT_HEAD_CNT", "MAX_UNIT_VCNCY_DAY_NUM": "DUMMY", "MGT_MODE_DMNS_KEY": "MGT_MODE_DMNS_KEY1", "MIN_UNIT_HEAD_CNT": "MIN_UNIT_HEAD_CNT", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TOT_UNIT_VCNCY_DAY_NUM": "DUMMY", "UNIT_ADVS_ENV_IND": "DUMMY1", "UNIT_SIZE_DMNS_KEY": "UNIT_SIZE_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['TIME_DMNS_KEY', 'EST_SCD_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'FLAT_TYPE_DMNS_KEY', 'UNIT_SIZE_DMNS_KEY', 'ALCT_STS_DMNS_KEY', 'MGT_MODE_DMNS_KEY', 'MAX_UNIT_HEAD_CNT', 'MIN_UNIT_HEAD_CNT', 'UNIT_ADVS_ENV_IND', 'BLK_CNT', 'PRVS_UNIT_CNT', 'RCVR_UNIT_CNT', 'MAX_UNIT_VCNCY_DAY_NUM', 'TOT_UNIT_VCNCY_DAY_NUM', 'RNTL_UNIT_CNT', 'MAX_UNIT_MTH_RENT_AMT', 'MIN_UNIT_MTH_RENT_AMT', 'TOT_UNIT_MTH_RENT_AMT', 'MAX_UNIT_IFA_RENT_AMT', 'MIN_UNIT_IFA_RENT_AMT', 'TOT_UNIT_IFA_RENT_AMT', 'STA_UNIT_CNT', 'STA_OCPY_UNIT_CNT', 'STA_VCNT_UNIT_ALCT_CNT', 'STA_UNIT_UND_OFR_CNT', 'VCNT_UNIT_UND_RFBH_CNT', 'UNIT_UND_OFR_RFBH_CNT', 'RLET_UNIT_CNT', 'RLET_AFT_RFBH_CNT', 'RLET_AFT_TCHUP_WO_CNT', 'UNIT_UND_FRZ_RFBH_CNT', 'BLK_SCD_KEY', 'HSC_UNIT_TYPE_DMNS_KEY', 'STA_NONLTB_UNIT_CNT', 'REC_RLS_IND']
@@ -859,10 +920,28 @@ WHERE
         df_FILTRANS = __fil_input.filter(expr("NOT (VCNT_IND IS NULL)"))
         ctx.register_df("df_FILTRANS", df_FILTRANS)
         
+        logger.info("Step: merge_AGGTRANS_0")
+        # Lookup: merge_AGGTRANS_0
+        # Merge on common columns — drop lookup columns that duplicate non-key
+        # input columns (e.g. EST_KEY from both sides → ambiguity).
+        _cc = list(dict.fromkeys(c for c in df_EXPTRANS6.columns if c in df_lkp_merge_11.columns))
+        if _cc:
+            __lkp_dup = [c for c in df_lkp_merge_11.columns if c in df_EXPTRANS6.columns and c not in _cc]
+            df_merge_12 = df_EXPTRANS6.join(
+                df_lkp_merge_11.drop(*__lkp_dup) if __lkp_dup else df_lkp_merge_11,
+                on=_cc, how="left"
+            )
+        else:
+            logger.warning("No common columns between df_EXPTRANS6 and df_lkp_merge_11 — using synthetic key join")
+            df_merge_12 = df_EXPTRANS6.withColumn("_join_key", lit(1)).join(
+                df_lkp_merge_11.withColumn("_join_key", lit(1)),
+                on="_join_key", how="left").drop("_join_key")
+        ctx.register_df("df_merge_12", df_merge_12)
+        
         logger.info("Step: apply_AGGTRANS")
         # Aggregator: apply_AGGTRANS
         # Select only mapped upstream columns with correct port names
-        _agg_input = df_EXPTRANS6.select(
+        _agg_input = df_merge_12.select(
             col("OUT_HSC_UNIT_TYPE_DMNS_KEY").alias("HSC_UNIT_TYPE_DMNS_KEY"),
             col("BLK_SCD_KEY1"),
             col("DSTR_BRD_DSTR_DMNS_KEY"),
@@ -951,6 +1030,11 @@ WHERE
         _field_map = {"ALCT_STS_DMNS_KEY": "ALCT_STS_DMNS_KEY", "BLK_SCD_KEY": "BLK_SCD_KEY1", "DSTR_BRD_DSTR_DMNS_KEY": "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY": "DSTR_CHC_DSTR_SCD_KEY", "EST_SCD_KEY": "EST_SCD_KEY", "FLAT_TYPE_DMNS_KEY": "FLAT_TYPE_DMNS_KEY", "HSC_UNIT_TYPE_DMNS_KEY": "HSC_UNIT_TYPE_DMNS_KEY", "MAX_UNIT_HEAD_CNT": "MAX_UNIT_HEAD_CNT", "MAX_UNIT_IFA_RENT_AMT": "MAX_UNIT_IFA_RENT", "MAX_UNIT_MTH_RENT_AMT": "MAX_UNIT_MTH_RENT", "MAX_UNIT_VCNCY_DAY_NUM": "DUMMY", "MGT_MODE_DMNS_KEY": "MGT_MODE_DMNS_KEY", "MIN_UNIT_HEAD_CNT": "MIN_UNIT_HEAD_CNT", "MIN_UNIT_IFA_RENT_AMT": "MIN_UNIT_IFA_RENT", "MIN_UNIT_MTH_RENT_AMT": "MIN_UNIT_MTH_RENT", "PRVS_UNIT_CNT": "PRVS_UNIT_CNT", "RNTL_UNIT_CNT": "RENT_UNIT_CNT", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TOT_UNIT_IFA_RENT_AMT": "TOT_UNIT_IFA_RENT", "TOT_UNIT_MTH_RENT_AMT": "TOT_UNIT_MTH_RENT", "TOT_UNIT_VCNCY_DAY_NUM": "DUMMY", "UNIT_ADVS_ENV_IND": "UNIT_ADVS_ENV_CODE_IND", "UNIT_SIZE_DMNS_KEY": "UNIT_SIZE_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['TIME_DMNS_KEY', 'EST_SCD_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'FLAT_TYPE_DMNS_KEY', 'UNIT_SIZE_DMNS_KEY', 'ALCT_STS_DMNS_KEY', 'MGT_MODE_DMNS_KEY', 'MAX_UNIT_HEAD_CNT', 'MIN_UNIT_HEAD_CNT', 'UNIT_ADVS_ENV_IND', 'BLK_CNT', 'PRVS_UNIT_CNT', 'RCVR_UNIT_CNT', 'MAX_UNIT_VCNCY_DAY_NUM', 'TOT_UNIT_VCNCY_DAY_NUM', 'RNTL_UNIT_CNT', 'MAX_UNIT_MTH_RENT_AMT', 'MIN_UNIT_MTH_RENT_AMT', 'TOT_UNIT_MTH_RENT_AMT', 'MAX_UNIT_IFA_RENT_AMT', 'MIN_UNIT_IFA_RENT_AMT', 'TOT_UNIT_IFA_RENT_AMT', 'STA_UNIT_CNT', 'STA_OCPY_UNIT_CNT', 'STA_VCNT_UNIT_ALCT_CNT', 'STA_UNIT_UND_OFR_CNT', 'VCNT_UNIT_UND_RFBH_CNT', 'UNIT_UND_OFR_RFBH_CNT', 'RLET_UNIT_CNT', 'RLET_AFT_RFBH_CNT', 'RLET_AFT_TCHUP_WO_CNT', 'UNIT_UND_FRZ_RFBH_CNT', 'BLK_SCD_KEY', 'HSC_UNIT_TYPE_DMNS_KEY', 'STA_NONLTB_UNIT_CNT', 'REC_RLS_IND']
@@ -994,7 +1078,7 @@ WHERE
         _lkp_input = _lkp_input.withColumn("IN_VCNT_FLAT_TYPE_CODE", col("OUT_VCNT_IND"))
         # Join condition: IN_VCNT_FLAT_TYPE_CODE=VCNT_FLAT_TYPE_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_12 = _lkp_input.alias("_main").join(
+        df_lkp_merge_13 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_VCNT_FLAT_TYPE).alias("_lkp"),
             (col("_main.IN_VCNT_FLAT_TYPE_CODE") == col("_lkp.VCNT_FLAT_TYPE_CODE")),
             "left"
@@ -1002,10 +1086,10 @@ WHERE
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_DDS_DMNS_EMS_VCNT_FLAT_TYPE[c] for c in df_LKP_DDS_DMNS_EMS_VCNT_FLAT_TYPE.columns if c not in _lkp_input.columns]
         )
-        ctx.register_df("df_lkp_merge_12", df_lkp_merge_12)        
+        ctx.register_df("df_lkp_merge_13", df_lkp_merge_13)        
         logger.info("Step: apply_EXPTRANS3")
         # Expression: apply_EXPTRANS3
-        df_EXPTRANS3 = df_lkp_merge_12
+        df_EXPTRANS3 = df_lkp_merge_13
         df_EXPTRANS3 = df_EXPTRANS3.withColumn("out_VCNT_FLAT_TYPE_DMNS_KEY", expr("CASE WHEN (VCNT_FLAT_TYPE_DMNS_KEY IS NULL) THEN 0 ELSE VCNT_FLAT_TYPE_DMNS_KEY END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         # Keep all upstream columns + computed columns (no select filtering)
@@ -1036,6 +1120,11 @@ WHERE
         _field_map = {"BLK_SCD_KEY": "BLK_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY": "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY": "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY": "FLAT_TYPE_DMNS_KEY", "MAX_UNIT_HEAD_CNT": "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT": "MIN_UNIT_HEAD_CNT", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TOT_UNIT_MTH_RENT_AMT": "TOT_UNIT_MTH_RENT", "UNIT_ADVS_ENV_IND": "UNIT_ADVS_ENV_CODE_IND", "UNIT_SIZE_DMNS_KEY": "UNIT_SIZE_DMNS_KEY", "VCNT_FLAT_TYPE_DMNS_KEY": "out_VCNT_FLAT_TYPE_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['TIME_DMNS_KEY', 'VCNT_FLAT_TYPE_DMNS_KEY', 'BLK_SCD_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'FLAT_TYPE_DMNS_KEY', 'UNIT_SIZE_DMNS_KEY', 'MAX_UNIT_HEAD_CNT', 'MIN_UNIT_HEAD_CNT', 'UNIT_ADVS_ENV_IND', 'STA_VCNT_UNIT_ALCT_CNT', 'TOT_UNIT_MTH_RENT_AMT', 'REC_RLS_IND']

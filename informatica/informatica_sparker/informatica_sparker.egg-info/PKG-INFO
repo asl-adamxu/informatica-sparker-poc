@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: informatica-sparker
-Version: 2026.7.22
+Version: 2026.7.29
 Summary: Framework to convert Informatica PowerCenter XML exports to PySpark code for Databricks. Auto-detects sources (SQL, CSV, Parquet, XML, JSON, text, DAT, files without extensions) and generates complete deployment packages.
 License: MIT
 Project-URL: Homepage, https://pypi.org/project/informatica-sparker/
@@ -27,7 +27,7 @@ Requires-Dist: pytest>=7.0; extra == "dev"
 
 # informatica-sparker
 
-**Version v2026.07.22** — A Python framework that converts Informatica PowerCenter workflow/mapping XML exports into PySpark code deployable to Databricks or YARN Spark clusters. **Tested against Informatica output — data results match.**
+**Version v2026.07.29** — A Python framework that converts Informatica PowerCenter workflow/mapping XML exports into PySpark code deployable to Databricks or YARN Spark clusters. **Tested against Informatica output — data results match.**
 
 Conversion pipeline: **XML → Models → IR Plan → Jinja2 Templates → Generated Python Files**
 
@@ -38,7 +38,7 @@ Conversion pipeline: **XML → Models → IR Plan → Jinja2 Templates → Gener
   - SQL databases (SQL Server, Oracle, MySQL, PostgreSQL, DB2, Teradata, Netezza, Sybase, Informix)
   - File formats: CSV, Parquet, DAT, XML, JSON, Text, Fixed-Width, Avro, ORC, Excel
   - Files without extensions
-  - JDBC/ODBC connections with driver JAR detection
+  - JDBC/ODBC connections with driver JAR detection (ODBC → JDBC auto-conversion)
   - File location detection: Local, S3, ADLS, GCS, DBFS
 - **Expression Translation**: Comprehensive Informatica-to-PySpark function mapping (60+ functions):
   - String: `SUBSTR`, `INSTR`, `CONCAT`, `REPLACE`, `REG_REPLACE`, `LPAD`, `RPAD`, `TRIM`, `UPPER`, `LOWER`, `INITCAP`, `REVERSE`, `SOUNDEX`, `REPLACESTR`, `REPLACECHR` (4-arg start_pos → 3-arg translate, NULL → '')
@@ -192,6 +192,7 @@ The framework automatically identifies what each source in the XML is:
 | Avro | `.avro` extension |
 | ORC | `.orc` extension |
 | Excel | `.xls`/`.xlsx` extension |
+| ODBC | `DATABASETYPE=ODBC`, auto-resolved to underlying DB (Oracle/SQL Server/MySQL/DB2/PostgreSQL) via connection string or sub-type attribute → JDBC |
 
 Connection details (JDBC URLs, driver JARs, host/port) are automatically extracted and included in the generated `config.yml`.
 
@@ -199,7 +200,7 @@ Connection details (JDBC URLs, driver JARs, host/port) are automatically extract
 
 | Informatica Transform | PySpark Equivalent |
 |----------------------|-------------------|
-| Source Qualifier | `spark.read.format("jdbc")` / `spark.read.csv()` etc. (with SQL override support) |
+| Source Qualifier / Application Source Qualifier | `spark.read.format("jdbc")` / `spark.read.csv()` etc. (with SQL override support) |
 | Expression | `.withColumn()` / `.select()` with `expr()` for translated expressions |
 | Filter | `.filter()` / `.where()` with connector-based field rename and `$$` variable runtime replacement |
 | Lookup | `.join()` with `broadcast()` hint (equi-join or complex expression); chain-join multiple lookups onto accumulating DF; dedup by join keys; merge with non-key column dedup |

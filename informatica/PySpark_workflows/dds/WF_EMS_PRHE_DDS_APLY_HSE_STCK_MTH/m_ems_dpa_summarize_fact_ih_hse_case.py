@@ -8,6 +8,8 @@
 
 import env.runtime_lib as lib
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
+_builtin_max = max
+_builtin_min = min
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 
@@ -209,7 +211,7 @@ ORDER BY
         df_EXPTRANS = df_EXPTRANS.withColumn("MAX_UNIT_HEAD_CNT", expr("cast(MAX_UNIT_HEAD_CNT as string)"))
         df_EXPTRANS = df_EXPTRANS.withColumn("UNIT_IFA_AREA", expr("cast(UNIT_IFA_AREA as string)"))
         df_EXPTRANS = df_EXPTRANS.withColumn("RENT_FCTR_CODE", expr("cast(RENT_FCTR_CODE as string)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RVS_INTK_DATE", expr("cast(RVS_INTK_DATE as string)"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("RVS_INTK_DATE", expr("date_format(RVS_INTK_DATE, 'yyyy-mm-dd')"))
         df_EXPTRANS = df_EXPTRANS.withColumn("EST_CODE", expr("substring(UNIT_ADDR_CODE,2,5)"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["UNIT_ADDR_CODE", "HSE_SRVC_APLY_NUM", "CATG_USER_TYPE_CODE", "PREV_CODE_ADDR"]:
@@ -303,6 +305,11 @@ ORDER BY
         _field_map = {"Application_No": "HSE_SRVC_APLY_NUM", "Category_Code": "CATG_USER_TYPE_CODE", "Code_Address": "UNIT_ADDR_CODE", "Estate_Code": "EST_CODE", "Family_Size": "FMLY_SIZE_NUM", "Head_Max": "MAX_UNIT_HEAD_CNT", "Head_Min": "MIN_UNIT_HEAD_CNT", "IFA": "UNIT_IFA_AREA", "Intake_Date": "RVS_INTK_DATE", "Original_Code_Address": "PREV_CODE_ADDR", "Rent_Factor": "RENT_FCTR_CODE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['Estate_Code', 'Code_Address', 'Application_No', 'Category_Code', 'Family_Size', 'Head_Min', 'Head_Max', 'IFA', 'Rent_Factor', 'Intake_Date', 'Original_Code_Address']
