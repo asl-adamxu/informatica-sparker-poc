@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -88,7 +87,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             monotonically_increasing_id() + 0
         )
         ctx.register_df("df_SEQ_DMNS_VDR_KEY", df_SEQ_DMNS_VDR_KEY)
-        
+
         logger.info("Step: apply_SQ_SOR_HOM_CON_CNTR_STS")
         # Source Qualifier: apply_SQ_SOR_HOM_CON_CNTR_STS
         # SQL Pushdown - executes Informatica SQ SQL on source database
@@ -145,24 +144,27 @@ select '0' vdr_num, 'Others' vdr_name  from dual"""
         # Lookup: apply_LKP_DDS_DMNS_VDR
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_VDR = df_LKP_DDS_DMNS_VDR.dropDuplicates(subset=["VDR_NUM"])
-        # Join condition: VDR_NUM=VDR_NUM
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_SQ_SOR_HOM_CON_CNTR_STS
+        _lkp_input = _lkp_input.withColumn("IN_VDR_NUM", col("VDR_NUM"))
+        # Join condition: IN_VDR_NUM=VDR_NUM
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_SQ_SOR_HOM_CON_CNTR_STS.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_VDR).alias("_lkp"),
-            (col("_main.VDR_NUM") == col("_lkp.VDR_NUM")),
+            (col("_main.IN_VDR_NUM") == col("_lkp.VDR_NUM")),
             "left"
         ).select(
-            *[df_SQ_SOR_HOM_CON_CNTR_STS[c] for c in df_SQ_SOR_HOM_CON_CNTR_STS.columns],
-            *[df_LKP_DDS_DMNS_VDR[c] for c in df_LKP_DDS_DMNS_VDR.columns if c not in df_SQ_SOR_HOM_CON_CNTR_STS.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_VDR[c] for c in df_LKP_DDS_DMNS_VDR.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
         df_EXPTRANS = df_lkp_merge_1
-        df_EXPTRANS = df_EXPTRANS.withColumn("IN_VDR_NAME", expr("VDR_NAME"))
         df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_VDR_KEY IS NULL) OR CASE WHEN VDR_NUM = IN_VDR_NUM THEN false ELSE true END OR CASE WHEN VDR_NAME = VDR_NAME THEN false ELSE true END THEN 1 ELSE 0 END"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("IN_VDR_NAME", expr("VDR_NAME"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["IN_VDR_NUM", "VDR_NAME", "VDR_NUM", "DMNS_VDR_KEY", "VDR_DISP_SEQ_NUM"]:
+        for _col in ["DMNS_VDR_KEY", "IN_VDR_NUM", "VDR_NUM", "VDR_NAME", "VDR_DISP_SEQ_NUM"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
@@ -193,7 +195,10 @@ select '0' vdr_num, 'Others' vdr_name  from dual"""
             col("IN_VDR_NAME").alias("IN_VDR_NAME")        )
         df_Union_Transformation = df_Union_Transformation_change
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_new, allowMissingColumns=True)
-        # Select only union output columns
+        # Select only union output columns (add lit(None) for any missing)
+        for _col in ["DMNS_VDR_KEY", "IN_VDR_NUM", "IN_VDR_NAME"]:
+            if _col not in df_Union_Transformation.columns:
+                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("DMNS_VDR_KEY", "IN_VDR_NUM", "IN_VDR_NAME")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
@@ -221,6 +226,11 @@ select '0' vdr_num, 'Others' vdr_name  from dual"""
         _field_map = {"DMNS_VDR_KEY": "DMNS_VDR_KEY", "VDR_NAME": "IN_VDR_NAME", "VDR_NUM": "IN_VDR_NUM"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['DMNS_VDR_KEY', 'VDR_NUM', 'VDR_NAME', 'VDR_DISP_SEQ_NUM']

@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -104,6 +103,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         _field_map = {"BLK_AGE_DMNS_KEY": "BLK_AGE_DMNS_KEY", "BLK_SCD_KEY": "BLK_SCD_KEY", "CASE_CATG_SCD_KEY": "CASE_CATG_SCD_KEY", "CASE_TYPE_SCD_KEY": "CASE_TYPE_SCD_KEY", "CMS_BLK_SCD_KEY": "CMS_BLK_SCD_KEY", "CMS_CASE_CMPLT_CNT": "CMS_CASE_CMPLT_CNT", "CMS_CASE_CNT": "CMS_CASE_CNT", "CMS_CASE_ITEM_CMPLT_CNT": "CMS_CASE_ITEM_CMPLT_CNT", "CMS_CASE_ITEM_CNT": "CMS_CASE_ITEM_CNT", "CMS_CASE_ITEM_NEW_CNT": "CMS_CASE_ITEM_NEW_CNT", "CMS_CASE_ITEM_RPET_CNT": "CMS_CASE_ITEM_RPET_CNT", "CMS_CASE_NEW_CNT": "CMS_CASE_NEW_CNT", "CMS_CASE_RPET_CNT": "CMS_CASE_RPET_CNT", "CMS_EST_SCD_KEY": "CMS_EST_SCD_KEY", "CMS_RCPT_PRN_CNT": "CMS_RCPT_PRN_CNT", "EST_OFFC_SCD_KEY": "EST_OFFC_SCD_KEY", "EST_SCD_KEY": "EST_SCD_KEY", "HSHLD_AEM_IND": "HSHLD_AEM_IND", "HSHLD_DSBL_IND": "HSHLD_DSBL_IND", "HSHLD_ELDR_IND": "HSHLD_ELDR_IND", "HSHLD_SIZE_DMNS_KEY": "HSHLD_SIZE_DMNS_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "RQS_CHNL_DMNS_KEY": "RQS_CHNL_DMNS_KEY", "RSDN_LNG_DMNS_KEY": "RSDN_LNG_DMNS_KEY", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "UNIT_SIZE_DMNS_KEY": "UNIT_SIZE_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['TIME_DMNS_KEY', 'RQS_CHNL_DMNS_KEY', 'CASE_TYPE_SCD_KEY', 'BLK_AGE_DMNS_KEY', 'EST_OFFC_SCD_KEY', 'HSHLD_SIZE_DMNS_KEY', 'UNIT_SIZE_DMNS_KEY', 'CASE_CATG_SCD_KEY', 'RSDN_LNG_DMNS_KEY', 'BLK_SCD_KEY', 'HSHLD_AEM_IND', 'HSHLD_ELDR_IND', 'HSHLD_DSBL_IND', 'CMS_CASE_CNT', 'CMS_CASE_CMPLT_CNT', 'CMS_CASE_RPET_CNT', 'CMS_CASE_NEW_CNT', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'CMS_BLK_SCD_KEY', 'EST_SCD_KEY', 'CMS_EST_SCD_KEY', 'CMS_RCPT_PRN_CNT', 'CMS_CASE_ITEM_CNT', 'CMS_CASE_ITEM_CMPLT_CNT', 'CMS_CASE_ITEM_RPET_CNT', 'CMS_CASE_ITEM_NEW_CNT']

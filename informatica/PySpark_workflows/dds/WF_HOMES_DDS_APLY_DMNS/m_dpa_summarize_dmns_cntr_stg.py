@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -76,7 +75,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             monotonically_increasing_id() + 0
         )
         ctx.register_df("df_SEQ_DMNS_CNTR_STG_KEY", df_SEQ_DMNS_CNTR_STG_KEY)
-        
+
         logger.info("Step: apply_SQ_SOR_HOM_CON_CNTR_STG")
         # Source Qualifier: apply_SQ_SOR_HOM_CON_CNTR_STG
         # SQL Pushdown - executes Informatica SQ SQL on source database
@@ -115,15 +114,18 @@ ORDER BY SOR_HOM_CON_CNTR_STG.CNTR_STG_CODE"""
         # Lookup: apply_LKP_DDS_DMNS_CNTR_STG
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_CNTR_STG = df_LKP_DDS_DMNS_CNTR_STG.dropDuplicates(subset=["CNTR_STG_CODE"])
-        # Join condition: CNTR_STG_CODE=CNTR_STG_CODE
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_SQ_SOR_HOM_CON_CNTR_STG
+        _lkp_input = _lkp_input.withColumn("IN_CNTR_STG_CODE", col("CNTR_STG_CODE"))
+        # Join condition: IN_CNTR_STG_CODE=CNTR_STG_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_SQ_SOR_HOM_CON_CNTR_STG.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_CNTR_STG).alias("_lkp"),
-            (col("_main.CNTR_STG_CODE") == col("_lkp.CNTR_STG_CODE")),
+            (col("_main.IN_CNTR_STG_CODE") == col("_lkp.CNTR_STG_CODE")),
             "left"
         ).select(
-            *[df_SQ_SOR_HOM_CON_CNTR_STG[c] for c in df_SQ_SOR_HOM_CON_CNTR_STG.columns],
-            *[df_LKP_DDS_DMNS_CNTR_STG[c] for c in df_LKP_DDS_DMNS_CNTR_STG.columns if c not in df_SQ_SOR_HOM_CON_CNTR_STG.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_CNTR_STG[c] for c in df_LKP_DDS_DMNS_CNTR_STG.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS")
@@ -163,7 +165,10 @@ ORDER BY SOR_HOM_CON_CNTR_STG.CNTR_STG_CODE"""
             col("IN_CNTR_STG_DESP").alias("IN_CNTR_STG_DESP")        )
         df_Union_Transformation = df_Union_Transformation_change
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_new, allowMissingColumns=True)
-        # Select only union output columns
+        # Select only union output columns (add lit(None) for any missing)
+        for _col in ["DMNS_CNTR_STG_KEY", "IN_CNTR_STG_CODE", "IN_CNTR_STG_DESP"]:
+            if _col not in df_Union_Transformation.columns:
+                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("DMNS_CNTR_STG_KEY", "IN_CNTR_STG_CODE", "IN_CNTR_STG_DESP")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
@@ -191,6 +196,11 @@ ORDER BY SOR_HOM_CON_CNTR_STG.CNTR_STG_CODE"""
         _field_map = {"CNTR_STG_CODE": "IN_CNTR_STG_CODE", "CNTR_STG_DESP": "IN_CNTR_STG_DESP", "DMNS_CNTR_STG_KEY": "DMNS_CNTR_STG_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['DMNS_CNTR_STG_KEY', 'CNTR_STG_CODE', 'CNTR_STG_DESP', 'CNTR_STG_DISP_SEQ_NUM']

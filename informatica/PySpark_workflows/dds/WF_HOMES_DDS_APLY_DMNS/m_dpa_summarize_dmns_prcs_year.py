@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -82,7 +81,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             monotonically_increasing_id() + 0
         )
         ctx.register_df("df_SEQ_DMNS_PRCS_YEAR_KEY", df_SEQ_DMNS_PRCS_YEAR_KEY)
-        
+
         logger.info("Step: apply_SQ_SOR_HOM_BUD_PARM")
         # Source Qualifier: apply_SQ_SOR_HOM_BUD_PARM
         # SQL Pushdown - executes Informatica SQ SQL on source database
@@ -297,15 +296,18 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Lookup: apply_LKP_DDS_DMNS_PRCS_YEAR
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_PRCS_YEAR = df_LKP_DDS_DMNS_PRCS_YEAR.dropDuplicates(subset=["PRCS_YEAR_NUM"])
-        # Join condition: PRCS_YEAR=PRCS_YEAR_NUM
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_SQ_SOR_HOM_BUD_PARM
+        _lkp_input = _lkp_input.withColumn("IN_PRCS_YEAR_NUM", col("PRCS_YEAR"))
+        # Join condition: IN_PRCS_YEAR_NUM=PRCS_YEAR_NUM
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_SQ_SOR_HOM_BUD_PARM.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_PRCS_YEAR).alias("_lkp"),
-            (col("_main.PRCS_YEAR") == col("_lkp.PRCS_YEAR_NUM")),
+            (col("_main.IN_PRCS_YEAR_NUM") == col("_lkp.PRCS_YEAR_NUM")),
             "left"
         ).select(
-            *[df_SQ_SOR_HOM_BUD_PARM[c] for c in df_SQ_SOR_HOM_BUD_PARM.columns],
-            *[df_LKP_DDS_DMNS_PRCS_YEAR[c] for c in df_LKP_DDS_DMNS_PRCS_YEAR.columns if c not in df_SQ_SOR_HOM_BUD_PARM.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_PRCS_YEAR[c] for c in df_LKP_DDS_DMNS_PRCS_YEAR.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS")
@@ -314,7 +316,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_PARM_TEXT", expr("PARM_TEXT"))
         df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_PRCS_YEAR_KEY IS NULL) OR CASE WHEN PRCS_YEAR_NUM = IN_PRCS_YEAR_NUM THEN false ELSE true END OR CASE WHEN PRCS_YEAR_TEXT = PARM_TEXT THEN false ELSE true END THEN 1 ELSE 0 END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["IN_PRCS_YEAR_NUM", "PRCS_YEAR_TEXT", "DMNS_PRCS_YEAR_KEY", "PRCS_YEAR_NUM", "YEAR_DISP_SEQ_NUM"]:
+        for _col in ["PRCS_YEAR_NUM", "IN_PRCS_YEAR_NUM", "DMNS_PRCS_YEAR_KEY", "PRCS_YEAR_TEXT", "YEAR_DISP_SEQ_NUM"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
@@ -345,7 +347,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             col("IN_PARM_TEXT").alias("IN_PARM_TEXT")        )
         df_Union_Transformation = df_Union_Transformation_change
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_new, allowMissingColumns=True)
-        # Select only union output columns
+        # Select only union output columns (add lit(None) for any missing)
+        for _col in ["DMNS_PRCS_YEAR_KEY", "IN_PRCS_YEAR_NUM", "IN_PARM_TEXT"]:
+            if _col not in df_Union_Transformation.columns:
+                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("DMNS_PRCS_YEAR_KEY", "IN_PRCS_YEAR_NUM", "IN_PARM_TEXT")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
@@ -366,6 +371,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         _field_map = {"DMNS_PRCS_YEAR_KEY": "DMNS_PRCS_YEAR_KEY", "PRCS_YEAR_NUM": "IN_PRCS_YEAR_NUM", "PRCS_YEAR_TEXT": "IN_PARM_TEXT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['DMNS_PRCS_YEAR_KEY', 'PRCS_YEAR_NUM', 'PRCS_YEAR_TEXT', 'YEAR_DISP_SEQ_NUM']

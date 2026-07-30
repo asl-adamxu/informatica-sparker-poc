@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -76,7 +75,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             monotonically_increasing_id() + 0
         )
         ctx.register_df("df_SEQ_DMNS_FLATMIX_KEY", df_SEQ_DMNS_FLATMIX_KEY)
-        
+
         logger.info("Step: apply_SQ_SOR_HOM_PRJ_FLATMIX")
         # Source Qualifier: apply_SQ_SOR_HOM_PRJ_FLATMIX
         # SQL Pushdown - executes Informatica SQ SQL on source database
@@ -116,15 +115,18 @@ select 'Others' flatmix_type_code, 'Others' flatmix_type_desp, 9999
         # Lookup: apply_LKP_DDS_DMNS_FLATMIX
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_FLATMIX = df_LKP_DDS_DMNS_FLATMIX.dropDuplicates(subset=["FLATMIX_TYPE_CODE"])
-        # Join condition: FLATMIX_TYPE_CODE=FLATMIX_TYPE_CODE
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_SQ_SOR_HOM_PRJ_FLATMIX
+        _lkp_input = _lkp_input.withColumn("IN_FLATMIX_TYPE_CODE", col("FLATMIX_TYPE_CODE"))
+        # Join condition: IN_FLATMIX_TYPE_CODE=FLATMIX_TYPE_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_SQ_SOR_HOM_PRJ_FLATMIX.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_FLATMIX).alias("_lkp"),
-            (col("_main.FLATMIX_TYPE_CODE") == col("_lkp.FLATMIX_TYPE_CODE")),
+            (col("_main.IN_FLATMIX_TYPE_CODE") == col("_lkp.FLATMIX_TYPE_CODE")),
             "left"
         ).select(
-            *[df_SQ_SOR_HOM_PRJ_FLATMIX[c] for c in df_SQ_SOR_HOM_PRJ_FLATMIX.columns],
-            *[df_LKP_DDS_DMNS_FLATMIX[c] for c in df_LKP_DDS_DMNS_FLATMIX.columns if c not in df_SQ_SOR_HOM_PRJ_FLATMIX.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_FLATMIX[c] for c in df_LKP_DDS_DMNS_FLATMIX.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS")
@@ -134,7 +136,7 @@ select 'Others' flatmix_type_code, 'Others' flatmix_type_desp, 9999
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_RPT_SEQ_NUM", expr("RPT_SEQ_NUM"))
         df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_FLATMIX_KEY IS NULL) OR CASE WHEN FLATMIX_TYPE_CODE = IN_FLATMIX_TYPE_CODE THEN false ELSE true END OR CASE WHEN FLATMIX_TYPE_DESP = FLATMIX_DESP THEN false ELSE true END THEN 1 ELSE 0 END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["DMNS_FLATMIX_KEY", "FLATMIX_TYPE_CODE", "FLATMIX_TYPE_DESP", "IN_FLATMIX_TYPE_CODE", "DISP_SEQ_NUM"]:
+        for _col in ["DMNS_FLATMIX_KEY", "IN_FLATMIX_TYPE_CODE", "FLATMIX_TYPE_CODE", "FLATMIX_TYPE_DESP", "DISP_SEQ_NUM"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
@@ -167,7 +169,10 @@ select 'Others' flatmix_type_code, 'Others' flatmix_type_desp, 9999
             col("IN_RPT_SEQ_NUM").alias("IN_RPT_SEQ_NUM")        )
         df_Union_Transformation = df_Union_Transformation_change
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_new, allowMissingColumns=True)
-        # Select only union output columns
+        # Select only union output columns (add lit(None) for any missing)
+        for _col in ["DMNS_FLATMIX_KEY", "IN_FLATMIX_TYPE_CODE", "IN_FLATMIX_DESP", "IN_RPT_SEQ_NUM"]:
+            if _col not in df_Union_Transformation.columns:
+                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("DMNS_FLATMIX_KEY", "IN_FLATMIX_TYPE_CODE", "IN_FLATMIX_DESP", "IN_RPT_SEQ_NUM")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
@@ -193,6 +198,11 @@ select 'Others' flatmix_type_code, 'Others' flatmix_type_desp, 9999
         _field_map = {"DISP_SEQ_NUM": "IN_RPT_SEQ_NUM", "DMNS_FLATMIX_KEY": "DMNS_FLATMIX_KEY", "FLATMIX_TYPE_CODE": "IN_FLATMIX_TYPE_CODE", "FLATMIX_TYPE_DESP": "IN_FLATMIX_DESP"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['DMNS_FLATMIX_KEY', 'FLATMIX_TYPE_CODE', 'FLATMIX_TYPE_DESP', 'DISP_SEQ_NUM']

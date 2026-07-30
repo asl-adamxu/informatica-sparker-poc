@@ -40,6 +40,10 @@ class TransformHandlers:
         # Tracks chain-join DataFrames: maps upstream df name → chain df name.
         # Lookups sharing the same upstream chain-join onto one accumulating df.
         self._chain_df_map: Dict[str, str] = {}
+        # Tracks the most recent chain merge output so subsequent lookups chain
+        # sequentially instead of branching in parallel (prevents column loss
+        # when a downstream lookup starts from a stale intermediate result).
+        self._last_chain_output: Optional[str] = None
 
         self._build_maps()
 
@@ -222,6 +226,36 @@ class TransformHandlers:
                 return src.db_name
 
         return "source"
+
+    @staticmethod
+    def _normalize_var_case(text: str, plan: IRPlan) -> str:
+        """Normalize $$ mapping variable references in text to match declared case.
+
+        SQL queries and filter expressions may reference $$ variables in any case
+        (e.g. $$V_SNSH_DATE vs $$v_snsh_date), but the code generator uses the declared
+        variable name's case for .replace(). This function case-insensitively normalizes
+        all $$ references to the declared case so .replace() always matches.
+
+        Also wraps unquoted $$ variable references inside TO_DATE() with single quotes
+        (e.g. TO_DATE($$v_rpt_mth, 'YYYYMM') → TO_DATE('$$v_rpt_mth', 'YYYYMM')).
+        Bare $$ variables become bare numeric values after .replace(), causing
+        ORA-00936 in Oracle. Adding quotes ensures the value is treated as a string.
+        """
+        if not text or not plan or not plan.mapping_variables:
+            return text
+        for var_name in plan.mapping_variables:
+            if not isinstance(var_name, str) or not var_name.startswith('$$'):
+                continue
+            text = re.sub(re.escape(var_name), var_name, text, flags=re.IGNORECASE)
+        # Wrap unquoted $$ variables inside TO_DATE() with quotes
+        if 'TO_DATE' in text.upper():
+            text = re.sub(
+                r'(TO_DATE\s*\(\s*)\$\$(\w+)(\s*,)',
+                r"\1'$$\2'\3",
+                text,
+                flags=re.IGNORECASE
+            )
+        return text
 
     def build_ir_plan(self) -> IRPlan:
         # Collect mapping variables from XML definition
@@ -831,7 +865,7 @@ class TransformHandlers:
                 distinct=False
             )
             step.params["use_sql_override"] = True
-            step.params["sql_query"] = final_sql
+            step.params["sql_query"] = self._normalize_var_case(final_sql, plan)
             step.params["filter_condition"] = ""
             step.params["distinct"] = False
             step.params["db_type"] = source_db_type
@@ -851,7 +885,7 @@ class TransformHandlers:
             step.params["sql_query"] = ""
             step.params["filter_condition"] = translated_filter
             if filter_inner:
-                step.params["filter_inner"] = filter_inner
+                step.params["filter_inner"] = self._normalize_var_case(filter_inner, plan)
             step.params["distinct"] = distinct
             step.params["db_type"] = source_db_type
 
@@ -982,7 +1016,7 @@ class TransformHandlers:
             original_condition=original_condition
         )
         if filter_inner and '$$' in filter_inner and plan and plan.mapping_variables:
-            step.params["filter_inner"] = filter_inner
+            step.params["filter_inner"] = self._normalize_var_case(filter_inner, plan)
         # Collect connector field renames: upstream column → Filter input port name
         # (e.g. CUST_TNT_CODE_OUT → CUST_TNT_CODE) so the filter's condition
         # references the correct columns.
@@ -1127,6 +1161,11 @@ class TransformHandlers:
                 for _port, _col in _expr_field_remap.items():
                     if _port != _col:
                         expr_text = re.sub(r'\b' + re.escape(_port) + r'\b', _col, expr_text)
+
+                # Normalize $$ mapping variable case before translation (Informatica
+                # is case-insensitive for variable names, e.g. $$V_SNSH_DATE vs $$v_snsh_date).
+                if plan and plan.mapping_variables and '$$' in expr_text:
+                    expr_text = self._normalize_var_case(expr_text, plan)
 
                 if "OUTPUT" in field.port_type:
                     output_columns.append(field.name)
@@ -1300,6 +1339,7 @@ class TransformHandlers:
         lookup_df = self._get_df_name("df_lkp", instance)
 
         lookup_sql = transform.table_attributes.get("Lookup Sql Override", "")
+        lookup_sql = self._normalize_var_case(lookup_sql, plan)
         lookup_table = transform.table_attributes.get("Lookup table name", "")
 
         lookup_conn = self._find_lookup_connection(lookup_table or instance.name)
@@ -1411,11 +1451,14 @@ class TransformHandlers:
                 df_output = self._chain_df_map[_upstream_name]
                 _chain_input = df_output
             else:
-                # First lookup for this upstream — create chain df
+                # First lookup for this upstream — create chain df.
+                # Chain onto the previous merge output if available, so all lookups
+                # are sequential (prevents column loss from parallel merge branches).
                 df_output = self._get_df_name("df_lkp_merge")
                 if _upstream_name:
                     self._chain_df_map[_upstream_name] = df_output
-                _chain_input = input_df
+                _chain_input = self._last_chain_output or input_df
+                self._last_chain_output = df_output
             # Register lookup instance → chain df
             self._register_df(instance, df_output)
             # Walk upstream from this lookup's connector chain and register the
@@ -1790,9 +1833,9 @@ class TransformHandlers:
                         expr_text = field.expression
                         has_agg_dollar = False
                         for _mv_name in plan.mapping_variables:
-                            if _mv_name in expr_text:
+                            if isinstance(_mv_name, str) and re.search(re.escape(_mv_name), expr_text, re.IGNORECASE):
                                 _py_name = _mv_name.replace('$', '')
-                                expr_text = expr_text.replace(_mv_name, '{' + _py_name + '}')
+                                expr_text = re.sub(re.escape(_mv_name), '{' + _py_name + '}', expr_text, flags=re.IGNORECASE)
                                 has_agg_dollar = True
                         # Signal to _translate_aggregation_expr to use f-string for expr()
                         pyspark_agg = self._translate_aggregation_expr(expr_text, field.name, use_fstr=has_agg_dollar)
@@ -2209,7 +2252,7 @@ class TransformHandlers:
                 "renames": group_renames.get(group_name, [])
             }
             if _filter_inner:
-                _grp["filter_inner"] = _filter_inner
+                _grp["filter_inner"] = self._normalize_var_case(_filter_inner, plan)
             groups.append(_grp)
 
         if groups:
@@ -3003,6 +3046,7 @@ class TransformHandlers:
                     continue
 
                 lookup_sql = lookup_transform.table_attributes.get("Lookup Sql Override", "")
+                lookup_sql = self._normalize_var_case(lookup_sql, plan)
                 lookup_table = lookup_transform.table_attributes.get("Lookup table name", "")
                 lookup_cond = lookup_transform.table_attributes.get("Lookup condition", "")
 

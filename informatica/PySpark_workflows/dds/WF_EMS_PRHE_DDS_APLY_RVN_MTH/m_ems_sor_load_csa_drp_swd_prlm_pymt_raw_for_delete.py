@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -66,7 +65,8 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         
         logger.info("Step: apply_AGGTRANS")
         # Aggregator: apply_AGGTRANS
-        df_AGGTRANS = df_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW.select("FILE_MTH").distinct()
+        df_AGGTRANS = df_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW.select(
+            col("FILE_MTH")        ).distinct()
         ctx.register_df("df_AGGTRANS", df_AGGTRANS)
         
         logger.info("Step: apply_UPDTRANS")

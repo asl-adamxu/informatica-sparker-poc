@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -124,7 +123,7 @@ FROM
         # Expression: apply_EXPTRANS1
         df_EXPTRANS1 = df_SQ_DDS_FACT_EMS_UND_OCPY
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("DSBL_CODE", expr("DSBL_CATG_CODE"))
-        _expr = """date_add(to_date('$$v_snsh_date','yyyymmdd'), CAST(-1 AS INT))"""
+        _expr = """date_add(to_date(''$$v_snsh_date'','yyyymmdd'), CAST(-1 AS INT))"""
         _expr = _expr.replace("$$v_REC_RLS_IND", str(v_REC_RLS_IND))
         _expr = _expr.replace("$$v_snsh_date", str(v_snsh_date))
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("TNCY_AGRMT_TRMT_DATE", expr(_expr))
@@ -154,15 +153,30 @@ FROM
         _dup_cnt = df_LKP_DDS_FACT_EMS_UND_OCPY.groupBy(col("CODE_ADDR")).count().filter(col("count") > 1).count()
         if _dup_cnt > 0:
             raise RuntimeError(f"Lookup apply_LKP_DDS_FACT_EMS_UND_OCPY: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Join condition: CODE_ADDR=CODE_ADDR
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_EXPTRANS
+        _lkp_input = _lkp_input.withColumn("UNIT_CODE_ADDR", col("CODE_ADDR"))
+        _lkp_input = _lkp_input.withColumn("UNIT_IFA_AREA", col("IFA_AREA"))
+        _lkp_input = _lkp_input.withColumn("CUST_FMLY_SIZE_NUM", col("FMLY_SIZE_NUM"))
+        _lkp_input = _lkp_input.withColumn("DSBL_CATG_CODE1", col("DSBL_CODE"))
+        _lkp_input = _lkp_input.withColumn("TNCY_AGRMT_CMNC_DATE1", col("TNCY_AGRMT_CMNC_DATE"))
+        _lkp_input = _lkp_input.withColumn("TNCY_AGRMT_TRMT_DATE1", col("TNCY_AGRMT_TRMT_DATE"))
+        _lkp_input = _lkp_input.withColumn("CUST_AEM_IND", col("ELDR_IND"))
+        _lkp_input = _lkp_input.withColumn("FLAT_TYPE_DMNS_KEY1", col("FLAT_TYPE_DMNS_KEY"))
+        _lkp_input = _lkp_input.withColumn("EST_DMNS_KEY1", col("EST_DMNS_KEY"))
+        _lkp_input = _lkp_input.withColumn("LAST_REC_TXN_DATE1", col("LAST_REC_TXN_DATE"))
+        _lkp_input = _lkp_input.withColumn("LAST_REC_TXN_TYPE_CODE1", col("LAST_REC_TXN_TYPE_CODE"))
+        _lkp_input = _lkp_input.withColumn("REC_RLS_IND1", col("REC_RLS_IND"))
+        _lkp_input = _lkp_input.withColumn("TIME_DMNS_KEY1", col("TIME_DMNS_KEY"))
+        # Join condition: UNIT_CODE_ADDR=CODE_ADDR
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_EXPTRANS.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_FACT_EMS_UND_OCPY).alias("_lkp"),
-            (col("_main.CODE_ADDR") == col("_lkp.CODE_ADDR")),
+            (col("_main.UNIT_CODE_ADDR") == col("_lkp.CODE_ADDR")),
             "left"
         ).select(
-            *[df_EXPTRANS[c] for c in df_EXPTRANS.columns],
-            *[df_LKP_DDS_FACT_EMS_UND_OCPY[c] for c in df_LKP_DDS_FACT_EMS_UND_OCPY.columns if c not in df_EXPTRANS.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_FACT_EMS_UND_OCPY[c] for c in df_LKP_DDS_FACT_EMS_UND_OCPY.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: read_LKP_DPA_FACT_EMS_UND_OCPY")
@@ -175,33 +189,43 @@ FROM
         # Lookup: apply_LKP_DPA_FACT_EMS_UND_OCPY
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DPA_FACT_EMS_UND_OCPY = df_LKP_DPA_FACT_EMS_UND_OCPY.dropDuplicates(subset=["CODE_ADDR", "IFA_AREA", "FMLY_SIZE_NUM", "DSBL_CATG_CODE", "ELDR_IND", "FLAT_TYPE_DMNS_KEY", "EST_DMNS_KEY"])
-        # Join condition: CODE_ADDR=CODE_ADDR AND IFA_AREA=IFA_AREA AND FMLY_SIZE_NUM=FMLY_SIZE_NUM AND DSBL_CODE=DSBL_CATG_CODE AND ELDR_IND=ELDR_IND AND FLAT_TYPE_DMNS_KEY=FLAT_TYPE_DMNS_KEY AND EST_DMNS_KEY=EST_DMNS_KEY
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_lkp_merge_1
+        _lkp_input = _lkp_input.withColumn("IN_UNIT_CODE_ADDR", col("CODE_ADDR"))
+        _lkp_input = _lkp_input.withColumn("IN_UNIT_IFA_AREA", col("IFA_AREA"))
+        _lkp_input = _lkp_input.withColumn("IN_CUST_FMLY_SIZE_NUM", col("FMLY_SIZE_NUM"))
+        _lkp_input = _lkp_input.withColumn("IN_DSBL_CATG_CODE", col("DSBL_CODE"))
+        _lkp_input = _lkp_input.withColumn("IN_TNCY_AGRMT_CMNC_DATE", col("TNCY_AGRMT_CMNC_DATE"))
+        _lkp_input = _lkp_input.withColumn("IN_CUST_AEM_IND", col("ELDR_IND"))
+        _lkp_input = _lkp_input.withColumn("IN_FLAT_TYPE_DMNS_KEY", col("FLAT_TYPE_DMNS_KEY"))
+        _lkp_input = _lkp_input.withColumn("IN_EST_DMNS_KEY", col("EST_DMNS_KEY"))
+        # Join condition: IN_UNIT_CODE_ADDR=CODE_ADDR AND IN_UNIT_IFA_AREA=IFA_AREA AND IN_CUST_FMLY_SIZE_NUM=FMLY_SIZE_NUM AND IN_DSBL_CATG_CODE=DSBL_CATG_CODE AND IN_CUST_AEM_IND=ELDR_IND AND IN_FLAT_TYPE_DMNS_KEY=FLAT_TYPE_DMNS_KEY AND IN_EST_DMNS_KEY=EST_DMNS_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_2 = df_EXPTRANS1.alias("_main").join(
+        df_lkp_merge_2 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DPA_FACT_EMS_UND_OCPY).alias("_lkp"),
-            (col("_main.CODE_ADDR") == col("_lkp.CODE_ADDR")) &
-            (col("_main.IFA_AREA") == col("_lkp.IFA_AREA")) &
-            (col("_main.FMLY_SIZE_NUM") == col("_lkp.FMLY_SIZE_NUM")) &
-            (col("_main.DSBL_CODE") == col("_lkp.DSBL_CATG_CODE")) &
-            (col("_main.ELDR_IND") == col("_lkp.ELDR_IND")) &
-            (col("_main.FLAT_TYPE_DMNS_KEY") == col("_lkp.FLAT_TYPE_DMNS_KEY")) &
-            (col("_main.EST_DMNS_KEY") == col("_lkp.EST_DMNS_KEY")),
+            (col("_main.IN_UNIT_CODE_ADDR") == col("_lkp.CODE_ADDR")) &
+            (col("_main.IN_UNIT_IFA_AREA") == col("_lkp.IFA_AREA")) &
+            (col("_main.IN_CUST_FMLY_SIZE_NUM") == col("_lkp.FMLY_SIZE_NUM")) &
+            (col("_main.IN_DSBL_CATG_CODE") == col("_lkp.DSBL_CATG_CODE")) &
+            (col("_main.IN_CUST_AEM_IND") == col("_lkp.ELDR_IND")) &
+            (col("_main.IN_FLAT_TYPE_DMNS_KEY") == col("_lkp.FLAT_TYPE_DMNS_KEY")) &
+            (col("_main.IN_EST_DMNS_KEY") == col("_lkp.EST_DMNS_KEY")),
             "left"
         ).select(
-            *[df_EXPTRANS1[c] for c in df_EXPTRANS1.columns],
-            *[df_LKP_DPA_FACT_EMS_UND_OCPY[c] for c in df_LKP_DPA_FACT_EMS_UND_OCPY.columns if c not in df_EXPTRANS1.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DPA_FACT_EMS_UND_OCPY[c] for c in df_LKP_DPA_FACT_EMS_UND_OCPY.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)        
         logger.info("Step: apply_FILTRANS")
         # Filter: apply_FILTRANS
-        __fil_input = df_LKP_DPA_FACT_EMS_UND_OCPY
+        __fil_input = df_lkp_merge_1
         __fil_input = __fil_input.drop("DSBL_CODE").withColumnRenamed("DSBL_CATG_CODE", "DSBL_CODE")
         df_FILTRANS = __fil_input.filter(expr("NewLookupRow > 0"))
         ctx.register_df("df_FILTRANS", df_FILTRANS)
         
         logger.info("Step: apply_FILTRANS1")
         # Filter: apply_FILTRANS1
-        __fil_input = df_FILTRANS
+        __fil_input = df_lkp_merge_2
         __fil_input = __fil_input.drop("TNCY_AGRMT_CMNC_DATE1").withColumnRenamed("IN_TNCY_AGRMT_CMNC_DATE", "TNCY_AGRMT_CMNC_DATE1")
         __fil_input = __fil_input.drop("UNIT_CODE_ADDR").withColumnRenamed("IN_UNIT_CODE_ADDR", "UNIT_CODE_ADDR")
         df_FILTRANS1 = __fil_input.filter(expr("(CODE_ADDR IS NULL)"))
@@ -278,6 +302,11 @@ FROM
         _field_map = {"CODE_ADDR": "CODE_ADDR", "DSBL_CATG_CODE": "DSBL_CODE", "ELDR_IND": "ELDR_IND", "EST_DMNS_KEY": "EST_DMNS_KEY", "FLAT_TYPE_DMNS_KEY": "FLAT_TYPE_DMNS_KEY", "FMLY_SIZE_NUM": "FMLY_SIZE_NUM", "IFA_AREA": "IFA_AREA", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "REC_RLS_IND": "REC_RLS_IND", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TNCY_AGRMT_CMNC_DATE": "TNCY_AGRMT_CMNC_DATE", "TNCY_AGRMT_TRMT_DATE": "TNCY_AGRMT_TRMT_DATE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['CODE_ADDR', 'IFA_AREA', 'FMLY_SIZE_NUM', 'DSBL_CATG_CODE', 'TNCY_AGRMT_CMNC_DATE', 'TNCY_AGRMT_TRMT_DATE', 'ELDR_IND', 'FLAT_TYPE_DMNS_KEY', 'EST_DMNS_KEY', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND', 'TIME_DMNS_KEY']
@@ -352,6 +381,11 @@ FROM
         _field_map = {"CODE_ADDR": "UNIT_CODE_ADDR", "TNCY_AGRMT_CMNC_DATE": "TNCY_AGRMT_CMNC_DATE1", "TNCY_AGRMT_TRMT_DATE": "TNCY_AGRMT_TRMT_DATE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['CODE_ADDR', 'IFA_AREA', 'FMLY_SIZE_NUM', 'DSBL_CATG_CODE', 'TNCY_AGRMT_CMNC_DATE', 'TNCY_AGRMT_TRMT_DATE', 'ELDR_IND', 'FLAT_TYPE_DMNS_KEY', 'EST_DMNS_KEY', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND', 'TIME_DMNS_KEY']

@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -76,7 +75,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             monotonically_increasing_id() + 0
         )
         ctx.register_df("df_SEQ_DMNS_BDGT_PROJ_MGR_KEY", df_SEQ_DMNS_BDGT_PROJ_MGR_KEY)
-        
+
         logger.info("Step: apply_SQ_SOR_HOM_BUD_PROJ_TEAM")
         # Source Qualifier: apply_SQ_SOR_HOM_BUD_PROJ_TEAM
         # SQL Pushdown - executes Informatica SQ SQL on source database
@@ -114,15 +113,18 @@ and     TO_DATE ($$v_snsh_date, 'YYYYMMDD') BETWEEN ss.bgn_date AND ss.end_date"
         # Lookup: apply_DDS_DMNS_BDGT_PROJ_MGR
         # Use First Value / Use Any Value: dedup by join keys
         df_DDS_DMNS_BDGT_PROJ_MGR = df_DDS_DMNS_BDGT_PROJ_MGR.dropDuplicates(subset=["BDGT_PROJ_MGR_POST_NAME"])
-        # Join condition: POST_NAME=BDGT_PROJ_MGR_POST_NAME
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_SQ_SOR_HOM_BUD_PROJ_TEAM
+        _lkp_input = _lkp_input.withColumn("IN_BDGT_PROJ_MGR_POST_NAME", col("POST_NAME"))
+        # Join condition: IN_BDGT_PROJ_MGR_POST_NAME=BDGT_PROJ_MGR_POST_NAME
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_SQ_SOR_HOM_BUD_PROJ_TEAM.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_DDS_DMNS_BDGT_PROJ_MGR).alias("_lkp"),
-            (col("_main.POST_NAME") == col("_lkp.BDGT_PROJ_MGR_POST_NAME")),
+            (col("_main.IN_BDGT_PROJ_MGR_POST_NAME") == col("_lkp.BDGT_PROJ_MGR_POST_NAME")),
             "left"
         ).select(
-            *[df_SQ_SOR_HOM_BUD_PROJ_TEAM[c] for c in df_SQ_SOR_HOM_BUD_PROJ_TEAM.columns],
-            *[df_DDS_DMNS_BDGT_PROJ_MGR[c] for c in df_DDS_DMNS_BDGT_PROJ_MGR.columns if c not in df_SQ_SOR_HOM_BUD_PROJ_TEAM.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_DDS_DMNS_BDGT_PROJ_MGR[c] for c in df_DDS_DMNS_BDGT_PROJ_MGR.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS1")
@@ -162,7 +164,10 @@ and     TO_DATE ($$v_snsh_date, 'YYYYMMDD') BETWEEN ss.bgn_date AND ss.end_date"
             col("IN_bdgt_proj_mgr_disp_seq_num").alias("IN_bdgt_proj_mgr_disp_seq_num")        )
         df_Union_Transformation = df_Union_Transformation_change
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_new, allowMissingColumns=True)
-        # Select only union output columns
+        # Select only union output columns (add lit(None) for any missing)
+        for _col in ["DMNS_BDGT_PROJ_MGR_KEY", "IN_BDGT_PROJ_MGR_POST_NAME", "IN_bdgt_proj_mgr_disp_seq_num"]:
+            if _col not in df_Union_Transformation.columns:
+                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("DMNS_BDGT_PROJ_MGR_KEY", "IN_BDGT_PROJ_MGR_POST_NAME", "IN_bdgt_proj_mgr_disp_seq_num")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
@@ -181,6 +186,11 @@ and     TO_DATE ($$v_snsh_date, 'YYYYMMDD') BETWEEN ss.bgn_date AND ss.end_date"
         _field_map = {"BDGT_PROJ_MGR_DISP_SEQ_NUM": "IN_bdgt_proj_mgr_disp_seq_num", "BDGT_PROJ_MGR_POST_NAME": "IN_BDGT_PROJ_MGR_POST_NAME", "DMNS_BDGT_PROJ_MGR_KEY": "DMNS_BDGT_PROJ_MGR_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['DMNS_BDGT_PROJ_MGR_KEY', 'BDGT_PROJ_MGR_POST_NAME', 'BDGT_PROJ_MGR_DISP_SEQ_NUM']

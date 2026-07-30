@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -82,7 +81,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_STAT stat, SOR_EMS_POR_CRP_STAT_STS stat_sts
 where opr.opr_key = stat_sts.opr_key
 and stat.crp_stat_key = stat_sts.crp_stat_key
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 group by opr.opr_code
 union
 select opr.opr_code as opr_code, (sum(stat_sts.crp_rehse_flat_cnt) + sum(stat_sts.crp_csl_vcncy_cnt)) -
@@ -90,14 +89,14 @@ select opr.opr_code as opr_code, (sum(stat_sts.crp_rehse_flat_cnt) + sum(stat_st
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_STAT stat, SOR_EMS_POR_CRP_STAT_STS stat_sts
 where opr.opr_key = stat_sts.opr_key
 and stat.crp_stat_key = stat_sts.crp_stat_key
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 group by opr.opr_code
 union
 select opr.opr_code as opr_code, sum(stat_sts.crp_rehse_flat_cnt) + sum(stat_sts.crp_csl_vcncy_cnt) as cnt, 'CT' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_STAT stat, SOR_EMS_POR_CRP_STAT_STS stat_sts
 where opr.opr_key = stat_sts.opr_key
 and stat.crp_stat_key = stat_sts.crp_stat_key
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 group by opr.opr_code"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
@@ -123,19 +122,19 @@ group by opr.opr_code"""
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'DXA' and stat.crp_fmly_size_num = '2'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 union
 select opr.opr_code as opr_code, (stat_sts.crp_pymt_tot_amt - stat_sts.crp_pymt_tot_bf_amt) as amt, 'CM' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'DXA' and stat.crp_fmly_size_num = '2'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 union
 select opr.opr_code as opr_code, stat_sts.crp_pymt_tot_amt as amt, 'CT' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'DXA' and stat.crp_fmly_size_num = '2'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_two_P_Domestic_Removal_Allowance_Redev = lib.read_sql(spark, _conn, query=query)
@@ -160,19 +159,19 @@ and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.en
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'DXA' and stat.crp_fmly_size_num = '1'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 union
 select opr.opr_code as opr_code, (stat_sts.crp_pymt_tot_amt - stat_sts.crp_pymt_tot_bf_amt) as amt, 'CM' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'DXA' and stat.crp_fmly_size_num = '1'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 union
 select opr.opr_code as opr_code, stat_sts.crp_pymt_tot_amt as amt, 'CT' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'DXA' and stat.crp_fmly_size_num = '1'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_one_P_Domestic_Removal_Allowance_Redev = lib.read_sql(spark, _conn, query=query)
@@ -197,19 +196,19 @@ and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.en
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'EXA' and stat.crp_fmly_size_num = '2'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 union
 select opr.opr_code as opr_code, (stat_sts.crp_pymt_tot_amt - stat_sts.crp_pymt_tot_bf_amt) as amt, 'CM' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'EXA' and stat.crp_fmly_size_num = '2'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 union
 select opr.opr_code as opr_code, stat_sts.crp_pymt_tot_amt as amt, 'CT' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'EXA' and stat.crp_fmly_size_num = '2'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_two_P_Exgratia_Allowance = lib.read_sql(spark, _conn, query=query)
@@ -234,19 +233,19 @@ and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.en
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'EXA' and stat.crp_fmly_size_num = '1'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 union
 select opr.opr_code as opr_code, (stat_sts.crp_pymt_tot_amt - stat_sts.crp_pymt_tot_bf_amt) as amt, 'CM' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'EXA' and stat.crp_fmly_size_num = '1'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 union
 select opr.opr_code as opr_code, stat_sts.crp_pymt_tot_amt as amt, 'CT' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'EXA' and stat.crp_fmly_size_num = '1'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_one_P_Exgratia_Allowance = lib.read_sql(spark, _conn, query=query)
@@ -271,19 +270,19 @@ and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.en
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'SA' and stat.crp_fmly_size_num = '2'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 union
 select opr.opr_code as opr_code, (stat_sts.crp_pymt_tot_amt - stat_sts.crp_pymt_tot_bf_amt) as amt, 'CM' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'SA' and stat.crp_fmly_size_num = '2'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 union
 select opr.opr_code as opr_code, stat_sts.crp_pymt_tot_amt as amt, 'CT' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'SA' and stat.crp_fmly_size_num = '2'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_two_P_Special_Allowance = lib.read_sql(spark, _conn, query=query)
@@ -308,19 +307,19 @@ and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.en
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'SA' and stat.crp_fmly_size_num = '1'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 union
 select opr.opr_code as opr_code, (stat_sts.crp_pymt_tot_amt - stat_sts.crp_pymt_tot_bf_amt) as amt, 'CM' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'SA' and stat.crp_fmly_size_num = '1'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 union
 select opr.opr_code as opr_code, stat_sts.crp_pymt_tot_amt as amt, 'CT' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'SA' and stat.crp_fmly_size_num = '1'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_one_P_Special_Allowance = lib.read_sql(spark, _conn, query=query)
@@ -345,19 +344,19 @@ and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.en
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'DRA' and stat.crp_fmly_size_num = '2'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 union
 select opr.opr_code as opr_code, (stat_sts.crp_pymt_tot_amt - stat_sts.crp_pymt_tot_bf_amt) as amt, 'CM' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'DRA' and stat.crp_fmly_size_num = '2'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 union
 select opr.opr_code as opr_code, stat_sts.crp_pymt_tot_amt as amt, 'CT' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'DRA' and stat.crp_fmly_size_num = '2'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_two_P_Domestic_Removal_Allowance = lib.read_sql(spark, _conn, query=query)
@@ -382,19 +381,19 @@ and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.en
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'DRA' and stat.crp_fmly_size_num = '1'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 union
 select opr.opr_code as opr_code, (stat_sts.crp_pymt_tot_amt - stat_sts.crp_pymt_tot_bf_amt) as amt, 'CM' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'DRA' and stat.crp_fmly_size_num = '1'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 union
 select opr.opr_code as opr_code, stat_sts.crp_pymt_tot_amt as amt, 'CT' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '2' and stat.crp_alwn_type_code = 'DRA' and stat.crp_fmly_size_num = '1'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_one_P_Domestic_Removal_Allowance = lib.read_sql(spark, _conn, query=query)
@@ -419,21 +418,21 @@ and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.en
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_STAT stat, SOR_EMS_POR_CRP_STAT_STS stat_sts
 where opr.opr_key = stat_sts.opr_key
 and stat.crp_stat_key = stat_sts.crp_stat_key
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 group by opr.opr_code
 union
 select opr.opr_code as opr_code, (sum(stat_sts.crp_exa_dbltn_cnt) - sum(stat_sts.crp_exa_dbltn_mth_bf_cnt) )  as cnt, 'CM' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_STAT stat, SOR_EMS_POR_CRP_STAT_STS stat_sts
 where opr.opr_key = stat_sts.opr_key
 and stat.crp_stat_key = stat_sts.crp_stat_key
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 group by opr.opr_code
 union
 select opr.opr_code as opr_code, sum(stat_sts.crp_exa_dbltn_cnt) as cnt, 'CT' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_STAT stat, SOR_EMS_POR_CRP_STAT_STS stat_sts
 where opr.opr_key = stat_sts.opr_key
 and stat.crp_stat_key = stat_sts.crp_stat_key
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 group by opr.opr_code"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
@@ -459,21 +458,21 @@ group by opr.opr_code"""
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_STAT stat, SOR_EMS_POR_CRP_STAT_STS stat_sts
 where opr.opr_key = stat_sts.opr_key
 and stat.crp_stat_key = stat_sts.crp_stat_key
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 group by opr.opr_code
 union
 select opr.opr_code as opr_code, (sum(stat_sts.crp_exa_sgtn_cnt) - sum(stat_sts.crp_exa_sgtn_mth_bf_cnt) )  as cnt, 'CM' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_STAT stat, SOR_EMS_POR_CRP_STAT_STS stat_sts
 where opr.opr_key = stat_sts.opr_key
 and stat.crp_stat_key = stat_sts.crp_stat_key
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 group by opr.opr_code
 union
 select opr.opr_code as opr_code, sum(stat_sts.crp_exa_sgtn_cnt) as cnt, 'CT' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_STAT stat, SOR_EMS_POR_CRP_STAT_STS stat_sts
 where opr.opr_key = stat_sts.opr_key
 and stat.crp_stat_key = stat_sts.crp_stat_key
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 group by opr.opr_code"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
@@ -499,19 +498,19 @@ group by opr.opr_code"""
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '1' and stat.crp_alwn_type_code = 'DXA' and stat.crp_fmly_size_num = '0'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 union
 select opr.opr_code as opr_code, (stat_sts.crp_pymt_tot_amt - stat_sts.crp_pymt_tot_bf_amt) as amt, 'CM' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '1' and stat.crp_alwn_type_code = 'DXA' and stat.crp_fmly_size_num = '0'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 union
 select opr.opr_code as opr_code, stat_sts.crp_pymt_tot_amt as amt, 'CT' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '1' and stat.crp_alwn_type_code = 'DXA' and stat.crp_fmly_size_num = '0'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_Domestic_Removal_Allowance_Redev = lib.read_sql(spark, _conn, query=query)
@@ -536,19 +535,19 @@ and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.en
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '1' and stat.crp_alwn_type_code = 'SA' and stat.crp_fmly_size_num = '0'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 union
 select opr.opr_code as opr_code, (stat_sts.crp_pymt_tot_amt - stat_sts.crp_pymt_tot_bf_amt) as amt, 'CM' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '1' and stat.crp_alwn_type_code = 'SA' and stat.crp_fmly_size_num = '0'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 union
 select opr.opr_code as opr_code, stat_sts.crp_pymt_tot_amt as amt, 'CT' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '1' and stat.crp_alwn_type_code = 'SA' and stat.crp_fmly_size_num = '0'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_Special_Allowance = lib.read_sql(spark, _conn, query=query)
@@ -573,19 +572,19 @@ and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.en
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '1' and stat.crp_alwn_type_code = 'DRA' and stat.crp_fmly_size_num = '0'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 union
 select opr.opr_code as opr_code, (stat_sts.crp_pymt_tot_amt - stat_sts.crp_pymt_tot_bf_amt) as amt, 'CM' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '1' and stat.crp_alwn_type_code = 'DRA' and stat.crp_fmly_size_num = '0'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 union
 select opr.opr_code as opr_code, stat_sts.crp_pymt_tot_amt as amt, 'CT' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_STAT_STS stat_sts
 where opr.opr_key = stat.opr_key and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat.crp_pymt_schd_code = '1' and stat.crp_alwn_type_code = 'DRA' and stat.crp_fmly_size_num = '0'
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_Domestic_Removal_Allowance = lib.read_sql(spark, _conn, query=query)
@@ -610,7 +609,7 @@ and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.en
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_STAT stat, SOR_EMS_POR_CRP_STAT_STS stat_sts
 where opr.opr_key = stat_sts.opr_key
 and stat.crp_stat_key = stat_sts.crp_stat_key
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 group by opr.opr_code
 union
 select opr.opr_code as opr_code, (sum(stat_sts.crp_fmly_ntq_cnt) + sum(stat_sts.crp_fmly_stl_othr_cnt)) -
@@ -618,14 +617,14 @@ select opr.opr_code as opr_code, (sum(stat_sts.crp_fmly_ntq_cnt) + sum(stat_sts.
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_STAT stat, SOR_EMS_POR_CRP_STAT_STS stat_sts
 where opr.opr_key = stat_sts.opr_key
 and stat.crp_stat_key = stat_sts.crp_stat_key
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 group by opr.opr_code
 union
 select opr.opr_code as opr_code, sum(stat_sts.crp_fmly_ntq_cnt) + sum(stat_sts.crp_fmly_stl_othr_cnt) as cnt, 'CT' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_STAT stat, SOR_EMS_POR_CRP_STAT_STS stat_sts
 where opr.opr_key = stat_sts.opr_key
 and stat.crp_stat_key = stat_sts.crp_stat_key
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 group by opr.opr_code"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
@@ -651,7 +650,7 @@ group by opr.opr_code"""
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_STAT stat, SOR_EMS_POR_CRP_STAT_STS stat_sts
 where opr.opr_key = stat_sts.opr_key
 and stat.crp_stat_key = stat_sts.crp_stat_key
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 group by opr.opr_code
 union
 select opr.opr_code as opr_code, (sum(stat_sts.crp_hpls_whl_fmly_cnt) + sum(stat_sts.crp_hpls_part_fmly_cnt)) -
@@ -659,14 +658,14 @@ select opr.opr_code as opr_code, (sum(stat_sts.crp_hpls_whl_fmly_cnt) + sum(stat
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_STAT stat, SOR_EMS_POR_CRP_STAT_STS stat_sts
 where opr.opr_key = stat_sts.opr_key
 and stat.crp_stat_key = stat_sts.crp_stat_key
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 group by opr.opr_code
 union
 select opr.opr_code as opr_code, sum(stat_sts.crp_hpls_whl_fmly_cnt) + sum(stat_sts.crp_hpls_part_fmly_cnt) as cnt, 'CT' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_STAT stat, SOR_EMS_POR_CRP_STAT_STS stat_sts
 where opr.opr_key = stat_sts.opr_key
 and stat.crp_stat_key = stat_sts.crp_stat_key
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 group by opr.opr_code"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
@@ -692,7 +691,7 @@ group by opr.opr_code"""
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_STAT stat, SOR_EMS_POR_CRP_STAT_STS stat_sts
 where opr.opr_key = stat_sts.opr_key
 and stat.crp_stat_key = stat_sts.crp_stat_key
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 group by opr.opr_code
 union
 select opr.opr_code as opr_code, (sum(stat_sts.crp_hos_whl_fmly_cnt) + sum(stat_sts.crp_hos_part_fmly_cnt)) -
@@ -700,14 +699,14 @@ select opr.opr_code as opr_code, (sum(stat_sts.crp_hos_whl_fmly_cnt) + sum(stat_
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_STAT stat, SOR_EMS_POR_CRP_STAT_STS stat_sts
 where opr.opr_key = stat_sts.opr_key
 and stat.crp_stat_key = stat_sts.crp_stat_key
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 group by opr.opr_code
 union
 select opr.opr_code as opr_code, sum(stat_sts.crp_hos_whl_fmly_cnt) + sum(stat_sts.crp_hos_part_fmly_cnt) as cnt, 'CT' as schm_code
 from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_STAT stat, SOR_EMS_POR_CRP_STAT_STS stat_sts
 where opr.opr_key = stat_sts.opr_key
 and stat.crp_stat_key = stat_sts.crp_stat_key
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 group by opr.opr_code"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
@@ -734,7 +733,7 @@ from SOR_EMS_POR_OPR opr, SOR_EMS_POR_CRP_PYMT_STAT stat, SOR_EMS_POR_CRP_PYMT_S
 where opr.opr_key = stat.opr_key
 and stat.crp_pymt_stat_key = stat_sts.crp_pymt_stat_key
 and stat_sts.crp_pymt_stat_last_extrc_date is not null
-and to_date($$V_SNSH_DATE, 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
+and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.end_date
 and opr.opr_code not in ('1994R0009', '1995R0001')"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
@@ -964,7 +963,7 @@ FROM
 SOR_EMS_POR_OPR opr, 
 SOR_EMS_POR_OPR_STS opr_sts
 WHERE opr.OPR_KEY = opr_sts.OPR_KEY
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN opr_sts.BGN_DATE AND opr_sts.END_DATE"""
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN opr_sts.BGN_DATE AND opr_sts.END_DATE"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_LKP_OPR_TRGT_EVCT_DATE = lib.read_sql(spark, _conn, query=query)
@@ -973,15 +972,18 @@ AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN opr_sts.BGN_DATE AND opr_sts.END_
         # Lookup: apply_LKP_OPR_TRGT_EVCT_DATE
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_OPR_TRGT_EVCT_DATE = df_LKP_OPR_TRGT_EVCT_DATE.dropDuplicates(subset=["OPR_CODE"])
-        # Join condition: OPR_CODE=OPR_CODE
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS
+        _lkp_input = _lkp_input.withColumn("IN_OPR_CODE", col("OPR_CODE"))
+        # Join condition: IN_OPR_CODE=OPR_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_OPR_TRGT_EVCT_DATE).alias("_lkp"),
-            (col("_main.OPR_CODE") == col("_lkp.OPR_CODE")),
+            (col("_main.IN_OPR_CODE") == col("_lkp.OPR_CODE")),
             "left"
         ).select(
-            *[df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS[c] for c in df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS.columns],
-            *[df_LKP_OPR_TRGT_EVCT_DATE[c] for c in df_LKP_OPR_TRGT_EVCT_DATE.columns if c not in df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_OPR_TRGT_EVCT_DATE[c] for c in df_LKP_OPR_TRGT_EVCT_DATE.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_Union_Transformation")
@@ -1106,7 +1108,10 @@ AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN opr_sts.BGN_DATE AND opr_sts.END_
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_ea2, allowMissingColumns=True)
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_drar1, allowMissingColumns=True)
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_drar2, allowMissingColumns=True)
-        # Select only union output columns
+        # Select only union output columns (add lit(None) for any missing)
+        for _col in ["OPR_CODE", "CNT", "AMT", "RMV_CASE_CODE", "SCHM_CODE"]:
+            if _col not in df_Union_Transformation.columns:
+                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("OPR_CODE", "CNT", "AMT", "RMV_CASE_CODE", "SCHM_CODE")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
@@ -1139,7 +1144,10 @@ AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN opr_sts.BGN_DATE AND opr_sts.END_
             col("SCHM_CODE").alias("SCHM_CODE")        )
         df_Union_Transformation1 = df_Union_Transformation1_main
         df_Union_Transformation1 = df_Union_Transformation1.unionByName(df_Union_Transformation1_sub, allowMissingColumns=True)
-        # Select only union output columns
+        # Select only union output columns (add lit(None) for any missing)
+        for _col in ["OPR_CODE", "OPR_TRGT_EVCT_DATE", "OPR_DESP", "OPR_RMK_TEXT", "CRP_PYMT_STAT_LAST_EXTRC_DATE", "CRP_PYMT_STAT_EXTRC_DATE", "CNT", "AMT", "RMV_CASE_CODE", "SCHM_CODE"]:
+            if _col not in df_Union_Transformation1.columns:
+                df_Union_Transformation1 = df_Union_Transformation1.withColumn(_col, lit(None))
         df_Union_Transformation1 = df_Union_Transformation1.select("OPR_CODE", "OPR_TRGT_EVCT_DATE", "OPR_DESP", "OPR_RMK_TEXT", "CRP_PYMT_STAT_LAST_EXTRC_DATE", "CRP_PYMT_STAT_EXTRC_DATE", "CNT", "AMT", "RMV_CASE_CODE", "SCHM_CODE")
         ctx.register_df("df_Union_Transformation1", df_Union_Transformation1)
         
@@ -1171,7 +1179,7 @@ AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN opr_sts.BGN_DATE AND opr_sts.END_
         df_EXPTRANS = df_EXPTRANS.withColumn("AMT", expr("AMT_OUT"))
         df_EXPTRANS = df_EXPTRANS.withColumn("DMNS_SCHM_CODE", expr("'NEW'"))
         df_EXPTRANS = df_EXPTRANS.withColumn("SYSTIME", expr("current_timestamp()"))
-        _expr = """to_date(concat('$$v_rpt_mth', '01'), 'yyyymmdd')"""
+        _expr = """to_date(cast(concat('$$v_rpt_mth', '01') as string), 'yyyymmdd')"""
         _expr = _expr.replace("$$v_snsh_date", str(v_snsh_date))
         _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
         df_EXPTRANS = df_EXPTRANS.withColumn("TIME_VAL_DATE", expr(_expr))
@@ -1194,16 +1202,20 @@ AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN opr_sts.BGN_DATE AND opr_sts.END_
         # Lookup: apply_LKP_DDS_DMNS_EMS_RMV_CASE
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_RMV_CASE = df_LKP_DDS_DMNS_EMS_RMV_CASE.dropDuplicates(subset=["RMV_CASE_CODE", "RMV_CASE_SCHM_CODE"])
-        # Join condition: RMV_CASE_CODE=RMV_CASE_CODE AND DMNS_SCHM_CODE=RMV_CASE_SCHM_CODE
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_lkp_merge_1
+        _lkp_input = _lkp_input.withColumn("IN_RMV_CASE_CODE", col("RMV_CASE_CODE"))
+        _lkp_input = _lkp_input.withColumn("IN_RMV_CASE_SCHM_CODE", col("DMNS_SCHM_CODE"))
+        # Join condition: IN_RMV_CASE_CODE=RMV_CASE_CODE AND IN_RMV_CASE_SCHM_CODE=RMV_CASE_SCHM_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_2 = df_EXPTRANS.alias("_main").join(
+        df_lkp_merge_2 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_RMV_CASE).alias("_lkp"),
-            (col("_main.RMV_CASE_CODE") == col("_lkp.RMV_CASE_CODE")) &
-            (col("_main.DMNS_SCHM_CODE") == col("_lkp.RMV_CASE_SCHM_CODE")),
+            (col("_main.IN_RMV_CASE_CODE") == col("_lkp.RMV_CASE_CODE")) &
+            (col("_main.IN_RMV_CASE_SCHM_CODE") == col("_lkp.RMV_CASE_SCHM_CODE")),
             "left"
         ).select(
-            *[df_EXPTRANS[c] for c in df_EXPTRANS.columns],
-            *[df_LKP_DDS_DMNS_EMS_RMV_CASE[c] for c in df_LKP_DDS_DMNS_EMS_RMV_CASE.columns if c not in df_EXPTRANS.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_EMS_RMV_CASE[c] for c in df_LKP_DDS_DMNS_EMS_RMV_CASE.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)        
         logger.info("Step: read_LKP_DDS_DMNS_TIME_1")
@@ -1216,15 +1228,18 @@ AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN opr_sts.BGN_DATE AND opr_sts.END_
         # Lookup: apply_LKP_DDS_DMNS_TIME_1
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_TIME_1 = df_LKP_DDS_DMNS_TIME_1.dropDuplicates(subset=["TIME_VAL_DATE"])
-        # Join condition: TIME_VAL_DATE=TIME_VAL_DATE
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_lkp_merge_2
+        _lkp_input = _lkp_input.withColumn("IN_TIME_VAL_DATE", col("TIME_VAL_DATE"))
+        # Join condition: IN_TIME_VAL_DATE=TIME_VAL_DATE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_2 = df_lkp_merge_2.alias("_main").join(
+        df_lkp_merge_2 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_TIME_1).alias("_lkp"),
-            (col("_main.TIME_VAL_DATE") == col("_lkp.TIME_VAL_DATE")),
+            (col("_main.IN_TIME_VAL_DATE") == col("_lkp.TIME_VAL_DATE")),
             "left"
         ).select(
-            *[df_lkp_merge_2[c] for c in df_lkp_merge_2.columns],
-            *[df_LKP_DDS_DMNS_TIME_1[c] for c in df_LKP_DDS_DMNS_TIME_1.columns if c not in df_lkp_merge_2.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_TIME_1[c] for c in df_LKP_DDS_DMNS_TIME_1.columns if c not in _lkp_input.columns]
         )
         
         logger.info("Step: write_DPA_FACT_EMS_RMV_RDEV_ALWN")
@@ -1296,6 +1311,11 @@ AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN opr_sts.BGN_DATE AND opr_sts.END_
         _field_map = {"ALWN_AMT": "AMT", "FMLY_CNT": "CNT", "LAST_REC_TXN_DATE": "SYSTIME", "OPR_CODE": "OPR_CODE", "OPR_DESP": "OPR_DESP", "OPR_FROM_DATE": "OPR_FROM_DATE", "OPR_RMK_TEXT": "OPR_RMK_TEXT", "OPR_TO_DATE": "OPR_TO_DATE", "OPR_TRGT_EVCT_DATE": "OPR_TRGT_EVCT_DATE", "RMV_CASE_DMNS_KEY": "RMV_CASE_DMNS_KEY", "SCHM_CODE": "SCHM_CODE", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['OPR_CODE', 'OPR_TRGT_EVCT_DATE', 'FMLY_CNT', 'ALWN_AMT', 'TIME_DMNS_KEY', 'RMV_CASE_DMNS_KEY', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND', 'OPR_DESP', 'OPR_RMK_TEXT', 'OPR_FROM_DATE', 'OPR_TO_DATE', 'SCHM_CODE']

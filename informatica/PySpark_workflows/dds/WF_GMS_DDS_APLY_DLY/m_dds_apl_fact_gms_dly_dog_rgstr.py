@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -156,6 +155,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         _field_map = {"AUTH_DOG_PNT_ALLT_CASE_CNT": "AUTH_DOG_PNT_ALLT_CASE_CNT", "DOG_RGSTR_APRV_CNCL_CNT": "DOG_RGSTR_APRV_CNCL_CNT", "DOG_RGSTR_APRV_CNT": "DOG_RGSTR_APRV_CNT", "EST_SCD_KEY": "EST_SCD_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "REC_RLS_IND": "REC_RLS_IND", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "UNAUTH_DOG_PNT_ALLT_CASE_CNT": "UNAUTH_DOG_PNT_ALLT_CASE_CNT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['TIME_DMNS_KEY', 'EST_SCD_KEY', 'DOG_RGSTR_APRV_CNT', 'DOG_RGSTR_APRV_CNCL_CNT', 'AUTH_DOG_PNT_ALLT_CASE_CNT', 'UNAUTH_DOG_PNT_ALLT_CASE_CNT', 'REC_RLS_IND', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE']

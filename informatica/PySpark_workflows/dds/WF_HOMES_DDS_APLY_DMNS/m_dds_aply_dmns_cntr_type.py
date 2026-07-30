@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -104,6 +103,11 @@ FROM
         _field_map = {"CNTR_CLASS_CODE": "CNTR_CLASS_CODE", "CNTR_TYPE_CODE": "CNTR_TYPE_CODE", "CNTR_TYPE_DESP": "CNTR_TYPE_DESP", "CNTR_TYPE_DISP_SEQ_NUM": "CNTR_TYPE_DISP_SEQ_NUM", "DMNS_CNTR_TYPE_KEY": "DMNS_CNTR_TYPE_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['DMNS_CNTR_TYPE_KEY', 'CNTR_CLASS_CODE', 'CNTR_TYPE_CODE', 'CNTR_TYPE_DESP', 'CNTR_TYPE_DISP_SEQ_NUM']

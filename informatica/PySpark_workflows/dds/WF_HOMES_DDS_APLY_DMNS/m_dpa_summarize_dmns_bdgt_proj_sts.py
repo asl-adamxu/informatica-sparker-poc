@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -76,7 +75,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             monotonically_increasing_id() + 0
         )
         ctx.register_df("df_SEQ_DMNS_BDGT_PROJ_STS_KEY", df_SEQ_DMNS_BDGT_PROJ_STS_KEY)
-        
+
         logger.info("Step: read_SOR_HOM_BUD_PARM")
         # Reading Data From Source - read_SOR_HOM_BUD_PARM
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -121,15 +120,18 @@ order by pp.parm_name"""
         # Lookup: apply_LKP_DDS_DMNS_BDGT_PROJ_STS
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_BDGT_PROJ_STS = df_LKP_DDS_DMNS_BDGT_PROJ_STS.dropDuplicates(subset=["PROJ_STS_CATG_CODE"])
-        # Join condition: PARM_NAME=PROJ_STS_CATG_CODE
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_SQ_SOR_HOM_BUD_PARM
+        _lkp_input = _lkp_input.withColumn("IN_PROJ_STS_CATG_CODE", col("PARM_NAME"))
+        # Join condition: IN_PROJ_STS_CATG_CODE=PROJ_STS_CATG_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_SQ_SOR_HOM_BUD_PARM.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_BDGT_PROJ_STS).alias("_lkp"),
-            (col("_main.PARM_NAME") == col("_lkp.PROJ_STS_CATG_CODE")),
+            (col("_main.IN_PROJ_STS_CATG_CODE") == col("_lkp.PROJ_STS_CATG_CODE")),
             "left"
         ).select(
-            *[df_SQ_SOR_HOM_BUD_PARM[c] for c in df_SQ_SOR_HOM_BUD_PARM.columns],
-            *[df_LKP_DDS_DMNS_BDGT_PROJ_STS[c] for c in df_LKP_DDS_DMNS_BDGT_PROJ_STS.columns if c not in df_SQ_SOR_HOM_BUD_PARM.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_BDGT_PROJ_STS[c] for c in df_LKP_DDS_DMNS_BDGT_PROJ_STS.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS")
@@ -138,7 +140,7 @@ order by pp.parm_name"""
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_proj_sts_desp", expr("proj_sts_desp"))
         df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_BDGT_PROJ_STS_KEY IS NULL) OR CASE WHEN PROJ_STS_DESP = proj_sts_desp THEN false ELSE true END OR CASE WHEN PROJ_STS_CATG_CODE = IN_PROJ_STS_CATG_CODE THEN false ELSE true END THEN 1 ELSE 0 END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["DMNS_BDGT_PROJ_STS_KEY", "PROJ_STS_CATG_CODE", "PROJ_STS_DESP", "IN_PROJ_STS_CATG_CODE", "BDGT_STS_DISP_SEQ_NUM", "PHCP_IND", "PARM_TEXT"]:
+        for _col in ["PROJ_STS_CATG_CODE", "DMNS_BDGT_PROJ_STS_KEY", "PROJ_STS_DESP", "IN_PROJ_STS_CATG_CODE", "BDGT_STS_DISP_SEQ_NUM", "PHCP_IND", "PARM_TEXT"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
@@ -173,7 +175,10 @@ order by pp.parm_name"""
             col("PHCP_IND").alias("PHCP_IND")        )
         df_Union_Transformation = df_Union_Transformation_change
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_new, allowMissingColumns=True)
-        # Select only union output columns
+        # Select only union output columns (add lit(None) for any missing)
+        for _col in ["DMNS_BDGT_PROJ_STS_KEY", "IN_PROJ_STS_CATG_CODE", "IN_proj_sts_desp", "PHCP_IND"]:
+            if _col not in df_Union_Transformation.columns:
+                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("DMNS_BDGT_PROJ_STS_KEY", "IN_PROJ_STS_CATG_CODE", "IN_proj_sts_desp", "PHCP_IND")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
@@ -208,6 +213,11 @@ order by pp.parm_name"""
         _field_map = {"DMNS_BDGT_PROJ_STS_KEY": "DMNS_BDGT_PROJ_STS_KEY", "PHCP_IND": "PHCP_IND", "PROJ_STS_CATG_CODE": "IN_PROJ_STS_CATG_CODE", "PROJ_STS_DESP": "IN_proj_sts_desp"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['DMNS_BDGT_PROJ_STS_KEY', 'PROJ_STS_CATG_CODE', 'PROJ_STS_DESP', 'BDGT_STS_DISP_SEQ_NUM', 'PHCP_IND']

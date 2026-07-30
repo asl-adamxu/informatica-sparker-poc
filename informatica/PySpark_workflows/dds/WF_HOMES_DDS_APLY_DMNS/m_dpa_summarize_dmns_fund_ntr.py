@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -76,7 +75,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             monotonically_increasing_id() + 0
         )
         ctx.register_df("df_SEQ_DMNS_FUND_NTR_KEY", df_SEQ_DMNS_FUND_NTR_KEY)
-        
+
         logger.info("Step: apply_SQ_SOR_HOM_REF_FUND_NTR")
         # Source Qualifier: apply_SQ_SOR_HOM_REF_FUND_NTR
         # SQL Pushdown - executes Informatica SQ SQL on source database
@@ -115,15 +114,18 @@ and TO_DATE ($$v_snsh_date, 'YYYYMMDD') BETWEEN fs.bgn_date AND fs.end_date"""
         # Lookup: apply_LKP_DDS_DMNS_FUND_NTR
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_FUND_NTR = df_LKP_DDS_DMNS_FUND_NTR.dropDuplicates(subset=["FUND_NTR_CODE"])
-        # Join condition: FUND_NTR_CODE=FUND_NTR_CODE
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_SQ_SOR_HOM_REF_FUND_NTR
+        _lkp_input = _lkp_input.withColumn("IN_FUND_NTR_CODE", col("FUND_NTR_CODE"))
+        # Join condition: IN_FUND_NTR_CODE=FUND_NTR_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_SQ_SOR_HOM_REF_FUND_NTR.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_FUND_NTR).alias("_lkp"),
-            (col("_main.FUND_NTR_CODE") == col("_lkp.FUND_NTR_CODE")),
+            (col("_main.IN_FUND_NTR_CODE") == col("_lkp.FUND_NTR_CODE")),
             "left"
         ).select(
-            *[df_SQ_SOR_HOM_REF_FUND_NTR[c] for c in df_SQ_SOR_HOM_REF_FUND_NTR.columns],
-            *[df_LKP_DDS_DMNS_FUND_NTR[c] for c in df_LKP_DDS_DMNS_FUND_NTR.columns if c not in df_SQ_SOR_HOM_REF_FUND_NTR.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_FUND_NTR[c] for c in df_LKP_DDS_DMNS_FUND_NTR.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS")
@@ -166,7 +168,10 @@ and TO_DATE ($$v_snsh_date, 'YYYYMMDD') BETWEEN fs.bgn_date AND fs.end_date"""
             col("IN_DISP_SEQ_NUM").alias("IN_DISP_SEQ_NUM")        )
         df_Union_Transformation = df_Union_Transformation_change
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_new, allowMissingColumns=True)
-        # Select only union output columns
+        # Select only union output columns (add lit(None) for any missing)
+        for _col in ["DMNS_FUND_NTR_KEY", "IN_FUND_NTR_CODE", "IN_FUND_NTR_DESP", "IN_DISP_SEQ_NUM"]:
+            if _col not in df_Union_Transformation.columns:
+                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("DMNS_FUND_NTR_KEY", "IN_FUND_NTR_CODE", "IN_FUND_NTR_DESP", "IN_DISP_SEQ_NUM")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
@@ -192,6 +197,11 @@ and TO_DATE ($$v_snsh_date, 'YYYYMMDD') BETWEEN fs.bgn_date AND fs.end_date"""
         _field_map = {"DMNS_FUND_NTR_KEY": "DMNS_FUND_NTR_KEY", "FUND_NTR_CODE": "IN_FUND_NTR_CODE", "FUND_NTR_DESP": "IN_FUND_NTR_DESP", "FUND_NTR_DISP_SEQ_NUM": "IN_DISP_SEQ_NUM"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['DMNS_FUND_NTR_KEY', 'FUND_NTR_CODE', 'FUND_NTR_DESP', 'FUND_NTR_DISP_SEQ_NUM']

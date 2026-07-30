@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -88,9 +87,9 @@ AND aply.LN_APLY_KEY = aply_sts.LN_APLY_KEY
 AND ln.LN_KEY = ln_sts.LN_KEY
 AND ln_sts.LN_STS_CODE IN ('V','S')
 and ln_sts.SCHM_CODE = 'T'
-and trunc(ln_sts.LN_ISS_DATE,'MM') = to_date($$v_rpt_mth,'yyyymm')
-AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN ln_sts.BGN_DATE AND ln_sts.END_DATE
-AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.END_DATE"""
+and trunc(ln_sts.LN_ISS_DATE,'MM') = to_date('$$v_rpt_mth','yyyymm')
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ln_sts.BGN_DATE AND ln_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.END_DATE"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS = lib.read_sql(spark, _conn, query=query)
@@ -121,9 +120,9 @@ AND aply.LN_APLY_KEY = aply_sts.LN_APLY_KEY
 AND ln.LN_KEY = ln_sts.LN_KEY
 AND ln_sts.LN_STS_CODE IN ('V','S')
 and ln_sts.SCHM_CODE is null
-and trunc(ln_sts.LN_ISS_DATE,'MM') = to_date($$v_rpt_mth,'yyyymm')
-AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN ln_sts.BGN_DATE AND ln_sts.END_DATE
-AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.END_DATE"""
+and trunc(ln_sts.LN_ISS_DATE,'MM') = to_date('$$v_rpt_mth','yyyymm')
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ln_sts.BGN_DATE AND ln_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.END_DATE"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS = lib.read_sql(spark, _conn, query=query)
@@ -494,7 +493,10 @@ AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.EN
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup14, allowMissingColumns=True)
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup15, allowMissingColumns=True)
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup16, allowMissingColumns=True)
-        # Select only union output columns
+        # Select only union output columns (add lit(None) for any missing)
+        for _col in ["PCHS_PRC_AMT2", "SCHM_CODE2", "UNIT_PRC_CODE"]:
+            if _col not in df_Union_Transformation.columns:
+                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("PCHS_PRC_AMT2", "SCHM_CODE2", "UNIT_PRC_CODE")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
@@ -514,7 +516,7 @@ AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.EN
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
         df_EXPTRANS = df_AGGTRANS
-        _expr = """to_date(concat('$$v_rpt_mth', '01'), 'yyyymmdd')"""
+        _expr = """to_date(cast(concat('$$v_rpt_mth', '01') as string), 'yyyymmdd')"""
         _expr = _expr.replace("$$v_snsh_date", str(v_snsh_date))
         _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
         df_EXPTRANS = df_EXPTRANS.withColumn("TIME", expr(_expr))
@@ -541,15 +543,18 @@ AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.EN
         # Lookup: apply_LKP_DDS_DMNS_TIME_1
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_TIME_1 = df_LKP_DDS_DMNS_TIME_1.dropDuplicates(subset=["TIME_VAL_DATE"])
-        # Join condition: TIME=TIME_VAL_DATE
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_EXPTRANS
+        _lkp_input = _lkp_input.withColumn("IN_TIME_VAL_DATE", col("TIME"))
+        # Join condition: IN_TIME_VAL_DATE=TIME_VAL_DATE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_20 = df_EXPTRANS.alias("_main").join(
+        df_lkp_merge_20 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_TIME_1).alias("_lkp"),
-            (col("_main.TIME") == col("_lkp.TIME_VAL_DATE")),
+            (col("_main.IN_TIME_VAL_DATE") == col("_lkp.TIME_VAL_DATE")),
             "left"
         ).select(
-            *[df_EXPTRANS[c] for c in df_EXPTRANS.columns],
-            *[df_LKP_DDS_DMNS_TIME_1[c] for c in df_LKP_DDS_DMNS_TIME_1.columns if c not in df_EXPTRANS.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_TIME_1[c] for c in df_LKP_DDS_DMNS_TIME_1.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_20", df_lkp_merge_20)        
         logger.info("Step: read_LKP_DDS_DMNS_EMS_DESP_DTL")
@@ -562,16 +567,20 @@ AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.EN
         # Lookup: apply_LKP_DDS_DMNS_EMS_DESP_DTL
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_DESP_DTL = df_LKP_DDS_DMNS_EMS_DESP_DTL.dropDuplicates(subset=["DESP_DTL_CODE", "DESP_DTL_SCHM_CODE"])
-        # Join condition: DESP_DTL=DESP_DTL_CODE AND DESP_DTL_SCHM_CODE=DESP_DTL_SCHM_CODE
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_lkp_merge_20
+        _lkp_input = _lkp_input.withColumn("IN_DESP_DTL_CODE", col("DESP_DTL"))
+        _lkp_input = _lkp_input.withColumn("IN_DESP_DTL_SCHM_CODE", col("DESP_DTL_SCHM_CODE"))
+        # Join condition: IN_DESP_DTL_CODE=DESP_DTL_CODE AND IN_DESP_DTL_SCHM_CODE=DESP_DTL_SCHM_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_20 = df_lkp_merge_20.alias("_main").join(
+        df_lkp_merge_20 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_DESP_DTL).alias("_lkp"),
-            (col("_main.DESP_DTL") == col("_lkp.DESP_DTL_CODE")) &
-            (col("_main.DESP_DTL_SCHM_CODE") == col("_lkp.DESP_DTL_SCHM_CODE")),
+            (col("_main.IN_DESP_DTL_CODE") == col("_lkp.DESP_DTL_CODE")) &
+            (col("_main.IN_DESP_DTL_SCHM_CODE") == col("_lkp.DESP_DTL_SCHM_CODE")),
             "left"
         ).select(
-            *[df_lkp_merge_20[c] for c in df_lkp_merge_20.columns],
-            *[df_LKP_DDS_DMNS_EMS_DESP_DTL[c] for c in df_LKP_DDS_DMNS_EMS_DESP_DTL.columns if c not in df_lkp_merge_20.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_EMS_DESP_DTL[c] for c in df_LKP_DDS_DMNS_EMS_DESP_DTL.columns if c not in _lkp_input.columns]
         )
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_UNIT_PRC")
@@ -584,16 +593,20 @@ AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.EN
         # Lookup: apply_LKP_DDS_DMNS_EMS_UNIT_PRC
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_UNIT_PRC = df_LKP_DDS_DMNS_EMS_UNIT_PRC.dropDuplicates(subset=["UNIT_PRC_CODE", "UNIT_PRC_SCHM_CODE"])
-        # Join condition: UNIT_PRC_CODE=UNIT_PRC_CODE AND UNIT_PRC_SCHM_CODE=UNIT_PRC_SCHM_CODE
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_lkp_merge_20
+        _lkp_input = _lkp_input.withColumn("IN_UNIT_PRC_CODE", col("UNIT_PRC_CODE"))
+        _lkp_input = _lkp_input.withColumn("IN_UNIT_PRC_SCHM_CODE", col("UNIT_PRC_SCHM_CODE"))
+        # Join condition: IN_UNIT_PRC_CODE=UNIT_PRC_CODE AND IN_UNIT_PRC_SCHM_CODE=UNIT_PRC_SCHM_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_20 = df_lkp_merge_20.alias("_main").join(
+        df_lkp_merge_20 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_UNIT_PRC).alias("_lkp"),
-            (col("_main.UNIT_PRC_CODE") == col("_lkp.UNIT_PRC_CODE")) &
-            (col("_main.UNIT_PRC_SCHM_CODE") == col("_lkp.UNIT_PRC_SCHM_CODE")),
+            (col("_main.IN_UNIT_PRC_CODE") == col("_lkp.UNIT_PRC_CODE")) &
+            (col("_main.IN_UNIT_PRC_SCHM_CODE") == col("_lkp.UNIT_PRC_SCHM_CODE")),
             "left"
         ).select(
-            *[df_lkp_merge_20[c] for c in df_lkp_merge_20.columns],
-            *[df_LKP_DDS_DMNS_EMS_UNIT_PRC[c] for c in df_LKP_DDS_DMNS_EMS_UNIT_PRC.columns if c not in df_lkp_merge_20.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_EMS_UNIT_PRC[c] for c in df_LKP_DDS_DMNS_EMS_UNIT_PRC.columns if c not in _lkp_input.columns]
         )
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_UNIT_TYPE")
@@ -606,16 +619,20 @@ AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.EN
         # Lookup: apply_LKP_DDS_DMNS_EMS_UNIT_TYPE
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_UNIT_TYPE = df_LKP_DDS_DMNS_EMS_UNIT_TYPE.dropDuplicates(subset=["UNIT_TYPE_CODE", "UNIT_TYPE_SCHM_CODE"])
-        # Join condition: UNIT_TYPE=UNIT_TYPE_CODE AND UNIT_TYPE_SCHM_CODE=UNIT_TYPE_SCHM_CODE
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_lkp_merge_20
+        _lkp_input = _lkp_input.withColumn("IN_UNIT_TYPE_CODE", col("UNIT_TYPE"))
+        _lkp_input = _lkp_input.withColumn("IN_UNIT_TYPE_SCHM_CODE", col("UNIT_TYPE_SCHM_CODE"))
+        # Join condition: IN_UNIT_TYPE_CODE=UNIT_TYPE_CODE AND IN_UNIT_TYPE_SCHM_CODE=UNIT_TYPE_SCHM_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_20 = df_lkp_merge_20.alias("_main").join(
+        df_lkp_merge_20 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_UNIT_TYPE).alias("_lkp"),
-            (col("_main.UNIT_TYPE") == col("_lkp.UNIT_TYPE_CODE")) &
-            (col("_main.UNIT_TYPE_SCHM_CODE") == col("_lkp.UNIT_TYPE_SCHM_CODE")),
+            (col("_main.IN_UNIT_TYPE_CODE") == col("_lkp.UNIT_TYPE_CODE")) &
+            (col("_main.IN_UNIT_TYPE_SCHM_CODE") == col("_lkp.UNIT_TYPE_SCHM_CODE")),
             "left"
         ).select(
-            *[df_lkp_merge_20[c] for c in df_lkp_merge_20.columns],
-            *[df_LKP_DDS_DMNS_EMS_UNIT_TYPE[c] for c in df_LKP_DDS_DMNS_EMS_UNIT_TYPE.columns if c not in df_lkp_merge_20.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_EMS_UNIT_TYPE[c] for c in df_LKP_DDS_DMNS_EMS_UNIT_TYPE.columns if c not in _lkp_input.columns]
         )
         
         logger.info("Step: write_DPA_FACT_EMS_SMS_FLAT_PRC_TXN")
@@ -647,6 +664,11 @@ AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.EN
         _field_map = {"DESP_DTL_DMNS_KEY": "DESP_DTL_DMNS_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TXN_CNT": "CNT", "UNIT_PRC_DMNS_KEY": "UNIT_PRC_DMNS_KEY", "UNIT_TYPE_DMNS_KEY": "UNIT_TYPE_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['DESP_DTL_DMNS_KEY', 'UNIT_TYPE_DMNS_KEY', 'UNIT_PRC_DMNS_KEY', 'TIME_DMNS_KEY', 'TXN_CNT', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND']

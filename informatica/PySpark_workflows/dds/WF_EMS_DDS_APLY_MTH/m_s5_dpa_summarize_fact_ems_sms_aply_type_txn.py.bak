@@ -115,11 +115,11 @@ and ln_sts.LN_APLY_KEY = aply.LN_APLY_KEY
 and aply_sts.CEP_CERT_KEY = cert.CEP_CERT_KEY
 and cert_sts.CEP_APLY_KEY = cep.CEP_APLY_KEY
 and ln_sts.LN_STS_CODE in ('V','S') and cep_sts.GF_CERT_TYPE_CODE is not null
-and trunc(ln_sts.ln_iss_date, 'MM') = to_date('$$v_rpt_mth','YYYYMM')
-AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN  ln_sts.BGN_DATE AND  ln_sts.END_DATE
-AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN  aply_sts.BGN_DATE AND  aply_sts.END_DATE
-AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN  cert_sts.BGN_DATE AND  cert_sts.END_DATE
-AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN  cep_sts.BGN_DATE AND  cep_sts.END_DATE"""
+and trunc(ln_sts.ln_iss_date, 'MM') = to_date($$v_rpt_mth,'YYYYMM')
+AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN  ln_sts.BGN_DATE AND  ln_sts.END_DATE
+AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN  aply_sts.BGN_DATE AND  aply_sts.END_DATE
+AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN  cert_sts.BGN_DATE AND  cert_sts.END_DATE
+AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN  cep_sts.BGN_DATE AND  cep_sts.END_DATE"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_SQ_SOR_3 = lib.read_sql(spark, _conn, query=query)
@@ -155,11 +155,11 @@ and aply_sts.CEP_CERT_KEY = cert.CEP_CERT_KEY
 and cert_sts.CEP_APLY_KEY = cep.CEP_APLY_KEY
 and ln_sts.LN_STS_CODE in ('V','S') and UNIT_CODE_ADDR is not null
 and substr(UNIT_CODE_ADDR, 1, 2) = 'E9'  
-and trunc(ln_sts.LN_ISS_DATE, 'MM') = to_date('$$v_rpt_mth','YYYYMM')
-AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN  ln_sts.BGN_DATE AND  ln_sts.END_DATE
-AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN  aply_sts.BGN_DATE AND  aply_sts.END_DATE
-AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN  cert_sts.BGN_DATE AND  cert_sts.END_DATE
-AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN  cep_sts.BGN_DATE AND  cep_sts.END_DATE"""
+and trunc(ln_sts.LN_ISS_DATE, 'MM') = to_date($$v_rpt_mth,'YYYYMM')
+AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN  ln_sts.BGN_DATE AND  ln_sts.END_DATE
+AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN  aply_sts.BGN_DATE AND  aply_sts.END_DATE
+AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN  cert_sts.BGN_DATE AND  cert_sts.END_DATE
+AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN  cep_sts.BGN_DATE AND  cep_sts.END_DATE"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_SQ_SOR_2 = lib.read_sql(spark, _conn, query=query)
@@ -195,11 +195,11 @@ and aply_sts.CEP_CERT_KEY = cert.CEP_CERT_KEY
 and cert_sts.CEP_APLY_KEY = cep.CEP_APLY_KEY
 and ln_sts.LN_STS_CODE in ('V','S') and UNIT_CODE_ADDR is not null
 and substr(UNIT_CODE_ADDR, 1, 2) <> 'E9' 
-and trunc(ln_sts.LN_ISS_DATE, 'MM') = to_date('$$v_rpt_mth','YYYYMM')
-AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN  ln_sts.BGN_DATE AND  ln_sts.END_DATE
-AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN  aply_sts.BGN_DATE AND  aply_sts.END_DATE
-AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN  cert_sts.BGN_DATE AND  cert_sts.END_DATE
-AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN  cep_sts.BGN_DATE AND  cep_sts.END_DATE
+and trunc(ln_sts.LN_ISS_DATE, 'MM') = to_date($$v_rpt_mth,'YYYYMM')
+AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN  ln_sts.BGN_DATE AND  ln_sts.END_DATE
+AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN  aply_sts.BGN_DATE AND  aply_sts.END_DATE
+AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN  cert_sts.BGN_DATE AND  cert_sts.END_DATE
+AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN  cep_sts.BGN_DATE AND  cep_sts.END_DATE
 and substr(UNIT_CODE_ADDR, 1, 1) in ('E','C','R','L')"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)

@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -82,7 +81,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             monotonically_increasing_id() + 0
         )
         ctx.register_df("df_SEQ_DMNS_PHCP_KEY", df_SEQ_DMNS_PHCP_KEY)
-        
+
         logger.info("Step: apply_SQ_SOR_HOM_BUD_PARM")
         # Source Qualifier: apply_SQ_SOR_HOM_BUD_PARM
         # SQL Pushdown - executes Informatica SQ SQL on source database
@@ -125,15 +124,18 @@ select '-1' phcp_ind, 'Others' phcp_desp_text, 99 phcp_disp_seq_num
         # Lookup: apply_LKP_DDS_DMNS_PHCP
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_PHCP = df_LKP_DDS_DMNS_PHCP.dropDuplicates(subset=["PHCP_IND"])
-        # Join condition: PARM_NAME=PHCP_IND
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_SQ_SOR_HOM_BUD_PARM
+        _lkp_input = _lkp_input.withColumn("IN_PHCP_IND", col("PARM_NAME"))
+        # Join condition: IN_PHCP_IND=PHCP_IND
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_SQ_SOR_HOM_BUD_PARM.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_PHCP).alias("_lkp"),
-            (col("_main.PARM_NAME") == col("_lkp.PHCP_IND")),
+            (col("_main.IN_PHCP_IND") == col("_lkp.PHCP_IND")),
             "left"
         ).select(
-            *[df_SQ_SOR_HOM_BUD_PARM[c] for c in df_SQ_SOR_HOM_BUD_PARM.columns],
-            *[df_LKP_DDS_DMNS_PHCP[c] for c in df_LKP_DDS_DMNS_PHCP.columns if c not in df_SQ_SOR_HOM_BUD_PARM.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_PHCP[c] for c in df_LKP_DDS_DMNS_PHCP.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS")
@@ -143,7 +145,7 @@ select '-1' phcp_ind, 'Others' phcp_desp_text, 99 phcp_disp_seq_num
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_phcp_disp_seq_num", expr("phcp_disp_seq_num"))
         df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_PHCP_KEY IS NULL) OR CASE WHEN PHCP_IND = IN_PHCP_IND THEN false ELSE true END OR CASE WHEN PHCP_DESP_TEXT = PARM_TEXT THEN false ELSE true END THEN 1 ELSE 0 END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["IN_PHCP_IND", "DMNS_PHCP_KEY", "PHCP_DESP_TEXT", "PHCP_IND", "PHCP_DISP_SEQ_NUM"]:
+        for _col in ["IN_PHCP_IND", "PHCP_IND", "PHCP_DESP_TEXT", "DMNS_PHCP_KEY", "PHCP_DISP_SEQ_NUM"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
@@ -176,7 +178,10 @@ select '-1' phcp_ind, 'Others' phcp_desp_text, 99 phcp_disp_seq_num
             col("IN_phcp_disp_seq_num").alias("IN_phcp_disp_seq_num")        )
         df_Union_Transformation = df_Union_Transformation_change
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_new, allowMissingColumns=True)
-        # Select only union output columns
+        # Select only union output columns (add lit(None) for any missing)
+        for _col in ["DMNS_PHCP_KEY", "IN_PHCP_IND", "IN_PARM_TEXT", "IN_phcp_disp_seq_num"]:
+            if _col not in df_Union_Transformation.columns:
+                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("DMNS_PHCP_KEY", "IN_PHCP_IND", "IN_PARM_TEXT", "IN_phcp_disp_seq_num")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
@@ -202,6 +207,11 @@ select '-1' phcp_ind, 'Others' phcp_desp_text, 99 phcp_disp_seq_num
         _field_map = {"DMNS_PHCP_KEY": "DMNS_PHCP_KEY", "PHCP_DESP_TEXT": "IN_PARM_TEXT", "PHCP_DISP_SEQ_NUM": "IN_phcp_disp_seq_num", "PHCP_IND": "IN_PHCP_IND"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['DMNS_PHCP_KEY', 'PHCP_IND', 'PHCP_DESP_TEXT', 'PHCP_DISP_SEQ_NUM']

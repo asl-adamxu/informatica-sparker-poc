@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -100,7 +99,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             monotonically_increasing_id() + 0
         )
         ctx.register_df("df_SEQ_DMNS_CNTR_MGR_KEY", df_SEQ_DMNS_CNTR_MGR_KEY)
-        
+
         logger.info("Step: apply_SQ_SOR_HOM_CON_CNTR_REF")
         # Source Qualifier: apply_SQ_SOR_HOM_CON_CNTR_REF
         # SQL Pushdown - executes Informatica SQ SQL on source database
@@ -158,15 +157,18 @@ select 'Others' cntr_mgr_post, 99999 cntr_mgr_disp_seq_num
         # Lookup: apply_LKP_DDS_DMNS_CNTR_MGR
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_CNTR_MGR = df_LKP_DDS_DMNS_CNTR_MGR.dropDuplicates(subset=["CNTR_MGR_POST_NAME"])
-        # Join condition: CNTR_MGR_POST_DESP=CNTR_MGR_POST_NAME
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_SQ_SOR_HOM_CON_CNTR_REF
+        _lkp_input = _lkp_input.withColumn("IN_CNTR_MGR_POST_NAME", col("CNTR_MGR_POST_DESP"))
+        # Join condition: IN_CNTR_MGR_POST_NAME=CNTR_MGR_POST_NAME
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_SQ_SOR_HOM_CON_CNTR_REF.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_CNTR_MGR).alias("_lkp"),
-            (col("_main.CNTR_MGR_POST_DESP") == col("_lkp.CNTR_MGR_POST_NAME")),
+            (col("_main.IN_CNTR_MGR_POST_NAME") == col("_lkp.CNTR_MGR_POST_NAME")),
             "left"
         ).select(
-            *[df_SQ_SOR_HOM_CON_CNTR_REF[c] for c in df_SQ_SOR_HOM_CON_CNTR_REF.columns],
-            *[df_LKP_DDS_DMNS_CNTR_MGR[c] for c in df_LKP_DDS_DMNS_CNTR_MGR.columns if c not in df_SQ_SOR_HOM_CON_CNTR_REF.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_CNTR_MGR[c] for c in df_LKP_DDS_DMNS_CNTR_MGR.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS")
@@ -206,7 +208,10 @@ select 'Others' cntr_mgr_post, 99999 cntr_mgr_disp_seq_num
             col("IN_CNTR_MGR_DISP_SEQ_NUM").alias("IN_CNTR_MGR_DISP_SEQ_NUM")        )
         df_Union_Transformation = df_Union_Transformation_change
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_new, allowMissingColumns=True)
-        # Select only union output columns
+        # Select only union output columns (add lit(None) for any missing)
+        for _col in ["DMNS_CNTR_MGR_KEY", "IN_CNTR_MGR_POST_NAME", "IN_CNTR_MGR_DISP_SEQ_NUM"]:
+            if _col not in df_Union_Transformation.columns:
+                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("DMNS_CNTR_MGR_KEY", "IN_CNTR_MGR_POST_NAME", "IN_CNTR_MGR_DISP_SEQ_NUM")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
@@ -225,6 +230,11 @@ select 'Others' cntr_mgr_post, 99999 cntr_mgr_disp_seq_num
         _field_map = {"CNTR_MGR_DISP_SEQ_NUM": "IN_CNTR_MGR_DISP_SEQ_NUM", "CNTR_MGR_POST_NAME": "IN_CNTR_MGR_POST_NAME", "DMNS_CNTR_MGR_KEY": "DMNS_CNTR_MGR_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['DMNS_CNTR_MGR_KEY', 'CNTR_MGR_POST_NAME', 'CNTR_MGR_DISP_SEQ_NUM']

@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -94,7 +93,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             monotonically_increasing_id() + 0
         )
         ctx.register_df("df_SEQ_DMNS_PROJ_KEY", df_SEQ_DMNS_PROJ_KEY)
-        
+
         logger.info("Step: apply_SQ_SOR_HOM_BUD_PROJ_LIST")
         # Source Qualifier: apply_SQ_SOR_HOM_BUD_PROJ_LIST
         # SQL Pushdown - executes Informatica SQ SQL on source database
@@ -162,26 +161,29 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Lookup: apply_LKP_DDS_DMNS_PROJ
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_PROJ = df_LKP_DDS_DMNS_PROJ.dropDuplicates(subset=["PROJ_KEY"])
-        # Join condition: PROJ_HOM_BK=PROJ_KEY
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_SQ_SOR_HOM_BUD_PROJ_LIST
+        _lkp_input = _lkp_input.withColumn("IN_PROJ_KEY", col("PROJ_HOM_BK"))
+        # Join condition: IN_PROJ_KEY=PROJ_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_SQ_SOR_HOM_BUD_PROJ_LIST.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_PROJ).alias("_lkp"),
-            (col("_main.PROJ_HOM_BK") == col("_lkp.PROJ_KEY")),
+            (col("_main.IN_PROJ_KEY") == col("_lkp.PROJ_KEY")),
             "left"
         ).select(
-            *[df_SQ_SOR_HOM_BUD_PROJ_LIST[c] for c in df_SQ_SOR_HOM_BUD_PROJ_LIST.columns],
-            *[df_LKP_DDS_DMNS_PROJ[c] for c in df_LKP_DDS_DMNS_PROJ.columns if c not in df_SQ_SOR_HOM_BUD_PROJ_LIST.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_PROJ[c] for c in df_LKP_DDS_DMNS_PROJ.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
         df_EXPTRANS = df_lkp_merge_1
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_PHASE_CODE", expr("PHASE_CODE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("IN_PROJ_TTL", expr("PROJ_TTL"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_PROJ_KEY IS NULL) OR CASE WHEN PROJ_NUM = PROJ_NUM THEN false ELSE true END OR CASE WHEN PHASE_CODE = PHASE_CODE THEN false ELSE true END OR CASE WHEN PROJ_TTL = PROJ_TTL THEN false ELSE true END THEN 1 ELSE 0 END"))
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_PROJ_NUM", expr("PROJ_NUM"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_PROJ_KEY IS NULL) OR CASE WHEN PROJ_NUM = PROJ_NUM THEN false ELSE true END OR CASE WHEN PHASE_CODE = PHASE_CODE THEN false ELSE true END OR CASE WHEN PROJ_TTL = PROJ_TTL THEN false ELSE true END THEN 1 ELSE 0 END"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("IN_PROJ_TTL", expr("PROJ_TTL"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["PHASE_CODE", "DMNS_PROJ_KEY", "PROJ_TTL", "PROJ_NUM", "PROJ_KEY", "PROJ_DISP_SEQ_NUM", "IN_PROJ_KEY"]:
+        for _col in ["PHASE_CODE", "DMNS_PROJ_KEY", "PROJ_NUM", "PROJ_TTL", "PROJ_KEY", "PROJ_DISP_SEQ_NUM", "IN_PROJ_KEY"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
@@ -216,7 +218,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             col("IN_PROJ_TTL").alias("IN_PROJ_TTL")        )
         df_Union_Transformation = df_Union_Transformation_change
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_new, allowMissingColumns=True)
-        # Select only union output columns
+        # Select only union output columns (add lit(None) for any missing)
+        for _col in ["DMNS_PROJ_KEY", "IN_PROJ_KEY", "IN_PROJ_NUM", "IN_PHASE_CODE", "IN_PROJ_TTL"]:
+            if _col not in df_Union_Transformation.columns:
+                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("DMNS_PROJ_KEY", "IN_PROJ_KEY", "IN_PROJ_NUM", "IN_PHASE_CODE", "IN_PROJ_TTL")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
@@ -251,6 +256,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         _field_map = {"DMNS_PROJ_KEY": "DMNS_PROJ_KEY", "PHASE_CODE": "IN_PHASE_CODE", "PROJ_KEY": "IN_PROJ_KEY", "PROJ_NUM": "IN_PROJ_NUM", "PROJ_TTL": "IN_PROJ_TTL"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['DMNS_PROJ_KEY', 'PROJ_KEY', 'PROJ_NUM', 'PHASE_CODE', 'PROJ_TTL', 'PROJ_DISP_SEQ_NUM']

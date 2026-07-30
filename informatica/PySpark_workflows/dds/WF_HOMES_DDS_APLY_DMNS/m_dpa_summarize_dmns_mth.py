@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -76,7 +75,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             monotonically_increasing_id() + 0
         )
         ctx.register_df("df_SEQ_DMNS_MTH_KEY", df_SEQ_DMNS_MTH_KEY)
-        
+
         logger.info("Step: apply_SQ_SOR_HOM_BUD_COPY")
         # Source Qualifier: apply_SQ_SOR_HOM_BUD_COPY
         # SQL Pushdown - executes Informatica SQ SQL on source database
@@ -284,16 +283,20 @@ and c.copy_ver_num = -1
         # Lookup: apply_LKP_DDS_DMNS_MTN
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_MTN = df_LKP_DDS_DMNS_MTN.dropDuplicates(subset=["DMNS_YEAR", "DMNS_MTH"])
-        # Join condition: dmns_year=DMNS_YEAR AND dmns_mth=DMNS_MTH
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_SQ_SOR_HOM_BUD_COPY
+        _lkp_input = _lkp_input.withColumn("IN_DMNS_YEAR", col("dmns_year"))
+        _lkp_input = _lkp_input.withColumn("IN_DMNS_MTH", col("dmns_mth"))
+        # Join condition: IN_DMNS_YEAR=DMNS_YEAR AND IN_DMNS_MTH=DMNS_MTH
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_SQ_SOR_HOM_BUD_COPY.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_MTN).alias("_lkp"),
-            (col("_main.dmns_year") == col("_lkp.DMNS_YEAR")) &
-            (col("_main.dmns_mth") == col("_lkp.DMNS_MTH")),
+            (col("_main.IN_DMNS_YEAR") == col("_lkp.DMNS_YEAR")) &
+            (col("_main.IN_DMNS_MTH") == col("_lkp.DMNS_MTH")),
             "left"
         ).select(
-            *[df_SQ_SOR_HOM_BUD_COPY[c] for c in df_SQ_SOR_HOM_BUD_COPY.columns],
-            *[df_LKP_DDS_DMNS_MTN[c] for c in df_LKP_DDS_DMNS_MTN.columns if c not in df_SQ_SOR_HOM_BUD_COPY.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_MTN[c] for c in df_LKP_DDS_DMNS_MTN.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS")
@@ -305,7 +308,7 @@ and c.copy_ver_num = -1
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_mth_disp_seq_num", expr("mth_disp_seq_num"))
         df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_MTH_KEY IS NULL) OR CASE WHEN DMNS_YEAR = IN_DMNS_YEAR THEN false ELSE true END OR CASE WHEN DISP_FIN_YEAR_TEXT = disp_fin_year_text THEN false ELSE true END OR CASE WHEN DISP_MTH_TEXT = disp_mth_text THEN false ELSE true END OR CASE WHEN DISP_QTR_TEXT = disp_qtr_text THEN false ELSE true END OR CASE WHEN DMNS_MTH = IN_DMNS_MTH THEN false ELSE true END THEN 1 ELSE 0 END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["IN_DMNS_YEAR", "IN_DMNS_MTH", "DISP_QTR_TEXT", "DMNS_MTH", "DISP_MTH_TEXT", "DMNS_YEAR", "DMNS_MTH_KEY", "DISP_FIN_YEAR_TEXT", "MTH_DISP_SEQ_NUM"]:
+        for _col in ["DISP_FIN_YEAR_TEXT", "DISP_MTH_TEXT", "IN_DMNS_YEAR", "IN_DMNS_MTH", "DMNS_MTH_KEY", "DISP_QTR_TEXT", "DMNS_YEAR", "DMNS_MTH", "MTH_DISP_SEQ_NUM"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
@@ -344,7 +347,10 @@ and c.copy_ver_num = -1
             col("IN_mth_disp_seq_num").alias("IN_mth_disp_seq_num")        )
         df_Union_Transformation = df_Union_Transformation_change
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_new, allowMissingColumns=True)
-        # Select only union output columns
+        # Select only union output columns (add lit(None) for any missing)
+        for _col in ["DMNS_MTH_KEY", "IN_DMNS_YEAR", "IN_DMNS_MTH", "IN_disp_fin_year_text", "IN_disp_mth_text", "IN_disp_qtr_text", "IN_mth_disp_seq_num"]:
+            if _col not in df_Union_Transformation.columns:
+                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("DMNS_MTH_KEY", "IN_DMNS_YEAR", "IN_DMNS_MTH", "IN_disp_fin_year_text", "IN_disp_mth_text", "IN_disp_qtr_text", "IN_mth_disp_seq_num")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
@@ -377,6 +383,11 @@ and c.copy_ver_num = -1
         _field_map = {"DISP_FIN_YEAR_TEXT": "IN_disp_fin_year_text", "DISP_MTH_TEXT": "IN_disp_mth_text", "DISP_QTR_TEXT": "IN_disp_qtr_text", "DMNS_MTH": "IN_DMNS_MTH", "DMNS_MTH_KEY": "DMNS_MTH_KEY", "DMNS_YEAR": "IN_DMNS_YEAR", "MTH_DISP_SEQ_NUM": "IN_mth_disp_seq_num"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['DMNS_MTH_KEY', 'DMNS_YEAR', 'DMNS_MTH', 'DISP_FIN_YEAR_TEXT', 'DISP_MTH_TEXT', 'DISP_QTR_TEXT', 'MTH_DISP_SEQ_NUM']

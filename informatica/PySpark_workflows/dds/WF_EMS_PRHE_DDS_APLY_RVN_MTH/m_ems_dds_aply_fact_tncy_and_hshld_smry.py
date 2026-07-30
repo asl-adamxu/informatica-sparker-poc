@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -126,6 +125,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         _field_map = {"DSBL_HSHLD_CNT": "DSBL_HSHLD_CNT", "DSTR_BRD_DSTR_DMNS_KEY": "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY": "DSTR_CHC_DSTR_SCD_KEY", "EST_SCD_KEY": "EST_SCD_KEY", "HSHLD_AEM_IND": "HSHLD_AEM_IND", "HSHLD_CNT": "HSHLD_CNT", "HSHLD_DSBL_MBR_CNT": "HSHLD_DSBL_MBR_CNT", "HSHLD_ELDR_IND": "HSHLD_ELDR_IND", "HSHLD_FML_MBR_CNT": "HSHLD_FML_MBR_CNT", "HSHLD_MALE_MBR_CNT": "HSHLD_MALE_MBR_CNT", "HSHLD_MBR_CNT": "HSHLD_MBR_CNT", "HSHLD_SIZE_DMNS_KEY": "HSHLD_SIZE_DMNS_KEY", "HSHLD_UKWN_GNDR_MBR_CNT": "HSHLD_UKWN_GNDR_MBR_CNT", "PRH_ALL_CSSA_HSHLD_CNT": "PRH_ALL_CSSA_HSHLD_CNT", "PRH_PART_CSSA_HSHLD_CNT": "PRH_PART_CSSA_HSHLD_CNT", "RENT_FCTR_DMNS_KEY": "RENT_FCTR_DMNS_KEY", "RNTL_PSTN_DMNS_KEY": "RNTL_PSTN_DMNS_KEY", "RSDN_LNG_DMNS_KEY": "RSDN_LNG_DMNS_KEY", "RVN_TXN_MODE_DMNS_KEY": "RVN_TXN_MODE_DMNS_KEY", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TNCY_SCHM_TYPE_DMNS_KEY": "TNCY_SCHM_TYPE_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['TIME_DMNS_KEY', 'EST_SCD_KEY', 'RENT_FCTR_DMNS_KEY', 'RVN_TXN_MODE_DMNS_KEY', 'TNCY_SCHM_TYPE_DMNS_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'RNTL_PSTN_DMNS_KEY', 'RSDN_LNG_DMNS_KEY', 'HSHLD_SIZE_DMNS_KEY', 'HSHLD_AEM_IND', 'HSHLD_ELDR_IND', 'HSHLD_CNT', 'HSHLD_MBR_CNT', 'HSHLD_MALE_MBR_CNT', 'HSHLD_FML_MBR_CNT', 'HSHLD_UKWN_GNDR_MBR_CNT', 'HSHLD_DSBL_MBR_CNT', 'DSBL_HSHLD_CNT', 'PRH_ALL_CSSA_HSHLD_CNT', 'PRH_PART_CSSA_HSHLD_CNT']
@@ -138,11 +142,23 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Expression: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS
         df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS = df_EXP_SET_DEL_INFO
         df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS.withColumn("RLS_CNTL_DMNS_TYPE_CODE", expr("substring(cast(TIME_DMNS_KEY as string),1,1)"))
+        # Ensure any missing pass-through columns exist (no connector feeding them)
+        for _col in ["TIME_DMNS_KEY", "TBL_NAME", "RM_FLG", "RSL_CTL_IND"]:
+            if _col not in df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS.columns:
+                df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS", df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS)
         
         logger.info("Step: apply_df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_AGGTRANS")
         # Aggregator: apply_df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_AGGTRANS
-        df_df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_AGGTRANS = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS.groupBy("TBL_NAME", "RM_FLG", "RLS_CNTL_DMNS_TYPE_CODE", "RSL_CTL_IND")
+        # Select only mapped upstream columns with correct port names
+        _agg_input = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS.select(
+            col("RLS_CNTL_DMNS_TYPE_CODE"),
+            col("TIME_DMNS_KEY"),
+            col("TBL_NAME"),
+            col("RM_FLG"),
+            col("RSL_CTL_IND")        )
+        df_df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_AGGTRANS = _agg_input.groupBy("TBL_NAME", "RM_FLG", "RLS_CNTL_DMNS_TYPE_CODE", "RSL_CTL_IND")
         df_df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_AGGTRANS = df_df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_AGGTRANS.agg(
             max("TIME_DMNS_KEY").alias("MAX_TIME_DMNS_KEY"),
             min("TIME_DMNS_KEY").alias("MIN_TIME_DMNS_KEY")
@@ -157,16 +173,18 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         
         logger.info("Step: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_LKPTRANS")
         # Lookup: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_LKPTRANS
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_AGGTRANS
         # Join condition: TBL_NAME=RLS_CNTL_FACT_TBL_NAME AND RLS_CNTL_DMNS_TYPE_CODE=RLS_CNTL_DMNS_TYPE_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_1 = df_df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_AGGTRANS.alias("_main").join(
+        df_mplt_lkp_chain_1 = _lkp_input.alias("_main").join(
             broadcast(df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_LKPTRANS).alias("_lkp"),
             (col("_main.TBL_NAME") == col("_lkp.RLS_CNTL_FACT_TBL_NAME")) &
             (col("_main.RLS_CNTL_DMNS_TYPE_CODE") == col("_lkp.RLS_CNTL_DMNS_TYPE_CODE")),
             "left"
         ).select(
-            *[df_df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_AGGTRANS[c] for c in df_df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_AGGTRANS.columns],
-            *[df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_LKPTRANS[c] for c in df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_LKPTRANS.columns if c not in df_df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_AGGTRANS.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_LKPTRANS[c] for c in df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_LKPTRANS.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_mplt_lkp_chain_1", df_mplt_lkp_chain_1)        
         logger.info("Step: rename_EXP_SP_DELETE")
@@ -195,6 +213,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE.withColumn("RLS_CNTL_BGN_DMNS_KEY", expr("CASE WHEN (DDS_RLS_CNTL_BGN_TIME_DMNS_KEY IS NULL) OR (MIN_TIME_DMNS_KEY < DDS_RLS_CNTL_BGN_TIME_DMNS_KEY) THEN MIN_TIME_DMNS_KEY ELSE DDS_RLS_CNTL_BGN_TIME_DMNS_KEY END"))
         df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE.withColumn("RLS_CNTL_END_DMNS_KEY", expr("CASE WHEN (DDS_RLS_CNTL_END_TIME_DMNS_KEY IS NULL) OR (MAX_TIME_DMNS_KEY > DDS_RLS_CNTL_END_TIME_DMNS_KEY) THEN MAX_TIME_DMNS_KEY ELSE DDS_RLS_CNTL_END_TIME_DMNS_KEY END"))
         df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE.withColumn("UPDATE_FLAG", expr("CASE WHEN (DDS_RLS_CNTL_FACT_TBL_NAME IS NULL) THEN 'DD_INSERT' ELSE 'DD_UPDATE' END"))
+        # Ensure any missing pass-through columns exist (no connector feeding them)
+        for _col in ["FACT_TBL_NAME", "RLS_CNTL_DMNS_TYPE_CODE", "RSL_CTL_IND"]:
+            if _col not in df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE.columns:
+                df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE", df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE)
         
         logger.info("Step: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_FILTRANS")
@@ -205,7 +228,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         
         logger.info("Step: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD")
         # Expression: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD
-        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE
+        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_FILTRANS
+        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD.drop("RLS_CNTL_FACT_TBL_NAME").withColumnRenamed("FACT_TBL_NAME", "RLS_CNTL_FACT_TBL_NAME")
+        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD.drop("RLS_CNTL_BGN_TIME_DMNS_KEY").withColumnRenamed("RLS_CNTL_BGN_DMNS_KEY", "RLS_CNTL_BGN_TIME_DMNS_KEY")
+        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD.drop("RLS_CNTL_END_TIME_DMNS_KEY").withColumnRenamed("RLS_CNTL_END_DMNS_KEY", "RLS_CNTL_END_TIME_DMNS_KEY")
         ctx.register_df("df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD", df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD)
         
         logger.info("Step: write_UTL_DEV_NULL")
@@ -267,6 +293,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         _field_map = {"RLS_CNTL_BGN_TIME_DMNS_KEY": "RLS_CNTL_BGN_TIME_DMNS_KEY", "RLS_CNTL_DMNS_TYPE_CODE": "RLS_CNTL_DMNS_TYPE_CODE", "RLS_CNTL_END_TIME_DMNS_KEY": "RLS_CNTL_END_TIME_DMNS_KEY", "RLS_CNTL_FACT_TBL_NAME": "RLS_CNTL_FACT_TBL_NAME"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['RLS_CNTL_FACT_TBL_NAME', 'RLS_CNTL_DMNS_TYPE_CODE', 'RLS_CNTL_BGN_TIME_DMNS_KEY', 'RLS_CNTL_END_TIME_DMNS_KEY']

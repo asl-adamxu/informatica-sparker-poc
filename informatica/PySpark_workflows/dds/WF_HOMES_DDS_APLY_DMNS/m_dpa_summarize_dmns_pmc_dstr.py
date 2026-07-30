@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -76,7 +75,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             monotonically_increasing_id() + 0
         )
         ctx.register_df("df_SEQ_DMNS_PMS_DSTR_KEY", df_SEQ_DMNS_PMS_DSTR_KEY)
-        
+
         logger.info("Step: apply_SQ_SOR_HOM_REF_PMS_DSTR")
         # Source Qualifier: apply_SQ_SOR_HOM_REF_PMS_DSTR
         # SQL Pushdown - executes Informatica SQ SQL on source database
@@ -123,16 +122,20 @@ select 'OTHR' dstr_code, 'Others' dstr_name, 'OTHR' pms_dstr_code,
         # Lookup: apply_LKP_DDS_DMNS_PMS_DSTR
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_PMS_DSTR = df_LKP_DDS_DMNS_PMS_DSTR.dropDuplicates(subset=["DSTR_CODE", "PMS_DSTR_CODE"])
-        # Join condition: DSTR_CODE=DSTR_CODE AND PMS_DSTR_CODE=PMS_DSTR_CODE
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_SQ_SOR_HOM_REF_PMS_DSTR
+        _lkp_input = _lkp_input.withColumn("IN_DSTR_CODE", col("DSTR_CODE"))
+        _lkp_input = _lkp_input.withColumn("IN_PMS_DSTR_CODE", col("PMS_DSTR_CODE"))
+        # Join condition: IN_DSTR_CODE=DSTR_CODE AND IN_PMS_DSTR_CODE=PMS_DSTR_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_SQ_SOR_HOM_REF_PMS_DSTR.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_PMS_DSTR).alias("_lkp"),
-            (col("_main.DSTR_CODE") == col("_lkp.DSTR_CODE")) &
-            (col("_main.PMS_DSTR_CODE") == col("_lkp.PMS_DSTR_CODE")),
+            (col("_main.IN_DSTR_CODE") == col("_lkp.DSTR_CODE")) &
+            (col("_main.IN_PMS_DSTR_CODE") == col("_lkp.PMS_DSTR_CODE")),
             "left"
         ).select(
-            *[df_SQ_SOR_HOM_REF_PMS_DSTR[c] for c in df_SQ_SOR_HOM_REF_PMS_DSTR.columns],
-            *[df_LKP_DDS_DMNS_PMS_DSTR[c] for c in df_LKP_DDS_DMNS_PMS_DSTR.columns if c not in df_SQ_SOR_HOM_REF_PMS_DSTR.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_PMS_DSTR[c] for c in df_LKP_DDS_DMNS_PMS_DSTR.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS")
@@ -183,7 +186,10 @@ select 'OTHR' dstr_code, 'Others' dstr_name, 'OTHR' pms_dstr_code,
             col("IN_PMS_DSTR_DISP_SEQ_NUM").alias("IN_PMS_DSTR_DISP_SEQ_NUM")        )
         df_Union_Transformation = df_Union_Transformation_change
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_new, allowMissingColumns=True)
-        # Select only union output columns
+        # Select only union output columns (add lit(None) for any missing)
+        for _col in ["DMNS_PMS_DSTR_KEY", "IN_DSTR_CODE", "IN_PMS_DSTR_CODE", "IN_DSTR_NAME", "IN_PMS_DSTR_NAME", "IN_DSTR_DISP_SEQ_NUM", "IN_PMS_DSTR_DISP_SEQ_NUM"]:
+            if _col not in df_Union_Transformation.columns:
+                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("DMNS_PMS_DSTR_KEY", "IN_DSTR_CODE", "IN_PMS_DSTR_CODE", "IN_DSTR_NAME", "IN_PMS_DSTR_NAME", "IN_DSTR_DISP_SEQ_NUM", "IN_PMS_DSTR_DISP_SEQ_NUM")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
@@ -223,6 +229,11 @@ select 'OTHR' dstr_code, 'Others' dstr_name, 'OTHR' pms_dstr_code,
         _field_map = {"DMNS_PMS_DSTR_KEY": "DMNS_PMS_DSTR_KEY", "DSTR_CODE": "IN_DSTR_CODE", "DSTR_DISP_SEQ_NUM": "IN_DSTR_DISP_SEQ_NUM", "DSTR_NAME": "IN_DSTR_NAME", "PMS_DSTR_CODE": "IN_PMS_DSTR_CODE", "PMS_DSTR_DISP_SEQ_NUM": "IN_PMS_DSTR_DISP_SEQ_NUM", "PMS_DSTR_NAME": "IN_PMS_DSTR_NAME"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['DMNS_PMS_DSTR_KEY', 'DSTR_CODE', 'DSTR_NAME', 'PMS_DSTR_CODE', 'PMS_DSTR_NAME', 'DSTR_DISP_SEQ_NUM', 'PMS_DSTR_DISP_SEQ_NUM']

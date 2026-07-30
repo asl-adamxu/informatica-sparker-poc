@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -81,11 +80,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         query = f"""SELECT
 RGN.RGN_CODE,
 'T'||ABU_STS.ABU_TYPE_CODE,
- SUM(CASE WHEN(TRUNC(ABU_STS.ABU_RSLT_UPD_DATE,'MM')=TRUNC(TO_DATE($$V_SNSH_DATE, 'YYYYMMDD'), 'MM')                              
- OR TRUNC(ABU_STS.ABU_STS_UPD_DATE,'MM')=TRUNC(TO_DATE($$V_SNSH_DATE, 'YYYYMMDD'), 'MM')
+ SUM(CASE WHEN(TRUNC(ABU_STS.ABU_RSLT_UPD_DATE,'MM')=TRUNC(TO_DATE('$$v_snsh_date', 'YYYYMMDD'), 'MM')                              
+ OR TRUNC(ABU_STS.ABU_STS_UPD_DATE,'MM')=TRUNC(TO_DATE('$$v_snsh_date', 'YYYYMMDD'), 'MM')
  ) THEN 1 ELSE 0 END) -                                                                                     
  SUM(CASE WHEN(ABU_STS.ABU_STS_CODE='CONF' AND ABU_STS.ABU_WTHDRW_IND='Y'                                            
- AND TRUNC(ABU_STS.ABU_STS_UPD_DATE,'MM')=TRUNC(TO_DATE($$V_SNSH_DATE, 'YYYYMMDD'), 'MM')                             
+ AND TRUNC(ABU_STS.ABU_STS_UPD_DATE,'MM')=TRUNC(TO_DATE('$$v_snsh_date', 'YYYYMMDD'), 'MM')                             
  ) THEN 1 ELSE 0 END) AS CNT                 
 FROM 
 SOR_EMS_ABU_TNT_ABU ABU,
@@ -120,11 +119,11 @@ AND NVL(BLK.LAST_REC_TXN_TYPE_CODE,'I') <> 'D'
 AND NVL(EST.LAST_REC_TXN_TYPE_CODE,'I') <> 'D'
 AND NVL(DSTR.LAST_REC_TXN_TYPE_CODE,'I') <> 'D'
 AND NVL(RGN.LAST_REC_TXN_TYPE_CODE,'I') <> 'D'
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN ABU_STS.BGN_DATE AND ABU_STS.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN TNCY_STS.BGN_DATE AND TNCY_STS.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN UNIT_STS.BGN_DATE AND UNIT_STS.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN BLK_STS.BGN_DATE AND BLK_STS.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN EST_DSTR_RLTN.BGN_DATE AND EST_DSTR_RLTN.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ABU_STS.BGN_DATE AND ABU_STS.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN TNCY_STS.BGN_DATE AND TNCY_STS.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN UNIT_STS.BGN_DATE AND UNIT_STS.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN BLK_STS.BGN_DATE AND BLK_STS.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN EST_DSTR_RLTN.BGN_DATE AND EST_DSTR_RLTN.END_DATE
 AND ((ABU_STS.ABU_STS_CODE = 'CONF' AND ABU_STS.ABU_WTHDRW_IND = 'N') OR                                              
       ((ABU_STS.ABU_STS_CODE = 'CLOS' AND ABU_STS.ABU_WTHDRW_IND = 'N') OR                                              
        (ABU_STS.ABU_STS_CODE = 'CONF' AND ABU_STS.ABU_WTHDRW_IND = 'Y')
@@ -154,11 +153,11 @@ GROUP BY RGN.RGN_CODE, ABU_STS.ABU_TYPE_CODE"""
         query = f"""SELECT
 RGN.RGN_CODE,
 'S'||ABU_STS.ABU_SCP_CODE, 
- SUM(CASE WHEN(TRUNC(ABU_STS.ABU_RSLT_UPD_DATE,'MM')=TRUNC(TO_DATE($$V_SNSH_DATE, 'YYYYMMDD'), 'MM')                              
- OR TRUNC(ABU_STS.ABU_STS_UPD_DATE,'MM')=TRUNC(TO_DATE($$V_SNSH_DATE, 'YYYYMMDD'), 'MM')
+ SUM(CASE WHEN(TRUNC(ABU_STS.ABU_RSLT_UPD_DATE,'MM')=TRUNC(TO_DATE('$$v_snsh_date', 'YYYYMMDD'), 'MM')                              
+ OR TRUNC(ABU_STS.ABU_STS_UPD_DATE,'MM')=TRUNC(TO_DATE('$$v_snsh_date', 'YYYYMMDD'), 'MM')
  ) THEN 1 ELSE 0 END) -                                                                                     
  SUM(CASE WHEN(ABU_STS.ABU_STS_CODE='CONF' AND ABU_STS.ABU_WTHDRW_IND='Y'                                            
- AND TRUNC(ABU_STS.ABU_STS_UPD_DATE,'MM')=TRUNC(TO_DATE($$V_SNSH_DATE, 'YYYYMMDD'), 'MM')                             
+ AND TRUNC(ABU_STS.ABU_STS_UPD_DATE,'MM')=TRUNC(TO_DATE('$$v_snsh_date', 'YYYYMMDD'), 'MM')                             
  ) THEN 1 ELSE 0 END) AS CNT                 
 FROM 
 SOR_EMS_ABU_TNT_ABU ABU,
@@ -193,11 +192,11 @@ AND NVL(BLK.LAST_REC_TXN_TYPE_CODE,'I') <> 'D'
 AND NVL(EST.LAST_REC_TXN_TYPE_CODE,'I') <> 'D'
 AND NVL(DSTR.LAST_REC_TXN_TYPE_CODE,'I') <> 'D'
 AND NVL(RGN.LAST_REC_TXN_TYPE_CODE,'I') <> 'D'
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN ABU_STS.BGN_DATE AND ABU_STS.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN TNCY_STS.BGN_DATE AND TNCY_STS.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN UNIT_STS.BGN_DATE AND UNIT_STS.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN BLK_STS.BGN_DATE AND BLK_STS.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN EST_DSTR_RLTN.BGN_DATE AND EST_DSTR_RLTN.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ABU_STS.BGN_DATE AND ABU_STS.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN TNCY_STS.BGN_DATE AND TNCY_STS.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN UNIT_STS.BGN_DATE AND UNIT_STS.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN BLK_STS.BGN_DATE AND BLK_STS.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN EST_DSTR_RLTN.BGN_DATE AND EST_DSTR_RLTN.END_DATE
 AND ((ABU_STS.ABU_STS_CODE = 'CONF' AND ABU_STS.ABU_WTHDRW_IND = 'N') OR                                              
       ((ABU_STS.ABU_STS_CODE = 'CLOS' AND ABU_STS.ABU_WTHDRW_IND = 'N') OR                                              
        (ABU_STS.ABU_STS_CODE = 'CONF' AND ABU_STS.ABU_WTHDRW_IND = 'Y')
@@ -231,7 +230,10 @@ GROUP BY RGN.RGN_CODE, ABU_STS.ABU_SCP_CODE"""
             col("CNT").alias("CNT")        )
         df_Union_Transformation = df_Union_Transformation_scp_code
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_type_code, allowMissingColumns=True)
-        # Select only union output columns
+        # Select only union output columns (add lit(None) for any missing)
+        for _col in ["RGN_CODE", "ABU_SCP_CODE", "CNT"]:
+            if _col not in df_Union_Transformation.columns:
+                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("RGN_CODE", "ABU_SCP_CODE", "CNT")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
@@ -239,7 +241,7 @@ GROUP BY RGN.RGN_CODE, ABU_STS.ABU_SCP_CODE"""
         # Expression: apply_EXPTRANS
         df_EXPTRANS = df_Union_Transformation
         df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE", expr("current_timestamp()"))
-        _expr = """to_date(concat('$$v_rpt_mth', '01'), 'yyyymmdd')"""
+        _expr = """to_date(cast(concat('$$v_rpt_mth', '01') as string), 'yyyymmdd')"""
         _expr = _expr.replace("$$v_snsh_date", str(v_snsh_date))
         _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
         df_EXPTRANS = df_EXPTRANS.withColumn("TIME", expr(_expr))
@@ -262,16 +264,20 @@ GROUP BY RGN.RGN_CODE, ABU_STS.ABU_SCP_CODE"""
         # Lookup: apply_LKP_DDS_DMNS_EMS_RGN
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_RGN = df_LKP_DDS_DMNS_EMS_RGN.dropDuplicates(subset=["RGN_CODE", "RGN_SCHM_CODE"])
-        # Join condition: RGN_CODE=RGN_CODE AND RGN_SCHM_CODE=RGN_SCHM_CODE
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_EXPTRANS
+        _lkp_input = _lkp_input.withColumn("IN_RGN_CODE", col("RGN_CODE"))
+        _lkp_input = _lkp_input.withColumn("IN_RGN_SCHM_CODE", col("RGN_SCHM_CODE"))
+        # Join condition: IN_RGN_CODE=RGN_CODE AND IN_RGN_SCHM_CODE=RGN_SCHM_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_EXPTRANS.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_RGN).alias("_lkp"),
-            (col("_main.RGN_CODE") == col("_lkp.RGN_CODE")) &
-            (col("_main.RGN_SCHM_CODE") == col("_lkp.RGN_SCHM_CODE")),
+            (col("_main.IN_RGN_CODE") == col("_lkp.RGN_CODE")) &
+            (col("_main.IN_RGN_SCHM_CODE") == col("_lkp.RGN_SCHM_CODE")),
             "left"
         ).select(
-            *[df_EXPTRANS[c] for c in df_EXPTRANS.columns],
-            *[df_LKP_DDS_DMNS_EMS_RGN[c] for c in df_LKP_DDS_DMNS_EMS_RGN.columns if c not in df_EXPTRANS.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_EMS_RGN[c] for c in df_LKP_DDS_DMNS_EMS_RGN.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: read_LKP_DDS_DMNS_TIME_1")
@@ -284,15 +290,18 @@ GROUP BY RGN.RGN_CODE, ABU_STS.ABU_SCP_CODE"""
         # Lookup: apply_LKP_DDS_DMNS_TIME_1
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_TIME_1 = df_LKP_DDS_DMNS_TIME_1.dropDuplicates(subset=["TIME_VAL_DATE"])
-        # Join condition: TIME=TIME_VAL_DATE
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_lkp_merge_1
+        _lkp_input = _lkp_input.withColumn("IN_TIME_VAL_DATE", col("TIME"))
+        # Join condition: IN_TIME_VAL_DATE=TIME_VAL_DATE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_lkp_merge_1.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_TIME_1).alias("_lkp"),
-            (col("_main.TIME") == col("_lkp.TIME_VAL_DATE")),
+            (col("_main.IN_TIME_VAL_DATE") == col("_lkp.TIME_VAL_DATE")),
             "left"
         ).select(
-            *[df_lkp_merge_1[c] for c in df_lkp_merge_1.columns],
-            *[df_LKP_DDS_DMNS_TIME_1[c] for c in df_LKP_DDS_DMNS_TIME_1.columns if c not in df_lkp_merge_1.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_TIME_1[c] for c in df_LKP_DDS_DMNS_TIME_1.columns if c not in _lkp_input.columns]
         )
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_ABU")
@@ -305,16 +314,20 @@ GROUP BY RGN.RGN_CODE, ABU_STS.ABU_SCP_CODE"""
         # Lookup: apply_LKP_DDS_DMNS_EMS_ABU
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_ABU = df_LKP_DDS_DMNS_EMS_ABU.dropDuplicates(subset=["ABU_TYPE_CODE", "ABU_SCHM_CODE"])
-        # Join condition: ABU_SCP_CODE=ABU_TYPE_CODE AND ABU_SCHM_CODE=ABU_SCHM_CODE
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_lkp_merge_1
+        _lkp_input = _lkp_input.withColumn("IN_ABU_SCHM_CODE", col("ABU_SCHM_CODE"))
+        _lkp_input = _lkp_input.withColumn("IN_ABU_CODE", col("ABU_SCP_CODE"))
+        # Join condition: IN_ABU_CODE=ABU_TYPE_CODE AND IN_ABU_SCHM_CODE=ABU_SCHM_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_lkp_merge_1.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_ABU).alias("_lkp"),
-            (col("_main.ABU_SCP_CODE") == col("_lkp.ABU_TYPE_CODE")) &
-            (col("_main.ABU_SCHM_CODE") == col("_lkp.ABU_SCHM_CODE")),
+            (col("_main.IN_ABU_CODE") == col("_lkp.ABU_TYPE_CODE")) &
+            (col("_main.IN_ABU_SCHM_CODE") == col("_lkp.ABU_SCHM_CODE")),
             "left"
         ).select(
-            *[df_lkp_merge_1[c] for c in df_lkp_merge_1.columns],
-            *[df_LKP_DDS_DMNS_EMS_ABU[c] for c in df_LKP_DDS_DMNS_EMS_ABU.columns if c not in df_lkp_merge_1.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_EMS_ABU[c] for c in df_LKP_DDS_DMNS_EMS_ABU.columns if c not in _lkp_input.columns]
         )
         
         logger.info("Step: write_DPA_FACT_EMS_PRH_ABU")
@@ -346,6 +359,11 @@ GROUP BY RGN.RGN_CODE, ABU_STS.ABU_SCP_CODE"""
         _field_map = {"ABU_DMNS_KEY": "ABU_DMNS_KEY", "CASE_CNT": "CNT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "RGN_DMNS_KEY": "RGN_DMNS_KEY", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['CASE_CNT', 'TIME_DMNS_KEY', 'RGN_DMNS_KEY', 'ABU_DMNS_KEY', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND']

@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -82,7 +81,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
 FROM
 (SELECT /*+ FULL(ptcl) FULL(ptcl_sts) FULL(mbr) FULL(mbr_sts) FULL(tncy) FULL(tncy_sts) */
 est.EST_CODE, blk.blk_code, tncy.cust_key, tncy.hse_srvc_aply_key, SUM(
-CASE WHEN(ptcl_sts.CUST_MBR_DOB_DATE <= ADD_MONTHS(TO_DATE($$V_SNSH_DATE,'yyyymmdd'), - 720)) THEN 1 ELSE 0 END) AS IND
+CASE WHEN(ptcl_sts.CUST_MBR_DOB_DATE <= ADD_MONTHS(TO_DATE('$$v_snsh_date','yyyymmdd'), - 720)) THEN 1 ELSE 0 END) AS IND
 FROM 
 SOR_EMS_CPM_PTCL ptcl, SOR_EMS_CPM_PTCL_STS ptcl_sts,
 SOR_EMS_CPM_CUST_APLY_MBR mbr, SOR_EMS_CPM_CUST_APLY_MBR_STS mbr_sts,
@@ -104,15 +103,15 @@ AND est.EST_TYPE_CODE = 'E'
 AND dstr.DSTR_TYPE_CODE = 'DIST'
 AND mbr.HSE_SRVC_APLY_TYPE_CODE = 'T'
 AND mbr_sts.CUST_APLY_MBR_STS_CODE = 'A'
-AND ptcl_sts.CUST_MBR_DOB_DATE <= TO_DATE($$V_SNSH_DATE,'yyyymmdd')
+AND ptcl_sts.CUST_MBR_DOB_DATE <= TO_DATE('$$v_snsh_date','yyyymmdd')
 AND tncy_sts.TNCY_AGRMT_TM_STS_CODE = 'A' AND mbr_sts.CUST_MBR_UP_IND = 'N'
 AND mbr.CUST_MBR_ID_TYPE_CODE = ptcl.CUST_MBR_ID_TYPE_CODE 
 AND mbr.CUST_MBR_ID_NUM = ptcl.CUST_MBR_ID_NUM
 AND ptcl.PTCL_KEY = ptcl_sts.PTCL_KEY  
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN mbr_sts.BGN_DATE AND mbr_sts.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN tncy_sts.BGN_DATE AND tncy_sts.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN ed.BGN_DATE AND ed.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN mbr_sts.BGN_DATE AND mbr_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN tncy_sts.BGN_DATE AND tncy_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ed.BGN_DATE AND ed.END_DATE
 GROUP BY est.EST_CODE, blk.blk_code, tncy.cust_key, tncy.hse_srvc_aply_key)a,
 (SELECT /*+ FULL(ptcl) FULL(ptcl_sts) FULL(mbr) FULL(mbr_sts) FULL(tncy) FULL(tncy_sts) */
 aply.cust_key, aply.hse_srvc_aply_key, COUNT(*) AS fmly_size_num
@@ -125,14 +124,14 @@ AND mbr.cust_aply_key = aply.cust_aply_key
 AND aply.cust_aply_key = aply_sts.cust_aply_key
 AND mbr.HSE_SRVC_APLY_TYPE_CODE = 'T'
 AND mbr_sts.CUST_APLY_MBR_STS_CODE = 'A'
-AND ptcl_sts.CUST_MBR_DOB_DATE <= TO_DATE($$V_SNSH_DATE,'yyyymmdd')
+AND ptcl_sts.CUST_MBR_DOB_DATE <= TO_DATE('$$v_snsh_date','yyyymmdd')
 AND mbr_sts.CUST_MBR_UP_IND = 'N'
 AND mbr.CUST_MBR_ID_TYPE_CODE = ptcl.CUST_MBR_ID_TYPE_CODE 
 AND mbr.CUST_MBR_ID_NUM = ptcl.CUST_MBR_ID_NUM
 AND ptcl.PTCL_KEY = ptcl_sts.PTCL_KEY   
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN mbr_sts.BGN_DATE AND mbr_sts.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN mbr_sts.BGN_DATE AND mbr_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.END_DATE
 GROUP BY aply.cust_key, aply.hse_srvc_aply_key)b
 WHERE a.cust_key = b.cust_key AND a.hse_srvc_aply_key = b.hse_srvc_aply_key
 AND a.IND = b.fmly_size_num
@@ -161,7 +160,7 @@ GROUP BY a.est_code, a.blk_code"""
 FROM
 (SELECT /*+ FULL(ptcl) FULL(ptcl_sts) FULL(mbr) FULL(mbr_sts) FULL(tncy) FULL(tncy_sts) */
 est.EST_CODE, blk.blk_code, tncy.cust_key, tncy.hse_srvc_aply_key, SUM(
-CASE WHEN(ptcl_sts.CUST_MBR_DOB_DATE <= ADD_MONTHS(TO_DATE($$V_SNSH_DATE,'yyyymmdd'), - 720)) THEN 1 ELSE 0 END) AS IND
+CASE WHEN(ptcl_sts.CUST_MBR_DOB_DATE <= ADD_MONTHS(TO_DATE('$$v_snsh_date','yyyymmdd'), - 720)) THEN 1 ELSE 0 END) AS IND
 FROM 
 SOR_EMS_CPM_PTCL ptcl, SOR_EMS_CPM_PTCL_STS ptcl_sts,
 SOR_EMS_CPM_CUST_APLY_MBR mbr, SOR_EMS_CPM_CUST_APLY_MBR_STS mbr_sts,
@@ -183,15 +182,15 @@ AND est.EST_TYPE_CODE = 'E'
 AND dstr.DSTR_TYPE_CODE = 'DIST'
 AND mbr.HSE_SRVC_APLY_TYPE_CODE = 'T'
 AND mbr_sts.CUST_APLY_MBR_STS_CODE = 'A'
-AND ptcl_sts.CUST_MBR_DOB_DATE <= TO_DATE($$V_SNSH_DATE,'yyyymmdd')
+AND ptcl_sts.CUST_MBR_DOB_DATE <= TO_DATE('$$v_snsh_date','yyyymmdd')
 AND tncy_sts.TNCY_AGRMT_TM_STS_CODE = 'A' AND mbr_sts.CUST_MBR_UP_IND = 'N'
 AND mbr.CUST_MBR_ID_TYPE_CODE = ptcl.CUST_MBR_ID_TYPE_CODE 
 AND mbr.CUST_MBR_ID_NUM = ptcl.CUST_MBR_ID_NUM
 AND ptcl.PTCL_KEY = ptcl_sts.PTCL_KEY   
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN mbr_sts.BGN_DATE AND mbr_sts.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN tncy_sts.BGN_DATE AND tncy_sts.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN ed.BGN_DATE AND ed.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN mbr_sts.BGN_DATE AND mbr_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN tncy_sts.BGN_DATE AND tncy_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ed.BGN_DATE AND ed.END_DATE
 GROUP BY est.EST_CODE, blk.blk_code, tncy.cust_key, tncy.hse_srvc_aply_key)a,
 (SELECT /*+ FULL(ptcl) FULL(ptcl_sts) FULL(mbr) FULL(mbr_sts) FULL(tncy) FULL(tncy_sts) */
 aply.cust_key, aply.hse_srvc_aply_key, COUNT(*) AS fmly_size_num
@@ -204,14 +203,14 @@ AND mbr.cust_aply_key = aply.cust_aply_key
 AND aply.cust_aply_key = aply_sts.cust_aply_key
 AND mbr.HSE_SRVC_APLY_TYPE_CODE = 'T'
 AND mbr_sts.CUST_APLY_MBR_STS_CODE = 'A'
-AND ptcl_sts.CUST_MBR_DOB_DATE <= TO_DATE($$V_SNSH_DATE,'yyyymmdd')
+AND ptcl_sts.CUST_MBR_DOB_DATE <= TO_DATE('$$v_snsh_date','yyyymmdd')
 AND mbr_sts.CUST_MBR_UP_IND = 'N'
 AND mbr.CUST_MBR_ID_TYPE_CODE = ptcl.CUST_MBR_ID_TYPE_CODE 
 AND mbr.CUST_MBR_ID_NUM = ptcl.CUST_MBR_ID_NUM
 AND ptcl.PTCL_KEY = ptcl_sts.PTCL_KEY  
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN mbr_sts.BGN_DATE AND mbr_sts.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN mbr_sts.BGN_DATE AND mbr_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.END_DATE
 GROUP BY aply.cust_key, aply.hse_srvc_aply_key)b
 WHERE a.cust_key = b.cust_key AND a.hse_srvc_aply_key = b.hse_srvc_aply_key
 AND a.IND = b.fmly_size_num
@@ -259,15 +258,15 @@ AND est.EST_TYPE_CODE = 'E'
 AND dstr.DSTR_TYPE_CODE = 'DIST'
 AND mbr.HSE_SRVC_APLY_TYPE_CODE = 'T'
 AND mbr_sts.CUST_APLY_MBR_STS_CODE = 'A'
-AND ptcl_sts.CUST_MBR_DOB_DATE <= TO_DATE($$V_SNSH_DATE,'yyyymmdd')
+AND ptcl_sts.CUST_MBR_DOB_DATE <= TO_DATE('$$v_snsh_date','yyyymmdd')
 AND tncy_sts.TNCY_AGRMT_TM_STS_CODE = 'A' AND mbr_sts.CUST_MBR_UP_IND = 'N'
 AND mbr.CUST_MBR_ID_TYPE_CODE = ptcl.CUST_MBR_ID_TYPE_CODE 
 AND mbr.CUST_MBR_ID_NUM = ptcl.CUST_MBR_ID_NUM
 AND ptcl.PTCL_KEY = ptcl_sts.PTCL_KEY
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN mbr_sts.BGN_DATE AND mbr_sts.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN tncy_sts.BGN_DATE AND tncy_sts.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN ed.BGN_DATE AND ed.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN mbr_sts.BGN_DATE AND mbr_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN tncy_sts.BGN_DATE AND tncy_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ed.BGN_DATE AND ed.END_DATE
 GROUP BY est.EST_CODE, BLK_CODE"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
@@ -315,15 +314,15 @@ AND dstr.DSTR_TYPE_CODE = 'DIST'
 AND mbr.HSE_SRVC_APLY_TYPE_CODE = 'T'
 AND mbr_sts.CUST_MBR_GNDR_CODE IN ('M','F')
 AND mbr_sts.CUST_APLY_MBR_STS_CODE = 'A'
-AND ptcl_sts.CUST_MBR_DOB_DATE <= TO_DATE($$V_SNSH_DATE,'yyyymmdd')
+AND ptcl_sts.CUST_MBR_DOB_DATE <= TO_DATE('$$v_snsh_date','yyyymmdd')
 AND tncy_sts.TNCY_AGRMT_TM_STS_CODE = 'A' AND mbr_sts.CUST_MBR_UP_IND = 'N'
 AND mbr.CUST_MBR_ID_TYPE_CODE = ptcl.CUST_MBR_ID_TYPE_CODE 
 AND mbr.CUST_MBR_ID_NUM = ptcl.CUST_MBR_ID_NUM
 AND ptcl.PTCL_KEY = ptcl_sts.PTCL_KEY    
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN mbr_sts.BGN_DATE AND mbr_sts.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN tncy_sts.BGN_DATE AND tncy_sts.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN ed.BGN_DATE AND ed.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN mbr_sts.BGN_DATE AND mbr_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN tncy_sts.BGN_DATE AND tncy_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ed.BGN_DATE AND ed.END_DATE
 )
 GROUP BY EST_CODE, BLK_CODE"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
@@ -350,7 +349,7 @@ GROUP BY EST_CODE, BLK_CODE"""
 FROM
 (SELECT /*+ FULL(ptcl) FULL(ptcl_sts) FULL(mbr) FULL(mbr_sts) FULL(tncy) FULL(tncy_sts) */
 est.EST_CODE, blk.blk_code, tncy.cust_key, tncy.hse_srvc_aply_key, SUM(
-CASE WHEN(ptcl_sts.CUST_MBR_DOB_DATE <= ADD_MONTHS(TO_DATE($$V_SNSH_DATE,'yyyymmdd'), - 720)) THEN 1 ELSE 0 END) AS IND
+CASE WHEN(ptcl_sts.CUST_MBR_DOB_DATE <= ADD_MONTHS(TO_DATE('$$v_snsh_date','yyyymmdd'), - 720)) THEN 1 ELSE 0 END) AS IND
 FROM 
 SOR_EMS_CPM_PTCL ptcl, SOR_EMS_CPM_PTCL_STS ptcl_sts,
 SOR_EMS_CPM_CUST_APLY_MBR mbr, SOR_EMS_CPM_CUST_APLY_MBR_STS mbr_sts,
@@ -372,15 +371,15 @@ AND est.EST_TYPE_CODE = 'E'
 AND dstr.DSTR_TYPE_CODE = 'DIST'
 AND mbr.HSE_SRVC_APLY_TYPE_CODE = 'T'
 AND mbr_sts.CUST_APLY_MBR_STS_CODE = 'A'
-AND ptcl_sts.CUST_MBR_DOB_DATE <= TO_DATE($$V_SNSH_DATE,'yyyymmdd')
+AND ptcl_sts.CUST_MBR_DOB_DATE <= TO_DATE('$$v_snsh_date','yyyymmdd')
 AND tncy_sts.TNCY_AGRMT_TM_STS_CODE = 'A' AND mbr_sts.CUST_MBR_UP_IND = 'N'
 AND mbr.CUST_MBR_ID_TYPE_CODE = ptcl.CUST_MBR_ID_TYPE_CODE 
 AND mbr.CUST_MBR_ID_NUM = ptcl.CUST_MBR_ID_NUM
 AND ptcl.PTCL_KEY = ptcl_sts.PTCL_KEY
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN mbr_sts.BGN_DATE AND mbr_sts.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN tncy_sts.BGN_DATE AND tncy_sts.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN ed.BGN_DATE AND ed.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN mbr_sts.BGN_DATE AND mbr_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN tncy_sts.BGN_DATE AND tncy_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ed.BGN_DATE AND ed.END_DATE
 GROUP BY est.EST_CODE, blk.blk_code, tncy.cust_key, tncy.hse_srvc_aply_key)a,
 (SELECT /*+ FULL(ptcl) FULL(ptcl_sts) FULL(mbr) FULL(mbr_sts) FULL(tncy) FULL(tncy_sts) */
 aply.cust_key, aply.hse_srvc_aply_key, COUNT(*) AS fmly_size_num
@@ -393,14 +392,14 @@ AND mbr.cust_aply_key = aply.cust_aply_key
 AND aply.cust_aply_key = aply_sts.cust_aply_key
 AND mbr.HSE_SRVC_APLY_TYPE_CODE = 'T'
 AND mbr_sts.CUST_APLY_MBR_STS_CODE = 'A'
-AND ptcl_sts.CUST_MBR_DOB_DATE <= TO_DATE($$V_SNSH_DATE,'yyyymmdd')
+AND ptcl_sts.CUST_MBR_DOB_DATE <= TO_DATE('$$v_snsh_date','yyyymmdd')
 AND mbr_sts.CUST_MBR_UP_IND = 'N'
 AND mbr.CUST_MBR_ID_TYPE_CODE = ptcl.CUST_MBR_ID_TYPE_CODE 
 AND mbr.CUST_MBR_ID_NUM = ptcl.CUST_MBR_ID_NUM
 AND ptcl.PTCL_KEY = ptcl_sts.PTCL_KEY
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN mbr_sts.BGN_DATE AND mbr_sts.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN mbr_sts.BGN_DATE AND mbr_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.END_DATE
 GROUP BY aply.cust_key, aply.hse_srvc_aply_key)b
 WHERE a.cust_key = b.cust_key AND a.hse_srvc_aply_key = b.hse_srvc_aply_key
 AND a.IND = b.fmly_size_num AND b.fmly_size_num = 1
@@ -507,7 +506,10 @@ GROUP BY a.est_code, a.blk_code"""
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_c, allowMissingColumns=True)
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_d, allowMissingColumns=True)
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_e, allowMissingColumns=True)
-        # Select only union output columns
+        # Select only union output columns (add lit(None) for any missing)
+        for _col in ["EST_CODE", "CNT", "EST_PLT_TYPE_CODE", "BLK_CODE"]:
+            if _col not in df_Union_Transformation.columns:
+                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("EST_CODE", "CNT", "EST_PLT_TYPE_CODE", "BLK_CODE")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
@@ -516,7 +518,7 @@ GROUP BY a.est_code, a.blk_code"""
         df_EXPTRANS2 = df_Union_Transformation
         df_EXPTRANS2 = df_EXPTRANS2.withColumn("SCHM_CODE", expr("'Elderly'"))
         df_EXPTRANS2 = df_EXPTRANS2.withColumn("SYSTIME", expr("current_timestamp()"))
-        _expr = """to_date(concat('$$v_rpt_mth', '01'), 'yyyymmdd')"""
+        _expr = """to_date(cast(concat('$$v_rpt_mth', '01') as string), 'yyyymmdd')"""
         _expr = _expr.replace("$$v_snsh_date", str(v_snsh_date))
         _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
         df_EXPTRANS2 = df_EXPTRANS2.withColumn("TIME_VAL_DATE", expr(_expr))
@@ -540,15 +542,18 @@ GROUP BY a.est_code, a.blk_code"""
         # Lookup: apply_LKP_DDS_DMNS_EMS_EST
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_EST = df_LKP_DDS_DMNS_EMS_EST.dropDuplicates(subset=["EST_CODE"])
-        # Join condition: EST_CODE=EST_CODE
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_EXPTRANS2
+        _lkp_input = _lkp_input.withColumn("IN_EST_CODE", col("EST_CODE"))
+        # Join condition: IN_EST_CODE=EST_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_EXPTRANS2.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_EST).alias("_lkp"),
-            (col("_main.EST_CODE") == col("_lkp.EST_CODE")),
+            (col("_main.IN_EST_CODE") == col("_lkp.EST_CODE")),
             "left"
         ).select(
-            *[df_EXPTRANS2[c] for c in df_EXPTRANS2.columns],
-            *[df_LKP_DDS_DMNS_EMS_EST[c] for c in df_LKP_DDS_DMNS_EMS_EST.columns if c not in df_EXPTRANS2.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_EMS_EST[c] for c in df_LKP_DDS_DMNS_EMS_EST.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: read_LKP_DDS_DMNS_TIME_1")
@@ -561,15 +566,18 @@ GROUP BY a.est_code, a.blk_code"""
         # Lookup: apply_LKP_DDS_DMNS_TIME_1
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_TIME_1 = df_LKP_DDS_DMNS_TIME_1.dropDuplicates(subset=["TIME_VAL_DATE"])
-        # Join condition: TIME_VAL_DATE=TIME_VAL_DATE
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_lkp_merge_1
+        _lkp_input = _lkp_input.withColumn("IN_TIME_VAL_DATE", col("TIME_VAL_DATE"))
+        # Join condition: IN_TIME_VAL_DATE=TIME_VAL_DATE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_lkp_merge_1.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_TIME_1).alias("_lkp"),
-            (col("_main.TIME_VAL_DATE") == col("_lkp.TIME_VAL_DATE")),
+            (col("_main.IN_TIME_VAL_DATE") == col("_lkp.TIME_VAL_DATE")),
             "left"
         ).select(
-            *[df_lkp_merge_1[c] for c in df_lkp_merge_1.columns],
-            *[df_LKP_DDS_DMNS_TIME_1[c] for c in df_LKP_DDS_DMNS_TIME_1.columns if c not in df_lkp_merge_1.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_TIME_1[c] for c in df_LKP_DDS_DMNS_TIME_1.columns if c not in _lkp_input.columns]
         )
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_EST_PLT_TYPE")
@@ -582,16 +590,20 @@ GROUP BY a.est_code, a.blk_code"""
         # Lookup: apply_LKP_DDS_DMNS_EMS_EST_PLT_TYPE
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_EST_PLT_TYPE = df_LKP_DDS_DMNS_EMS_EST_PLT_TYPE.dropDuplicates(subset=["EST_PLT_TYPE_CODE", "EST_PLT_TYPE_SCHM_CODE"])
-        # Join condition: EST_PLT_TYPE_CODE=EST_PLT_TYPE_CODE AND AGE_GRP_SCHM_CODE=EST_PLT_TYPE_SCHM_CODE
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_lkp_merge_1
+        _lkp_input = _lkp_input.withColumn("IN_EST_PLT_TYPE_CODE", col("EST_PLT_TYPE_CODE"))
+        _lkp_input = _lkp_input.withColumn("IN_EST_PLT_TYPE_SCHM_CODE", col("AGE_GRP_SCHM_CODE"))
+        # Join condition: IN_EST_PLT_TYPE_CODE=EST_PLT_TYPE_CODE AND IN_EST_PLT_TYPE_SCHM_CODE=EST_PLT_TYPE_SCHM_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_lkp_merge_1.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_EST_PLT_TYPE).alias("_lkp"),
-            (col("_main.EST_PLT_TYPE_CODE") == col("_lkp.EST_PLT_TYPE_CODE")) &
-            (col("_main.AGE_GRP_SCHM_CODE") == col("_lkp.EST_PLT_TYPE_SCHM_CODE")),
+            (col("_main.IN_EST_PLT_TYPE_CODE") == col("_lkp.EST_PLT_TYPE_CODE")) &
+            (col("_main.IN_EST_PLT_TYPE_SCHM_CODE") == col("_lkp.EST_PLT_TYPE_SCHM_CODE")),
             "left"
         ).select(
-            *[df_lkp_merge_1[c] for c in df_lkp_merge_1.columns],
-            *[df_LKP_DDS_DMNS_EMS_EST_PLT_TYPE[c] for c in df_LKP_DDS_DMNS_EMS_EST_PLT_TYPE.columns if c not in df_lkp_merge_1.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_EMS_EST_PLT_TYPE[c] for c in df_LKP_DDS_DMNS_EMS_EST_PLT_TYPE.columns if c not in _lkp_input.columns]
         )
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_BLK")
@@ -604,16 +616,20 @@ GROUP BY a.est_code, a.blk_code"""
         # Lookup: apply_LKP_DDS_DMNS_EMS_BLK
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_BLK = df_LKP_DDS_DMNS_EMS_BLK.dropDuplicates(subset=["BLK_CODE", "EST_SCD_KEY"])
-        # Join condition: BLK_CODE=BLK_CODE AND EST_SCD_KEY=EST_SCD_KEY
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_lkp_merge_1
+        _lkp_input = _lkp_input.withColumn("IN_EST_SCD_KEY", col("EST_SCD_KEY"))
+        _lkp_input = _lkp_input.withColumn("IN_BLK_CODE", col("BLK_CODE"))
+        # Join condition: IN_BLK_CODE=BLK_CODE AND IN_EST_SCD_KEY=EST_SCD_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_2 = df_lkp_merge_1.alias("_main").join(
+        df_lkp_merge_2 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_BLK).alias("_lkp"),
-            (col("_main.BLK_CODE") == col("_lkp.BLK_CODE")) &
-            (col("_main.EST_SCD_KEY") == col("_lkp.EST_SCD_KEY")),
+            (col("_main.IN_BLK_CODE") == col("_lkp.BLK_CODE")) &
+            (col("_main.IN_EST_SCD_KEY") == col("_lkp.EST_SCD_KEY")),
             "left"
         ).select(
-            *[df_lkp_merge_1[c] for c in df_lkp_merge_1.columns],
-            *[df_LKP_DDS_DMNS_EMS_BLK[c] for c in df_LKP_DDS_DMNS_EMS_BLK.columns if c not in df_lkp_merge_1.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_EMS_BLK[c] for c in df_LKP_DDS_DMNS_EMS_BLK.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)        
         logger.info("Step: write_DPA_FACT_EMS_EST_PLT")
@@ -652,6 +668,11 @@ GROUP BY a.est_code, a.blk_code"""
         _field_map = {"AGE_GRP_DMNS_KEY": "AGE_GRP_DMNS_KEY", "BLK_SCD_KEY": "BLK_SCD_KEY", "DSTR_DMNS_KEY": "DSTR_DMNS_KEY", "EST_DMNS_KEY": "EST_SCD_KEY", "EST_PLT_SCHM_CODE": "SCHM_CODE", "EST_PLT_TYPE_DMNS_KEY": "EST_PLT_TYPE_DMNS_KEY", "LAST_REC_TXN_DATE": "SYSTIME", "PLT_CNT": "CNT", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['PLT_CNT', 'AGE_GRP_DMNS_KEY', 'TIME_DMNS_KEY', 'EST_PLT_SCHM_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND', 'EST_PLT_TYPE_DMNS_KEY', 'EST_DMNS_KEY', 'DSTR_DMNS_KEY', 'BLK_SCD_KEY']

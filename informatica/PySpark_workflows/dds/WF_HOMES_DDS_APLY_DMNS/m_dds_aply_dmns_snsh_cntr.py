@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -93,6 +92,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         _field_map = {"CNTR_KEY": "CNTR_KEY", "CNTR_NUM": "CNTR_NUM", "CNTR_TTL": "CNTR_TTL", "DMNS_SNSH_CNTR_KEY": "DMNS_SNSH_CNTR_KEY", "SNSH_CNTR_DISP_SEQ_NUM": "SNSH_CNTR_DISP_SEQ_NUM", "SNSH_KEY": "SNSH_KEY", "TNDR_NUM": "TNDR_NUM"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['DMNS_SNSH_KEY', 'SNSH_YEAR', 'SNSH_MTH', 'DISP_FIN_YEAR_TEXT', 'DISP_SNSH_TEXT', 'SNSH_DISP_SEQ_NUM']

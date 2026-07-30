@@ -22,17 +22,17 @@ EXECUTION_PLAN = [
     "steps": [
       {
         "type": "session",
-        "name": "S_CMS_FACT_PARAM_SETUP",
-        "mapping_name": "M_UTL_PARAM_SETUP"
-      },
-      {
-        "type": "session",
         "name": "S_CMS_ETL_FACT_TRUNCATE",
         "mapping_name": "M_UTL_DPA_TRUNCATE"
       },
       {
         "type": "task",
         "name": "T_RM_CMS_CACHE_FACT"
+      },
+      {
+        "type": "session",
+        "name": "S_CMS_FACT_PARAM_SETUP",
+        "mapping_name": "M_UTL_PARAM_SETUP"
       }
     ]
   },

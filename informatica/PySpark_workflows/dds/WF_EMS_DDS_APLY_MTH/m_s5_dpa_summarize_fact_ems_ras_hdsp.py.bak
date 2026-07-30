@@ -104,11 +104,11 @@ AND tncy_sts.TNCY_AGRMT_STS_CODE = 'A'
 AND cncl_sts.TNCY_CNCL_CODE IN ('G6','F6')
 AND prev_unit.BLK_KEY = prev_blk.BLK_KEY
 AND cur_unit.BLK_KEY = cur_blk.BLK_KEY
-AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN cncl_sts.BGN_DATE AND cncl_sts.END_DATE
-AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN prev_unit_sts.BGN_DATE AND prev_unit_sts.END_DATE
-AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN cur_unit_sts.BGN_DATE AND cur_unit_sts.END_DATE
-AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN tncy_sts.BGN_DATE AND tncy_sts.END_DATE
-AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.END_DATE"""
+AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN cncl_sts.BGN_DATE AND cncl_sts.END_DATE
+AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN prev_unit_sts.BGN_DATE AND prev_unit_sts.END_DATE
+AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN cur_unit_sts.BGN_DATE AND cur_unit_sts.END_DATE
+AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN tncy_sts.BGN_DATE AND tncy_sts.END_DATE
+AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.END_DATE"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_SQ_SOR_HSM_UNIT = lib.read_sql(spark, _conn, query=query)
@@ -130,7 +130,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
         query = f"""SELECT rfx.BLK_KEY as BLK_KEY, rfx_sts.UNIT_TYPE_CODE as UNIT_TYPE_CODE, rfx.UNIT_ENV_CODE as UNIT_ENV_CODE, rfx.UNIT_IFA_AREA as UNIT_IFA_AREA, rfx_sts.RENT_SCHD_BGN_DATE AS RENT_SCHD_BGN_DATE
 FROM SOR_EMS_RFX_RENT_SCHD_HIST rfx, SOR_EMS_RFX_RENT_SCHD_HIST_STS rfx_sts
 WHERE rfx.RENT_SCHD_AMND_HIST_KEY = rfx_sts.RENT_SCHD_AMND_HIST_KEY
-AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN rfx_sts.BGN_DATE AND rfx_sts.END_DATE
+AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN rfx_sts.BGN_DATE AND rfx_sts.END_DATE
 AND rfx.TNT_RENT_CODE_CATG_CODE = 'N'
 GROUP BY rfx.BLK_KEY, rfx_sts.UNIT_TYPE_CODE, rfx.UNIT_ENV_CODE, rfx.UNIT_IFA_AREA, rfx_sts.RENT_SCHD_BGN_DATE"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
@@ -181,9 +181,9 @@ AND tncy_sts.TNCY_AGRMT_STS_CODE = 'A'
 AND cncl_sts.TNCY_CNCL_CODE IN ('G6','F6')
 AND mbr_sts.CUST_APLY_MBR_STS_CODE = 'A'
 AND mbr.HSE_SRVC_APLY_TYPE_CODE = 'T'
-AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN cncl_sts.BGN_DATE AND cncl_sts.END_DATE
-AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN tncy_sts.BGN_DATE AND tncy_sts.END_DATE
-AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN mbr_sts.BGN_DATE AND mbr_sts.END_DATE
+AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN cncl_sts.BGN_DATE AND cncl_sts.END_DATE
+AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN tncy_sts.BGN_DATE AND tncy_sts.END_DATE
+AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN mbr_sts.BGN_DATE AND mbr_sts.END_DATE
 GROUP BY tncy.CUST_KEY, tncy.HSE_SRVC_APLY_KEY"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
@@ -216,7 +216,7 @@ GROUP BY tncy.CUST_KEY, tncy.HSE_SRVC_APLY_KEY"""
         query = f"""SELECT rfx.BLK_KEY as BLK_KEY, rfx_sts.UNIT_TYPE_CODE as UNIT_TYPE_CODE, rfx.UNIT_ENV_CODE as UNIT_ENV_CODE, rfx.UNIT_IFA_AREA as UNIT_IFA_AREA, rfx_sts.RENT_SCHD_BGN_DATE AS RENT_SCHD_BGN_DATE
 FROM SOR_EMS_RFX_RENT_SCHD_HIST rfx, SOR_EMS_RFX_RENT_SCHD_HIST_STS rfx_sts
 WHERE rfx.RENT_SCHD_AMND_HIST_KEY = rfx_sts.RENT_SCHD_AMND_HIST_KEY
-AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN rfx_sts.BGN_DATE AND rfx_sts.END_DATE
+AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN rfx_sts.BGN_DATE AND rfx_sts.END_DATE
 AND rfx.TNT_RENT_CODE_CATG_CODE = 'N'
 GROUP BY rfx.BLK_KEY, rfx_sts.UNIT_TYPE_CODE, rfx.UNIT_ENV_CODE, rfx.UNIT_IFA_AREA, rfx_sts.RENT_SCHD_BGN_DATE"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
@@ -259,7 +259,7 @@ GROUP BY rfx.BLK_KEY, rfx_sts.UNIT_TYPE_CODE, rfx.UNIT_ENV_CODE, rfx.UNIT_IFA_AR
 FROM SOR_EMS_RFX_RENT_SCHD_HIST rfx, SOR_EMS_RFX_RENT_SCHD_HIST_STS rfx_sts
 WHERE rfx.RENT_SCHD_AMND_HIST_KEY = rfx_sts.RENT_SCHD_AMND_HIST_KEY
 AND rfx.TNT_RENT_CODE_CATG_CODE = 'N'
-AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN rfx_sts.BGN_DATE AND rfx_sts.END_DATE"""
+AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN rfx_sts.BGN_DATE AND rfx_sts.END_DATE"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_LKP_CUR_RENT1 = lib.read_sql(spark, _conn, query=query)
@@ -309,7 +309,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN rfx_sts.BGN_DATE AND rfx_sts.EN
 FROM SOR_EMS_RFX_RENT_SCHD_HIST rfx, SOR_EMS_RFX_RENT_SCHD_HIST_STS rfx_sts
 WHERE rfx.RENT_SCHD_AMND_HIST_KEY = rfx_sts.RENT_SCHD_AMND_HIST_KEY
 AND rfx.TNT_RENT_CODE_CATG_CODE = 'N'
-AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN rfx_sts.BGN_DATE AND rfx_sts.END_DATE"""
+AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN rfx_sts.BGN_DATE AND rfx_sts.END_DATE"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_LKP_PREV_RENT1 = lib.read_sql(spark, _conn, query=query)
@@ -319,7 +319,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN rfx_sts.BGN_DATE AND rfx_sts.EN
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_PREV_RENT1 = df_LKP_PREV_RENT1.dropDuplicates(subset=["BLK_KEY", "UNIT_TYPE_CODE", "UNIT_ENV_CODE", "UNIT_IFA_AREA", "RENT_SCHD_BGN_DATE"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_2
+        _lkp_input = df_lkp_merge_1
         _lkp_input = _lkp_input.withColumn("IN_BLK_KEY", col("BLK_KEY"))
         _lkp_input = _lkp_input.withColumn("IN_UNIT_TYPE_CODE", col("UNIT_TYPE_CODE"))
         _lkp_input = _lkp_input.withColumn("IN_UNIT_ENV_CODE", col("UNIT_ENV_CODE"))
@@ -395,7 +395,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN rfx_sts.BGN_DATE AND rfx_sts.EN
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_TIME_1 = df_LKP_DDS_DMNS_TIME_1.dropDuplicates(subset=["TIME_VAL_DATE"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_3
+        _lkp_input = df_EXPTRANS
         _lkp_input = _lkp_input.withColumn("IN_TIME_VAL_DATE", col("TIME"))
         # Join condition: IN_TIME_VAL_DATE=TIME_VAL_DATE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>

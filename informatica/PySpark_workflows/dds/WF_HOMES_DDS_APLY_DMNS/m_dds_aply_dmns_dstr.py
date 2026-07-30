@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -100,6 +99,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         _field_map = {"DMNS_DSTR_KEY": "DMNS_DSTR_KEY", "DSTR_CODE": "DSTR_CODE", "DSTR_DISP_SEQ_NUM": "DSTR_DISP_SEQ_NUM", "DSTR_NAME": "DSTR_NAME", "RGN_CODE": "RGN_CODE", "RGN_DISP_SEQ_NUM": "RGN_DISP_SEQ_NUM", "RGN_NAME": "RGN_NAME"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['DMNS_DSTR_KEY', 'RGN_CODE', 'RGN_NAME', 'DSTR_CODE', 'DSTR_NAME', 'RGN_DISP_SEQ_NUM', 'DSTR_DISP_SEQ_NUM']

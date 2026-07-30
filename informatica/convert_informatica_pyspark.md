@@ -26,7 +26,7 @@ informatica-sparker convert WF_GMS_DDS_APLY_DLY.XML -o $OUT_ROOT/WF_GMS_DDS_APLY
 cd /var/lib/airflow/dags/adam/informatica
 ./convert_infa-pyspark.sh /var/lib/airflow/dags/adam/informatica/PowerCenter_workflows/dds \
                           /var/lib/airflow/dags/adam/informatica/PySpark_workflows/dds \
-                          WF_EMS_PRHE_DDS_APLY_HSE_STCK_MTH.XML
+                          WF_EMS_DDS_APLY_MTH.XML
 ```
 
 4. test the generated mapping (example for the truncate step)
@@ -60,3 +60,9 @@ Output format:
 - Brief explanation of the conversion
 - Suggestions for data validation
 ```
+
+# 需手动fix的Bug
+
+- m_dpa_summarize_fact_cms_case_smry.py m_dpa_summarize_fact_cms_case_ostd_smry.py 多个lookup同名字段，需修改sql区分不同字段名字，如`CASE_CATG_KEY`
+- m_s5_dpa_summarize_fact_ems_sms_flat_prc_txn.py，`1300001and` -> `1300001 and`
+- m_s5_dpa_summarize_fact_ems_adtn_del.py, apply_SQ_SOR_EMS_CPM_ADTN_DEL_STS中的字段顺序修正, `ADTN_DEL_RSN_CATG_CODE`和`ADTN_DEL_RSN_CODE`对调

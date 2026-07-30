@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -93,11 +92,11 @@ AND cep_sts.CEP_APLY_KEY = cepa.CEP_APLY_KEY
 AND ln_sts.LN_STS_CODE IN ('V', 'S')
 AND SUBSTR(cepa_sts.UNIT_CODE_ADDR, 1, 1) = 'E'
 AND SUBSTR(cepa_sts.UNIT_CODE_ADDR, 1, 2) <> 'E9'
-AND TRUNC(ln_sts.LN_ISS_DATE, 'MM') = TO_DATE($$v_rpt_mth, 'YYYYMM')
-AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN ln_sts.BGN_DATE AND ln_sts.END_DATE
-AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN lna_sts.BGN_DATE AND lna_sts.END_DATE
-AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN cep_sts.BGN_DATE AND cep_sts.END_DATE
-AND TO_DATE($$v_snsh_date, 'YYYYMMDD') BETWEEN cepa_sts.BGN_DATE AND cepa_sts.END_DATE
+AND TRUNC(ln_sts.LN_ISS_DATE, 'MM') = TO_DATE('$$v_rpt_mth', 'YYYYMM')
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ln_sts.BGN_DATE AND ln_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN lna_sts.BGN_DATE AND lna_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN cep_sts.BGN_DATE AND cep_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN cepa_sts.BGN_DATE AND cepa_sts.END_DATE
 GROUP BY cepa_sts.RENT_FCTR_RATE, ln_sts.SCHM_CODE"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
@@ -142,7 +141,7 @@ GROUP BY RENT_IND_DESP_DMNS_KEY, DESP_DTL_DMNS_KEY, TIME_DMNS_KEY"""
         df_EXPTRANS = df_SQ_SOR_EMS_SMS_CEP_APLY_STS
         df_EXPTRANS = df_EXPTRANS.withColumn("RENT_FCTR_RATE_OUT", expr("cast(RENT_FCTR_RATE as string)"))
         df_EXPTRANS = df_EXPTRANS.withColumn("SCHM_CODE_OUT", expr("CASE WHEN SCHM_CODE = 'T' THEN 'no_of_tran_tps' ELSE 'no_of_tran_hos' END"))
-        _expr = """to_date(concat('$$v_rpt_mth', '01'), 'yyyymmdd')"""
+        _expr = """to_date(cast(concat('$$v_rpt_mth', '01') as string), 'yyyymmdd')"""
         _expr = _expr.replace("$$v_snsh_date", str(v_snsh_date))
         _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
         df_EXPTRANS = df_EXPTRANS.withColumn("TIME", expr(_expr))
@@ -174,16 +173,20 @@ GROUP BY RENT_IND_DESP_DMNS_KEY, DESP_DTL_DMNS_KEY, TIME_DMNS_KEY"""
         # Lookup: apply_LKP_DPA_FACT_EMS_SMS_RENT_TXN
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DPA_FACT_EMS_SMS_RENT_TXN = df_LKP_DPA_FACT_EMS_SMS_RENT_TXN.dropDuplicates(subset=["RENT_IND_DESP_DMNS_KEY", "TIME_DMNS_KEY"])
-        # Join condition: RENT_IND_DESP_DMNS_KEY=RENT_IND_DESP_DMNS_KEY AND TIME_DMNS_KEY=TIME_DMNS_KEY
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_SQ_DPA_FACT_EMS_SMS_RENT_TXN
+        _lkp_input = _lkp_input.withColumn("IN_RENT_IND_DESP_DMNS_KEY", col("RENT_IND_DESP_DMNS_KEY"))
+        _lkp_input = _lkp_input.withColumn("IN_TIME_DMNS_KEY", col("TIME_DMNS_KEY"))
+        # Join condition: IN_RENT_IND_DESP_DMNS_KEY=RENT_IND_DESP_DMNS_KEY AND IN_TIME_DMNS_KEY=TIME_DMNS_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_SQ_DPA_FACT_EMS_SMS_RENT_TXN.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DPA_FACT_EMS_SMS_RENT_TXN).alias("_lkp"),
-            (col("_main.RENT_IND_DESP_DMNS_KEY") == col("_lkp.RENT_IND_DESP_DMNS_KEY")) &
-            (col("_main.TIME_DMNS_KEY") == col("_lkp.TIME_DMNS_KEY")),
+            (col("_main.IN_RENT_IND_DESP_DMNS_KEY") == col("_lkp.RENT_IND_DESP_DMNS_KEY")) &
+            (col("_main.IN_TIME_DMNS_KEY") == col("_lkp.TIME_DMNS_KEY")),
             "left"
         ).select(
-            *[df_SQ_DPA_FACT_EMS_SMS_RENT_TXN[c] for c in df_SQ_DPA_FACT_EMS_SMS_RENT_TXN.columns],
-            *[df_LKP_DPA_FACT_EMS_SMS_RENT_TXN[c] for c in df_LKP_DPA_FACT_EMS_SMS_RENT_TXN.columns if c not in df_SQ_DPA_FACT_EMS_SMS_RENT_TXN.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DPA_FACT_EMS_SMS_RENT_TXN[c] for c in df_LKP_DPA_FACT_EMS_SMS_RENT_TXN.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: read_LKP_DDS_DMNS_TIME_1")
@@ -196,15 +199,18 @@ GROUP BY RENT_IND_DESP_DMNS_KEY, DESP_DTL_DMNS_KEY, TIME_DMNS_KEY"""
         # Lookup: apply_LKP_DDS_DMNS_TIME_1
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_TIME_1 = df_LKP_DDS_DMNS_TIME_1.dropDuplicates(subset=["TIME_VAL_DATE"])
-        # Join condition: TIME=TIME_VAL_DATE
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_lkp_merge_1
+        _lkp_input = _lkp_input.withColumn("IN_TIME_VAL_DATE", col("TIME"))
+        # Join condition: IN_TIME_VAL_DATE=TIME_VAL_DATE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_2 = df_EXPTRANS.alias("_main").join(
+        df_lkp_merge_2 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_TIME_1).alias("_lkp"),
-            (col("_main.TIME") == col("_lkp.TIME_VAL_DATE")),
+            (col("_main.IN_TIME_VAL_DATE") == col("_lkp.TIME_VAL_DATE")),
             "left"
         ).select(
-            *[df_EXPTRANS[c] for c in df_EXPTRANS.columns],
-            *[df_LKP_DDS_DMNS_TIME_1[c] for c in df_LKP_DDS_DMNS_TIME_1.columns if c not in df_EXPTRANS.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_TIME_1[c] for c in df_LKP_DDS_DMNS_TIME_1.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)        
         logger.info("Step: read_LKP_DDS_DMNS_EMS_DESP_DTL")
@@ -217,16 +223,20 @@ GROUP BY RENT_IND_DESP_DMNS_KEY, DESP_DTL_DMNS_KEY, TIME_DMNS_KEY"""
         # Lookup: apply_LKP_DDS_DMNS_EMS_DESP_DTL
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_DESP_DTL = df_LKP_DDS_DMNS_EMS_DESP_DTL.dropDuplicates(subset=["DESP_DTL_CODE", "DESP_DTL_SCHM_CODE"])
-        # Join condition: SCHM_CODE_OUT=DESP_DTL_CODE AND SCHM_CODE1=DESP_DTL_SCHM_CODE
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_lkp_merge_2
+        _lkp_input = _lkp_input.withColumn("IN_DESP_DTL_SCHM_CODE", col("SCHM_CODE1"))
+        _lkp_input = _lkp_input.withColumn("IN_DESP_DTL_CODE", col("SCHM_CODE_OUT"))
+        # Join condition: IN_DESP_DTL_CODE=DESP_DTL_CODE AND IN_DESP_DTL_SCHM_CODE=DESP_DTL_SCHM_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_2 = df_lkp_merge_2.alias("_main").join(
+        df_lkp_merge_2 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_DESP_DTL).alias("_lkp"),
-            (col("_main.SCHM_CODE_OUT") == col("_lkp.DESP_DTL_CODE")) &
-            (col("_main.SCHM_CODE1") == col("_lkp.DESP_DTL_SCHM_CODE")),
+            (col("_main.IN_DESP_DTL_CODE") == col("_lkp.DESP_DTL_CODE")) &
+            (col("_main.IN_DESP_DTL_SCHM_CODE") == col("_lkp.DESP_DTL_SCHM_CODE")),
             "left"
         ).select(
-            *[df_lkp_merge_2[c] for c in df_lkp_merge_2.columns],
-            *[df_LKP_DDS_DMNS_EMS_DESP_DTL[c] for c in df_LKP_DDS_DMNS_EMS_DESP_DTL.columns if c not in df_lkp_merge_2.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_EMS_DESP_DTL[c] for c in df_LKP_DDS_DMNS_EMS_DESP_DTL.columns if c not in _lkp_input.columns]
         )
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_DESP_DTL1")
@@ -239,16 +249,20 @@ GROUP BY RENT_IND_DESP_DMNS_KEY, DESP_DTL_DMNS_KEY, TIME_DMNS_KEY"""
         # Lookup: apply_LKP_DDS_DMNS_EMS_DESP_DTL1
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_DESP_DTL1 = df_LKP_DDS_DMNS_EMS_DESP_DTL1.dropDuplicates(subset=["DESP_DTL_CODE", "DESP_DTL_SCHM_CODE"])
-        # Join condition: RENT_FCTR_RATE_OUT=DESP_DTL_CODE AND SCHM_CODE2=DESP_DTL_SCHM_CODE
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_lkp_merge_2
+        _lkp_input = _lkp_input.withColumn("IN_DESP_DTL_SCHM_CODE", col("SCHM_CODE2"))
+        _lkp_input = _lkp_input.withColumn("IN_DESP_DTL_CODE", col("RENT_FCTR_RATE_OUT"))
+        # Join condition: IN_DESP_DTL_CODE=DESP_DTL_CODE AND IN_DESP_DTL_SCHM_CODE=DESP_DTL_SCHM_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_2 = df_lkp_merge_2.alias("_main").join(
+        df_lkp_merge_2 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_DESP_DTL1).alias("_lkp"),
-            (col("_main.RENT_FCTR_RATE_OUT") == col("_lkp.DESP_DTL_CODE")) &
-            (col("_main.SCHM_CODE2") == col("_lkp.DESP_DTL_SCHM_CODE")),
+            (col("_main.IN_DESP_DTL_CODE") == col("_lkp.DESP_DTL_CODE")) &
+            (col("_main.IN_DESP_DTL_SCHM_CODE") == col("_lkp.DESP_DTL_SCHM_CODE")),
             "left"
         ).select(
-            *[df_lkp_merge_2[c] for c in df_lkp_merge_2.columns],
-            *[df_LKP_DDS_DMNS_EMS_DESP_DTL1[c] for c in df_LKP_DDS_DMNS_EMS_DESP_DTL1.columns if c not in df_lkp_merge_2.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_EMS_DESP_DTL1[c] for c in df_LKP_DDS_DMNS_EMS_DESP_DTL1.columns if c not in _lkp_input.columns]
         )
         
         logger.info("Step: apply_EXPTRANS1")
@@ -259,7 +273,7 @@ GROUP BY RENT_IND_DESP_DMNS_KEY, DESP_DTL_DMNS_KEY, TIME_DMNS_KEY"""
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("TXN_CNT_V", expr("CASE WHEN (TXN_CNT IS NULL) THEN 0 ELSE TXN_CNT END"))
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("TXN_CNT1", expr("TXN_CNT"))
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("TXN_CNT1_V", expr("CASE WHEN (TXN_CNT IS NULL) THEN 0 ELSE TXN_CNT END"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("SUM", expr("TXN_CNT_V + TXN_CNT_V"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("SUM", expr("TXN_CNT_V + TXN_CNT1_V"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["TXN_CNT", "RENT_IND_DESP_DMNS_KEY", "TIME_DMNS_KEY", "LAST_REC_TXN_DATE"]:
             if _col not in df_EXPTRANS1.columns:
@@ -296,6 +310,11 @@ GROUP BY RENT_IND_DESP_DMNS_KEY, DESP_DTL_DMNS_KEY, TIME_DMNS_KEY"""
         _field_map = {"DESP_DTL_DMNS_KEY": "DESP_DTL_DMNS_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "RENT_IND_DESP_DMNS_KEY": "DESP_DTL_DMNS_KEY", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TXN_CNT": "CNT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['RENT_IND_DESP_DMNS_KEY', 'DESP_DTL_DMNS_KEY', 'TIME_DMNS_KEY', 'TXN_CNT', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND']
@@ -314,16 +333,20 @@ GROUP BY RENT_IND_DESP_DMNS_KEY, DESP_DTL_DMNS_KEY, TIME_DMNS_KEY"""
         # Lookup: apply_LKP_DDS_DMNS_EMS_DESP_DTL2
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_DESP_DTL2 = df_LKP_DDS_DMNS_EMS_DESP_DTL2.dropDuplicates(subset=["DESP_DTL_CODE", "DESP_DTL_SCHM_CODE"])
-        # Join condition: DESP_DTL_CODE=DESP_DTL_CODE AND SCHM_CODE=DESP_DTL_SCHM_CODE
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_lkp_merge_2
+        _lkp_input = _lkp_input.withColumn("IN_DESP_DTL_CODE", col("DESP_DTL_CODE"))
+        _lkp_input = _lkp_input.withColumn("IN_DESP_DTL_SCHM_CODE", col("SCHM_CODE"))
+        # Join condition: IN_DESP_DTL_CODE=DESP_DTL_CODE AND IN_DESP_DTL_SCHM_CODE=DESP_DTL_SCHM_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_3 = df_EXPTRANS1.alias("_main").join(
+        df_lkp_merge_3 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_DESP_DTL2).alias("_lkp"),
-            (col("_main.DESP_DTL_CODE") == col("_lkp.DESP_DTL_CODE")) &
-            (col("_main.SCHM_CODE") == col("_lkp.DESP_DTL_SCHM_CODE")),
+            (col("_main.IN_DESP_DTL_CODE") == col("_lkp.DESP_DTL_CODE")) &
+            (col("_main.IN_DESP_DTL_SCHM_CODE") == col("_lkp.DESP_DTL_SCHM_CODE")),
             "left"
         ).select(
-            *[df_EXPTRANS1[c] for c in df_EXPTRANS1.columns],
-            *[df_LKP_DDS_DMNS_EMS_DESP_DTL2[c] for c in df_LKP_DDS_DMNS_EMS_DESP_DTL2.columns if c not in df_EXPTRANS1.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_EMS_DESP_DTL2[c] for c in df_LKP_DDS_DMNS_EMS_DESP_DTL2.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_3", df_lkp_merge_3)        
         logger.info("Step: write_DPA_FACT_EMS_SMS_RENT_TXN2")
@@ -355,6 +378,11 @@ GROUP BY RENT_IND_DESP_DMNS_KEY, DESP_DTL_DMNS_KEY, TIME_DMNS_KEY"""
         _field_map = {"DESP_DTL_DMNS_KEY": "DESP_DTL_DMNS_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "RENT_IND_DESP_DMNS_KEY": "RENT_IND_DESP_DMNS_KEY", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TXN_CNT": "SUM"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['RENT_IND_DESP_DMNS_KEY', 'DESP_DTL_DMNS_KEY', 'TIME_DMNS_KEY', 'TXN_CNT', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND']

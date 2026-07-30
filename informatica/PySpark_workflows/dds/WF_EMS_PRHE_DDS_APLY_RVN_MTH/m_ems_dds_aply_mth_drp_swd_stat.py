@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -142,15 +141,18 @@ and u.unit_key = ta2.unit_key"""
         # Lookup: apply_LKP_UNIT_ADDR_CODE
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_UNIT_ADDR_CODE = df_LKP_UNIT_ADDR_CODE.dropDuplicates(subset=["TNCY_AGRMT_BK"])
-        # Join condition: TNCY_AGRMT_BK=TNCY_AGRMT_BK
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_EXPTRANS2
+        _lkp_input = _lkp_input.withColumn("TNCY_AGRMT_BK1", col("TNCY_AGRMT_BK"))
+        # Join condition: TNCY_AGRMT_BK1=TNCY_AGRMT_BK
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_EXPTRANS2.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_UNIT_ADDR_CODE).alias("_lkp"),
-            (col("_main.TNCY_AGRMT_BK") == col("_lkp.TNCY_AGRMT_BK")),
+            (col("_main.TNCY_AGRMT_BK1") == col("_lkp.TNCY_AGRMT_BK")),
             "left"
         ).select(
-            *[df_EXPTRANS2[c] for c in df_EXPTRANS2.columns],
-            *[df_LKP_UNIT_ADDR_CODE[c] for c in df_LKP_UNIT_ADDR_CODE.columns if c not in df_EXPTRANS2.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_UNIT_ADDR_CODE[c] for c in df_LKP_UNIT_ADDR_CODE.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: read_LKP_CUST_EXPCT_CHILD_NUM")
@@ -173,15 +175,18 @@ and ADD_MONTHS(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'), 1)-1 between SOR_EMS_CP
         # Lookup: apply_LKP_CUST_EXPCT_CHILD_NUM
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_CUST_EXPCT_CHILD_NUM = df_LKP_CUST_EXPCT_CHILD_NUM.dropDuplicates(subset=["CUST_APLY_BK"])
-        # Join condition: TNCY_AGRMT_BK=CUST_APLY_BK
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_lkp_merge_1
+        _lkp_input = _lkp_input.withColumn("CUST_APLY_BK_IN", col("TNCY_AGRMT_BK"))
+        # Join condition: CUST_APLY_BK_IN=CUST_APLY_BK
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_lkp_merge_1.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_CUST_EXPCT_CHILD_NUM).alias("_lkp"),
-            (col("_main.TNCY_AGRMT_BK") == col("_lkp.CUST_APLY_BK")),
+            (col("_main.CUST_APLY_BK_IN") == col("_lkp.CUST_APLY_BK")),
             "left"
         ).select(
-            *[df_lkp_merge_1[c] for c in df_lkp_merge_1.columns],
-            *[df_LKP_CUST_EXPCT_CHILD_NUM[c] for c in df_LKP_CUST_EXPCT_CHILD_NUM.columns if c not in df_lkp_merge_1.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_CUST_EXPCT_CHILD_NUM[c] for c in df_LKP_CUST_EXPCT_CHILD_NUM.columns if c not in _lkp_input.columns]
         )
         
         logger.info("Step: read_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_LKP_ELD_MTH")
@@ -226,15 +231,17 @@ GROUP BY
         
         logger.info("Step: apply_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_LKP_ELD_MTH")
         # Lookup: apply_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_LKP_ELD_MTH
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_lkp_merge_1
         # Join condition: TNCY_AGRMT_BK=TNCY_AGRMT_BK
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_2 = df_lkp_merge_1.alias("_main").join(
+        df_mplt_lkp_chain_2 = _lkp_input.alias("_main").join(
             broadcast(df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_LKP_ELD_MTH).alias("_lkp"),
             (col("_main.TNCY_AGRMT_BK") == col("_lkp.TNCY_AGRMT_BK")),
             "left"
         ).select(
-            *[df_lkp_merge_1[c] for c in df_lkp_merge_1.columns],
-            *[df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_LKP_ELD_MTH[c] for c in df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_LKP_ELD_MTH.columns if c not in df_lkp_merge_1.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_LKP_ELD_MTH[c] for c in df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_LKP_ELD_MTH.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_mplt_lkp_chain_2", df_mplt_lkp_chain_2)        
         logger.info("Step: apply_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31")
@@ -242,11 +249,17 @@ GROUP BY
         df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31 = df_mplt_lkp_chain_2
         df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31 = df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31.withColumn("ELD_IND", expr("CASE WHEN NOT ((ELD_CNT IS NULL)) AND ELD_CNT > 0 THEN 'Y' ELSE 'N' END"))
         df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31 = df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31.withColumn("AEM_IND", expr("CASE WHEN NOT ((ELD_CNT IS NULL)) AND ELD_CNT = HSHLD_SIZE THEN 'Y' ELSE 'N' END"))
+        # Ensure any missing pass-through columns exist (no connector feeding them)
+        for _col in ["TNCY_AGRMT_BK", "HSHLD_SIZE", "HSHLD_MALE_MBR_CNT", "HSHLD_FML_MBR_CNT", "HSHLD_UNKWN_MBR_CNT", "HSHLD_DSBL_MBR_CNT"]:
+            if _col not in df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31.columns:
+                df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31 = df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31", df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31)
         
         logger.info("Step: apply_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY")
         # Expression: apply_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY
         df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY = df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31
+        df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY = df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY.drop("EDR_IND").withColumnRenamed("ELD_IND", "EDR_IND")
         ctx.register_df("df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY", df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY)
         
         logger.info("Step: merge_EXPTRANS1_0")
@@ -270,14 +283,14 @@ GROUP BY
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
         df_EXPTRANS1 = df_merge_3
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("TXN_DATE1", expr("cast(TXN_DATE as string)"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("TXN_DATE1", expr("date_format(TXN_DATE, 'yyyymmdd')"))
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("DRP_AMT1", expr("lpad(cast(cast(cast(TXN_PYMT_ITEM_AMT as string) as decimal) as string),9,' ')"))
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("HSHLD_SIZE1", expr("lpad(cast(CASE WHEN (HSHLD_SIZE IS NULL) THEN 0 ELSE HSHLD_SIZE END as string),2,'0')"))
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("CUST_EXPCT_CHILD_NUM1", expr("CASE WHEN (CUST_EXPCT_CHILD_NUM IS NULL) THEN '0' ELSE cast(CUST_EXPCT_CHILD_NUM as string) END"))
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("DRP_PYMT_SEQ_NUM_OUT", expr("lpad(cast(DRP_PYMT_SEQ_NUM as string),6)"))
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("SWD_CASE_FILE_REF_NUM_OUT", expr("lpad(SWD_CASE_FILE_REF_NUM,15)"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("DRP_PYMT_FROM_DATE_OUT", expr("cast(DRP_PYMT_FROM_DATE as string)"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("DRP_PYMT_TO_DATE_OUT", expr("cast(DRP_PYMT_TO_DATE as string)"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("DRP_PYMT_FROM_DATE_OUT", expr("date_format(DRP_PYMT_FROM_DATE, 'yyyymmdd')"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("DRP_PYMT_TO_DATE_OUT", expr("date_format(DRP_PYMT_TO_DATE, 'yyyymmdd')"))
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("DRP_CUST_CNT_OUT", expr("lpad(cast(DRP_CUST_CNT as string),2)"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["UNIT_ADDR_CODE", "TXN_MTHD_CODE", "AEM_IND"]:
@@ -378,6 +391,11 @@ GROUP BY
         _field_map = {"DRP_CUST_CNT": "DRP_CUST_CNT_OUT", "DRP_PYMT_FROM_DATE": "DRP_PYMT_FROM_DATE_OUT", "DRP_PYMT_SEQ_NUM": "DRP_PYMT_SEQ_NUM_OUT", "DRP_PYMT_TO_DATE": "DRP_PYMT_TO_DATE_OUT", "EXPCT_CHILD_CNT": "CUST_EXPCT_CHILD_NUM1", "FMLY_MBR_CNT": "HSHLD_SIZE1", "HSHLD_AEM_IND": "AEM_IND", "RVN_TXN_MODE_CODE": "TXN_MTHD_CODE", "SWD_CASE_FILE_REF_NUM": "SWD_CASE_FILE_REF_NUM_OUT", "TXN_DATE": "TXN_DATE1", "TXN_PYMT_ITEM_AMT": "DRP_AMT1", "UNIT_ADDR_CODE": "UNIT_ADDR_CODE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['TXN_DATE', 'UNIT_ADDR_CODE', 'RVN_TXN_MODE_CODE', 'TXN_PYMT_ITEM_AMT', 'HSHLD_AEM_IND', 'FMLY_MBR_CNT', 'EXPCT_CHILD_CNT', 'DRP_PYMT_SEQ_NUM', 'SWD_CASE_FILE_REF_NUM', 'DRP_PYMT_FROM_DATE', 'DRP_PYMT_TO_DATE', 'DRP_CUST_CNT']

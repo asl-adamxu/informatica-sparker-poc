@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -82,7 +81,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             monotonically_increasing_id() + 0
         )
         ctx.register_df("df_SEQ_DMNS_KPI_SNSH_YEAR_KEY_KEY", df_SEQ_DMNS_KPI_SNSH_YEAR_KEY_KEY)
-        
+
         logger.info("Step: apply_SQ_SOR_HOM_PRG_SNSH")
         # Source Qualifier: apply_SQ_SOR_HOM_PRG_SNSH
         # SQL Pushdown - executes Informatica SQ SQL on source database
@@ -216,16 +215,20 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Lookup: apply_LKP_DDS_DMNS_KPI_SNSH_YEAR
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_KPI_SNSH_YEAR = df_LKP_DDS_DMNS_KPI_SNSH_YEAR.dropDuplicates(subset=["SNSH_YEAR", "SNSH_MTH"])
-        # Join condition: SNSH_YEAR=SNSH_YEAR AND SNSH_MTH=SNSH_MTH
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_SQ_SOR_HOM_PRG_SNSH
+        _lkp_input = _lkp_input.withColumn("IN_SNSH_YEAR", col("SNSH_YEAR"))
+        _lkp_input = _lkp_input.withColumn("IN_SNSH_MTH", col("SNSH_MTH"))
+        # Join condition: IN_SNSH_YEAR=SNSH_YEAR AND IN_SNSH_MTH=SNSH_MTH
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_SQ_SOR_HOM_PRG_SNSH.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_KPI_SNSH_YEAR).alias("_lkp"),
-            (col("_main.SNSH_YEAR") == col("_lkp.SNSH_YEAR")) &
-            (col("_main.SNSH_MTH") == col("_lkp.SNSH_MTH")),
+            (col("_main.IN_SNSH_YEAR") == col("_lkp.SNSH_YEAR")) &
+            (col("_main.IN_SNSH_MTH") == col("_lkp.SNSH_MTH")),
             "left"
         ).select(
-            *[df_SQ_SOR_HOM_PRG_SNSH[c] for c in df_SQ_SOR_HOM_PRG_SNSH.columns],
-            *[df_LKP_DDS_DMNS_KPI_SNSH_YEAR[c] for c in df_LKP_DDS_DMNS_KPI_SNSH_YEAR.columns if c not in df_SQ_SOR_HOM_PRG_SNSH.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_KPI_SNSH_YEAR[c] for c in df_LKP_DDS_DMNS_KPI_SNSH_YEAR.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS")
@@ -235,7 +238,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_DISP_SNSH_YEAR_TEXT", expr("disp_snsh_year_text"))
         df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_KPI_SNSH_YEAR_KEY IS NULL) OR CASE WHEN SNSH_YEAR = IN_SNSH_YEAR THEN false ELSE true END OR CASE WHEN SNSH_MTH = IN_SNSH_MTH THEN false ELSE true END OR CASE WHEN DISP_FIN_YEAR_TEXT = disp_fin_year_text THEN false ELSE true END OR CASE WHEN DISP_SNSH_YEAR_TEXT = disp_snsh_year_text THEN false ELSE true END THEN 1 ELSE 0 END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["SNSH_MTH", "IN_SNSH_MTH", "DMNS_KPI_SNSH_YEAR_KEY", "SNSH_YEAR", "DISP_SNSH_YEAR_TEXT", "DISP_FIN_YEAR_TEXT", "IN_SNSH_YEAR", "FIN_YEAR", "SNSH_DISP_SEQ_NUM"]:
+        for _col in ["IN_SNSH_YEAR", "DISP_FIN_YEAR_TEXT", "SNSH_MTH", "SNSH_YEAR", "DMNS_KPI_SNSH_YEAR_KEY", "DISP_SNSH_YEAR_TEXT", "IN_SNSH_MTH", "FIN_YEAR", "SNSH_DISP_SEQ_NUM"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
@@ -270,7 +273,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             col("IN_DISP_SNSH_YEAR_TEXT").alias("IN_DISP_SNSH_YEAR_TEXT")        )
         df_Union_Transformation = df_Union_Transformation_change
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_new, allowMissingColumns=True)
-        # Select only union output columns
+        # Select only union output columns (add lit(None) for any missing)
+        for _col in ["DMNS_KPI_SNSH_YEAR_KEY", "IN_SNSH_YEAR", "IN_SNSH_MTH", "IN_DISP_FIN_YEAR_TEXT", "IN_DISP_SNSH_YEAR_TEXT"]:
+            if _col not in df_Union_Transformation.columns:
+                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("DMNS_KPI_SNSH_YEAR_KEY", "IN_SNSH_YEAR", "IN_SNSH_MTH", "IN_DISP_FIN_YEAR_TEXT", "IN_DISP_SNSH_YEAR_TEXT")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
@@ -299,6 +305,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         _field_map = {"DISP_FIN_YEAR_TEXT": "IN_DISP_FIN_YEAR_TEXT", "DISP_SNSH_YEAR_TEXT": "IN_DISP_SNSH_YEAR_TEXT", "DMNS_KPI_SNSH_YEAR_KEY": "DMNS_KPI_SNSH_YEAR_KEY", "SNSH_MTH": "IN_SNSH_MTH", "SNSH_YEAR": "IN_SNSH_YEAR"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['DMNS_KPI_SNSH_YEAR_KEY', 'SNSH_YEAR', 'SNSH_MTH', 'FIN_YEAR', 'DISP_FIN_YEAR_TEXT', 'DISP_SNSH_YEAR_TEXT', 'SNSH_DISP_SEQ_NUM']

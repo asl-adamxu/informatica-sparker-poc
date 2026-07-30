@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -76,7 +75,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             monotonically_increasing_id() + 0
         )
         ctx.register_df("df_SEQ_DMNS_SNSH_CNTR_KEY", df_SEQ_DMNS_SNSH_CNTR_KEY)
-        
+
         logger.info("Step: apply_SQ_SOR_HOM_PRG_SNSH_CNTR")
         # Source Qualifier: apply_SQ_SOR_HOM_PRG_SNSH_CNTR
         # SQL Pushdown - executes Informatica SQ SQL on source database
@@ -124,27 +123,31 @@ and TO_DATE ($$v_snsh_date, 'YYYYMMDD') BETWEEN ss.bgn_date AND ss.end_date"""
         # Lookup: apply_LKP_DDS_DMNS_SNSH_CNTR
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_SNSH_CNTR = df_LKP_DDS_DMNS_SNSH_CNTR.dropDuplicates(subset=["CNTR_KEY", "SNSH_KEY"])
-        # Join condition: CNTR_KEY=CNTR_KEY AND SNSH_KEY=SNSH_KEY
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_SQ_SOR_HOM_PRG_SNSH_CNTR
+        _lkp_input = _lkp_input.withColumn("IN_CNTR_KEY", col("CNTR_KEY"))
+        _lkp_input = _lkp_input.withColumn("IN_SNSH_KEY", col("SNSH_KEY"))
+        # Join condition: IN_CNTR_KEY=CNTR_KEY AND IN_SNSH_KEY=SNSH_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_SQ_SOR_HOM_PRG_SNSH_CNTR.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_SNSH_CNTR).alias("_lkp"),
-            (col("_main.CNTR_KEY") == col("_lkp.CNTR_KEY")) &
-            (col("_main.SNSH_KEY") == col("_lkp.SNSH_KEY")),
+            (col("_main.IN_CNTR_KEY") == col("_lkp.CNTR_KEY")) &
+            (col("_main.IN_SNSH_KEY") == col("_lkp.SNSH_KEY")),
             "left"
         ).select(
-            *[df_SQ_SOR_HOM_PRG_SNSH_CNTR[c] for c in df_SQ_SOR_HOM_PRG_SNSH_CNTR.columns],
-            *[df_LKP_DDS_DMNS_SNSH_CNTR[c] for c in df_LKP_DDS_DMNS_SNSH_CNTR.columns if c not in df_SQ_SOR_HOM_PRG_SNSH_CNTR.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_SNSH_CNTR[c] for c in df_LKP_DDS_DMNS_SNSH_CNTR.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
         df_EXPTRANS = df_lkp_merge_1
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_SNSH_CNTR_DISP_SEQ_NUM", expr("snsh_cntr_disp_seq_num"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("IN_CNTR_TTL", expr("CNTR_TTL"))
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_CNTR_NUM", expr("CNTR_NUM"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("IN_CNTR_TTL", expr("CNTR_TTL"))
         df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_SNSH_CNTR_KEY IS NULL) OR CASE WHEN CNTR_KEY = IN_CNTR_KEY THEN false ELSE true END OR CASE WHEN SNSH_KEY = IN_SNSH_KEY THEN false ELSE true END OR CASE WHEN CNTR_NUM = CNTR_NUM THEN false ELSE true END OR CASE WHEN CNTR_TTL = CNTR_TTL THEN false ELSE true END THEN 1 ELSE 0 END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["IN_SNSH_KEY", "IN_CNTR_KEY", "CNTR_TTL", "CNTR_NUM", "DMNS_SNSH_CNTR_KEY", "SNSH_KEY", "CNTR_KEY", "TNDR_NUM", "SNSH_CNTR_DISP_SEQ_NUM"]:
+        for _col in ["CNTR_NUM", "CNTR_TTL", "IN_SNSH_KEY", "IN_CNTR_KEY", "DMNS_SNSH_CNTR_KEY", "CNTR_KEY", "SNSH_KEY", "TNDR_NUM", "SNSH_CNTR_DISP_SEQ_NUM"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
@@ -181,7 +184,10 @@ and TO_DATE ($$v_snsh_date, 'YYYYMMDD') BETWEEN ss.bgn_date AND ss.end_date"""
             col("IN_SNSH_CNTR_DISP_SEQ_NUM").alias("IN_SNSH_CNTR_DISP_SEQ_NUM")        )
         df_Union_Transformation = df_Union_Transformation_change
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_new, allowMissingColumns=True)
-        # Select only union output columns
+        # Select only union output columns (add lit(None) for any missing)
+        for _col in ["DMNS_SNSH_CNTR_KEY", "IN_CNTR_KEY", "IN_SNSH_KEY", "IN_CNTR_NUM", "IN_CNTR_TTL", "IN_SNSH_CNTR_DISP_SEQ_NUM"]:
+            if _col not in df_Union_Transformation.columns:
+                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("DMNS_SNSH_CNTR_KEY", "IN_CNTR_KEY", "IN_SNSH_KEY", "IN_CNTR_NUM", "IN_CNTR_TTL", "IN_SNSH_CNTR_DISP_SEQ_NUM")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
@@ -214,6 +220,11 @@ and TO_DATE ($$v_snsh_date, 'YYYYMMDD') BETWEEN ss.bgn_date AND ss.end_date"""
         _field_map = {"CNTR_KEY": "IN_CNTR_KEY", "CNTR_NUM": "IN_CNTR_NUM", "CNTR_TTL": "IN_CNTR_TTL", "DMNS_SNSH_CNTR_KEY": "DMNS_SNSH_CNTR_KEY", "SNSH_CNTR_DISP_SEQ_NUM": "IN_SNSH_CNTR_DISP_SEQ_NUM", "SNSH_KEY": "IN_SNSH_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['DMNS_SNSH_KEY', 'SNSH_YEAR', 'SNSH_MTH', 'DISP_FIN_YEAR_TEXT', 'DISP_SNSH_TEXT', 'SNSH_DISP_SEQ_NUM']

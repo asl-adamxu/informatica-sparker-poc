@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -97,9 +96,9 @@ AND ((aply_sts.cust_fmly_size_num = 1 AND unit_ifa_area > 25) OR
 (aply_sts.cust_fmly_size_num = 4 AND unit.unit_ifa_area > 56) OR
 (aply_sts.cust_fmly_size_num = 5 AND unit.unit_ifa_area > 62) OR
 (aply_sts.cust_fmly_size_num = 6 AND unit.unit_ifa_area > 71))
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN tncy_sts.bgn_date AND tncy_sts.end_date
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN unit_sts.bgn_date AND unit_sts.end_date
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN aply_sts.bgn_date AND aply_sts.end_date"""
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN tncy_sts.bgn_date AND tncy_sts.end_date
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN unit_sts.bgn_date AND unit_sts.end_date
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.bgn_date AND aply_sts.end_date"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_SQ_SOR_EMS_HSM_EST = lib.read_sql(spark, _conn, query=query)
@@ -129,15 +128,18 @@ group by mbr.cust_key"""
         # Lookup: apply_LKP_SOR_CUST_DSBL
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_SOR_CUST_DSBL = df_LKP_SOR_CUST_DSBL.dropDuplicates(subset=["CUST_KEY"])
-        # Join condition: CUST_KEY=CUST_KEY
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_SQ_SOR_EMS_HSM_EST
+        _lkp_input = _lkp_input.withColumn("IN_CUST_KEY", col("CUST_KEY"))
+        # Join condition: IN_CUST_KEY=CUST_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_SQ_SOR_EMS_HSM_EST.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_SOR_CUST_DSBL).alias("_lkp"),
-            (col("_main.CUST_KEY") == col("_lkp.CUST_KEY")),
+            (col("_main.IN_CUST_KEY") == col("_lkp.CUST_KEY")),
             "left"
         ).select(
-            *[df_SQ_SOR_EMS_HSM_EST[c] for c in df_SQ_SOR_EMS_HSM_EST.columns],
-            *[df_LKP_SOR_CUST_DSBL[c] for c in df_LKP_SOR_CUST_DSBL.columns if c not in df_SQ_SOR_EMS_HSM_EST.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_SOR_CUST_DSBL[c] for c in df_LKP_SOR_CUST_DSBL.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: read_LKPTRANS")
@@ -150,7 +152,7 @@ when(a.IND <> 0 and a.IND = b.fmly_size_num) then 'Y'
 else 'P' end) as CUST_AEM_IND
 from
 (SELECT unit.unit_addr_code, tncy.cust_key, tncy.hse_srvc_aply_key, sum(
-case when(ptcl_sts.CUST_MBR_DOB_DATE <= add_months(to_date($$V_SNSH_DATE,'yyyymmdd'), - 720)) then 1 else 0 end) as IND
+case when(ptcl_sts.CUST_MBR_DOB_DATE <= add_months(to_date('$$v_snsh_date','yyyymmdd'), - 720)) then 1 else 0 end) as IND
 FROM SOR_EMS_CPM_CUST_APLY_MBR mbr, SOR_EMS_CPM_CUST_APLY_MBR_STS mbr_sts,
 SOR_EMS_TAM_TNCY_AGRMT tncy, SOR_EMS_TAM_TNCY_AGRMT_STS tncy_sts,
 SOR_EMS_CPM_CUST_APLY aply,
@@ -175,9 +177,9 @@ and tncy_sts.TNCY_AGRMT_TM_STS_CODE = 'A' and mbr_sts.CUST_MBR_UP_IND = 'N'
 and mbr.CUST_MBR_ID_TYPE_CODE=ptcl.CUST_MBR_ID_TYPE_CODE 
 and mbr.CUST_MBR_ID_NUM=ptcl.CUST_MBR_ID_NUM 
 and ptcl.PTCL_KEY=ptcl_sts.PTCL_KEY 
-and TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN mbr_sts.BGN_DATE AND mbr_sts.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN tncy_sts.BGN_DATE AND tncy_sts.END_DATE
+and TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN mbr_sts.BGN_DATE AND mbr_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN tncy_sts.BGN_DATE AND tncy_sts.END_DATE
 GROUP BY unit.unit_addr_code, tncy.cust_key, tncy.hse_srvc_aply_key)a,
 (select aply.cust_key, aply.hse_srvc_aply_key, count(*) as fmly_size_num
 from sor_ems_cpm_cust_aply_mbr mbr, sor_ems_cpm_cust_aply_mbr_sts mbr_sts,
@@ -188,8 +190,8 @@ and aply.cust_aply_key = aply_sts.cust_aply_key
 AND mbr.HSE_SRVC_APLY_TYPE_CODE = 'T'
 AND mbr_sts.CUST_APLY_MBR_STS_CODE = 'A'
 and mbr_sts.CUST_MBR_UP_IND = 'N' 
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN mbr_sts.BGN_DATE AND mbr_sts.END_DATE
-AND TO_DATE($$V_SNSH_DATE, 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN mbr_sts.BGN_DATE AND mbr_sts.END_DATE
+AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.END_DATE
 group by aply.cust_key, aply.hse_srvc_aply_key)b
 where a.cust_key = b.cust_key and a.hse_srvc_aply_key = b.hse_srvc_aply_key"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
@@ -200,15 +202,18 @@ where a.cust_key = b.cust_key and a.hse_srvc_aply_key = b.hse_srvc_aply_key"""
         # Lookup: apply_LKPTRANS
         # Use First Value / Use Any Value: dedup by join keys
         df_LKPTRANS = df_LKPTRANS.dropDuplicates(subset=["UNIT_CODE_ADDR"])
-        # Join condition: UNIT_CODE_ADDR=UNIT_CODE_ADDR
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_lkp_merge_1
+        _lkp_input = _lkp_input.withColumn("IN_UNIT_CODE_ADDR", col("UNIT_CODE_ADDR"))
+        # Join condition: IN_UNIT_CODE_ADDR=UNIT_CODE_ADDR
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = df_lkp_merge_1.alias("_main").join(
+        df_lkp_merge_1 = _lkp_input.alias("_main").join(
             broadcast(df_LKPTRANS).alias("_lkp"),
-            (col("_main.UNIT_CODE_ADDR") == col("_lkp.UNIT_CODE_ADDR")),
+            (col("_main.IN_UNIT_CODE_ADDR") == col("_lkp.UNIT_CODE_ADDR")),
             "left"
         ).select(
-            *[df_lkp_merge_1[c] for c in df_lkp_merge_1.columns],
-            *[df_LKPTRANS[c] for c in df_LKPTRANS.columns if c not in df_lkp_merge_1.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKPTRANS[c] for c in df_LKPTRANS.columns if c not in _lkp_input.columns]
         )
         
         logger.info("Step: apply_EXPTRANS")
@@ -233,15 +238,18 @@ where a.cust_key = b.cust_key and a.hse_srvc_aply_key = b.hse_srvc_aply_key"""
         # Lookup: apply_LKP_DDS_DMNS_EMS_EST
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_EST = df_LKP_DDS_DMNS_EMS_EST.dropDuplicates(subset=["EST_CODE"])
-        # Join condition: EST_CODE=EST_CODE
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_lkp_merge_1
+        _lkp_input = _lkp_input.withColumn("IN_EST_CODE", col("EST_CODE"))
+        # Join condition: IN_EST_CODE=EST_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_2 = df_EXPTRANS.alias("_main").join(
+        df_lkp_merge_2 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_EST).alias("_lkp"),
-            (col("_main.EST_CODE") == col("_lkp.EST_CODE")),
+            (col("_main.IN_EST_CODE") == col("_lkp.EST_CODE")),
             "left"
         ).select(
-            *[df_EXPTRANS[c] for c in df_EXPTRANS.columns],
-            *[df_LKP_DDS_DMNS_EMS_EST[c] for c in df_LKP_DDS_DMNS_EMS_EST.columns if c not in df_EXPTRANS.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_EMS_EST[c] for c in df_LKP_DDS_DMNS_EMS_EST.columns if c not in _lkp_input.columns]
         )
         ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)        
         logger.info("Step: read_LKP_DDS_DMNS_EMS_FLAT_TYPE")
@@ -254,22 +262,26 @@ where a.cust_key = b.cust_key and a.hse_srvc_aply_key = b.hse_srvc_aply_key"""
         # Lookup: apply_LKP_DDS_DMNS_EMS_FLAT_TYPE
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_FLAT_TYPE = df_LKP_DDS_DMNS_EMS_FLAT_TYPE.dropDuplicates(subset=["FLAT_TYPE_CODE", "FLAT_TYPE_SCHM_CODE"])
-        # Join condition: UNIT_TYPE_CODE=FLAT_TYPE_CODE AND SCHM_CODE=FLAT_TYPE_SCHM_CODE
+        # Rename upstream columns to match lookup input port names before join
+        _lkp_input = df_lkp_merge_2
+        _lkp_input = _lkp_input.withColumn("IN_FLAT_TYPE_SCHM_CODE", col("SCHM_CODE"))
+        _lkp_input = _lkp_input.withColumn("IN_FLAT_TYPE_CODE", col("UNIT_TYPE_CODE"))
+        # Join condition: IN_FLAT_TYPE_CODE=FLAT_TYPE_CODE AND IN_FLAT_TYPE_SCHM_CODE=FLAT_TYPE_SCHM_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_2 = df_lkp_merge_2.alias("_main").join(
+        df_lkp_merge_2 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_FLAT_TYPE).alias("_lkp"),
-            (col("_main.UNIT_TYPE_CODE") == col("_lkp.FLAT_TYPE_CODE")) &
-            (col("_main.SCHM_CODE") == col("_lkp.FLAT_TYPE_SCHM_CODE")),
+            (col("_main.IN_FLAT_TYPE_CODE") == col("_lkp.FLAT_TYPE_CODE")) &
+            (col("_main.IN_FLAT_TYPE_SCHM_CODE") == col("_lkp.FLAT_TYPE_SCHM_CODE")),
             "left"
         ).select(
-            *[df_lkp_merge_2[c] for c in df_lkp_merge_2.columns],
-            *[df_LKP_DDS_DMNS_EMS_FLAT_TYPE[c] for c in df_LKP_DDS_DMNS_EMS_FLAT_TYPE.columns if c not in df_lkp_merge_2.columns]
+            *[_lkp_input[c] for c in _lkp_input.columns],
+            *[df_LKP_DDS_DMNS_EMS_FLAT_TYPE[c] for c in df_LKP_DDS_DMNS_EMS_FLAT_TYPE.columns if c not in _lkp_input.columns]
         )
         
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
         df_EXPTRANS1 = df_lkp_merge_2
-        _expr = """to_date('$$v_snsh_date','yyyymmdd')"""
+        _expr = """to_date(''$$v_snsh_date'','yyyymmdd')"""
         _expr = _expr.replace("$$v_snsh_date", str(v_snsh_date))
         _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("TNCY_AGRMT_CMNC_DATE", expr(_expr))
@@ -341,6 +353,11 @@ where a.cust_key = b.cust_key and a.hse_srvc_aply_key = b.hse_srvc_aply_key"""
         _field_map = {"CODE_ADDR": "UNIT_CODE_ADDR", "DSBL_CATG_CODE": "DSBL_CATG_CODE", "ELDR_IND": "CUST_AEM_IND", "EST_DMNS_KEY": "EST_DMNS_KEY", "FLAT_TYPE_DMNS_KEY": "FLAT_TYPE_DMNS_KEY", "FMLY_SIZE_NUM": "CUST_FMLY_SIZE_NUM", "IFA_AREA": "UNIT_IFA_AREA", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "REC_RLS_IND": "REC_RLS_IND", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TNCY_AGRMT_CMNC_DATE": "TNCY_AGRMT_CMNC_DATE", "TNCY_AGRMT_TRMT_DATE": "TNCY_AGRMT_TRMT_DATE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['CODE_ADDR', 'IFA_AREA', 'FMLY_SIZE_NUM', 'DSBL_CATG_CODE', 'TNCY_AGRMT_CMNC_DATE', 'TNCY_AGRMT_TRMT_DATE', 'ELDR_IND', 'FLAT_TYPE_DMNS_KEY', 'EST_DMNS_KEY', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND', 'TIME_DMNS_KEY']

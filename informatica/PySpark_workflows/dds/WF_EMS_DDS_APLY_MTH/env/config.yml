@@ -129,18 +129,27 @@ validation:
     password: "credential:connections.oracle-informatica.password"
 
 # =============================================================================
+# FILE PATH ROOT DIRECTORIES
+# =============================================================================
+# These paths serve as root directories for file source objects.
+# Override via environment variables or modify the defaults below.
+paths:
+  source_file_dir: "${PMSOURCE_FILE_DIR:/var/lib/airflow/dags}"
+  target_file_dir: "${PMTargetFileDir:/var/lib/airflow/dags}"
+
+# =============================================================================
 # FILE OBJECTS (Only file-type objects; database tables use connections directly)
 # =============================================================================
 objects:
   
   UTL_SESSION_LIST:
     format: "csv"
-    path: "${PMSOURCE_FILE_DIR:/tmp}/PCIS01/scripts/EMS_ETL_SESSION_LIST"
+    path: "${PMSOURCE_FILE_DIR:/var/lib/airflow/dags}/PCIS01/scripts/EMS_ETL_SESSION_LIST"
     delimiter: ","
     header: "true"  
   UTL_SSA_TBL_LIST:
     format: "csv"
-    path: "${PMSOURCE_FILE_DIR:/tmp}/PCIS01/scripts/EMS_ETL_DPA_TBL_LIST"
+    path: "${PMSOURCE_FILE_DIR:/var/lib/airflow/dags}/PCIS01/scripts/EMS_ETL_DPA_TBL_LIST"
     delimiter: ","
     header: "true"  
   EMS_ADTN_DEL:
@@ -155,7 +164,7 @@ objects:
     header: "true"  
   UTL_JOB_PARAM:
     format: "csv"
-    path: "${PMSOURCE_FILE_DIR:/tmp}/PCIS01/ems_job_param.txt"
+    path: "${PMSOURCE_FILE_DIR:/var/lib/airflow/dags}/PCIS01/ems_job_param.txt"
     delimiter: ","
     header: "true"
 # =============================================================================

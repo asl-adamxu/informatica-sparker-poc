@@ -7,7 +7,6 @@
 '''
 
 import env.runtime_lib as lib
-from pyspark.sql import DataFrame
 # Save builtins before pyspark.sql.functions shadows max/min with column versions
 _builtin_max = max
 _builtin_min = min
@@ -77,108 +76,18 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             format=_file_format,
             options=_file_options
         )
+        _src_cols = ["REC_TYPE", "SEQ_NUM", "SWD_CASE_FILE_REF_NUM", "ADDR_ROOM", "ADDR_BLK", "ADDR_EST", "DRP_PYMT_AMT", "PYMT_FROM_DATE", "PYMT_TO_DATE", "ASGN_STF", "CUST_CNT", "CUST_ROLE_1", "CUST_ID_TYPE_1", "CUST_ID_NUM_1", "CUST_ENG_NAME_1", "CUST_ROLE_2", "CUST_ID_TYPE_2", "CUST_ID_NUM_2", "CUST_ENG_NAME_2", "CUST_ROLE_3", "CUST_ID_TYPE_3", "CUST_ID_NUM_3", "CUST_ENG_NAME_3", "CUST_ROLE_4", "CUST_ID_TYPE_4", "CUST_ID_NUM_4", "CUST_ENG_NAME_4", "CUST_ROLE_5", "CUST_ID_TYPE_5", "CUST_ID_NUM_5", "CUST_ENG_NAME_5", "CUST_ROLE_6", "CUST_ID_TYPE_6", "CUST_ID_NUM_6", "CUST_ENG_NAME_6", "CUST_ROLE_7", "CUST_ID_TYPE_7", "CUST_ID_NUM_7", "CUST_ENG_NAME_7", "CUST_ROLE_8", "CUST_ID_TYPE_8", "CUST_ID_NUM_8", "CUST_ENG_NAME_8", "CUST_ROLE_9", "CUST_ID_TYPE_9", "CUST_ID_NUM_9", "CUST_ENG_NAME_9", "CUST_ROLE_10", "CUST_ID_TYPE_10", "CUST_ID_NUM_10", "CUST_ENG_NAME_10", "CUST_ROLE_11", "CUST_ID_TYPE_11", "CUST_ID_NUM_11", "CUST_ENG_NAME_11", "CUST_ROLE_12", "CUST_ID_TYPE_12", "CUST_ID_NUM_12", "CUST_ENG_NAME_12", "CUST_ROLE_13", "CUST_ID_TYPE_13", "CUST_ID_NUM_13", "CUST_ENG_NAME_13", "CUST_ROLE_14", "CUST_ID_TYPE_14", "CUST_ID_NUM_14", "CUST_ENG_NAME_14", "CUST_ROLE_15", "CUST_ID_TYPE_15", "CUST_ID_NUM_15", "CUST_ENG_NAME_15", "CUST_ROLE_16", "CUST_ID_TYPE_16", "CUST_ID_NUM_16", "CUST_ENG_NAME_16", "CUST_ROLE_17", "CUST_ID_TYPE_17", "CUST_ID_NUM_17", "CUST_ENG_NAME_17", "CUST_ROLE_18", "CUST_ID_TYPE_18", "CUST_ID_NUM_18", "CUST_ENG_NAME_18", "CUST_ROLE_19", "CUST_ID_TYPE_19", "CUST_ID_NUM_19", "CUST_ENG_NAME_19", "CUST_ROLE_20", "CUST_ID_TYPE_20", "CUST_ID_NUM_20", "CUST_ENG_NAME_20"]
         _csv_cols = df_FLAT_DRP_MP.columns
         if _csv_cols:
             # Rename CSV columns by position to match Informatica source definition field names
-            _src_cols = ["REC_TYPE", "SEQ_NUM", "SWD_CASE_FILE_REF_NUM", "ADDR_ROOM", "ADDR_BLK", "ADDR_EST", "DRP_PYMT_AMT", "PYMT_FROM_DATE", "PYMT_TO_DATE", "ASGN_STF", "CUST_CNT", "CUST_ROLE_1", "CUST_ID_TYPE_1", "CUST_ID_NUM_1", "CUST_ENG_NAME_1", "CUST_ROLE_2", "CUST_ID_TYPE_2", "CUST_ID_NUM_2", "CUST_ENG_NAME_2", "CUST_ROLE_3", "CUST_ID_TYPE_3", "CUST_ID_NUM_3", "CUST_ENG_NAME_3", "CUST_ROLE_4", "CUST_ID_TYPE_4", "CUST_ID_NUM_4", "CUST_ENG_NAME_4", "CUST_ROLE_5", "CUST_ID_TYPE_5", "CUST_ID_NUM_5", "CUST_ENG_NAME_5", "CUST_ROLE_6", "CUST_ID_TYPE_6", "CUST_ID_NUM_6", "CUST_ENG_NAME_6", "CUST_ROLE_7", "CUST_ID_TYPE_7", "CUST_ID_NUM_7", "CUST_ENG_NAME_7", "CUST_ROLE_8", "CUST_ID_TYPE_8", "CUST_ID_NUM_8", "CUST_ENG_NAME_8", "CUST_ROLE_9", "CUST_ID_TYPE_9", "CUST_ID_NUM_9", "CUST_ENG_NAME_9", "CUST_ROLE_10", "CUST_ID_TYPE_10", "CUST_ID_NUM_10", "CUST_ENG_NAME_10", "CUST_ROLE_11", "CUST_ID_TYPE_11", "CUST_ID_NUM_11", "CUST_ENG_NAME_11", "CUST_ROLE_12", "CUST_ID_TYPE_12", "CUST_ID_NUM_12", "CUST_ENG_NAME_12", "CUST_ROLE_13", "CUST_ID_TYPE_13", "CUST_ID_NUM_13", "CUST_ENG_NAME_13", "CUST_ROLE_14", "CUST_ID_TYPE_14", "CUST_ID_NUM_14", "CUST_ENG_NAME_14", "CUST_ROLE_15", "CUST_ID_TYPE_15", "CUST_ID_NUM_15", "CUST_ENG_NAME_15", "CUST_ROLE_16", "CUST_ID_TYPE_16", "CUST_ID_NUM_16", "CUST_ENG_NAME_16", "CUST_ROLE_17", "CUST_ID_TYPE_17", "CUST_ID_NUM_17", "CUST_ENG_NAME_17", "CUST_ROLE_18", "CUST_ID_TYPE_18", "CUST_ID_NUM_18", "CUST_ENG_NAME_18", "CUST_ROLE_19", "CUST_ID_TYPE_19", "CUST_ID_NUM_19", "CUST_ENG_NAME_19", "CUST_ROLE_20", "CUST_ID_TYPE_20", "CUST_ID_NUM_20", "CUST_ENG_NAME_20"]
             for _i in range(_builtin_min([len(_csv_cols), len(_src_cols)])):
                 if _csv_cols[_i].lower() != _src_cols[_i].lower():
                     df_FLAT_DRP_MP = df_FLAT_DRP_MP.withColumnRenamed(_csv_cols[_i], _src_cols[_i])
         else:
             logger.warning("Source file '%s' is empty or has no columns", _file_path)
-            df_FLAT_DRP_MP = spark.createDataFrame([], StructType([
-                StructField("REC_TYPE", StringType(), True)
-,                 StructField("SEQ_NUM", StringType(), True)
-,                 StructField("SWD_CASE_FILE_REF_NUM", StringType(), True)
-,                 StructField("ADDR_ROOM", StringType(), True)
-,                 StructField("ADDR_BLK", StringType(), True)
-,                 StructField("ADDR_EST", StringType(), True)
-,                 StructField("DRP_PYMT_AMT", StringType(), True)
-,                 StructField("PYMT_FROM_DATE", StringType(), True)
-,                 StructField("PYMT_TO_DATE", StringType(), True)
-,                 StructField("ASGN_STF", StringType(), True)
-,                 StructField("CUST_CNT", StringType(), True)
-,                 StructField("CUST_ROLE_1", StringType(), True)
-,                 StructField("CUST_ID_TYPE_1", StringType(), True)
-,                 StructField("CUST_ID_NUM_1", StringType(), True)
-,                 StructField("CUST_ENG_NAME_1", StringType(), True)
-,                 StructField("CUST_ROLE_2", StringType(), True)
-,                 StructField("CUST_ID_TYPE_2", StringType(), True)
-,                 StructField("CUST_ID_NUM_2", StringType(), True)
-,                 StructField("CUST_ENG_NAME_2", StringType(), True)
-,                 StructField("CUST_ROLE_3", StringType(), True)
-,                 StructField("CUST_ID_TYPE_3", StringType(), True)
-,                 StructField("CUST_ID_NUM_3", StringType(), True)
-,                 StructField("CUST_ENG_NAME_3", StringType(), True)
-,                 StructField("CUST_ROLE_4", StringType(), True)
-,                 StructField("CUST_ID_TYPE_4", StringType(), True)
-,                 StructField("CUST_ID_NUM_4", StringType(), True)
-,                 StructField("CUST_ENG_NAME_4", StringType(), True)
-,                 StructField("CUST_ROLE_5", StringType(), True)
-,                 StructField("CUST_ID_TYPE_5", StringType(), True)
-,                 StructField("CUST_ID_NUM_5", StringType(), True)
-,                 StructField("CUST_ENG_NAME_5", StringType(), True)
-,                 StructField("CUST_ROLE_6", StringType(), True)
-,                 StructField("CUST_ID_TYPE_6", StringType(), True)
-,                 StructField("CUST_ID_NUM_6", StringType(), True)
-,                 StructField("CUST_ENG_NAME_6", StringType(), True)
-,                 StructField("CUST_ROLE_7", StringType(), True)
-,                 StructField("CUST_ID_TYPE_7", StringType(), True)
-,                 StructField("CUST_ID_NUM_7", StringType(), True)
-,                 StructField("CUST_ENG_NAME_7", StringType(), True)
-,                 StructField("CUST_ROLE_8", StringType(), True)
-,                 StructField("CUST_ID_TYPE_8", StringType(), True)
-,                 StructField("CUST_ID_NUM_8", StringType(), True)
-,                 StructField("CUST_ENG_NAME_8", StringType(), True)
-,                 StructField("CUST_ROLE_9", StringType(), True)
-,                 StructField("CUST_ID_TYPE_9", StringType(), True)
-,                 StructField("CUST_ID_NUM_9", StringType(), True)
-,                 StructField("CUST_ENG_NAME_9", StringType(), True)
-,                 StructField("CUST_ROLE_10", StringType(), True)
-,                 StructField("CUST_ID_TYPE_10", StringType(), True)
-,                 StructField("CUST_ID_NUM_10", StringType(), True)
-,                 StructField("CUST_ENG_NAME_10", StringType(), True)
-,                 StructField("CUST_ROLE_11", StringType(), True)
-,                 StructField("CUST_ID_TYPE_11", StringType(), True)
-,                 StructField("CUST_ID_NUM_11", StringType(), True)
-,                 StructField("CUST_ENG_NAME_11", StringType(), True)
-,                 StructField("CUST_ROLE_12", StringType(), True)
-,                 StructField("CUST_ID_TYPE_12", StringType(), True)
-,                 StructField("CUST_ID_NUM_12", StringType(), True)
-,                 StructField("CUST_ENG_NAME_12", StringType(), True)
-,                 StructField("CUST_ROLE_13", StringType(), True)
-,                 StructField("CUST_ID_TYPE_13", StringType(), True)
-,                 StructField("CUST_ID_NUM_13", StringType(), True)
-,                 StructField("CUST_ENG_NAME_13", StringType(), True)
-,                 StructField("CUST_ROLE_14", StringType(), True)
-,                 StructField("CUST_ID_TYPE_14", StringType(), True)
-,                 StructField("CUST_ID_NUM_14", StringType(), True)
-,                 StructField("CUST_ENG_NAME_14", StringType(), True)
-,                 StructField("CUST_ROLE_15", StringType(), True)
-,                 StructField("CUST_ID_TYPE_15", StringType(), True)
-,                 StructField("CUST_ID_NUM_15", StringType(), True)
-,                 StructField("CUST_ENG_NAME_15", StringType(), True)
-,                 StructField("CUST_ROLE_16", StringType(), True)
-,                 StructField("CUST_ID_TYPE_16", StringType(), True)
-,                 StructField("CUST_ID_NUM_16", StringType(), True)
-,                 StructField("CUST_ENG_NAME_16", StringType(), True)
-,                 StructField("CUST_ROLE_17", StringType(), True)
-,                 StructField("CUST_ID_TYPE_17", StringType(), True)
-,                 StructField("CUST_ID_NUM_17", StringType(), True)
-,                 StructField("CUST_ENG_NAME_17", StringType(), True)
-,                 StructField("CUST_ROLE_18", StringType(), True)
-,                 StructField("CUST_ID_TYPE_18", StringType(), True)
-,                 StructField("CUST_ID_NUM_18", StringType(), True)
-,                 StructField("CUST_ENG_NAME_18", StringType(), True)
-,                 StructField("CUST_ROLE_19", StringType(), True)
-,                 StructField("CUST_ID_TYPE_19", StringType(), True)
-,                 StructField("CUST_ID_NUM_19", StringType(), True)
-,                 StructField("CUST_ENG_NAME_19", StringType(), True)
-,                 StructField("CUST_ROLE_20", StringType(), True)
-,                 StructField("CUST_ID_TYPE_20", StringType(), True)
-,                 StructField("CUST_ID_NUM_20", StringType(), True)
-,                 StructField("CUST_ENG_NAME_20", StringType(), True)
-            ]))
+            df_FLAT_DRP_MP = spark.createDataFrame([], StructType(
+                [StructField(f, StringType(), True) for f in _src_cols]
+            ))
         ctx.register_df("df_FLAT_DRP_MP", df_FLAT_DRP_MP)
         
         logger.info("Step: apply_SQ_FLAT_DRP_MP")
@@ -868,6 +777,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         _field_map = {"ADDR_BLK": "ADDR_BLK", "ADDR_EST": "ADDR_EST", "ADDR_ROOM": "ADDR_ROOM", "ASGN_STF": "ASGN_STF", "CUST_CNT": "CUST_CNT", "CUST_ENG_NAME_1": "CUST_ENG_NAME_1", "CUST_ENG_NAME_10": "CUST_ENG_NAME_10", "CUST_ENG_NAME_11": "CUST_ENG_NAME_11", "CUST_ENG_NAME_12": "CUST_ENG_NAME_12", "CUST_ENG_NAME_13": "CUST_ENG_NAME_13", "CUST_ENG_NAME_14": "CUST_ENG_NAME_14", "CUST_ENG_NAME_15": "CUST_ENG_NAME_15", "CUST_ENG_NAME_16": "CUST_ENG_NAME_16", "CUST_ENG_NAME_17": "CUST_ENG_NAME_17", "CUST_ENG_NAME_18": "CUST_ENG_NAME_18", "CUST_ENG_NAME_19": "CUST_ENG_NAME_19", "CUST_ENG_NAME_2": "CUST_ENG_NAME_2", "CUST_ENG_NAME_20": "CUST_ENG_NAME_20", "CUST_ENG_NAME_3": "CUST_ENG_NAME_3", "CUST_ENG_NAME_4": "CUST_ENG_NAME_4", "CUST_ENG_NAME_5": "CUST_ENG_NAME_5", "CUST_ENG_NAME_6": "CUST_ENG_NAME_6", "CUST_ENG_NAME_7": "CUST_ENG_NAME_7", "CUST_ENG_NAME_8": "CUST_ENG_NAME_8", "CUST_ENG_NAME_9": "CUST_ENG_NAME_9", "CUST_ID_NUM_1": "CUST_ID_NUM_1", "CUST_ID_NUM_10": "CUST_ID_NUM_10", "CUST_ID_NUM_11": "CUST_ID_NUM_11", "CUST_ID_NUM_12": "CUST_ID_NUM_12", "CUST_ID_NUM_13": "CUST_ID_NUM_13", "CUST_ID_NUM_14": "CUST_ID_NUM_14", "CUST_ID_NUM_15": "CUST_ID_NUM_15", "CUST_ID_NUM_16": "CUST_ID_NUM_16", "CUST_ID_NUM_17": "CUST_ID_NUM_17", "CUST_ID_NUM_18": "CUST_ID_NUM_18", "CUST_ID_NUM_19": "CUST_ID_NUM_19", "CUST_ID_NUM_2": "CUST_ID_NUM_2", "CUST_ID_NUM_20": "CUST_ID_NUM_20", "CUST_ID_NUM_3": "CUST_ID_NUM_3", "CUST_ID_NUM_4": "CUST_ID_NUM_4", "CUST_ID_NUM_5": "CUST_ID_NUM_5", "CUST_ID_NUM_6": "CUST_ID_NUM_6", "CUST_ID_NUM_7": "CUST_ID_NUM_7", "CUST_ID_NUM_8": "CUST_ID_NUM_8", "CUST_ID_NUM_9": "CUST_ID_NUM_9", "CUST_ID_TYPE_1": "CUST_ID_TYPE_1", "CUST_ID_TYPE_10": "CUST_ID_TYPE_10", "CUST_ID_TYPE_11": "CUST_ID_TYPE_11", "CUST_ID_TYPE_12": "CUST_ID_TYPE_12", "CUST_ID_TYPE_13": "CUST_ID_TYPE_13", "CUST_ID_TYPE_14": "CUST_ID_TYPE_14", "CUST_ID_TYPE_15": "CUST_ID_TYPE_15", "CUST_ID_TYPE_16": "CUST_ID_TYPE_16", "CUST_ID_TYPE_17": "CUST_ID_TYPE_17", "CUST_ID_TYPE_18": "CUST_ID_TYPE_18", "CUST_ID_TYPE_19": "CUST_ID_TYPE_19", "CUST_ID_TYPE_2": "CUST_ID_TYPE_2", "CUST_ID_TYPE_20": "CUST_ID_TYPE_20", "CUST_ID_TYPE_3": "CUST_ID_TYPE_3", "CUST_ID_TYPE_4": "CUST_ID_TYPE_4", "CUST_ID_TYPE_5": "CUST_ID_TYPE_5", "CUST_ID_TYPE_6": "CUST_ID_TYPE_6", "CUST_ID_TYPE_7": "CUST_ID_TYPE_7", "CUST_ID_TYPE_8": "CUST_ID_TYPE_8", "CUST_ID_TYPE_9": "CUST_ID_TYPE_9", "CUST_ROLE_1": "CUST_ROLE_1", "CUST_ROLE_10": "CUST_ROLE_10", "CUST_ROLE_11": "CUST_ROLE_11", "CUST_ROLE_12": "CUST_ROLE_12", "CUST_ROLE_13": "CUST_ROLE_13", "CUST_ROLE_14": "CUST_ROLE_14", "CUST_ROLE_15": "CUST_ROLE_15", "CUST_ROLE_16": "CUST_ROLE_16", "CUST_ROLE_17": "CUST_ROLE_17", "CUST_ROLE_18": "CUST_ROLE_18", "CUST_ROLE_19": "CUST_ROLE_19", "CUST_ROLE_2": "CUST_ROLE_2", "CUST_ROLE_20": "CUST_ROLE_20", "CUST_ROLE_3": "CUST_ROLE_3", "CUST_ROLE_4": "CUST_ROLE_4", "CUST_ROLE_5": "CUST_ROLE_5", "CUST_ROLE_6": "CUST_ROLE_6", "CUST_ROLE_7": "CUST_ROLE_7", "CUST_ROLE_8": "CUST_ROLE_8", "CUST_ROLE_9": "CUST_ROLE_9", "DRP_PYMT_AMT": "DRP_PYMT_AMT", "FILE_MTH": "FILE_MTH", "PYMT_FROM_DATE": "PYMT_FROM_DATE", "PYMT_TO_DATE": "PYMT_TO_DATE", "REC_TYPE": "REC_TYPE", "SEQ_NUM": "SEQ_NUM", "SWD_CASE_FILE_REF_NUM": "SWD_CASE_FILE_REF_NUM", "VALUE_DATE": "VALUE_DATE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['FILE_MTH', 'VALUE_DATE', 'REC_TYPE', 'SEQ_NUM', 'SWD_CASE_FILE_REF_NUM', 'ADDR_ROOM', 'ADDR_BLK', 'ADDR_EST', 'DRP_PYMT_AMT', 'PYMT_FROM_DATE', 'PYMT_TO_DATE', 'ASGN_STF', 'CUST_CNT', 'CUST_ROLE_1', 'CUST_ID_TYPE_1', 'CUST_ID_NUM_1', 'CUST_ENG_NAME_1', 'CUST_ROLE_2', 'CUST_ID_TYPE_2', 'CUST_ID_NUM_2', 'CUST_ENG_NAME_2', 'CUST_ROLE_3', 'CUST_ID_TYPE_3', 'CUST_ID_NUM_3', 'CUST_ENG_NAME_3', 'CUST_ROLE_4', 'CUST_ID_TYPE_4', 'CUST_ID_NUM_4', 'CUST_ENG_NAME_4', 'CUST_ROLE_5', 'CUST_ID_TYPE_5', 'CUST_ID_NUM_5', 'CUST_ENG_NAME_5', 'CUST_ROLE_6', 'CUST_ID_TYPE_6', 'CUST_ID_NUM_6', 'CUST_ENG_NAME_6', 'CUST_ROLE_7', 'CUST_ID_TYPE_7', 'CUST_ID_NUM_7', 'CUST_ENG_NAME_7', 'CUST_ROLE_8', 'CUST_ID_TYPE_8', 'CUST_ID_NUM_8', 'CUST_ENG_NAME_8', 'CUST_ROLE_9', 'CUST_ID_TYPE_9', 'CUST_ID_NUM_9', 'CUST_ENG_NAME_9', 'CUST_ROLE_10', 'CUST_ID_TYPE_10', 'CUST_ID_NUM_10', 'CUST_ENG_NAME_10', 'CUST_ROLE_11', 'CUST_ID_TYPE_11', 'CUST_ID_NUM_11', 'CUST_ENG_NAME_11', 'CUST_ROLE_12', 'CUST_ID_TYPE_12', 'CUST_ID_NUM_12', 'CUST_ENG_NAME_12', 'CUST_ROLE_13', 'CUST_ID_TYPE_13', 'CUST_ID_NUM_13', 'CUST_ENG_NAME_13', 'CUST_ROLE_14', 'CUST_ID_TYPE_14', 'CUST_ID_NUM_14', 'CUST_ENG_NAME_14', 'CUST_ROLE_15', 'CUST_ID_TYPE_15', 'CUST_ID_NUM_15', 'CUST_ENG_NAME_15', 'CUST_ROLE_16', 'CUST_ID_TYPE_16', 'CUST_ID_NUM_16', 'CUST_ENG_NAME_16', 'CUST_ROLE_17', 'CUST_ID_TYPE_17', 'CUST_ID_NUM_17', 'CUST_ENG_NAME_17', 'CUST_ROLE_18', 'CUST_ID_TYPE_18', 'CUST_ID_NUM_18', 'CUST_ENG_NAME_18', 'CUST_ROLE_19', 'CUST_ID_TYPE_19', 'CUST_ID_NUM_19', 'CUST_ENG_NAME_19', 'CUST_ROLE_20', 'CUST_ID_TYPE_20', 'CUST_ID_NUM_20', 'CUST_ENG_NAME_20']
