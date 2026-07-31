@@ -379,10 +379,18 @@ def main():
         success = run_mapping(ctx, metrics)
         if success:
             lib._flush_pending_passwords()
-        return 0 if success else 1
+        if not success:
+            # Exit the JVM non-zero so YARN marks the application FAILED.
+            # In client mode the AM lives in this JVM: a normal spark.stop() +
+            # python exit code still reports SUCCEEDED (AM exits cleanly).
+            spark.sparkContext._jvm.System.exit(1)
+        return 0
     finally:
         spark.stop()
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the mapping failed.
+    import sys as _sys
+    _sys.exit(main())

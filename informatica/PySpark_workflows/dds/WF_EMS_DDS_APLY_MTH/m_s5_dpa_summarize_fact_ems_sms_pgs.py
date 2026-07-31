@@ -82,11 +82,30 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_SQ_DPA_FACT_EMS_SMS_PGS11 = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_SQ_DPA_FACT_EMS_SMS_PGS11.columns
         _port_cols = ["TIME_DMNS_KEY", "CNT", "LAST_REC_TXN_DATE"]
-        # Rename by position: actual → target port names in one atomic select.
-        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
         df_SQ_DPA_FACT_EMS_SMS_PGS11 = df_SQ_DPA_FACT_EMS_SMS_PGS11.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
@@ -105,11 +124,30 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_SQ_DPA_FACT_EMS_SMS_PGS1 = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_SQ_DPA_FACT_EMS_SMS_PGS1.columns
         _port_cols = ["TIME_DMNS_KEY", "CNT", "LAST_REC_TXN_DATE"]
-        # Rename by position: actual → target port names in one atomic select.
-        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
         df_SQ_DPA_FACT_EMS_SMS_PGS1 = df_SQ_DPA_FACT_EMS_SMS_PGS1.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
@@ -131,11 +169,30 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_No_of_Application_Created_LN = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_No_of_Application_Created_LN.columns
         _port_cols = ["SCHM_CODE", "LN_APLY_DATE"]
-        # Rename by position: actual → target port names in one atomic select.
-        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
         df_No_of_Application_Created_LN = df_No_of_Application_Created_LN.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
@@ -157,11 +214,30 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN cert_sts.BGN_DATE AND cert_sts.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_No_of_Certificates_Issued_CEP = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_No_of_Certificates_Issued_CEP.columns
         _port_cols = ["CEP_CERT_ISS_DATE"]
-        # Rename by position: actual → target port names in one atomic select.
-        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
         df_No_of_Certificates_Issued_CEP = df_No_of_Certificates_Issued_CEP.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
@@ -183,11 +259,30 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN cert_sts.BGN_DATE AND cert_sts.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_No_of_Certificates_Issued_CAS = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_No_of_Certificates_Issued_CAS.columns
         _port_cols = ["SCHM_CODE", "CAS_ISS_DATE"]
-        # Rename by position: actual → target port names in one atomic select.
-        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
         df_No_of_Certificates_Issued_CAS = df_No_of_Certificates_Issued_CAS.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
@@ -210,11 +305,30 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ln_sts.BGN_DATE AND ln_sts.END_
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_No_of_Transaction_Recorded = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_No_of_Transaction_Recorded.columns
         _port_cols = ["SCHM_CODE", "LN_ISS_DATE"]
-        # Rename by position: actual → target port names in one atomic select.
-        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
         df_No_of_Transaction_Recorded = df_No_of_Transaction_Recorded.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
@@ -236,11 +350,30 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_No_of_Application_Created_CEP = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_No_of_Application_Created_CEP.columns
         _port_cols = ["CEP_APLY_DATE"]
-        # Rename by position: actual → target port names in one atomic select.
-        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
         df_No_of_Application_Created_CEP = df_No_of_Application_Created_CEP.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
@@ -262,11 +395,30 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_No_of_Application_Created_CAS = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_No_of_Application_Created_CAS.columns
         _port_cols = ["SCHM_CODE", "CAS_APLY_DATE"]
-        # Rename by position: actual → target port names in one atomic select.
-        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
         df_No_of_Application_Created_CAS = df_No_of_Application_Created_CAS.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
@@ -285,11 +437,30 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_SQ_DPA_FACT_EMS_SMS_PGS = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_SQ_DPA_FACT_EMS_SMS_PGS.columns
         _port_cols = ["TIME_DMNS_KEY", "CNT", "LAST_REC_TXN_DATE"]
-        # Rename by position: actual → target port names in one atomic select.
-        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
         df_SQ_DPA_FACT_EMS_SMS_PGS = df_SQ_DPA_FACT_EMS_SMS_PGS.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
@@ -1014,10 +1185,18 @@ def main():
         success = run_mapping(ctx, metrics)
         if success:
             lib._flush_pending_passwords()
-        return 0 if success else 1
+        if not success:
+            # Exit the JVM non-zero so YARN marks the application FAILED.
+            # In client mode the AM lives in this JVM: a normal spark.stop() +
+            # python exit code still reports SUCCEEDED (AM exits cleanly).
+            spark.sparkContext._jvm.System.exit(1)
+        return 0
     finally:
         spark.stop()
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the mapping failed.
+    import sys as _sys
+    _sys.exit(main())

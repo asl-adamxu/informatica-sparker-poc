@@ -17,6 +17,10 @@ _builtin_min = min
 
 # Bootstrap CDP pyspark from env/config.yml (spark.home) before any pyspark import.
 # Lets `python3.11 m_xxx.py` run directly without setting PYTHONPATH/SPARK_HOME.
+# NOTE: must also inject the matching py4j zip (SPARK_HOME/python/lib/py4j-*.zip)
+# — otherwise `import py4j` falls back to an older system py4j, whose gateway
+# protocol is incompatible with pyspark 3.5.4 (executor heartbeat fails with
+# RpcEndpointNotFoundException). Requires python 3.8+ (python3.6 unsupported).
 try:
     with open('env/config.yml', 'r') as _bf:
         _b_cfg = yaml.safe_load(_bf) or {}
@@ -26,6 +30,13 @@ try:
         _py_dir = os.path.join(_spark_home, 'python')
         if os.path.isdir(_py_dir) and _py_dir not in sys.path:
             sys.path.insert(0, _py_dir)
+        _lib_dir = os.path.join(_py_dir, 'lib')
+        if os.path.isdir(_lib_dir):
+            for _entry in sorted(os.listdir(_lib_dir)):
+                if _entry.startswith('py4j-') and _entry.endswith('.zip'):
+                    _p4 = os.path.join(_lib_dir, _entry)
+                    if _p4 not in sys.path:
+                        sys.path.insert(0, _p4)
 except Exception:
     pass  # best-effort: fall back to system pyspark
 
@@ -607,8 +618,10 @@ def get_spark_session(app_name: str, config: Dict[str, Any] = None) -> SparkSess
     This mirrors how @task.pyspark(conn_id="spark3_on_yarn") works in Airflow DAGs.
     """
     spark_cfg = (config or {}).get("spark", {})
-    # Allow SPARK_CONNECTION env var to override config value
-    conn_name = os.environ.get("SPARK_CONNECTION") or spark_cfg.get("connection", "spark_local")
+    # Allow SPARK_CONNECTION env var to override config value. Resolve ${VAR:default}
+    # syntax (yaml keeps it as a literal string) before comparing profile names.
+    conn_name = os.environ.get("SPARK_CONNECTION") or _resolve_path(
+        str(spark_cfg.get("connection", "spark_local")))
 
     # Look up the connection profile under spark_connections
     profiles = (config or {}).get("spark_connections", {})
@@ -637,8 +650,8 @@ def get_spark_session(app_name: str, config: Dict[str, Any] = None) -> SparkSess
 
     builder = SparkSession.builder.appName(app_name)
 
-    # 1. Set master from profile (or fallback to spark.master)
-    master_url = profile.get("master") or spark_cfg.get("master")
+    # 1. Set master from profile (or fallback to spark.master) — resolve ${VAR:default}
+    master_url = profile.get("master") or _resolve_path(str(spark_cfg.get("master", "")))
     if master_url:
         builder = builder.master(str(master_url))
 
@@ -655,7 +668,25 @@ def get_spark_session(app_name: str, config: Dict[str, Any] = None) -> SparkSess
     for key, value in spark_cfg.get("config", {}).items():
         builder = builder.config(key, str(value))
 
+    # 5. Spark log level — spark.log.level is read at SparkContext construction
+    #    (before setLogLevel below), suppressing init-time WARN noise.
+    try:
+        _sll = _resolve_path(str(spark_cfg.get("log_level", "ERROR"))).upper()
+        if _sll in ("ALL", "DEBUG", "INFO", "WARN", "ERROR", "FATAL", "OFF"):
+            builder = builder.config("spark.log.level", _sll)
+    except Exception:
+        pass
+
     spark = builder.getOrCreate()
+
+    # Apply Spark log level from config (spark.log_level, e.g. ERROR) to suppress
+    # the default WARN noise and Java log4j chatter.
+    try:
+        _sll = _resolve_path(str(spark_cfg.get("log_level", "ERROR"))).upper()
+        if _sll in ("ALL", "DEBUG", "INFO", "WARN", "ERROR", "FATAL", "OFF"):
+            spark.sparkContext.setLogLevel(_sll)
+    except Exception:
+        pass  # best-effort
 
     all_cfg = {}
     all_cfg.update(profile.get("config", {}))

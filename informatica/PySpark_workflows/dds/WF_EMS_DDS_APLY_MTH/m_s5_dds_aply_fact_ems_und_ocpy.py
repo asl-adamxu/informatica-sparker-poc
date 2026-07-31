@@ -95,11 +95,30 @@ FROM
         query = query.replace("$$v_REC_RLS_IND", v_REC_RLS_IND)
         query = query.replace("$$v_snsh_date", v_snsh_date)
         df_SQ_DDS_FACT_EMS_UND_OCPY = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_SQ_DDS_FACT_EMS_UND_OCPY.columns
         _port_cols = ["CODE_ADDR", "IFA_AREA", "FMLY_SIZE_NUM", "DSBL_CATG_CODE", "TNCY_AGRMT_CMNC_DATE", "TNCY_AGRMT_TRMT_DATE", "ELDR_IND", "FLAT_TYPE_DMNS_KEY", "EST_DMNS_KEY", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "REC_RLS_IND", "TIME_DMNS_KEY"]
-        # Rename by position: actual → target port names in one atomic select.
-        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
         df_SQ_DDS_FACT_EMS_UND_OCPY = df_SQ_DDS_FACT_EMS_UND_OCPY.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
@@ -125,7 +144,7 @@ FROM
         # Expression: apply_EXPTRANS1
         df_EXPTRANS1 = df_SQ_DDS_FACT_EMS_UND_OCPY
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("DSBL_CODE", expr("DSBL_CATG_CODE"))
-        _expr = """date_add(to_date(''$$v_snsh_date'','yyyymmdd'), CAST(-1 AS INT))"""
+        _expr = """date_add(to_date('$$v_snsh_date','yyyymmdd'), CAST(-1 AS INT))"""
         _expr = _expr.replace("$$v_REC_RLS_IND", str(v_REC_RLS_IND))
         _expr = _expr.replace("$$v_snsh_date", str(v_snsh_date))
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("TNCY_AGRMT_TRMT_DATE", expr(_expr))
@@ -180,6 +199,14 @@ FROM
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_DDS_FACT_EMS_UND_OCPY[c] for c in df_LKP_DDS_FACT_EMS_UND_OCPY.columns if c not in _lkp_input.columns]
         )
+        # Dynamic lookup NewLookupRow: 1 = no match (left join miss), 0 = match.
+        # Judge via a lookup column that survived the merge select (not shadowed
+        # by a same-named main column) — a NULL there means the lookup missed.
+        _nlr_lkp_cols = [c for c in df_LKP_DDS_FACT_EMS_UND_OCPY.columns if c not in _lkp_input.columns]
+        if _nlr_lkp_cols:
+            df_lkp_merge_1 = df_lkp_merge_1.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 1 ELSE 0 END"))
+        else:
+            df_lkp_merge_1 = df_lkp_merge_1.withColumn("NewLookupRow", lit(0))
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: read_LKP_DPA_FACT_EMS_UND_OCPY")
         # Reading Data From Source - read_LKP_DPA_FACT_EMS_UND_OCPY
@@ -420,10 +447,18 @@ def main():
         success = run_mapping(ctx, metrics)
         if success:
             lib._flush_pending_passwords()
-        return 0 if success else 1
+        if not success:
+            # Exit the JVM non-zero so YARN marks the application FAILED.
+            # In client mode the AM lives in this JVM: a normal spark.stop() +
+            # python exit code still reports SUCCEEDED (AM exits cleanly).
+            spark.sparkContext._jvm.System.exit(1)
+        return 0
     finally:
         spark.stop()
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the mapping failed.
+    import sys as _sys
+    _sys.exit(main())

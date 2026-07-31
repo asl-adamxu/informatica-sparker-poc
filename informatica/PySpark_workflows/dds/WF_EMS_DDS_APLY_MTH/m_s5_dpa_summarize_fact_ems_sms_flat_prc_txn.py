@@ -93,11 +93,30 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.columns
         _port_cols = ["SCHM_CODE", "PCHS_PRC_AMT"]
-        # Rename by position: actual → target port names in one atomic select.
-        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
         df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
@@ -127,11 +146,30 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS.columns
         _port_cols = ["SCHM_CODE", "PCHS_PRC_AMT"]
-        # Rename by position: actual → target port names in one atomic select.
-        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
         df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS = df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
@@ -169,7 +207,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
         df_rtr_group_1100001_to_1300000_7 = df_rtr_group_1100001_to_1300000_7.drop("PCHS_PRC_AMT8").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT8")
         df_rtr_group_1100001_to_1300000_7 = df_rtr_group_1100001_to_1300000_7.drop("SCHM_CODE8").withColumnRenamed("SCHM_CODE", "SCHM_CODE8")
         ctx.register_df("df_rtr_group_1100001_to_1300000_7", df_rtr_group_1100001_to_1300000_7)
-        df_rtr_group_1300001_to_1500000_8 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.filter(expr("PCHS_PRC_AMT>= 1300001 and PCHS_PRC_AMT<=1500000"))
+        df_rtr_group_1300001_to_1500000_8 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.filter(expr("PCHS_PRC_AMT>= 1300001and PCHS_PRC_AMT<=1500000"))
         df_rtr_group_1300001_to_1500000_8 = df_rtr_group_1300001_to_1500000_8.drop("PCHS_PRC_AMT10").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT10")
         df_rtr_group_1300001_to_1500000_8 = df_rtr_group_1300001_to_1500000_8.drop("SCHM_CODE10").withColumnRenamed("SCHM_CODE", "SCHM_CODE10")
         ctx.register_df("df_rtr_group_1300001_to_1500000_8", df_rtr_group_1300001_to_1500000_8)
@@ -177,7 +215,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
         df_rtr_group_over_1500000_9 = df_rtr_group_over_1500000_9.drop("PCHS_PRC_AMT9").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT9")
         df_rtr_group_over_1500000_9 = df_rtr_group_over_1500000_9.drop("SCHM_CODE9").withColumnRenamed("SCHM_CODE", "SCHM_CODE9")
         ctx.register_df("df_rtr_group_over_1500000_9", df_rtr_group_over_1500000_9)
-        df_rtr_default_10 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.filter(~(expr("PCHS_PRC_AMT<100000")) & ~(expr("PCHS_PRC_AMT>=100000 AND PCHS_PRC_AMT<=300000")) & ~(expr("PCHS_PRC_AMT>=300001 AND PCHS_PRC_AMT<=500000")) & ~(expr("PCHS_PRC_AMT>=500001 AND PCHS_PRC_AMT<=700000")) & ~(expr("PCHS_PRC_AMT>=700001 AND PCHS_PRC_AMT<=900000")) & ~(expr("PCHS_PRC_AMT>=900001 AND PCHS_PRC_AMT<=1100000")) & ~(expr("PCHS_PRC_AMT>=1100001 AND PCHS_PRC_AMT<=1300000")) & ~(expr("PCHS_PRC_AMT>= 1300001 and PCHS_PRC_AMT<=1500000")) & ~(expr("PCHS_PRC_AMT>1500000")))
+        df_rtr_default_10 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.filter(~(expr("PCHS_PRC_AMT<100000")) & ~(expr("PCHS_PRC_AMT>=100000 AND PCHS_PRC_AMT<=300000")) & ~(expr("PCHS_PRC_AMT>=300001 AND PCHS_PRC_AMT<=500000")) & ~(expr("PCHS_PRC_AMT>=500001 AND PCHS_PRC_AMT<=700000")) & ~(expr("PCHS_PRC_AMT>=700001 AND PCHS_PRC_AMT<=900000")) & ~(expr("PCHS_PRC_AMT>=900001 AND PCHS_PRC_AMT<=1100000")) & ~(expr("PCHS_PRC_AMT>=1100001 AND PCHS_PRC_AMT<=1300000")) & ~(expr("PCHS_PRC_AMT>= 1300001and PCHS_PRC_AMT<=1500000")) & ~(expr("PCHS_PRC_AMT>1500000")))
         df_rtr_default_10 = df_rtr_default_10.drop("PCHS_PRC_AMT1").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT1")
         df_rtr_default_10 = df_rtr_default_10.drop("SCHM_CODE1").withColumnRenamed("SCHM_CODE", "SCHM_CODE1")
         ctx.register_df("df_rtr_default_10", df_rtr_default_10)
@@ -703,10 +741,18 @@ def main():
         success = run_mapping(ctx, metrics)
         if success:
             lib._flush_pending_passwords()
-        return 0 if success else 1
+        if not success:
+            # Exit the JVM non-zero so YARN marks the application FAILED.
+            # In client mode the AM lives in this JVM: a normal spark.stop() +
+            # python exit code still reports SUCCEEDED (AM exits cleanly).
+            spark.sparkContext._jvm.System.exit(1)
+        return 0
     finally:
         spark.stop()
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the mapping failed.
+    import sys as _sys
+    _sys.exit(main())

@@ -52,4 +52,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the workflow failed.
+    import sys as _sys
+    _sys.exit(main())

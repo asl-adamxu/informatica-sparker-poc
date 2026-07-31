@@ -23,6 +23,9 @@ spark:
   home: "/opt/cloudera/parcels/SPARK3-3.5.4.3.5.7191000.0-30-1.p0.68499982/lib/spark3"
   connection: ${SPARK_CONNECTION:spark3_client}
   master: ${SPARK_MASTER:yarn}
+  # Spark log level (ALL, DEBUG, INFO, WARN, ERROR, FATAL, OFF) — applied via
+  # spark.sparkContext.setLogLevel() at session creation to suppress noise.
+  log_level: ${SPARK_LOG_LEVEL:ERROR}
   # Common spark config shared across all profiles (profile-specific overrides below)
   config:
     spark.ui.port: "4040"

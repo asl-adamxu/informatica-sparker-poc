@@ -102,11 +102,30 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.bgn_date AND aply_sts.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_SQ_SOR_EMS_HSM_EST = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_EMS_HSM_EST.columns
         _port_cols = ["EST_TYPE_CODE", "EST_CODE", "UNIT_CODE_ADDR", "UNIT_TYPE_CODE", "UNIT_IFA_AREA", "CUST_FMLY_SIZE_NUM", "CUST_AEM_IND", "TNCY_AGRMT_CMNC_DATE", "TNCY_AGRMT_TRMT_DATE", "CUST_KEY"]
-        # Rename by position: actual → target port names in one atomic select.
-        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
         df_SQ_SOR_EMS_HSM_EST = df_SQ_SOR_EMS_HSM_EST.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
@@ -282,7 +301,7 @@ where a.cust_key = b.cust_key and a.hse_srvc_aply_key = b.hse_srvc_aply_key"""
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
         df_EXPTRANS1 = df_lkp_merge_2
-        _expr = """to_date(''$$v_snsh_date'','yyyymmdd')"""
+        _expr = """to_date('$$v_snsh_date','yyyymmdd')"""
         _expr = _expr.replace("$$v_snsh_date", str(v_snsh_date))
         _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("TNCY_AGRMT_CMNC_DATE", expr(_expr))
@@ -391,10 +410,18 @@ def main():
         success = run_mapping(ctx, metrics)
         if success:
             lib._flush_pending_passwords()
-        return 0 if success else 1
+        if not success:
+            # Exit the JVM non-zero so YARN marks the application FAILED.
+            # In client mode the AM lives in this JVM: a normal spark.stop() +
+            # python exit code still reports SUCCEEDED (AM exits cleanly).
+            spark.sparkContext._jvm.System.exit(1)
+        return 0
     finally:
         spark.stop()
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the mapping failed.
+    import sys as _sys
+    _sys.exit(main())

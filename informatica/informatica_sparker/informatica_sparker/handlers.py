@@ -236,10 +236,9 @@ class TransformHandlers:
         variable name's case for .replace(). This function case-insensitively normalizes
         all $$ references to the declared case so .replace() always matches.
 
-        Also wraps unquoted $$ variable references inside TO_DATE() with single quotes
-        (e.g. TO_DATE($$v_rpt_mth, 'YYYYMM') → TO_DATE('$$v_rpt_mth', 'YYYYMM')).
-        Bare $$ variables become bare numeric values after .replace(), causing
-        ORA-00936 in Oracle. Adding quotes ensures the value is treated as a string.
+        NOTE: does NOT add TO_DATE quotes — use _normalize_sql_text for SQL texts.
+        Expression texts go through expr_translator._replace_pm_variables which
+        already wraps $$ variables in quotes; adding quotes here would double them.
         """
         if not text or not plan or not plan.mapping_variables:
             return text
@@ -247,6 +246,24 @@ class TransformHandlers:
             if not isinstance(var_name, str) or not var_name.startswith('$$'):
                 continue
             text = re.sub(re.escape(var_name), var_name, text, flags=re.IGNORECASE)
+        return text
+
+    @staticmethod
+    def _normalize_sql_text(text: str, plan: IRPlan) -> str:
+        """Normalize $$ variables in SQL pushdown / filter texts and quote TO_DATE args.
+
+        Same case normalization as _normalize_var_case, plus wraps unquoted $$ variables
+        inside TO_DATE() with single quotes (TO_DATE($$v_rpt_mth, 'YYYYMM') →
+        TO_DATE('$$v_rpt_mth', 'YYYYMM')). Bare $$ variables become bare numeric values
+        after template .replace(), causing ORA-00936 in Oracle.
+
+        Use ONLY for texts that keep $$ markers until template .replace() — SQL
+        pushdown queries, lookup SQL, and filter conditions (translate_for_filter
+        strips $$ before translation). Expression texts must use _normalize_var_case.
+        """
+        text = TransformHandlers._normalize_var_case(text, plan)
+        if not text:
+            return text
         # Wrap unquoted $$ variables inside TO_DATE() with quotes
         if 'TO_DATE' in text.upper():
             text = re.sub(
@@ -865,7 +882,7 @@ class TransformHandlers:
                 distinct=False
             )
             step.params["use_sql_override"] = True
-            step.params["sql_query"] = self._normalize_var_case(final_sql, plan)
+            step.params["sql_query"] = self._normalize_sql_text(final_sql, plan)
             step.params["filter_condition"] = ""
             step.params["distinct"] = False
             step.params["db_type"] = source_db_type
@@ -885,7 +902,7 @@ class TransformHandlers:
             step.params["sql_query"] = ""
             step.params["filter_condition"] = translated_filter
             if filter_inner:
-                step.params["filter_inner"] = self._normalize_var_case(filter_inner, plan)
+                step.params["filter_inner"] = self._normalize_sql_text(filter_inner, plan)
             step.params["distinct"] = distinct
             step.params["db_type"] = source_db_type
 
@@ -1016,7 +1033,7 @@ class TransformHandlers:
             original_condition=original_condition
         )
         if filter_inner and '$$' in filter_inner and plan and plan.mapping_variables:
-            step.params["filter_inner"] = self._normalize_var_case(filter_inner, plan)
+            step.params["filter_inner"] = self._normalize_sql_text(filter_inner, plan)
         # Collect connector field renames: upstream column → Filter input port name
         # (e.g. CUST_TNT_CODE_OUT → CUST_TNT_CODE) so the filter's condition
         # references the correct columns.
@@ -1339,7 +1356,7 @@ class TransformHandlers:
         lookup_df = self._get_df_name("df_lkp", instance)
 
         lookup_sql = transform.table_attributes.get("Lookup Sql Override", "")
-        lookup_sql = self._normalize_var_case(lookup_sql, plan)
+        lookup_sql = self._normalize_sql_text(lookup_sql, plan)
         lookup_table = transform.table_attributes.get("Lookup table name", "")
 
         lookup_conn = self._find_lookup_connection(lookup_table or instance.name)
@@ -1533,6 +1550,15 @@ class TransformHandlers:
             ))
             if _lkp_field_remap:
                 steps[-1].params["lkp_field_remap"] = _lkp_field_remap
+            # Dynamic Lookup: NewLookupRow output port (1 = no match, 0 = match).
+            # Generate the column from the left join — a NULL join key means no match.
+            if transform and join_predicates:
+                for _f in transform.fields:
+                    if _f.name.upper() == 'NEWLOOKUPROW' and 'DYNLOOKUP' in (_f.port_type or '').upper():
+                        _nlr_key = join_predicates[0].get("lookup_col", "") if isinstance(join_predicates[0], dict) else getattr(join_predicates[0], "lookup_col", "")
+                        if _nlr_key:
+                            steps[-1].params["new_lookup_row_key"] = _nlr_key
+                        break
             # Handle "Lookup policy on multiple match" — dedup the lookup
             # DataFrame by join keys when there could be multiple matches.
             # Options: Use First Value, Use Last Value, Use Any Value, Report Error.
@@ -2261,7 +2287,7 @@ class TransformHandlers:
                 "renames": group_renames.get(group_name, [])
             }
             if _filter_inner:
-                _grp["filter_inner"] = self._normalize_var_case(_filter_inner, plan)
+                _grp["filter_inner"] = self._normalize_sql_text(_filter_inner, plan)
             groups.append(_grp)
 
         if groups:
@@ -3055,7 +3081,7 @@ class TransformHandlers:
                     continue
 
                 lookup_sql = lookup_transform.table_attributes.get("Lookup Sql Override", "")
-                lookup_sql = self._normalize_var_case(lookup_sql, plan)
+                lookup_sql = self._normalize_sql_text(lookup_sql, plan)
                 lookup_table = lookup_transform.table_attributes.get("Lookup table name", "")
                 lookup_cond = lookup_transform.table_attributes.get("Lookup condition", "")
 

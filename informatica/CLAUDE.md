@@ -347,10 +347,27 @@ use default python to run pyspark workflow or mapping
 - **Problem**: SQL queries in XML may reference `$$` mapping variables in any case (e.g. `$$V_SNSH_DATE` vs `$$v_snsh_date`), but the code generator uses the declared variable name's case for `.replace()` in the generated Python. Case-sensitive `.replace()` misses the mismatch, leaving raw `$$V_SNSH_DATE` in SQL → `ORA-00911: invalid character`.
 - **Fix** (`handlers.py`): Added `_normalize_var_case(text, plan)` static method that case-insensitively normalizes all `$$` variable references in SQL/filter/expression texts to match the declared variable name's case before storing them in step params. Applied at every `$$`-containing text storage point: `sql_query`, `filter_inner` (3 places), `lookup_sql` (2 places), `expr_text`, and aggregator expressions.
 
-### TO_DATE `$$` Variable Quote Wrapping (v2026.07.30)
+### TO_DATE `$$` Variable Quote Wrapping (v2026.07.30, refined 2026.07.31)
 - **Problem**: Some XML SQL texts have `TO_DATE($$v_rpt_mth, 'YYYYMM')` without quotes around the `$$` variable. After `.replace("$$v_rpt_mth", v_rpt_mth)`, the bare numeric value `TO_DATE(202606, 'YYYYMM')` causes `ORA-00936` because Oracle's `TO_DATE` expects a string first argument.
-- **Fix** (`handlers.py`): Integrated into `_normalize_var_case` — regex `re.sub(r'(TO_DATE\s*\(\s*)\$\$(\w+)(\s*,)', ...)` wraps unquoted `$$` variables inside `TO_DATE()` with single quotes: `TO_DATE($$v_rpt_mth, 'YYYYMM')` → `TO_DATE('$$v_rpt_mth', 'YYYYMM')`.
-- **Scope**: Applied via the same `_normalize_var_case()` call at all SQL/filter storage points — no separate template changes needed.
+- **Fix** (`handlers.py`): Two separate normalization methods to avoid double-quoting:
+  - **`_normalize_var_case(text, plan)`** — case normalization ONLY. Use for **expression texts** (computed columns, aggregators): `expr_translator._replace_pm_variables` already wraps `$$` variables in quotes (empty-value else branch adds `'$$var'`), so adding TO_DATE quotes here would produce `''20260615''` → `[PARSE_SYNTAX_ERROR]`.
+  - **`_normalize_sql_text(text, plan)`** — case normalization + TO_DATE quote wrapping. Use for texts that keep `$$` markers until template `.replace()`: SQL pushdown `sql_query`, lookup SQL, and filter conditions (where `translate_for_filter` strips `$$` before translation, so `_replace_pm_variables` never sees them).
+- **Call sites**: `sql_query`, `filter_inner` (SQ + Apply Filter + Router), `lookup_sql` (2 places) → `_normalize_sql_text`; expression `expr_text` → `_normalize_var_case`.
+- **Failure mode if wrong**: expression texts with TO_DATE quote wrapping produce `to_date(''20260615'','yyyymmdd')` → Spark `[PARSE_SYNTAX_ERROR] Syntax error at or near '20260615'`.
+
+### Dynamic Lookup NewLookupRow (v2026.07.31)
+- **Problem**: Dynamic Lookup transforms expose a `NewLookupRow` output port (1 = no match, 0 = match), referenced by downstream filters (e.g. `NewLookupRow > 0` keeps only unmatched rows). The generated merge DataFrame had no such column → `[UNRESOLVED_COLUMN] A column ... with name \`NewLookupRow\` cannot be resolved`.
+- **Fix** (`handlers.py` + `mapping.py.j2`): Handler detects `NewLookupRow` with `DYNLOOKUP` port type on the lookup transform and sets `new_lookup_row_key` param. Template generates the column after the merge select: `withColumn("NewLookupRow", expr("CASE WHEN \`<probe>\` IS NULL THEN 1 ELSE 0 END"))`.
+- **Probe column**: chosen at runtime as the first lookup column that **survived the merge select** (`c not in _lkp_input.columns`) — same-named columns are shadowed by main-table values (never NULL), so join keys like `CODE_ADDR` cannot be used. Falls back to `lit(0)` if no lookup column survives.
+
+### SQL Column Name-Match-First Rename (v2026.07.31)
+- **Problem**: Pure positional SQL→port renaming misaligns when the SQL returns fewer columns than `_port_cols` and the gap is NOT at the end. E.g. SQL returns 11 cols but 13 ports with `TNCY_AGRMT_TRMT_DATE`/`REC_RLS_IND` missing in the middle — `EST_DMNS_KEY` position receives `LAST_REC_TXN_DATE`'s TIMESTAMP value → `[DATATYPE_MISMATCH.BINARY_OP_DIFF_TYPES] "TIMESTAMP" and "DECIMAL(10,0)"` in join conditions.
+- **Fix** (template `mapping.py.j2`): Two-pass rename map — ① case-insensitive **name match first** (SQL column → same-named port), ② **positional fallback** only for remaining SQL columns (unaliased expressions like `DEL_STS.A||DEL_STS.B`). Missing ports stay absent and get `lit(None)` in the final select.
+
+### Exit Code Propagation (v2026.07.31)
+- **Problem**: `main()` returned 1 on failure but `if __name__ == "__main__": main()` discarded it — process exited 0, YARN reported `SUCCEEDED` even when the mapping failed.
+- **Fix 1**: Both mapping and workflow templates use `import sys as _sys; _sys.exit(main())`.
+- **Fix 2 (client mode)**: A normal `spark.stop()` + python exit code still reports `SUCCEEDED` — the AM lives in the driver JVM and exits cleanly regardless of the python exit code. On failure, `main()` now calls `spark.sparkContext._jvm.System.exit(1)` (before `spark.stop()` in `finally`), which exits the JVM non-zero so YARN marks the application `FAILED`.
 
 ### SQ Port Select lit(None) Fallback (v2026.07.31)
 - **Problem**: When an SQL pushdown query returns fewer columns than the Source Qualifier's output ports (`_port_cols`), the final `.select(*_port_cols)` references columns that don't exist → `cannot resolve 'LAST_REC_TXN_DATE' given input columns: [...]`.
@@ -379,6 +396,10 @@ use default python to run pyspark workflow or mapping
 - **Auto-kinit**: `get_spark_session` runs `klist -s` when a kerberos profile is selected; if no valid ticket, automatically `kinit -kt <keytab> <principal>` from the profile's `spark.kerberos.keytab` / `spark.kerberos.principal` — no manual kinit needed.
 - **Executor memory**: cluster max container is 8192 MB → executor memory must be ≤ ~7g (8g + 10% overhead = 9011 MB exceeds `yarn.scheduler.maximum-allocation-mb` → `IllegalArgumentException`). Currently 4g.
 - **OJBC driver loading**: `addJar()` in `get_spark_session` loads jars from `spark.driver.extraClassPath`/`spark.jars` at runtime — `spark.driver.extraClassPath` only takes effect at JVM startup via spark-submit; direct `python` runs need `addJar()`.
+
+### Spark Log Level (v2026.07.31)
+- `spark.log_level` in config.yml (`${SPARK_LOG_LEVEL:ERROR}`) — applied via `spark.sparkContext.setLogLevel()` in `get_spark_session` right after `getOrCreate()`, suppressing the default WARN noise and Java log4j chatter.
+- Valid values: ALL, DEBUG, INFO, WARN, ERROR, FATAL, OFF. Override per-run via `SPARK_LOG_LEVEL` env var.
 
 ### Credential Provider (passwords.jceks)
 - **`_resolve_password` force-set**: Before `getPassword(alias)`, the code force-sets `hadoop.security.credential.provider.path` to the `_resolve_path()`-resolved value. The raw config value contains `$(pwd)` literals; if Spark auto-injected it at SparkContext init without resolution (or injection was skipped), `getPassword` looks up a literal path and fails → interactive password prompt. Force-setting guarantees resolution.
