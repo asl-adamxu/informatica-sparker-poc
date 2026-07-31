@@ -104,11 +104,12 @@ group by opr.opr_code"""
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_No_of_Families_Rehoused_to_PH.columns
         _port_cols = ["OPR_CODE", "CNT", "SCHM_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_No_of_Families_Rehoused_to_PH = df_No_of_Families_Rehoused_to_PH.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_No_of_Families_Rehoused_to_PH = df_No_of_Families_Rehoused_to_PH.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_No_of_Families_Rehoused_to_PH = df_No_of_Families_Rehoused_to_PH.select("OPR_CODE", "CNT", "SCHM_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_No_of_Families_Rehoused_to_PH = df_No_of_Families_Rehoused_to_PH.select([col(c) if c in df_No_of_Families_Rehoused_to_PH.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_No_of_Families_Rehoused_to_PH", df_No_of_Families_Rehoused_to_PH)
         
@@ -141,11 +142,12 @@ and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_two_P_Domestic_Removal_Allowance_Redev.columns
         _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_two_P_Domestic_Removal_Allowance_Redev = df_two_P_Domestic_Removal_Allowance_Redev.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_two_P_Domestic_Removal_Allowance_Redev = df_two_P_Domestic_Removal_Allowance_Redev.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_two_P_Domestic_Removal_Allowance_Redev = df_two_P_Domestic_Removal_Allowance_Redev.select("OPR_CODE", "AMT", "SCHM_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_two_P_Domestic_Removal_Allowance_Redev = df_two_P_Domestic_Removal_Allowance_Redev.select([col(c) if c in df_two_P_Domestic_Removal_Allowance_Redev.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_two_P_Domestic_Removal_Allowance_Redev", df_two_P_Domestic_Removal_Allowance_Redev)
         
@@ -178,11 +180,12 @@ and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_one_P_Domestic_Removal_Allowance_Redev.columns
         _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_one_P_Domestic_Removal_Allowance_Redev = df_one_P_Domestic_Removal_Allowance_Redev.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_one_P_Domestic_Removal_Allowance_Redev = df_one_P_Domestic_Removal_Allowance_Redev.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_one_P_Domestic_Removal_Allowance_Redev = df_one_P_Domestic_Removal_Allowance_Redev.select("OPR_CODE", "AMT", "SCHM_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_one_P_Domestic_Removal_Allowance_Redev = df_one_P_Domestic_Removal_Allowance_Redev.select([col(c) if c in df_one_P_Domestic_Removal_Allowance_Redev.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_one_P_Domestic_Removal_Allowance_Redev", df_one_P_Domestic_Removal_Allowance_Redev)
         
@@ -215,11 +218,12 @@ and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_two_P_Exgratia_Allowance.columns
         _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_two_P_Exgratia_Allowance = df_two_P_Exgratia_Allowance.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_two_P_Exgratia_Allowance = df_two_P_Exgratia_Allowance.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_two_P_Exgratia_Allowance = df_two_P_Exgratia_Allowance.select("OPR_CODE", "AMT", "SCHM_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_two_P_Exgratia_Allowance = df_two_P_Exgratia_Allowance.select([col(c) if c in df_two_P_Exgratia_Allowance.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_two_P_Exgratia_Allowance", df_two_P_Exgratia_Allowance)
         
@@ -252,11 +256,12 @@ and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_one_P_Exgratia_Allowance.columns
         _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_one_P_Exgratia_Allowance = df_one_P_Exgratia_Allowance.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_one_P_Exgratia_Allowance = df_one_P_Exgratia_Allowance.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_one_P_Exgratia_Allowance = df_one_P_Exgratia_Allowance.select("OPR_CODE", "AMT", "SCHM_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_one_P_Exgratia_Allowance = df_one_P_Exgratia_Allowance.select([col(c) if c in df_one_P_Exgratia_Allowance.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_one_P_Exgratia_Allowance", df_one_P_Exgratia_Allowance)
         
@@ -289,11 +294,12 @@ and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_two_P_Special_Allowance.columns
         _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_two_P_Special_Allowance = df_two_P_Special_Allowance.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_two_P_Special_Allowance = df_two_P_Special_Allowance.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_two_P_Special_Allowance = df_two_P_Special_Allowance.select("OPR_CODE", "AMT", "SCHM_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_two_P_Special_Allowance = df_two_P_Special_Allowance.select([col(c) if c in df_two_P_Special_Allowance.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_two_P_Special_Allowance", df_two_P_Special_Allowance)
         
@@ -326,11 +332,12 @@ and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_one_P_Special_Allowance.columns
         _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_one_P_Special_Allowance = df_one_P_Special_Allowance.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_one_P_Special_Allowance = df_one_P_Special_Allowance.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_one_P_Special_Allowance = df_one_P_Special_Allowance.select("OPR_CODE", "AMT", "SCHM_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_one_P_Special_Allowance = df_one_P_Special_Allowance.select([col(c) if c in df_one_P_Special_Allowance.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_one_P_Special_Allowance", df_one_P_Special_Allowance)
         
@@ -363,11 +370,12 @@ and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_two_P_Domestic_Removal_Allowance.columns
         _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_two_P_Domestic_Removal_Allowance = df_two_P_Domestic_Removal_Allowance.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_two_P_Domestic_Removal_Allowance = df_two_P_Domestic_Removal_Allowance.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_two_P_Domestic_Removal_Allowance = df_two_P_Domestic_Removal_Allowance.select("OPR_CODE", "AMT", "SCHM_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_two_P_Domestic_Removal_Allowance = df_two_P_Domestic_Removal_Allowance.select([col(c) if c in df_two_P_Domestic_Removal_Allowance.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_two_P_Domestic_Removal_Allowance", df_two_P_Domestic_Removal_Allowance)
         
@@ -400,11 +408,12 @@ and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_one_P_Domestic_Removal_Allowance.columns
         _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_one_P_Domestic_Removal_Allowance = df_one_P_Domestic_Removal_Allowance.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_one_P_Domestic_Removal_Allowance = df_one_P_Domestic_Removal_Allowance.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_one_P_Domestic_Removal_Allowance = df_one_P_Domestic_Removal_Allowance.select("OPR_CODE", "AMT", "SCHM_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_one_P_Domestic_Removal_Allowance = df_one_P_Domestic_Removal_Allowance.select([col(c) if c in df_one_P_Domestic_Removal_Allowance.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_one_P_Domestic_Removal_Allowance", df_one_P_Domestic_Removal_Allowance)
         
@@ -440,11 +449,12 @@ group by opr.opr_code"""
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_Total_No_of_2P_Family.columns
         _port_cols = ["OPR_CODE", "CNT", "SCHM_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_Total_No_of_2P_Family = df_Total_No_of_2P_Family.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_Total_No_of_2P_Family = df_Total_No_of_2P_Family.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_Total_No_of_2P_Family = df_Total_No_of_2P_Family.select("OPR_CODE", "CNT", "SCHM_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_Total_No_of_2P_Family = df_Total_No_of_2P_Family.select([col(c) if c in df_Total_No_of_2P_Family.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_Total_No_of_2P_Family", df_Total_No_of_2P_Family)
         
@@ -480,11 +490,12 @@ group by opr.opr_code"""
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_Total_No_of_1P_Family.columns
         _port_cols = ["OPR_CODE", "CNT", "SCHM_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_Total_No_of_1P_Family = df_Total_No_of_1P_Family.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_Total_No_of_1P_Family = df_Total_No_of_1P_Family.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_Total_No_of_1P_Family = df_Total_No_of_1P_Family.select("OPR_CODE", "CNT", "SCHM_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_Total_No_of_1P_Family = df_Total_No_of_1P_Family.select([col(c) if c in df_Total_No_of_1P_Family.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_Total_No_of_1P_Family", df_Total_No_of_1P_Family)
         
@@ -517,11 +528,12 @@ and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_Domestic_Removal_Allowance_Redev.columns
         _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_Domestic_Removal_Allowance_Redev = df_Domestic_Removal_Allowance_Redev.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_Domestic_Removal_Allowance_Redev = df_Domestic_Removal_Allowance_Redev.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_Domestic_Removal_Allowance_Redev = df_Domestic_Removal_Allowance_Redev.select("OPR_CODE", "AMT", "SCHM_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_Domestic_Removal_Allowance_Redev = df_Domestic_Removal_Allowance_Redev.select([col(c) if c in df_Domestic_Removal_Allowance_Redev.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_Domestic_Removal_Allowance_Redev", df_Domestic_Removal_Allowance_Redev)
         
@@ -554,11 +566,12 @@ and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_Special_Allowance.columns
         _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_Special_Allowance = df_Special_Allowance.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_Special_Allowance = df_Special_Allowance.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_Special_Allowance = df_Special_Allowance.select("OPR_CODE", "AMT", "SCHM_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_Special_Allowance = df_Special_Allowance.select([col(c) if c in df_Special_Allowance.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_Special_Allowance", df_Special_Allowance)
         
@@ -591,11 +604,12 @@ and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_Domestic_Removal_Allowance.columns
         _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_Domestic_Removal_Allowance = df_Domestic_Removal_Allowance.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_Domestic_Removal_Allowance = df_Domestic_Removal_Allowance.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_Domestic_Removal_Allowance = df_Domestic_Removal_Allowance.select("OPR_CODE", "AMT", "SCHM_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_Domestic_Removal_Allowance = df_Domestic_Removal_Allowance.select([col(c) if c in df_Domestic_Removal_Allowance.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_Domestic_Removal_Allowance", df_Domestic_Removal_Allowance)
         
@@ -632,11 +646,12 @@ group by opr.opr_code"""
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_No_of_Cases_Settled_by_Other_Means.columns
         _port_cols = ["OPR_CODE", "CNT", "SCHM_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_No_of_Cases_Settled_by_Other_Means = df_No_of_Cases_Settled_by_Other_Means.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_No_of_Cases_Settled_by_Other_Means = df_No_of_Cases_Settled_by_Other_Means.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_No_of_Cases_Settled_by_Other_Means = df_No_of_Cases_Settled_by_Other_Means.select("OPR_CODE", "CNT", "SCHM_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_No_of_Cases_Settled_by_Other_Means = df_No_of_Cases_Settled_by_Other_Means.select([col(c) if c in df_No_of_Cases_Settled_by_Other_Means.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_No_of_Cases_Settled_by_Other_Means", df_No_of_Cases_Settled_by_Other_Means)
         
@@ -673,11 +688,12 @@ group by opr.opr_code"""
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_No_of_HPL_Purchaser_Families_Included.columns
         _port_cols = ["OPR_CODE", "CNT", "SCHM_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_No_of_HPL_Purchaser_Families_Included = df_No_of_HPL_Purchaser_Families_Included.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_No_of_HPL_Purchaser_Families_Included = df_No_of_HPL_Purchaser_Families_Included.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_No_of_HPL_Purchaser_Families_Included = df_No_of_HPL_Purchaser_Families_Included.select("OPR_CODE", "CNT", "SCHM_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_No_of_HPL_Purchaser_Families_Included = df_No_of_HPL_Purchaser_Families_Included.select([col(c) if c in df_No_of_HPL_Purchaser_Families_Included.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_No_of_HPL_Purchaser_Families_Included", df_No_of_HPL_Purchaser_Families_Included)
         
@@ -714,11 +730,12 @@ group by opr.opr_code"""
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_No_of_HOS_Purchaser_Families_Included.columns
         _port_cols = ["OPR_CODE", "CNT", "SCHM_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_No_of_HOS_Purchaser_Families_Included = df_No_of_HOS_Purchaser_Families_Included.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_No_of_HOS_Purchaser_Families_Included = df_No_of_HOS_Purchaser_Families_Included.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_No_of_HOS_Purchaser_Families_Included = df_No_of_HOS_Purchaser_Families_Included.select("OPR_CODE", "CNT", "SCHM_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_No_of_HOS_Purchaser_Families_Included = df_No_of_HOS_Purchaser_Families_Included.select([col(c) if c in df_No_of_HOS_Purchaser_Families_Included.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_No_of_HOS_Purchaser_Families_Included", df_No_of_HOS_Purchaser_Families_Included)
         
@@ -741,11 +758,12 @@ and opr.opr_code not in ('1994R0009', '1995R0001')"""
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS.columns
         _port_cols = ["OPR_CODE", "CRP_PYMT_STAT_LAST_EXTRC_DATE", "CRP_PYMT_STAT_EXTRC_DATE", "SCHM_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS = df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS = df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS = df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS.select("OPR_CODE", "CRP_PYMT_STAT_LAST_EXTRC_DATE", "CRP_PYMT_STAT_EXTRC_DATE", "SCHM_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS = df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS.select([col(c) if c in df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS", df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS)
         
@@ -1203,7 +1221,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN opr_sts.BGN_DATE AND opr_sts.EN
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_RMV_CASE = df_LKP_DDS_DMNS_EMS_RMV_CASE.dropDuplicates(subset=["RMV_CASE_CODE", "RMV_CASE_SCHM_CODE"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_1
+        _lkp_input = df_EXPTRANS
         _lkp_input = _lkp_input.withColumn("IN_RMV_CASE_CODE", col("RMV_CASE_CODE"))
         _lkp_input = _lkp_input.withColumn("IN_RMV_CASE_SCHM_CODE", col("DMNS_SCHM_CODE"))
         # Join condition: IN_RMV_CASE_CODE=RMV_CASE_CODE AND IN_RMV_CASE_SCHM_CODE=RMV_CASE_SCHM_CODE

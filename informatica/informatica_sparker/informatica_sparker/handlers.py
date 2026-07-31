@@ -1452,12 +1452,18 @@ class TransformHandlers:
                 _chain_input = df_output
             else:
                 # First lookup for this upstream — create chain df.
-                # Chain onto the previous merge output if available, so all lookups
-                # are sequential (prevents column loss from parallel merge branches).
+                # Chain onto the previous merge output only when the resolved
+                # input is itself a raw chain/merge/SQ result. If the lookup is
+                # fed by a downstream transformation (e.g. EXPTRANS after an
+                # Aggregator), that DF already carries all columns — use it
+                # directly instead of a stale merge.
                 df_output = self._get_df_name("df_lkp_merge")
                 if _upstream_name:
                     self._chain_df_map[_upstream_name] = df_output
-                _chain_input = self._last_chain_output or input_df
+                if not input_df or input_df.startswith(('df_lkp_merge', 'df_merge', 'df_sq_')):
+                    _chain_input = self._last_chain_output or input_df
+                else:
+                    _chain_input = input_df
                 self._last_chain_output = df_output
             # Register lookup instance → chain df
             self._register_df(instance, df_output)
@@ -1967,7 +1973,10 @@ class TransformHandlers:
             # Complex expression with embedded mapping variable — use f-string
             # expr() so {varname} is resolved at runtime via Python f-string.
             return f'expr(f"""{translated}""")'
-        return translated
+        # Complex expression (e.g. CASE WHEN ... END) — always wrap with expr()
+        # so the template's agg() renders valid Python. Returning the raw text
+        # would produce `CASE WHEN ... END END.alias(...)` → SyntaxError.
+        return f'expr("""{translated}""")'
 
     def _handle_sorter(self, instance: Instance, plan: IRPlan) -> Optional[IRStep]:
         input_df = self._get_input_df(instance.name)

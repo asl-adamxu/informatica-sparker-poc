@@ -77,8 +77,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: apply_SQ_SP_DELETE")
         # Source Qualifier: apply_SQ_SP_DELETE
         df_SQ_SP_DELETE = df_DPA_FACT_EMS_SMS_APLY_TYPE_TXN
-        # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SP_DELETE = df_SQ_SP_DELETE.select("TIME_DMNS_KEY")
+        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
+        _port_cols = ["TIME_DMNS_KEY"]
+        df_SQ_SP_DELETE = df_SQ_SP_DELETE.select([col(c) if c in df_SQ_SP_DELETE.columns else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_SP_DELETE", df_SQ_SP_DELETE)
         
         logger.info("Step: apply_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN")
@@ -99,11 +100,12 @@ from DPA_FACT_EMS_SMS_APLY_TYPE_TXN"""
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN.columns
         _port_cols = ["DESP_DTL_DMNS_KEY", "APLY_TYPE_DMNS_KEY", "TIME_DMNS_KEY", "TXN_CNT", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "REC_RLS_IND"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN = df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN = df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN = df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN.select("DESP_DTL_DMNS_KEY", "APLY_TYPE_DMNS_KEY", "TIME_DMNS_KEY", "TXN_CNT", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "REC_RLS_IND")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN = df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN.select([col(c) if c in df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN", df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN)
         

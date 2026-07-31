@@ -77,15 +77,17 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: apply_SQ_SP_DELETE")
         # Source Qualifier: apply_SQ_SP_DELETE
         df_SQ_SP_DELETE = df_DPA_FACT_EMS_VCNT_FLAT
-        # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SP_DELETE = df_SQ_SP_DELETE.select("TIME_DMNS_KEY")
+        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
+        _port_cols = ["TIME_DMNS_KEY"]
+        df_SQ_SP_DELETE = df_SQ_SP_DELETE.select([col(c) if c in df_SQ_SP_DELETE.columns else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_SP_DELETE", df_SQ_SP_DELETE)
         
         logger.info("Step: apply_SQ_DPA_FACT_EMS_VCNT_FLAT")
         # Source Qualifier: apply_SQ_DPA_FACT_EMS_VCNT_FLAT
         df_SQ_DPA_FACT_EMS_VCNT_FLAT = df_DPA_FACT_EMS_VCNT_FLAT
-        # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_DPA_FACT_EMS_VCNT_FLAT = df_SQ_DPA_FACT_EMS_VCNT_FLAT.select("EST_DMNS_KEY", "FLAT_TYPE_DMNS_KEY", "TIME_DMNS_KEY", "VCNT_FLAT_TYPE_DMNS_KEY", "FLAT_CNT", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "DSTR_DMNS_KEY", "REC_RLS_IND")
+        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
+        _port_cols = ["EST_DMNS_KEY", "FLAT_TYPE_DMNS_KEY", "TIME_DMNS_KEY", "VCNT_FLAT_TYPE_DMNS_KEY", "FLAT_CNT", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "DSTR_DMNS_KEY", "REC_RLS_IND"]
+        df_SQ_DPA_FACT_EMS_VCNT_FLAT = df_SQ_DPA_FACT_EMS_VCNT_FLAT.select([col(c) if c in df_SQ_DPA_FACT_EMS_VCNT_FLAT.columns else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_DPA_FACT_EMS_VCNT_FLAT", df_SQ_DPA_FACT_EMS_VCNT_FLAT)
         
         logger.info("Step: apply_EXP_SET_DEL_INFO")

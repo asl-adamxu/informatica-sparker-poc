@@ -80,8 +80,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: apply_SQ_DPA_FACT_EMS_UND_OCPY")
         # Source Qualifier: apply_SQ_DPA_FACT_EMS_UND_OCPY
         df_SQ_DPA_FACT_EMS_UND_OCPY = df_DPA_FACT_EMS_UND_OCPY
-        # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_DPA_FACT_EMS_UND_OCPY = df_SQ_DPA_FACT_EMS_UND_OCPY.select("CODE_ADDR", "IFA_AREA", "FMLY_SIZE_NUM", "DSBL_CODE", "TNCY_AGRMT_CMNC_DATE", "TNCY_AGRMT_TRMT_DATE", "ELDR_IND", "FLAT_TYPE_DMNS_KEY", "EST_DMNS_KEY", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "REC_RLS_IND", "TIME_DMNS_KEY")
+        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
+        _port_cols = ["CODE_ADDR", "IFA_AREA", "FMLY_SIZE_NUM", "DSBL_CODE", "TNCY_AGRMT_CMNC_DATE", "TNCY_AGRMT_TRMT_DATE", "ELDR_IND", "FLAT_TYPE_DMNS_KEY", "EST_DMNS_KEY", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "REC_RLS_IND", "TIME_DMNS_KEY"]
+        df_SQ_DPA_FACT_EMS_UND_OCPY = df_SQ_DPA_FACT_EMS_UND_OCPY.select([col(c) if c in df_SQ_DPA_FACT_EMS_UND_OCPY.columns else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_DPA_FACT_EMS_UND_OCPY", df_SQ_DPA_FACT_EMS_UND_OCPY)
         
         logger.info("Step: apply_SQ_DDS_FACT_EMS_UND_OCPY")
@@ -97,11 +98,12 @@ FROM
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_SQ_DDS_FACT_EMS_UND_OCPY.columns
         _port_cols = ["CODE_ADDR", "IFA_AREA", "FMLY_SIZE_NUM", "DSBL_CATG_CODE", "TNCY_AGRMT_CMNC_DATE", "TNCY_AGRMT_TRMT_DATE", "ELDR_IND", "FLAT_TYPE_DMNS_KEY", "EST_DMNS_KEY", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "REC_RLS_IND", "TIME_DMNS_KEY"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_DDS_FACT_EMS_UND_OCPY = df_SQ_DDS_FACT_EMS_UND_OCPY.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_SQ_DDS_FACT_EMS_UND_OCPY = df_SQ_DDS_FACT_EMS_UND_OCPY.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_DDS_FACT_EMS_UND_OCPY = df_SQ_DDS_FACT_EMS_UND_OCPY.select("CODE_ADDR", "IFA_AREA", "FMLY_SIZE_NUM", "DSBL_CATG_CODE", "TNCY_AGRMT_CMNC_DATE", "TNCY_AGRMT_TRMT_DATE", "ELDR_IND", "FLAT_TYPE_DMNS_KEY", "EST_DMNS_KEY", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "REC_RLS_IND", "TIME_DMNS_KEY")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_DDS_FACT_EMS_UND_OCPY = df_SQ_DDS_FACT_EMS_UND_OCPY.select([col(c) if c in df_SQ_DDS_FACT_EMS_UND_OCPY.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_DDS_FACT_EMS_UND_OCPY", df_SQ_DDS_FACT_EMS_UND_OCPY)
         
@@ -190,7 +192,7 @@ FROM
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DPA_FACT_EMS_UND_OCPY = df_LKP_DPA_FACT_EMS_UND_OCPY.dropDuplicates(subset=["CODE_ADDR", "IFA_AREA", "FMLY_SIZE_NUM", "DSBL_CATG_CODE", "ELDR_IND", "FLAT_TYPE_DMNS_KEY", "EST_DMNS_KEY"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_1
+        _lkp_input = df_EXPTRANS1
         _lkp_input = _lkp_input.withColumn("IN_UNIT_CODE_ADDR", col("CODE_ADDR"))
         _lkp_input = _lkp_input.withColumn("IN_UNIT_IFA_AREA", col("IFA_AREA"))
         _lkp_input = _lkp_input.withColumn("IN_CUST_FMLY_SIZE_NUM", col("FMLY_SIZE_NUM"))

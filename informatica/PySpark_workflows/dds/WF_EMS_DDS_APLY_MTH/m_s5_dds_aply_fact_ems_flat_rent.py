@@ -77,15 +77,17 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: apply_SQ_DPA_FACT_EMS_FLAT_RENT")
         # Source Qualifier: apply_SQ_DPA_FACT_EMS_FLAT_RENT
         df_SQ_DPA_FACT_EMS_FLAT_RENT = df_DPA_FACT_EMS_FLAT_RENT
-        # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_DPA_FACT_EMS_FLAT_RENT = df_SQ_DPA_FACT_EMS_FLAT_RENT.select("IFA_AREA", "UNIT_ENV_CODE", "TIME_DMNS_KEY", "FLAT_TYPE_DMNS_KEY", "FLAT_CNT", "EXST_RATE_AMT", "EXST_NET_RENT_AMT", "EXST_INCLD_RENT_AMT", "EXST_RENT_BGN_DATE", "NEW_RATE_AMT", "NEW_NET_RENT_AMT", "NEW_INCLD_RENT_AMT", "NEW_RENT_BGN_DATE", "EST_DMNS_KEY", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "REC_RLS_IND", "BLK_DMNS_KEY", "TNT_RENT_CODE_CATG_CODE")
+        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
+        _port_cols = ["IFA_AREA", "UNIT_ENV_CODE", "TIME_DMNS_KEY", "FLAT_TYPE_DMNS_KEY", "FLAT_CNT", "EXST_RATE_AMT", "EXST_NET_RENT_AMT", "EXST_INCLD_RENT_AMT", "EXST_RENT_BGN_DATE", "NEW_RATE_AMT", "NEW_NET_RENT_AMT", "NEW_INCLD_RENT_AMT", "NEW_RENT_BGN_DATE", "EST_DMNS_KEY", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "REC_RLS_IND", "BLK_DMNS_KEY", "TNT_RENT_CODE_CATG_CODE"]
+        df_SQ_DPA_FACT_EMS_FLAT_RENT = df_SQ_DPA_FACT_EMS_FLAT_RENT.select([col(c) if c in df_SQ_DPA_FACT_EMS_FLAT_RENT.columns else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_DPA_FACT_EMS_FLAT_RENT", df_SQ_DPA_FACT_EMS_FLAT_RENT)
         
         logger.info("Step: apply_SQ_SP_DELETE")
         # Source Qualifier: apply_SQ_SP_DELETE
         df_SQ_SP_DELETE = df_DPA_FACT_EMS_FLAT_RENT
-        # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SP_DELETE = df_SQ_SP_DELETE.select("TIME_DMNS_KEY")
+        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
+        _port_cols = ["TIME_DMNS_KEY"]
+        df_SQ_SP_DELETE = df_SQ_SP_DELETE.select([col(c) if c in df_SQ_SP_DELETE.columns else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_SP_DELETE", df_SQ_SP_DELETE)
         
         logger.info("Step: apply_AGGTRANS")

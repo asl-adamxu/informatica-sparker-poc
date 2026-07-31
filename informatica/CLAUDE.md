@@ -343,6 +343,55 @@ use default python to run pyspark workflow or mapping
 - **StructField list comprehension**: Empty DataFrame creation uses `[StructField(f, StringType(), True) for f in _src_cols]` instead of listing 40+ individual StructField lines.
 - **`_src_cols` / `_csv_cols` scope**: `_src_cols` is defined before `if _csv_cols:` so both branches can access it.
 
+### $$ Variable Case-Insensitive Replacement (v2026.07.30)
+- **Problem**: SQL queries in XML may reference `$$` mapping variables in any case (e.g. `$$V_SNSH_DATE` vs `$$v_snsh_date`), but the code generator uses the declared variable name's case for `.replace()` in the generated Python. Case-sensitive `.replace()` misses the mismatch, leaving raw `$$V_SNSH_DATE` in SQL → `ORA-00911: invalid character`.
+- **Fix** (`handlers.py`): Added `_normalize_var_case(text, plan)` static method that case-insensitively normalizes all `$$` variable references in SQL/filter/expression texts to match the declared variable name's case before storing them in step params. Applied at every `$$`-containing text storage point: `sql_query`, `filter_inner` (3 places), `lookup_sql` (2 places), `expr_text`, and aggregator expressions.
+
+### TO_DATE `$$` Variable Quote Wrapping (v2026.07.30)
+- **Problem**: Some XML SQL texts have `TO_DATE($$v_rpt_mth, 'YYYYMM')` without quotes around the `$$` variable. After `.replace("$$v_rpt_mth", v_rpt_mth)`, the bare numeric value `TO_DATE(202606, 'YYYYMM')` causes `ORA-00936` because Oracle's `TO_DATE` expects a string first argument.
+- **Fix** (`handlers.py`): Integrated into `_normalize_var_case` — regex `re.sub(r'(TO_DATE\s*\(\s*)\$\$(\w+)(\s*,)', ...)` wraps unquoted `$$` variables inside `TO_DATE()` with single quotes: `TO_DATE($$v_rpt_mth, 'YYYYMM')` → `TO_DATE('$$v_rpt_mth', 'YYYYMM')`.
+- **Scope**: Applied via the same `_normalize_var_case()` call at all SQL/filter storage points — no separate template changes needed.
+
+### SQ Port Select lit(None) Fallback (v2026.07.31)
+- **Problem**: When an SQL pushdown query returns fewer columns than the Source Qualifier's output ports (`_port_cols`), the final `.select(*_port_cols)` references columns that don't exist → `cannot resolve 'LAST_REC_TXN_DATE' given input columns: [...]`.
+- **Fix** (template `mapping.py.j2`): Both SQL pushdown and non-pushdown Source Qualifier selects now use `df.select([col(c) if c in df.columns else lit(None).alias(c) for c in _port_cols])` — ports the SQL didn't return become `lit(None)` so downstream references never fail.
+- **Renaming order**: Positional rename loop first aligns SQL columns to port names, then the select fills in missing ports with `lit(None)`.
+
+### Unaliased SQL Expression Column Backtick (v2026.07.31)
+- **Problem**: SQL pushdown queries with unaliased expressions (e.g. `SELECT est.est_key, del_sts.ADTN_DEL_RSN_CATG_CODE || del_sts.ADTN_DEL_RSN_CODE, ...`) make Oracle return the expression text as the column name (`DEL_STS.ADTN_DEL_RSN_CATG_CODE||DEL_STS.ADTN_DEL_RSN_CODE`). `col("DEL_STS.ADTN_DEL_RSN_CATG_CODE||...")` fails with `cannot resolve 'DEL_STS.\`ADTN_DEL_RSN_CATG_CODE||DEL_STS\`.ADTN_DEL_RSN_CODE'` because Spark splits dotted names into qualifiers.
+- **Fix** (template `mapping.py.j2`): The position-based rename select uses `col(f"`{old}`").alias(new)` — backtick-quoting the actual column name so Spark treats dots/pipes as part of a single column name.
+
+### Aggregator Fallback expr() Wrapping (v2026.07.31)
+- **Problem**: Complex aggregation expressions without an aggregate function wrapper (e.g. raw `CASE WHEN UNIT_ALCT_STS_CODE = '1' THEN 'NPA' ELSE ... END`) fell through to `_translate_aggregation_expr`'s fallback path, which returned the raw translated text. The template rendered `{{ agg_expr }}.alias(...)` → `CASE WHEN ... END END.alias("VCNT_FLAT_TYPE_CODE")` → `SyntaxError: invalid syntax`.
+- **Fix** (`handlers.py`, `_translate_aggregation_expr` fallback): The fallback now always wraps translated text with `expr("""...""")` — `expr("""CASE WHEN ... END""").alias("VCNT_FLAT_TYPE_CODE")` renders valid Python. The f-string path (`expr(f"""...""")`) for `$$` mapping variables is unchanged.
+
+### Sequential Lookup Merge Chain (v2026.07.30)
+- **Problem**: When multiple lookups feed from different intermediate instances, the code generator created parallel merge branches from the same base DataFrame. Downstream components needing columns from BOTH branches (e.g. `CUR_RENT` + `PREV_RENT`) got `cannot resolve 'CUR_RENT'`.
+- **Fix** (`handlers.py`): Added `_last_chain_output` field tracking the most recent chain merge. When a lookup starts a new chain, it chains onto `_last_chain_output` instead of the raw `input_df`, making lookups sequential: `merge_1 → merge_2 → merge_3`.
+- **Refinement (v2026.07.31)**: Only use `_last_chain_output` when the resolved `input_df` is a raw chain/merge/SQ result (`df_lkp_merge*` / `df_merge*` / `df_sq_*`). If the lookup is fed by a downstream transformation (e.g. `EXPTRANS` after an Aggregator), that DataFrame already carries all computed columns — use it directly instead of a stale merge (e.g. `LKP_DDS_DMNS_EMS_RGN` fed by `df_EXPTRANS`, not `df_lkp_merge_1`).
+- **Example**: `LKP_CUR_RENT1 → df_lkp_merge_2 (has CUR_RENT)`, then `LKP_PREV_RENT1 → df_lkp_merge_3` uses `df_lkp_merge_2` as input (has `CUR_RENT`) instead of `df_lkp_merge_1`.
+
+## Runtime Environment (v2026.07.31)
+
+### YARN Mode Configuration
+- **Profile switching**: `env/config.yml` `spark.connection` selects the runtime environment — `spark_local` (local[*]), `spark3_client` (YARN client), `spark3_on_yarn` (YARN cluster). Default is `spark3_client`. Override per-run via `SPARK_CONNECTION` env var.
+- **`spark.home`** (config.yml): CDP parcel path (`/opt/cloudera/parcels/SPARK3-3.5.4.../lib/spark3`). The **`runtime_lib.py` module-level bootstrap block** (before any pyspark import) reads it and injects `${home}/python` into `sys.path` — lets `python3.11 m_xxx.py` run directly without `PYTHONPATH`/`SPARK_HOME` env vars. Generated `m_*.py`/`wf_*.py` stay clean (`import env.runtime_lib as lib` only).
+- **Auto-kinit**: `get_spark_session` runs `klist -s` when a kerberos profile is selected; if no valid ticket, automatically `kinit -kt <keytab> <principal>` from the profile's `spark.kerberos.keytab` / `spark.kerberos.principal` — no manual kinit needed.
+- **Executor memory**: cluster max container is 8192 MB → executor memory must be ≤ ~7g (8g + 10% overhead = 9011 MB exceeds `yarn.scheduler.maximum-allocation-mb` → `IllegalArgumentException`). Currently 4g.
+- **OJBC driver loading**: `addJar()` in `get_spark_session` loads jars from `spark.driver.extraClassPath`/`spark.jars` at runtime — `spark.driver.extraClassPath` only takes effect at JVM startup via spark-submit; direct `python` runs need `addJar()`.
+
+### Credential Provider (passwords.jceks)
+- **`_resolve_password` force-set**: Before `getPassword(alias)`, the code force-sets `hadoop.security.credential.provider.path` to the `_resolve_path()`-resolved value. The raw config value contains `$(pwd)` literals; if Spark auto-injected it at SparkContext init without resolution (or injection was skipped), `getPassword` looks up a literal path and fails → interactive password prompt. Force-setting guarantees resolution.
+- **Injection isolation**: `addJar()` loading and `spark.hadoop.*` injection are in **separate try blocks** in `get_spark_session` — a jar-loading failure cannot skip the provider-path injection.
+- **Save flow**: interactive passwords cached in `_PASSWORD_PENDING`, flushed to jceks via `hadoop credential create/update` only after successful connection validation (`_flush_pending_passwords`).
+
+### Direct Run (no env vars, no spark-submit)
+```bash
+cd .../WF_EMS_DDS_APLY_MTH
+python3.11 m_<mapping>.py        # or wf_<workflow>.py
+```
+Requires: python3.11 (pyspark 3.5 needs 3.8+; system python3 is 3.6), cwd = workflow dir (import env.runtime_lib), `spark.home` configured, keytab path valid.
+
 ## Conversion Progress
 
 As of **2026-07-29** (version **v2026.07.29**), 10 workflows (~1,130 mappings) have been converted from Informatica PowerCenter XML to PySpark.

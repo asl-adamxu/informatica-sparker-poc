@@ -93,8 +93,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: apply_SQ_UTL_SESSION_LIST")
         # Source Qualifier: apply_SQ_UTL_SESSION_LIST
         df_SQ_UTL_SESSION_LIST = df_UTL_SESSION_LIST
-        # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_UTL_SESSION_LIST = df_SQ_UTL_SESSION_LIST.select("SESSION")
+        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
+        _port_cols = ["SESSION"]
+        df_SQ_UTL_SESSION_LIST = df_SQ_UTL_SESSION_LIST.select([col(c) if c in df_SQ_UTL_SESSION_LIST.columns else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_UTL_SESSION_LIST", df_SQ_UTL_SESSION_LIST)
         
         logger.info("Step: apply_EXPTRANS")

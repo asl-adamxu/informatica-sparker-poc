@@ -105,11 +105,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.bgn_date AND aply_sts.
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_EMS_HSM_EST.columns
         _port_cols = ["EST_TYPE_CODE", "EST_CODE", "UNIT_CODE_ADDR", "UNIT_TYPE_CODE", "UNIT_IFA_AREA", "CUST_FMLY_SIZE_NUM", "CUST_AEM_IND", "TNCY_AGRMT_CMNC_DATE", "TNCY_AGRMT_TRMT_DATE", "CUST_KEY"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_SOR_EMS_HSM_EST = df_SQ_SOR_EMS_HSM_EST.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_SQ_SOR_EMS_HSM_EST = df_SQ_SOR_EMS_HSM_EST.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_EMS_HSM_EST = df_SQ_SOR_EMS_HSM_EST.select("EST_TYPE_CODE", "EST_CODE", "UNIT_CODE_ADDR", "UNIT_TYPE_CODE", "UNIT_IFA_AREA", "CUST_FMLY_SIZE_NUM", "CUST_AEM_IND", "TNCY_AGRMT_CMNC_DATE", "TNCY_AGRMT_TRMT_DATE", "CUST_KEY")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_SOR_EMS_HSM_EST = df_SQ_SOR_EMS_HSM_EST.select([col(c) if c in df_SQ_SOR_EMS_HSM_EST.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_EMS_HSM_EST", df_SQ_SOR_EMS_HSM_EST)
         
@@ -239,7 +240,7 @@ where a.cust_key = b.cust_key and a.hse_srvc_aply_key = b.hse_srvc_aply_key"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_EST = df_LKP_DDS_DMNS_EMS_EST.dropDuplicates(subset=["EST_CODE"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_1
+        _lkp_input = df_EXPTRANS
         _lkp_input = _lkp_input.withColumn("IN_EST_CODE", col("EST_CODE"))
         # Join condition: IN_EST_CODE=EST_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>

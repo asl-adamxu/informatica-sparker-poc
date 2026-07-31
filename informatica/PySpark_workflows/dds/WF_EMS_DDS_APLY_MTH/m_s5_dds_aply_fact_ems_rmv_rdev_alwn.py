@@ -77,15 +77,17 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: apply_SQ_SP_DELETE")
         # Source Qualifier: apply_SQ_SP_DELETE
         df_SQ_SP_DELETE = df_DPA_FACT_EMS_RMV_RDEV_ALWN
-        # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SP_DELETE = df_SQ_SP_DELETE.select("TIME_DMNS_KEY")
+        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
+        _port_cols = ["TIME_DMNS_KEY"]
+        df_SQ_SP_DELETE = df_SQ_SP_DELETE.select([col(c) if c in df_SQ_SP_DELETE.columns else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_SP_DELETE", df_SQ_SP_DELETE)
         
         logger.info("Step: apply_SQ_DPA_FACT_EMS_RMV_RDEV_ALWN")
         # Source Qualifier: apply_SQ_DPA_FACT_EMS_RMV_RDEV_ALWN
         df_SQ_DPA_FACT_EMS_RMV_RDEV_ALWN = df_DPA_FACT_EMS_RMV_RDEV_ALWN
-        # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_DPA_FACT_EMS_RMV_RDEV_ALWN = df_SQ_DPA_FACT_EMS_RMV_RDEV_ALWN.select("OPR_CODE", "TRGT_EVCT_DATE", "FMLY_CNT", "ALWN_AMT", "TIME_DMNS_KEY", "RMV_CASE_DMNS_KEY", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "REC_RLS_IND", "OPR_DESP", "OPR_RMK_TEXT", "OPR_FROM_DATE", "OPR_TO_DATE", "SCHM_CODE")
+        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
+        _port_cols = ["OPR_CODE", "TRGT_EVCT_DATE", "FMLY_CNT", "ALWN_AMT", "TIME_DMNS_KEY", "RMV_CASE_DMNS_KEY", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "REC_RLS_IND", "OPR_DESP", "OPR_RMK_TEXT", "OPR_FROM_DATE", "OPR_TO_DATE", "SCHM_CODE"]
+        df_SQ_DPA_FACT_EMS_RMV_RDEV_ALWN = df_SQ_DPA_FACT_EMS_RMV_RDEV_ALWN.select([col(c) if c in df_SQ_DPA_FACT_EMS_RMV_RDEV_ALWN.columns else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_DPA_FACT_EMS_RMV_RDEV_ALWN", df_SQ_DPA_FACT_EMS_RMV_RDEV_ALWN)
         
         logger.info("Step: apply_EXP_SET_DEL_INFO")

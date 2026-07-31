@@ -174,11 +174,12 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = {{ step.df_output }}.columns
         _port_cols = [{% for c in sq_output_columns %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %}]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                {{ step.df_output }} = {{ step.df_output }}.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        {{ step.df_output }} = {{ step.df_output }}.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        {{ step.df_output }} = {{ step.df_output }}.select({% for c in sq_output_columns %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %})
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        {{ step.df_output }} = {{ step.df_output }}.select([col(c) if c in {{ step.df_output }}.columns else lit(None).alias(c) for c in _port_cols])
         
         {% set sq_col_types = step.params.get('output_column_types', {}) %}
         {% for col_name, col_type in sq_col_types.items() %}
@@ -233,8 +234,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {{ step.df_output }} = {{ step.df_output }}.distinct()
         {% endif %}
         {% if sq_output_columns %}
-        # Select only SQ output ports (matches Informatica behavior)
-        {{ step.df_output }} = {{ step.df_output }}.select({% for c in sq_output_columns %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %})
+        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
+        _port_cols = [{% for c in sq_output_columns %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+        {{ step.df_output }} = {{ step.df_output }}.select([col(c) if c in {{ step.df_output }}.columns else lit(None).alias(c) for c in _port_cols])
         {% endif %}
         {% endif %}
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})

@@ -109,11 +109,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_SQ_NEW_FLAT_2.columns
         _port_cols = ["DSTR_CODE", "EST_CODE", "UNIT_TYPE_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_NEW_FLAT_2 = df_SQ_NEW_FLAT_2.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_SQ_NEW_FLAT_2 = df_SQ_NEW_FLAT_2.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_NEW_FLAT_2 = df_SQ_NEW_FLAT_2.select("DSTR_CODE", "EST_CODE", "UNIT_TYPE_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_NEW_FLAT_2 = df_SQ_NEW_FLAT_2.select([col(c) if c in df_SQ_NEW_FLAT_2.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_NEW_FLAT_2", df_SQ_NEW_FLAT_2)
         
@@ -155,11 +156,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_SQ_NEW_FLAT_1.columns
         _port_cols = ["DSTR_CODE", "EST_CODE", "UNIT_TYPE_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_NEW_FLAT_1 = df_SQ_NEW_FLAT_1.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_SQ_NEW_FLAT_1 = df_SQ_NEW_FLAT_1.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_NEW_FLAT_1 = df_SQ_NEW_FLAT_1.select("DSTR_CODE", "EST_CODE", "UNIT_TYPE_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_NEW_FLAT_1 = df_SQ_NEW_FLAT_1.select([col(c) if c in df_SQ_NEW_FLAT_1.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_NEW_FLAT_1", df_SQ_NEW_FLAT_1)
         
@@ -202,11 +204,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_SQ_CASUAL_VCNT_3.columns
         _port_cols = ["DSTR_CODE", "EST_CODE", "UNIT_TYPE_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_CASUAL_VCNT_3 = df_SQ_CASUAL_VCNT_3.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_SQ_CASUAL_VCNT_3 = df_SQ_CASUAL_VCNT_3.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_CASUAL_VCNT_3 = df_SQ_CASUAL_VCNT_3.select("DSTR_CODE", "EST_CODE", "UNIT_TYPE_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_CASUAL_VCNT_3 = df_SQ_CASUAL_VCNT_3.select([col(c) if c in df_SQ_CASUAL_VCNT_3.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_CASUAL_VCNT_3", df_SQ_CASUAL_VCNT_3)
         
@@ -249,11 +252,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_SQ_CASUAL_VCNT_2.columns
         _port_cols = ["DSTR_CODE", "EST_CODE", "UNIT_TYPE_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_CASUAL_VCNT_2 = df_SQ_CASUAL_VCNT_2.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_SQ_CASUAL_VCNT_2 = df_SQ_CASUAL_VCNT_2.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_CASUAL_VCNT_2 = df_SQ_CASUAL_VCNT_2.select("DSTR_CODE", "EST_CODE", "UNIT_TYPE_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_CASUAL_VCNT_2 = df_SQ_CASUAL_VCNT_2.select([col(c) if c in df_SQ_CASUAL_VCNT_2.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_CASUAL_VCNT_2", df_SQ_CASUAL_VCNT_2)
         
@@ -295,11 +299,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_SQ_CASUAL_VCNT_1.columns
         _port_cols = ["DSTR_CODE", "EST_CODE", "UNIT_TYPE_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_CASUAL_VCNT_1 = df_SQ_CASUAL_VCNT_1.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_SQ_CASUAL_VCNT_1 = df_SQ_CASUAL_VCNT_1.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_CASUAL_VCNT_1 = df_SQ_CASUAL_VCNT_1.select("DSTR_CODE", "EST_CODE", "UNIT_TYPE_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_CASUAL_VCNT_1 = df_SQ_CASUAL_VCNT_1.select([col(c) if c in df_SQ_CASUAL_VCNT_1.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_CASUAL_VCNT_1", df_SQ_CASUAL_VCNT_1)
         
@@ -340,11 +345,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_SQ_NEW_FLAT_3.columns
         _port_cols = ["DSTR_CODE", "EST_CODE", "UNIT_TYPE_CODE", "UNIT_ALCT_STS_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_NEW_FLAT_3 = df_SQ_NEW_FLAT_3.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_SQ_NEW_FLAT_3 = df_SQ_NEW_FLAT_3.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_NEW_FLAT_3 = df_SQ_NEW_FLAT_3.select("DSTR_CODE", "EST_CODE", "UNIT_TYPE_CODE", "UNIT_ALCT_STS_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_NEW_FLAT_3 = df_SQ_NEW_FLAT_3.select([col(c) if c in df_SQ_NEW_FLAT_3.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_NEW_FLAT_3", df_SQ_NEW_FLAT_3)
         
@@ -385,11 +391,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_SQ_CASUAL_VCNT_4.columns
         _port_cols = ["DSTR_CODE", "EST_CODE", "UNIT_TYPE_CODE", "UNIT_ALCT_STS_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_CASUAL_VCNT_4 = df_SQ_CASUAL_VCNT_4.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_SQ_CASUAL_VCNT_4 = df_SQ_CASUAL_VCNT_4.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_CASUAL_VCNT_4 = df_SQ_CASUAL_VCNT_4.select("DSTR_CODE", "EST_CODE", "UNIT_TYPE_CODE", "UNIT_ALCT_STS_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_CASUAL_VCNT_4 = df_SQ_CASUAL_VCNT_4.select([col(c) if c in df_SQ_CASUAL_VCNT_4.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_CASUAL_VCNT_4", df_SQ_CASUAL_VCNT_4)
         
@@ -474,7 +481,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         df_AGGTRANS2 = _agg_input.groupBy("DSTR_CODE", "EST_CODE", "UNIT_TYPE_CODE", "UNIT_ALCT_STS_CODE")
         df_AGGTRANS2 = df_AGGTRANS2.agg(
             count(expr("""1""")).alias("CNT"),
-            CASE WHEN UNIT_ALCT_STS_CODE = '1' THEN 'NPA' ELSE CASE WHEN UNIT_ALCT_STS_CODE = '2' THEN 'NUO' ELSE 'NOA' END END.alias("VCNT_FLAT_TYPE_CODE")
+            expr("""CASE WHEN UNIT_ALCT_STS_CODE = '1' THEN 'NPA' ELSE CASE WHEN UNIT_ALCT_STS_CODE = '2' THEN 'NUO' ELSE 'NOA' END END""").alias("VCNT_FLAT_TYPE_CODE")
         )
         ctx.register_df("df_AGGTRANS2", df_AGGTRANS2)
         
@@ -489,7 +496,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         df_AGGTRANS7 = _agg_input.groupBy("DSTR_CODE", "EST_CODE", "UNIT_TYPE_CODE", "UNIT_ALCT_STS_CODE")
         df_AGGTRANS7 = df_AGGTRANS7.agg(
             count(expr("""1""")).alias("CNT"),
-            CASE WHEN UNIT_ALCT_STS_CODE = '1' THEN 'CPA' ELSE CASE WHEN UNIT_ALCT_STS_CODE = '2' THEN 'CUO' ELSE 'COA' END END.alias("VCNT_FLAT_TYPE_CODE")
+            expr("""CASE WHEN UNIT_ALCT_STS_CODE = '1' THEN 'CPA' ELSE CASE WHEN UNIT_ALCT_STS_CODE = '2' THEN 'CUO' ELSE 'COA' END END""").alias("VCNT_FLAT_TYPE_CODE")
         )
         ctx.register_df("df_AGGTRANS7", df_AGGTRANS7)
         

@@ -136,11 +136,12 @@ GROUP BY RGN.RGN_CODE, ABU_STS.ABU_TYPE_CODE"""
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_TYPE_CODE.columns
         _port_cols = ["RGN_CODE", "ABU_TYPE_CODE", "CNT"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_SOR_TYPE_CODE = df_SQ_SOR_TYPE_CODE.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_SQ_SOR_TYPE_CODE = df_SQ_SOR_TYPE_CODE.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_TYPE_CODE = df_SQ_SOR_TYPE_CODE.select("RGN_CODE", "ABU_TYPE_CODE", "CNT")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_SOR_TYPE_CODE = df_SQ_SOR_TYPE_CODE.select([col(c) if c in df_SQ_SOR_TYPE_CODE.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_TYPE_CODE", df_SQ_SOR_TYPE_CODE)
         
@@ -209,11 +210,12 @@ GROUP BY RGN.RGN_CODE, ABU_STS.ABU_SCP_CODE"""
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_SCP_CODE.columns
         _port_cols = ["RGN_CODE", "ABU_SCP_CODE", "CNT"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_SOR_SCP_CODE = df_SQ_SOR_SCP_CODE.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_SQ_SOR_SCP_CODE = df_SQ_SOR_SCP_CODE.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_SCP_CODE = df_SQ_SOR_SCP_CODE.select("RGN_CODE", "ABU_SCP_CODE", "CNT")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_SOR_SCP_CODE = df_SQ_SOR_SCP_CODE.select([col(c) if c in df_SQ_SOR_SCP_CODE.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_SCP_CODE", df_SQ_SOR_SCP_CODE)
         

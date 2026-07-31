@@ -110,11 +110,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_EMS_HSM_EST.columns
         _port_cols = ["EST_CODE", "AGE_GRP", "CUST_MBR_GNDR_CODE", "BLK_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_SOR_EMS_HSM_EST = df_SQ_SOR_EMS_HSM_EST.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_SQ_SOR_EMS_HSM_EST = df_SQ_SOR_EMS_HSM_EST.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_EMS_HSM_EST = df_SQ_SOR_EMS_HSM_EST.select("EST_CODE", "AGE_GRP", "CUST_MBR_GNDR_CODE", "BLK_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_SOR_EMS_HSM_EST = df_SQ_SOR_EMS_HSM_EST.select([col(c) if c in df_SQ_SOR_EMS_HSM_EST.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_EMS_HSM_EST", df_SQ_SOR_EMS_HSM_EST)
         

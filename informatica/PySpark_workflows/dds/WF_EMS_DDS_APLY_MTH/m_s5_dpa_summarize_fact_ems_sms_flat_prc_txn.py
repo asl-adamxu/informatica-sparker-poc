@@ -96,11 +96,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.columns
         _port_cols = ["SCHM_CODE", "PCHS_PRC_AMT"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.select("SCHM_CODE", "PCHS_PRC_AMT")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.select([col(c) if c in df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS", df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS)
         
@@ -129,11 +130,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS.columns
         _port_cols = ["SCHM_CODE", "PCHS_PRC_AMT"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS = df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS = df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS = df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS.select("SCHM_CODE", "PCHS_PRC_AMT")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS = df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS.select([col(c) if c in df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS", df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS)
         
@@ -167,7 +169,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
         df_rtr_group_1100001_to_1300000_7 = df_rtr_group_1100001_to_1300000_7.drop("PCHS_PRC_AMT8").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT8")
         df_rtr_group_1100001_to_1300000_7 = df_rtr_group_1100001_to_1300000_7.drop("SCHM_CODE8").withColumnRenamed("SCHM_CODE", "SCHM_CODE8")
         ctx.register_df("df_rtr_group_1100001_to_1300000_7", df_rtr_group_1100001_to_1300000_7)
-        df_rtr_group_1300001_to_1500000_8 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.filter(expr("PCHS_PRC_AMT>= 1300001and PCHS_PRC_AMT<=1500000"))
+        df_rtr_group_1300001_to_1500000_8 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.filter(expr("PCHS_PRC_AMT>= 1300001 and PCHS_PRC_AMT<=1500000"))
         df_rtr_group_1300001_to_1500000_8 = df_rtr_group_1300001_to_1500000_8.drop("PCHS_PRC_AMT10").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT10")
         df_rtr_group_1300001_to_1500000_8 = df_rtr_group_1300001_to_1500000_8.drop("SCHM_CODE10").withColumnRenamed("SCHM_CODE", "SCHM_CODE10")
         ctx.register_df("df_rtr_group_1300001_to_1500000_8", df_rtr_group_1300001_to_1500000_8)
@@ -175,7 +177,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
         df_rtr_group_over_1500000_9 = df_rtr_group_over_1500000_9.drop("PCHS_PRC_AMT9").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT9")
         df_rtr_group_over_1500000_9 = df_rtr_group_over_1500000_9.drop("SCHM_CODE9").withColumnRenamed("SCHM_CODE", "SCHM_CODE9")
         ctx.register_df("df_rtr_group_over_1500000_9", df_rtr_group_over_1500000_9)
-        df_rtr_default_10 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.filter(~(expr("PCHS_PRC_AMT<100000")) & ~(expr("PCHS_PRC_AMT>=100000 AND PCHS_PRC_AMT<=300000")) & ~(expr("PCHS_PRC_AMT>=300001 AND PCHS_PRC_AMT<=500000")) & ~(expr("PCHS_PRC_AMT>=500001 AND PCHS_PRC_AMT<=700000")) & ~(expr("PCHS_PRC_AMT>=700001 AND PCHS_PRC_AMT<=900000")) & ~(expr("PCHS_PRC_AMT>=900001 AND PCHS_PRC_AMT<=1100000")) & ~(expr("PCHS_PRC_AMT>=1100001 AND PCHS_PRC_AMT<=1300000")) & ~(expr("PCHS_PRC_AMT>= 1300001and PCHS_PRC_AMT<=1500000")) & ~(expr("PCHS_PRC_AMT>1500000")))
+        df_rtr_default_10 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.filter(~(expr("PCHS_PRC_AMT<100000")) & ~(expr("PCHS_PRC_AMT>=100000 AND PCHS_PRC_AMT<=300000")) & ~(expr("PCHS_PRC_AMT>=300001 AND PCHS_PRC_AMT<=500000")) & ~(expr("PCHS_PRC_AMT>=500001 AND PCHS_PRC_AMT<=700000")) & ~(expr("PCHS_PRC_AMT>=700001 AND PCHS_PRC_AMT<=900000")) & ~(expr("PCHS_PRC_AMT>=900001 AND PCHS_PRC_AMT<=1100000")) & ~(expr("PCHS_PRC_AMT>=1100001 AND PCHS_PRC_AMT<=1300000")) & ~(expr("PCHS_PRC_AMT>= 1300001 and PCHS_PRC_AMT<=1500000")) & ~(expr("PCHS_PRC_AMT>1500000")))
         df_rtr_default_10 = df_rtr_default_10.drop("PCHS_PRC_AMT1").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT1")
         df_rtr_default_10 = df_rtr_default_10.drop("SCHM_CODE1").withColumnRenamed("SCHM_CODE", "SCHM_CODE1")
         ctx.register_df("df_rtr_default_10", df_rtr_default_10)

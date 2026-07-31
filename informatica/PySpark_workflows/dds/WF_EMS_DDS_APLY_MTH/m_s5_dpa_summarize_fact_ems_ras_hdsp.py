@@ -115,11 +115,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_HSM_UNIT.columns
         _port_cols = ["TNCY_AGRMT_CMNC_DATE", "UNIT_ADDR_CODE_PREV", "UNIT_IFA_AREA_PREV", "UNIT_ADDR_CODE_CUR", "UNIT_IFA_AREA_CUR", "CUST_CSSA_IND", "RENT_FCTR_CODE", "CUST_KEY", "HSE_SRVC_APLY_KEY", "PREV_EMMS_BLK_KEY", "PREV_UNIT_TYPE_CODE", "PREV_HSE_UNIT_ENV_CODE", "PREV_UNIT_IFA_AREA", "CUR_EMMS_BLK_KEY", "CUR_UNIT_TYPE_CODE", "CUR_HSE_UNIT_ENV_CODE", "CUR_UNIT_IFA_AREA"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_SOR_HSM_UNIT = df_SQ_SOR_HSM_UNIT.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_SQ_SOR_HSM_UNIT = df_SQ_SOR_HSM_UNIT.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_HSM_UNIT = df_SQ_SOR_HSM_UNIT.select("TNCY_AGRMT_CMNC_DATE", "UNIT_ADDR_CODE_PREV", "UNIT_IFA_AREA_PREV", "UNIT_ADDR_CODE_CUR", "UNIT_IFA_AREA_CUR", "CUST_CSSA_IND", "RENT_FCTR_CODE", "CUST_KEY", "HSE_SRVC_APLY_KEY", "PREV_EMMS_BLK_KEY", "PREV_UNIT_TYPE_CODE", "PREV_HSE_UNIT_ENV_CODE", "PREV_UNIT_IFA_AREA", "CUR_EMMS_BLK_KEY", "CUR_UNIT_TYPE_CODE", "CUR_HSE_UNIT_ENV_CODE", "CUR_UNIT_IFA_AREA")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_SOR_HSM_UNIT = df_SQ_SOR_HSM_UNIT.select([col(c) if c in df_SQ_SOR_HSM_UNIT.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_HSM_UNIT", df_SQ_SOR_HSM_UNIT)
         
@@ -395,7 +396,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN rfx_sts.BGN_DATE AND rfx_sts.EN
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_TIME_1 = df_LKP_DDS_DMNS_TIME_1.dropDuplicates(subset=["TIME_VAL_DATE"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_3
+        _lkp_input = df_EXPTRANS
         _lkp_input = _lkp_input.withColumn("IN_TIME_VAL_DATE", col("TIME"))
         # Join condition: IN_TIME_VAL_DATE=TIME_VAL_DATE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>

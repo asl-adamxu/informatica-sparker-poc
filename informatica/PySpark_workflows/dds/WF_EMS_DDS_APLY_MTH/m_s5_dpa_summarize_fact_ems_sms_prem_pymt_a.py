@@ -101,11 +101,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN BGN_DATE AND END_DATE) B"""
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_EMS_SMS_CAS_APLY_STS2.columns
         _port_cols = ["CNT5"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_SOR_EMS_SMS_CAS_APLY_STS2 = df_SQ_SOR_EMS_SMS_CAS_APLY_STS2.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_SQ_SOR_EMS_SMS_CAS_APLY_STS2 = df_SQ_SOR_EMS_SMS_CAS_APLY_STS2.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_EMS_SMS_CAS_APLY_STS2 = df_SQ_SOR_EMS_SMS_CAS_APLY_STS2.select("CNT5")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_SOR_EMS_SMS_CAS_APLY_STS2 = df_SQ_SOR_EMS_SMS_CAS_APLY_STS2.select([col(c) if c in df_SQ_SOR_EMS_SMS_CAS_APLY_STS2.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_EMS_SMS_CAS_APLY_STS2", df_SQ_SOR_EMS_SMS_CAS_APLY_STS2)
         
@@ -125,11 +126,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN BGN_DATE AND END_DATE"""
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_EMS_SMS_CAS_APLY_STS1.columns
         _port_cols = ["CNT4"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_SOR_EMS_SMS_CAS_APLY_STS1 = df_SQ_SOR_EMS_SMS_CAS_APLY_STS1.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_SQ_SOR_EMS_SMS_CAS_APLY_STS1 = df_SQ_SOR_EMS_SMS_CAS_APLY_STS1.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_EMS_SMS_CAS_APLY_STS1 = df_SQ_SOR_EMS_SMS_CAS_APLY_STS1.select("CNT4")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_SOR_EMS_SMS_CAS_APLY_STS1 = df_SQ_SOR_EMS_SMS_CAS_APLY_STS1.select([col(c) if c in df_SQ_SOR_EMS_SMS_CAS_APLY_STS1.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_EMS_SMS_CAS_APLY_STS1", df_SQ_SOR_EMS_SMS_CAS_APLY_STS1)
         
@@ -157,11 +159,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN unit_sts.BGN_DATE AND unit_sts.
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_EMS_SMS_CAS_APLY_STS.columns
         _port_cols = ["CNT3"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_SOR_EMS_SMS_CAS_APLY_STS = df_SQ_SOR_EMS_SMS_CAS_APLY_STS.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_SQ_SOR_EMS_SMS_CAS_APLY_STS = df_SQ_SOR_EMS_SMS_CAS_APLY_STS.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_EMS_SMS_CAS_APLY_STS = df_SQ_SOR_EMS_SMS_CAS_APLY_STS.select("CNT3")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_SOR_EMS_SMS_CAS_APLY_STS = df_SQ_SOR_EMS_SMS_CAS_APLY_STS.select([col(c) if c in df_SQ_SOR_EMS_SMS_CAS_APLY_STS.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_EMS_SMS_CAS_APLY_STS", df_SQ_SOR_EMS_SMS_CAS_APLY_STS)
         
@@ -189,11 +192,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN unit_sts.BGN_DATE AND unit_sts.
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_EMS_TPS_APLY_STS.columns
         _port_cols = ["CNT2"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_SOR_EMS_TPS_APLY_STS = df_SQ_SOR_EMS_TPS_APLY_STS.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_SQ_SOR_EMS_TPS_APLY_STS = df_SQ_SOR_EMS_TPS_APLY_STS.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_EMS_TPS_APLY_STS = df_SQ_SOR_EMS_TPS_APLY_STS.select("CNT2")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_SOR_EMS_TPS_APLY_STS = df_SQ_SOR_EMS_TPS_APLY_STS.select([col(c) if c in df_SQ_SOR_EMS_TPS_APLY_STS.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_EMS_TPS_APLY_STS", df_SQ_SOR_EMS_TPS_APLY_STS)
         
@@ -219,11 +223,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN unit_sts.BGN_DATE AND unit_sts.
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_EMS_SMS_LN_APLY.columns
         _port_cols = ["CNT1"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_SOR_EMS_SMS_LN_APLY = df_SQ_SOR_EMS_SMS_LN_APLY.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_SQ_SOR_EMS_SMS_LN_APLY = df_SQ_SOR_EMS_SMS_LN_APLY.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_EMS_SMS_LN_APLY = df_SQ_SOR_EMS_SMS_LN_APLY.select("CNT1")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_SOR_EMS_SMS_LN_APLY = df_SQ_SOR_EMS_SMS_LN_APLY.select([col(c) if c in df_SQ_SOR_EMS_SMS_LN_APLY.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_EMS_SMS_LN_APLY", df_SQ_SOR_EMS_SMS_LN_APLY)
         

@@ -93,8 +93,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: apply_SQ_UTL_SSA_TBL_LIST")
         # Source Qualifier: apply_SQ_UTL_SSA_TBL_LIST
         df_SQ_UTL_SSA_TBL_LIST = df_UTL_SSA_TBL_LIST
-        # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_UTL_SSA_TBL_LIST = df_SQ_UTL_SSA_TBL_LIST.select("TABLE")
+        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
+        _port_cols = ["TABLE"]
+        df_SQ_UTL_SSA_TBL_LIST = df_SQ_UTL_SSA_TBL_LIST.select([col(c) if c in df_SQ_UTL_SSA_TBL_LIST.columns else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_UTL_SSA_TBL_LIST", df_SQ_UTL_SSA_TBL_LIST)
         
         logger.info("Step: apply_EXPTRANS2")

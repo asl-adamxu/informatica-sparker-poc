@@ -31,7 +31,12 @@ cd /var/lib/airflow/dags/adam/informatica
 
 4. test the generated mapping (example for the truncate step)
 ```sh
-SPARK_CONNECTION=spark3_client python3.6 m_utl_dpa_truncate.py 2>&1
+python m_utl_dpa_truncate.py 2>&1
+```
+
+```sh
+python3.11  m_s5_dpa_summarize_fact_ems_prh_abu.py
+yarn application -list -appStates ALL -appTypes SPARK | grep -i "M_S5_DPA_SUMMARIZE_FACT_EMS_PRH_ABU"
 ```
 
 kinit -kt /home/asl/etl_user.keytab etl_user
@@ -62,7 +67,5 @@ Output format:
 ```
 
 # 需手动fix的Bug
-
 - m_dpa_summarize_fact_cms_case_smry.py m_dpa_summarize_fact_cms_case_ostd_smry.py 多个lookup同名字段，需修改sql区分不同字段名字，如`CASE_CATG_KEY`
 - m_s5_dpa_summarize_fact_ems_sms_flat_prc_txn.py，`1300001and` -> `1300001 and`
-- m_s5_dpa_summarize_fact_ems_adtn_del.py, apply_SQ_SOR_EMS_CPM_ADTN_DEL_STS中的字段顺序修正, `ADTN_DEL_RSN_CATG_CODE`和`ADTN_DEL_RSN_CODE`对调

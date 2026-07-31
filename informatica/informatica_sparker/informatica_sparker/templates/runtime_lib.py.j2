@@ -15,6 +15,20 @@ from logging.handlers import TimedRotatingFileHandler
 _builtin_max = max
 _builtin_min = min
 
+# Bootstrap CDP pyspark from env/config.yml (spark.home) before any pyspark import.
+# Lets `python3.11 m_xxx.py` run directly without setting PYTHONPATH/SPARK_HOME.
+try:
+    with open('env/config.yml', 'r') as _bf:
+        _b_cfg = yaml.safe_load(_bf) or {}
+    _spark_home = os.environ.get('SPARK_HOME') or (_b_cfg.get('spark', {}) or {}).get('home', '')
+    if _spark_home and os.path.isdir(_spark_home):
+        os.environ.setdefault('SPARK_HOME', _spark_home)
+        _py_dir = os.path.join(_spark_home, 'python')
+        if os.path.isdir(_py_dir) and _py_dir not in sys.path:
+            sys.path.insert(0, _py_dir)
+except Exception:
+    pass  # best-effort: fall back to system pyspark
+
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
@@ -221,7 +235,16 @@ def _resolve_password(spark: SparkSession, conn_config: Dict[str, Any]) -> str:
         return _PASSWORD_PENDING[alias]
 
     try:
-        chars = spark.sparkContext._jsc.hadoopConfiguration().getPassword(alias)
+        _hconf = spark.sparkContext._jsc.hadoopConfiguration()
+        # Force-set the resolved provider path before getPassword. The config
+        # value may contain $(pwd)/${VAR} literals that Spark auto-injected at
+        # SparkContext init without resolution, or the runtime injection may
+        # have been skipped by an exception — getPassword would then look up a
+        # literal path and fail. Setting it here guarantees resolution.
+        _raw_path = _hconf.get("hadoop.security.credential.provider.path", "")
+        if _raw_path:
+            _hconf.set("hadoop.security.credential.provider.path", _resolve_path(_raw_path))
+        chars = _hconf.getPassword(alias)
         if chars:
             _pwd = "".join(chars)
             _PASSWORD_CACHE[alias] = _pwd
@@ -591,6 +614,27 @@ def get_spark_session(app_name: str, config: Dict[str, Any] = None) -> SparkSess
     profiles = (config or {}).get("spark_connections", {})
     profile = profiles.get(conn_name, profiles.get("spark_local", {}))
 
+    # Auto-kinit: when a kerberos profile (spark3_client / spark3_on_yarn) is
+    # selected and no valid ticket exists, kinit automatically using the
+    # configured keytab + principal — no manual kinit required.
+    if conn_name != "spark_local":
+        _kconf = profile.get("config", {})
+        _keytab = _kconf.get("spark.kerberos.keytab", "")
+        _principal = _kconf.get("spark.kerberos.principal", "")
+        if _keytab and _principal:
+            import subprocess as _sp
+            import shlex as _sh
+            _ticket_ok = _sp.run("klist -s", shell=True).returncode == 0
+            if not _ticket_ok:
+                _kr = _sp.run(
+                    "kinit -kt {0} {1}".format(_sh.quote(_keytab), _sh.quote(_principal)),
+                    shell=True, stdout=_sp.PIPE, stderr=_sp.PIPE, universal_newlines=True
+                )
+                if _kr.returncode != 0:
+                    print("WARN: kinit failed: " + (_kr.stderr or "").strip())
+                else:
+                    print("kinit OK: {0} (keytab {1})".format(_principal, _keytab))
+
     builder = SparkSession.builder.appName(app_name)
 
     # 1. Set master from profile (or fallback to spark.master)
@@ -613,12 +657,28 @@ def get_spark_session(app_name: str, config: Dict[str, Any] = None) -> SparkSess
 
     spark = builder.getOrCreate()
 
+    all_cfg = {}
+    all_cfg.update(profile.get("config", {}))
+    all_cfg.update(spark_cfg.get("config", {}))
+
+    # Runtime driver-jar loading. spark.driver.extraClassPath only takes effect at
+    # JVM startup (spark-submit --conf); when the session is created in-process
+    # (direct python, YARN cluster driver), addJar() explicitly loads each jar
+    # into the driver classloader so JDBC drivers (e.g. ojdbc8.jar) resolve.
+    try:
+        for key, value in all_cfg.items():
+            _cp = str(value) if key in ("spark.driver.extraClassPath", "spark.jars") else None
+            if _cp:
+                for _jar in [p.strip() for p in _cp.split(",") if p.strip()]:
+                    if os.path.exists(_jar):
+                        spark.sparkContext.addJar(_jar)
+    except Exception:
+        pass  # best-effort
+
     # Inject spark.hadoop.* into Hadoop Configuration so absolute paths
     # resolve via the cluster's default filesystem (like @task.pyspark does).
+    # Kept separate from addJar so a jar-loading failure cannot skip this.
     try:
-        all_cfg = {}
-        all_cfg.update(profile.get("config", {}))
-        all_cfg.update(spark_cfg.get("config", {}))
         for key, value in all_cfg.items():
             if key.startswith("spark.hadoop."):
                 hadoop_key = key.replace("spark.hadoop.", "")

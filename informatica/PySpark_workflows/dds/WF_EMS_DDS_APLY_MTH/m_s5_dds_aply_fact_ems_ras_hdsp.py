@@ -77,15 +77,17 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: apply_SQ_SP_DELETE")
         # Source Qualifier: apply_SQ_SP_DELETE
         df_SQ_SP_DELETE = df_DPA_FACT_EMS_RAS_HDSP
-        # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SP_DELETE = df_SQ_SP_DELETE.select("TIME_DMNS_KEY")
+        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
+        _port_cols = ["TIME_DMNS_KEY"]
+        df_SQ_SP_DELETE = df_SQ_SP_DELETE.select([col(c) if c in df_SQ_SP_DELETE.columns else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_SP_DELETE", df_SQ_SP_DELETE)
         
         logger.info("Step: apply_SQ_DPA_FACT_EMS_RAS_HDSP")
         # Source Qualifier: apply_SQ_DPA_FACT_EMS_RAS_HDSP
         df_SQ_DPA_FACT_EMS_RAS_HDSP = df_DPA_FACT_EMS_RAS_HDSP
-        # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_DPA_FACT_EMS_RAS_HDSP = df_SQ_DPA_FACT_EMS_RAS_HDSP.select("TFR_DATE", "FMR_CODE_ADDR", "FMR_IFA_AREA", "FMR_NRML_RENT_AMT", "TFR_CODE_ADDR", "TFR_IFA_AREA", "TFR_NRML_RENT_AMT", "HSHLD_SIZE_NUM", "RAS_CSSA_STS_CODE", "RMK_TEXT", "TIME_DMNS_KEY", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "REC_RLS_IND")
+        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
+        _port_cols = ["TFR_DATE", "FMR_CODE_ADDR", "FMR_IFA_AREA", "FMR_NRML_RENT_AMT", "TFR_CODE_ADDR", "TFR_IFA_AREA", "TFR_NRML_RENT_AMT", "HSHLD_SIZE_NUM", "RAS_CSSA_STS_CODE", "RMK_TEXT", "TIME_DMNS_KEY", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "REC_RLS_IND"]
+        df_SQ_DPA_FACT_EMS_RAS_HDSP = df_SQ_DPA_FACT_EMS_RAS_HDSP.select([col(c) if c in df_SQ_DPA_FACT_EMS_RAS_HDSP.columns else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_DPA_FACT_EMS_RAS_HDSP", df_SQ_DPA_FACT_EMS_RAS_HDSP)
         
         logger.info("Step: apply_EXP_SET_DEL_INFO")

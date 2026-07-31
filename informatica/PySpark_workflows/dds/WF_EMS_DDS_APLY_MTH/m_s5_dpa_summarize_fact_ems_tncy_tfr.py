@@ -110,11 +110,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN blk_sts.BGN_DATE AND blk_sts.EN
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_Self_Withdrawal.columns
         _port_cols = ["EST_KEY", "REF_CASE_TYPE_CODE", "TFR_RSN_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_Self_Withdrawal = df_Self_Withdrawal.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_Self_Withdrawal = df_Self_Withdrawal.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_Self_Withdrawal = df_Self_Withdrawal.select("EST_KEY", "REF_CASE_TYPE_CODE", "TFR_RSN_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_Self_Withdrawal = df_Self_Withdrawal.select([col(c) if c in df_Self_Withdrawal.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_Self_Withdrawal", df_Self_Withdrawal)
         
@@ -151,11 +152,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN blk_sts.BGN_DATE AND blk_sts.EN
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_Total_Case.columns
         _port_cols = ["EST_KEY", "REF_CASE_TYPE_CODE", "TFR_RSN_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_Total_Case = df_Total_Case.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_Total_Case = df_Total_Case.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_Total_Case = df_Total_Case.select("EST_KEY", "REF_CASE_TYPE_CODE", "TFR_RSN_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_Total_Case = df_Total_Case.select([col(c) if c in df_Total_Case.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_Total_Case", df_Total_Case)
         
@@ -192,11 +194,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN blk_sts.BGN_DATE AND blk_sts.EN
         # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
         _sql_cols = df_Housed_Under_Offer_Refusal.columns
         _port_cols = ["EST_KEY", "REF_CASE_TYPE_CODE", "TFR_RSN_CODE", "PRH_APLY_STG_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_Housed_Under_Offer_Refusal = df_Housed_Under_Offer_Refusal.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        # Rename by position: actual → target port names in one atomic select.
+        _rename_map = {_sql_cols[i]: _port_cols[i] for i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols))}
+        df_Housed_Under_Offer_Refusal = df_Housed_Under_Offer_Refusal.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_Housed_Under_Offer_Refusal = df_Housed_Under_Offer_Refusal.select("EST_KEY", "REF_CASE_TYPE_CODE", "TFR_RSN_CODE", "PRH_APLY_STG_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_Housed_Under_Offer_Refusal = df_Housed_Under_Offer_Refusal.select([col(c) if c in df_Housed_Under_Offer_Refusal.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_Housed_Under_Offer_Refusal", df_Housed_Under_Offer_Refusal)
         
@@ -349,7 +352,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_TIME_1 = df_LKP_DDS_DMNS_TIME_1.dropDuplicates(subset=["TIME_VAL_DATE"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_1
+        _lkp_input = df_EXPTRANS3
         _lkp_input = _lkp_input.withColumn("IN_TIME_VAL_DATE", col("TIME"))
         # Join condition: IN_TIME_VAL_DATE=TIME_VAL_DATE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
