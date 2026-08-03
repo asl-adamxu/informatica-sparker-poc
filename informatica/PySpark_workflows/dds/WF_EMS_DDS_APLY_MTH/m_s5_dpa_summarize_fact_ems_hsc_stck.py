@@ -407,29 +407,9 @@ and rgn.rgn_type_code='RM'"""
         logger.info("Step: write_DPA_FACT_EMS_HSC_FLAT")
         # Write to Target: write_DPA_FACT_EMS_HSC_FLAT
         df_write = df_lkp_merge_1
-        # Cast columns to match target schema data types
-        if "last_rec_txn_date" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "last_rec_txn_date":
-                    df_write = df_write.withColumn(c, col(c).cast(DateType()))
-        if "last_rec_txn_type_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "last_rec_txn_type_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "rec_rls_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "rec_rls_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("REC_RLS_IND", lit(None).cast(StringType()))
-        # Map source columns to target columns using connector field map (handles name mismatches)
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
         _field_map = {"BLK_DMNS_KEY": "BLK_SCD_KEY", "EST_DMNS_KEY": "EST_SCD_KEY", "HSC_TYPE_DMNS_KEY": "HSC_TYPE_DMNS_KEY", "HSC_UNIT_TYPE_DMNS_KEY": "HSC_UNIT_TYPE_DMNS_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "MAX_FLR_NUM": "MAX_UNIT_FLR_NUM", "MIN_FLR_NUM": "MIN_UNIT_FLR_NUM", "OCPY_STCK_CNT": "OCPY_CNT", "RGN_DMNS_KEY": "RGN_DMNS_KEY", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "VCNT_STCK_CNT": "VCNT_CNT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
@@ -439,6 +419,9 @@ and rgn.rgn_type_code='RM'"""
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
+        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
+        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
+        df_write = df_write.withColumn("REC_RLS_IND", lit(None).cast(StringType()))
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['MIN_FLR_NUM', 'MAX_FLR_NUM', 'OCPY_STCK_CNT', 'VCNT_STCK_CNT', 'RGN_DMNS_KEY', 'EST_DMNS_KEY', 'HSC_TYPE_DMNS_KEY', 'HSC_UNIT_TYPE_DMNS_KEY', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND', 'TIME_DMNS_KEY', 'BLK_DMNS_KEY']
         df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])

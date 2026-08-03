@@ -207,7 +207,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
         df_rtr_group_1100001_to_1300000_7 = df_rtr_group_1100001_to_1300000_7.drop("PCHS_PRC_AMT8").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT8")
         df_rtr_group_1100001_to_1300000_7 = df_rtr_group_1100001_to_1300000_7.drop("SCHM_CODE8").withColumnRenamed("SCHM_CODE", "SCHM_CODE8")
         ctx.register_df("df_rtr_group_1100001_to_1300000_7", df_rtr_group_1100001_to_1300000_7)
-        df_rtr_group_1300001_to_1500000_8 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.filter(expr("PCHS_PRC_AMT>= 1300001and PCHS_PRC_AMT<=1500000"))
+        df_rtr_group_1300001_to_1500000_8 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.filter(expr("PCHS_PRC_AMT>= 1300001 AND PCHS_PRC_AMT<=1500000"))
         df_rtr_group_1300001_to_1500000_8 = df_rtr_group_1300001_to_1500000_8.drop("PCHS_PRC_AMT10").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT10")
         df_rtr_group_1300001_to_1500000_8 = df_rtr_group_1300001_to_1500000_8.drop("SCHM_CODE10").withColumnRenamed("SCHM_CODE", "SCHM_CODE10")
         ctx.register_df("df_rtr_group_1300001_to_1500000_8", df_rtr_group_1300001_to_1500000_8)
@@ -215,7 +215,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
         df_rtr_group_over_1500000_9 = df_rtr_group_over_1500000_9.drop("PCHS_PRC_AMT9").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT9")
         df_rtr_group_over_1500000_9 = df_rtr_group_over_1500000_9.drop("SCHM_CODE9").withColumnRenamed("SCHM_CODE", "SCHM_CODE9")
         ctx.register_df("df_rtr_group_over_1500000_9", df_rtr_group_over_1500000_9)
-        df_rtr_default_10 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.filter(~(expr("PCHS_PRC_AMT<100000")) & ~(expr("PCHS_PRC_AMT>=100000 AND PCHS_PRC_AMT<=300000")) & ~(expr("PCHS_PRC_AMT>=300001 AND PCHS_PRC_AMT<=500000")) & ~(expr("PCHS_PRC_AMT>=500001 AND PCHS_PRC_AMT<=700000")) & ~(expr("PCHS_PRC_AMT>=700001 AND PCHS_PRC_AMT<=900000")) & ~(expr("PCHS_PRC_AMT>=900001 AND PCHS_PRC_AMT<=1100000")) & ~(expr("PCHS_PRC_AMT>=1100001 AND PCHS_PRC_AMT<=1300000")) & ~(expr("PCHS_PRC_AMT>= 1300001and PCHS_PRC_AMT<=1500000")) & ~(expr("PCHS_PRC_AMT>1500000")))
+        df_rtr_default_10 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.filter(~(expr("PCHS_PRC_AMT<100000")) & ~(expr("PCHS_PRC_AMT>=100000 AND PCHS_PRC_AMT<=300000")) & ~(expr("PCHS_PRC_AMT>=300001 AND PCHS_PRC_AMT<=500000")) & ~(expr("PCHS_PRC_AMT>=500001 AND PCHS_PRC_AMT<=700000")) & ~(expr("PCHS_PRC_AMT>=700001 AND PCHS_PRC_AMT<=900000")) & ~(expr("PCHS_PRC_AMT>=900001 AND PCHS_PRC_AMT<=1100000")) & ~(expr("PCHS_PRC_AMT>=1100001 AND PCHS_PRC_AMT<=1300000")) & ~(expr("PCHS_PRC_AMT>= 1300001 AND PCHS_PRC_AMT<=1500000")) & ~(expr("PCHS_PRC_AMT>1500000")))
         df_rtr_default_10 = df_rtr_default_10.drop("PCHS_PRC_AMT1").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT1")
         df_rtr_default_10 = df_rtr_default_10.drop("SCHM_CODE1").withColumnRenamed("SCHM_CODE", "SCHM_CODE1")
         ctx.register_df("df_rtr_default_10", df_rtr_default_10)
@@ -678,29 +678,9 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
         logger.info("Step: write_DPA_FACT_EMS_SMS_FLAT_PRC_TXN")
         # Write to Target: write_DPA_FACT_EMS_SMS_FLAT_PRC_TXN
         df_write = df_lkp_merge_20
-        # Cast columns to match target schema data types
-        if "last_rec_txn_date" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "last_rec_txn_date":
-                    df_write = df_write.withColumn(c, col(c).cast(DateType()))
-        if "last_rec_txn_type_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "last_rec_txn_type_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "rec_rls_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "rec_rls_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("REC_RLS_IND", lit(None).cast(StringType()))
-        # Map source columns to target columns using connector field map (handles name mismatches)
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
         _field_map = {"DESP_DTL_DMNS_KEY": "DESP_DTL_DMNS_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TXN_CNT": "CNT", "UNIT_PRC_DMNS_KEY": "UNIT_PRC_DMNS_KEY", "UNIT_TYPE_DMNS_KEY": "UNIT_TYPE_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
@@ -710,6 +690,9 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
+        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
+        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
+        df_write = df_write.withColumn("REC_RLS_IND", lit(None).cast(StringType()))
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['DESP_DTL_DMNS_KEY', 'UNIT_TYPE_DMNS_KEY', 'UNIT_PRC_DMNS_KEY', 'TIME_DMNS_KEY', 'TXN_CNT', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND']
         df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])

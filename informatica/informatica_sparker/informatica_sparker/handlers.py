@@ -1306,6 +1306,9 @@ class TransformHandlers:
                                 _parts = _sp_full.split('.')
                                 if len(_parts) >= 3:
                                     _sp_call = '.'.join(_parts[1:])
+                                    # Keep the owner schema for {_schema} parameterization
+                                    # (replaces the hardcoded prefix at runtime, like SQL)
+                                    step.params["sp_schema"] = _parts[0]
                                 else:
                                     _sp_call = _sp_full
                                 step.params["sp_call_text"] = _sp_call
@@ -2516,21 +2519,20 @@ class TransformHandlers:
         if _is_field_ref:
             step.params["strategy_field"] = strategy_expr
             step.comments.append(f"Strategy from field '{strategy_expr}' — dynamic DD_INSERT/UPDATE/DELETE")
-        # Generate proper column update flag based on strategy
-        if has_delete:
-            step.params["update_condition"] = "lit(False)"
-            step.params["delete_condition"] = "lit(True)"
-            step.comments.append("DD_DELETE: All incoming rows marked for deletion")
-            step.comments.append("Delete existing data before inserting new snapshot")
+        elif has_delete:
+            # Static DD_DELETE — no _update_flag split needed; the write step
+            # deletes all rows by primary key directly.
+            step.params["static_dd"] = "DD_DELETE"
+            step.comments.append("DD_DELETE: all rows deleted by primary key")
         elif has_update:
-            step.params["update_condition"] = "lit(True)"
-            step.params["delete_condition"] = "lit(False)"
-            step.comments.append("DD_UPDATE: All incoming rows marked for update")
-            step.comments.append("Consider using MergeDelta for upsert operations")
+            # Static DD_UPDATE — no _update_flag split needed; the write step
+            # batch-updates all rows by primary key directly.
+            step.params["static_dd"] = "DD_UPDATE"
+            step.comments.append("DD_UPDATE: all rows updated by primary key")
         else:
-            step.params["update_condition"] = "lit(False)"
-            step.params["delete_condition"] = "lit(False)"
-            step.comments.append("DD_INSERT: All incoming rows marked for insert")
+            # Static DD_INSERT — pass-through; the write step appends directly.
+            step.params["static_dd"] = "DD_INSERT"
+            step.comments.append("DD_INSERT: all rows appended directly")
 
         return step
 
@@ -2681,6 +2683,12 @@ class TransformHandlers:
         is_delete = False
         delete_keys = []
         has_update_flag = False
+        static_dd = ""
+        # Primary keys from the target definition (KEYTYPE contains PRIMARY) —
+        # used as the UPDATE/DELETE key columns, matching Informatica semantics
+        # (DD_UPDATE updates by key, DD_DELETE deletes by key).
+        target_keys = [f.name for f in (target.fields if target else [])
+                       if "PRIMARY" in (f.key_type or "").upper()]
         for connector in self.mapping.connectors:
             if connector.to_instance == instance.name:
                 from_trans = self.transform_map.get(connector.from_instance)
@@ -2688,12 +2696,26 @@ class TransformHandlers:
                     strategy_expr = from_trans.table_attributes.get("Update Strategy Expression", "")
                     if "DD_DELETE" in strategy_expr.upper():
                         is_delete = True
-                        if connector.from_field and connector.from_field not in delete_keys:
+                        static_dd = "DD_DELETE"
+                        if target_keys:
+                            delete_keys = list(target_keys)
+                        elif connector.from_field and connector.from_field not in delete_keys:
+                            delete_keys.append(connector.from_field)
+                        break
+                    # Static DD_UPDATE: mark all rows for update (by target primary key)
+                    elif "DD_UPDATE" in strategy_expr.upper():
+                        has_update_flag = True
+                        static_dd = "DD_UPDATE"
+                        if target_keys:
+                            delete_keys = list(target_keys)
+                        elif connector.from_field and connector.from_field not in delete_keys:
                             delete_keys.append(connector.from_field)
                         break
                     # Dynamic strategy from field (e.g. UPDATE_FLAG column)
                     elif strategy_expr and "DD_" not in strategy_expr.upper():
                         has_update_flag = True
+                        if target_keys and not delete_keys:
+                            delete_keys = list(target_keys)
 
         write_step = WriteTargetStep(
             step_name=f"write_{instance.name}",
@@ -2706,6 +2728,8 @@ class TransformHandlers:
         )
 
         write_step.params["connection_alias"] = conn_alias
+        if static_dd:
+            write_step.params["static_dd"] = static_dd
         if is_delete:
             write_step.params["is_delete"] = True
             write_step.params["delete_keys"] = delete_keys
@@ -2713,7 +2737,10 @@ class TransformHandlers:
         if has_update_flag:
             write_step.params["has_update_flag"] = True
             write_step.params["delete_keys"] = delete_keys or [c.lower() for c in target_columns]
-            write_step.comments.append("Dynamic Update Strategy detected — will INSERT/UPDATE/DELETE based on _update_flag")
+            if static_dd == "DD_UPDATE":
+                write_step.comments.append("Static DD_UPDATE detected — batch UPDATE all rows by primary key")
+            else:
+                write_step.comments.append("Dynamic Update Strategy detected — will INSERT/UPDATE/DELETE based on _update_flag")
 
         if columns_to_drop:
             write_step.params["drop_columns"] = columns_to_drop

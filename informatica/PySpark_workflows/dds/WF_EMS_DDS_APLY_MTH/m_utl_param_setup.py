@@ -113,7 +113,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         _conn = lib.get_db_config(config, "SOR")
         # Parameterize schema from connection config
         _schema = _conn.get("schema", "") or "psor"
-        query = f"""SELECT SOR_SYS_PRPTY.VAL as VAL, SOR_SYS_PRPTY.PRPTY_DESP as PRPTY_DESP, SOR_SYS_PRPTY.PRPTY as PRPTY FROM PSOR.SOR_SYS_PRPTY"""
+        query = f"""SELECT SOR_SYS_PRPTY.VAL as VAL, SOR_SYS_PRPTY.PRPTY_DESP as PRPTY_DESP, SOR_SYS_PRPTY.PRPTY as PRPTY FROM {_schema}.SOR_SYS_PRPTY"""
         df_LKPTRANS = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_LKPTRANS")
@@ -144,15 +144,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: write_UTL_JOB_PARAM")
         # Write to Target: write_UTL_JOB_PARAM
         df_write = df_EXPTRANS1
-        # Cast columns to match target schema data types
-        if "line" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "line":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        # Map source columns to target columns using connector field map (handles name mismatches)
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
         _field_map = {"LINE": "LINE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:

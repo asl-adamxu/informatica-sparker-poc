@@ -1605,69 +1605,9 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN opr_sts.BGN_DATE AND opr_sts.EN
         logger.info("Step: write_DPA_FACT_EMS_RMV_RDEV_ALWN")
         # Write to Target: write_DPA_FACT_EMS_RMV_RDEV_ALWN
         df_write = df_lkp_merge_2
-        # Cast columns to match target schema data types
-        if "opr_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "opr_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "opr_trgt_evct_date" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "opr_trgt_evct_date":
-                    df_write = df_write.withColumn(c, col(c).cast(DateType()))
-        if "last_rec_txn_date" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "last_rec_txn_date":
-                    df_write = df_write.withColumn(c, col(c).cast(DateType()))
-        if "last_rec_txn_type_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "last_rec_txn_type_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "rec_rls_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "rec_rls_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "opr_desp" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "opr_desp":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "opr_rmk_text" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "opr_rmk_text":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "opr_from_date" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "opr_from_date":
-                    df_write = df_write.withColumn(c, col(c).cast(DateType()))
-        if "opr_to_date" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "opr_to_date":
-                    df_write = df_write.withColumn(c, col(c).cast(DateType()))
-        if "schm_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "schm_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("REC_RLS_IND", lit(None).cast(StringType()))
-        # Map source columns to target columns using connector field map (handles name mismatches)
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
         _field_map = {"ALWN_AMT": "AMT", "FMLY_CNT": "CNT", "LAST_REC_TXN_DATE": "SYSTIME", "OPR_CODE": "OPR_CODE", "OPR_DESP": "OPR_DESP", "OPR_FROM_DATE": "OPR_FROM_DATE", "OPR_RMK_TEXT": "OPR_RMK_TEXT", "OPR_TO_DATE": "OPR_TO_DATE", "OPR_TRGT_EVCT_DATE": "OPR_TRGT_EVCT_DATE", "RMV_CASE_DMNS_KEY": "RMV_CASE_DMNS_KEY", "SCHM_CODE": "SCHM_CODE", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
@@ -1677,6 +1617,9 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN opr_sts.BGN_DATE AND opr_sts.EN
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
+        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
+        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
+        df_write = df_write.withColumn("REC_RLS_IND", lit(None).cast(StringType()))
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['OPR_CODE', 'OPR_TRGT_EVCT_DATE', 'FMLY_CNT', 'ALWN_AMT', 'TIME_DMNS_KEY', 'RMV_CASE_DMNS_KEY', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND', 'OPR_DESP', 'OPR_RMK_TEXT', 'OPR_FROM_DATE', 'OPR_TO_DATE', 'SCHM_CODE']
         df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])

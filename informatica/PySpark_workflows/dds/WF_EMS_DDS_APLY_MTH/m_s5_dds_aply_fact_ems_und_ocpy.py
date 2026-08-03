@@ -199,14 +199,14 @@ FROM
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_DDS_FACT_EMS_UND_OCPY[c] for c in df_LKP_DDS_FACT_EMS_UND_OCPY.columns if c not in _lkp_input.columns]
         )
-        # Dynamic lookup NewLookupRow: 1 = no match (left join miss), 0 = match.
+        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
         # Judge via a lookup column that survived the merge select (not shadowed
         # by a same-named main column) — a NULL there means the lookup missed.
         _nlr_lkp_cols = [c for c in df_LKP_DDS_FACT_EMS_UND_OCPY.columns if c not in _lkp_input.columns]
         if _nlr_lkp_cols:
-            df_lkp_merge_1 = df_lkp_merge_1.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 1 ELSE 0 END"))
+            df_lkp_merge_1 = df_lkp_merge_1.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
         else:
-            df_lkp_merge_1 = df_lkp_merge_1.withColumn("NewLookupRow", lit(0))
+            df_lkp_merge_1 = df_lkp_merge_1.withColumn("NewLookupRow", lit(1))
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: read_LKP_DPA_FACT_EMS_UND_OCPY")
         # Reading Data From Source - read_LKP_DPA_FACT_EMS_UND_OCPY
@@ -263,71 +263,25 @@ FROM
         logger.info("Step: apply_UPS_INSERT")
         # Update Strategy: apply_UPS_INSERT
         # Strategy: DD_INSERT
-        df_UPS_INSERT = df_FILTRANS.withColumn("_update_strategy", lit("INSERT"))
+        # Static DD_INSERT — pass through; the target write
+        # step applies the strategy directly (append / batch_update / batch_delete).
+        df_UPS_INSERT = df_FILTRANS
         ctx.register_df("df_UPS_INSERT", df_UPS_INSERT)
         
         logger.info("Step: apply_UPS_UPDATE")
         # Update Strategy: apply_UPS_UPDATE
         # Strategy: DD_UPDATE
-        df_UPS_UPDATE = df_FILTRANS1.withColumn("_update_flag",
-            when(lit(True), lit("U"))
-            .when(lit(False), lit("D"))
-            .otherwise(lit("I"))
-        )
+        # Static DD_UPDATE — pass through; the target write
+        # step applies the strategy directly (append / batch_update / batch_delete).
+        df_UPS_UPDATE = df_FILTRANS1
         ctx.register_df("df_UPS_UPDATE", df_UPS_UPDATE)
         
         logger.info("Step: write_DDS_FACT_EMS_UND_OCPY")
         # Write to Target: write_DDS_FACT_EMS_UND_OCPY
         df_write = df_UPS_INSERT
-        # Cast columns to match target schema data types
-        if "code_addr" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "code_addr":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "dsbl_catg_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "dsbl_catg_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "tncy_agrmt_cmnc_date" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "tncy_agrmt_cmnc_date":
-                    df_write = df_write.withColumn(c, col(c).cast(DateType()))
-        if "tncy_agrmt_trmt_date" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "tncy_agrmt_trmt_date":
-                    df_write = df_write.withColumn(c, col(c).cast(DateType()))
-        if "eldr_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "eldr_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "last_rec_txn_date" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "last_rec_txn_date":
-                    df_write = df_write.withColumn(c, col(c).cast(DateType()))
-        if "last_rec_txn_type_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "last_rec_txn_type_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "rec_rls_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "rec_rls_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        # Map source columns to target columns using connector field map (handles name mismatches)
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
         _field_map = {"CODE_ADDR": "CODE_ADDR", "DSBL_CATG_CODE": "DSBL_CODE", "ELDR_IND": "ELDR_IND", "EST_DMNS_KEY": "EST_DMNS_KEY", "FLAT_TYPE_DMNS_KEY": "FLAT_TYPE_DMNS_KEY", "FMLY_SIZE_NUM": "FMLY_SIZE_NUM", "IFA_AREA": "IFA_AREA", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "REC_RLS_IND": "REC_RLS_IND", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TNCY_AGRMT_CMNC_DATE": "TNCY_AGRMT_CMNC_DATE", "TNCY_AGRMT_TRMT_DATE": "TNCY_AGRMT_TRMT_DATE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
@@ -347,54 +301,27 @@ FROM
         logger.info("Step: write_DDS_FACT_EMS_UND_OCPY2")
         # Write to Target: write_DDS_FACT_EMS_UND_OCPY2
         df_write = df_UPS_UPDATE
-        # Cast columns to match target schema data types
-        if "code_addr" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "code_addr":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "dsbl_catg_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "dsbl_catg_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "tncy_agrmt_cmnc_date" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "tncy_agrmt_cmnc_date":
-                    df_write = df_write.withColumn(c, col(c).cast(DateType()))
-        if "tncy_agrmt_trmt_date" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "tncy_agrmt_trmt_date":
-                    df_write = df_write.withColumn(c, col(c).cast(DateType()))
-        if "eldr_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "eldr_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "last_rec_txn_date" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "last_rec_txn_date":
-                    df_write = df_write.withColumn(c, col(c).cast(DateType()))
-        if "last_rec_txn_type_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "last_rec_txn_type_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "rec_rls_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "rec_rls_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
+        _field_map = {"CODE_ADDR": "UNIT_CODE_ADDR", "TNCY_AGRMT_CMNC_DATE": "TNCY_AGRMT_CMNC_DATE1", "TNCY_AGRMT_TRMT_DATE": "TNCY_AGRMT_TRMT_DATE"}
+        for _tgt_col, _src_col in _field_map.items():
+            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
+                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
+        # Static DD_UPDATE: batch update ALL rows by primary key (no split needed)
+        if not df_write.rdd.isEmpty():
+            _upd_key_cols = ['CODE_ADDR', 'TNCY_AGRMT_CMNC_DATE', 'FLAT_TYPE_DMNS_KEY', 'EST_DMNS_KEY', 'TIME_DMNS_KEY']
+            _upd_set_cols = [c for c in df_write.columns if c not in _upd_key_cols and c != "_update_flag"]
+            if _upd_set_cols:
+                _upd_rows = [tuple(r[c] for c in _upd_set_cols + _upd_key_cols) for r in df_write.collect()]
+                lib.batch_update(spark, conn_target, "DDS_FACT_EMS_UND_OCPY", _upd_set_cols, _upd_key_cols, _upd_rows, 1000)
+        # No rows to insert (all rows were updated)
+        df_write = df_write.filter(lit(False))
         # Add NULL for unmapped target columns (schema parity) - excluding identity columns
         df_write = df_write.withColumn("IFA_AREA", lit(None).cast(StringType()))
         df_write = df_write.withColumn("FMLY_SIZE_NUM", lit(None).cast(StringType()))
@@ -406,16 +333,6 @@ FROM
         df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
         df_write = df_write.withColumn("REC_RLS_IND", lit(None).cast(StringType()))
         df_write = df_write.withColumn("TIME_DMNS_KEY", lit(None).cast(StringType()))
-        # Map source columns to target columns using connector field map (handles name mismatches)
-        _field_map = {"CODE_ADDR": "UNIT_CODE_ADDR", "TNCY_AGRMT_CMNC_DATE": "TNCY_AGRMT_CMNC_DATE1", "TNCY_AGRMT_TRMT_DATE": "TNCY_AGRMT_TRMT_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['CODE_ADDR', 'IFA_AREA', 'FMLY_SIZE_NUM', 'DSBL_CATG_CODE', 'TNCY_AGRMT_CMNC_DATE', 'TNCY_AGRMT_TRMT_DATE', 'ELDR_IND', 'FLAT_TYPE_DMNS_KEY', 'EST_DMNS_KEY', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND', 'TIME_DMNS_KEY']
         df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])

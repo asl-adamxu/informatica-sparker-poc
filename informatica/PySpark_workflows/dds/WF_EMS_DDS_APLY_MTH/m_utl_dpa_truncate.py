@@ -103,10 +103,12 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_EXPTRANS2 = df_SQ_UTL_SSA_TBL_LIST
         # Execute stored procedure for each input value via JDBC
         _sp_conn = conn_oracle
+        # Parameterize schema from connection config (falls back to the Informatica owner)
+        _schema = _sp_conn.get("schema", "") or "PDPA"
+        _sp_call = _schema + "." + "PKG_CDI_UTIL.SP_TRUNCATE"
         _input_vals = [row["TABLE"] for row in df_SQ_UTL_SSA_TBL_LIST.select("TABLE").collect()]
         for _val in _input_vals:
-            lib.execute_sql(spark, _sp_conn,
-                "BEGIN PKG_CDI_UTIL.SP_TRUNCATE('" + _val + "'); END;")
+            lib.call_stored_procedure(spark, _sp_conn, _sp_call, [_val])
         df_EXPTRANS2 = df_EXPTRANS2.withColumn("OUTPUT", lit("SUCCESS"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["TABLE"]:

@@ -16,11 +16,13 @@ _builtin_max = max
 _builtin_min = min
 
 # Bootstrap CDP pyspark from env/config.yml (spark.home) before any pyspark import.
-# Lets `python3.11 m_xxx.py` run directly without setting PYTHONPATH/SPARK_HOME.
+# Lets `python m_xxx.py` run directly without setting PYTHONPATH/SPARK_HOME.
 # NOTE: must also inject the matching py4j zip (SPARK_HOME/python/lib/py4j-*.zip)
 # — otherwise `import py4j` falls back to an older system py4j, whose gateway
 # protocol is incompatible with pyspark 3.5.4 (executor heartbeat fails with
-# RpcEndpointNotFoundException). Requires python 3.8+ (python3.6 unsupported).
+# RpcEndpointNotFoundException). Works with the system python3 (3.6 on RHEL8)
+# and python3.11 alike — keep driver and executors on the same interpreter
+# (get_spark_session sets spark.pyspark.python = sys.executable for that).
 try:
     with open('env/config.yml', 'r') as _bf:
         _b_cfg = yaml.safe_load(_bf) or {}
@@ -333,16 +335,86 @@ def read_sql(spark: SparkSession, conn_config: Dict[str, Any],
     return reader.load()
 
 
+def _read_local_csv(spark: SparkSession, local_path: str, opts: Dict[str, Any]) -> DataFrame:
+    """Read a small local CSV file on the driver and return a DataFrame.
+
+    Used for control files (table lists, session lists, job params) in YARN
+    mode: distributing via addFile() places the file under the EXECUTOR's
+    SparkFiles root, while SparkFiles.get() on the DRIVER returns the driver's
+    own temp path — so executors receive a path that only exists on the driver
+    (SparkFileNotFoundException). Reading on the driver avoids executors
+    entirely; these files are small configuration inputs.
+    """
+    import csv as _csv
+    _delim = str(opts.get("delimiter", ","))
+    _header = str(opts.get("header", "true")).lower() in ("true", "1", "yes")
+    _cols = []
+    _rows = []
+    with open(local_path, "r") as _fh:
+        _reader = _csv.reader(_fh, delimiter=_delim)
+        if _header:
+            try:
+                _cols = next(_reader)
+            except StopIteration:
+                pass
+        for _row in _reader:
+            _rows.append([None if _c == "" else _c for _c in _row])
+    if not _cols:
+        _ncols = _builtin_max([len(_r) for _r in _rows] or [0])
+        _cols = [f"_c{i}" for i in range(_ncols)]
+    _schema = StructType([StructField(str(_c), StringType(), True) for _c in _cols])
+    if _rows:
+        return spark.createDataFrame(_rows, schema=_schema)
+    return spark.createDataFrame([], _schema)
+
+
 def read_file(spark: SparkSession, path: str, format: str = "csv", options: Dict[str, Any] = None) -> DataFrame:
     """Read a file into a Spark DataFrame.
 
-    The path is passed through as-is so Spark resolves it via its configured
-    default filesystem (e.g. HDFS if fs.defaultFS=hdfs://..., local otherwise).
     Shell variables ($VAR, ${VAR}) are resolved via _resolve_path.
+
+    Local file support (YARN-safe):
+      - Small CSV control files (≤64 MB) are read on the driver and built into
+        a DataFrame via createDataFrame — no executors involved, so the file is
+        readable regardless of where executors run.
+      - Larger local files are staged onto the default filesystem (HDFS) first,
+        then read from there by every executor.
+      - Fallback: addFile() + SparkFiles.get() (only works when driver and
+        executors share the filesystem, e.g. local mode).
+    Other paths (hdfs://, s3://, etc.) are passed through as-is.
     """
     path = _resolve_path(path)
     opts = options or {}
     fmt = (format or "csv").lower()
+
+    _local_path = path
+    if _local_path.startswith("file://"):
+        _local_path = _local_path[len("file://"):]
+    if os.path.exists(_local_path) and os.path.isfile(_local_path):
+        if fmt == "csv" and os.path.getsize(_local_path) <= 64 * 1024 * 1024:
+            return _read_local_csv(spark, _local_path, opts)
+        # Larger local files: stage a copy on the default filesystem so every
+        # executor can read it via the same path.
+        try:
+            _fs = spark._jvm.org.apache.hadoop.fs.FileSystem.get(
+                spark._jsc.hadoopConfiguration())
+            _dst = spark._jvm.org.apache.hadoop.fs.Path(
+                "/tmp/pcis01_input/" + os.path.basename(_local_path))
+            _fs.copyFromLocalFile(
+                False, True,
+                spark._jvm.org.apache.hadoop.fs.Path("file://" + _local_path),
+                _dst)
+            path = "/tmp/pcis01_input/" + os.path.basename(_local_path)
+        except Exception:
+            try:
+                from pyspark import SparkFiles
+                spark.sparkContext.addFile(_local_path)
+                # Driver-side SparkFiles path — only usable when executors run
+                # in the same JVM/filesystem (local mode).
+                path = "file://" + SparkFiles.get(os.path.basename(_local_path))
+            except Exception:
+                pass  # best-effort: fall back to Spark's own path resolution
+
     if fmt == "csv":
         reader = spark.read.options(header=opts.get("header", "true"))
         return reader.csv(path)
@@ -456,6 +528,118 @@ def execute_sql(spark: SparkSession, conn_config: Dict[str, Any], sql: str) -> N
         stmt.close()
     finally:
         conn.close()
+
+
+# =============================================================================
+# Stored procedure invocation with runtime signature resolution
+# =============================================================================
+# Informatica XML only carries the transformation's input ports; the real
+# Oracle procedure may have extra/mismatched parameters (e.g. the UAT wrapper
+# PYSPARK.SP_DELETE_DDS_FACT has an OUT parameter RET_MSG that the metadata
+# does not list). Calling with the metadata-only arg list then fails with
+# ORA-06550/PLS-00306 "wrong number or types of arguments". These helpers
+# resolve the actual signature from the data dictionary at runtime and bind
+# OUT / IN OUT parameters to declared variables (literals are rejected for
+# them by PL/SQL).
+
+_SP_SIG_CACHE = {}
+
+
+def _get_sp_signature(spark: SparkSession, conn_config: Dict[str, Any], sp_name: str) -> list:
+    """Resolve the parameter list (position, name, in_out) of a stored procedure.
+
+    Queries USER_ARGUMENTS (objects in the session schema) first, then
+    ALL_ARGUMENTS, and caches the result per call name. sp_name may be a bare
+    procedure (SP_DELETE_DDS_FACT), a package member (PKG_CDI_UTIL.SP_TRUNCATE)
+    or schema-qualified (pyspark.PKG_CDI_UTIL.SP_TRUNCATE) — only the last two
+    parts are used for the lookup. Returns a list of
+    {"position", "name", "data_type", "in_out"} dicts; empty if unresolvable.
+    """
+    if sp_name in _SP_SIG_CACHE:
+        return _SP_SIG_CACHE[sp_name]
+    _parts = sp_name.split('.')
+    _proc = _parts[-1]
+    _pkg = _parts[-2] if len(_parts) > 1 else ''
+    _where = "OBJECT_NAME = '{}' AND DATA_LEVEL = 0".format(_proc)
+    if _pkg:
+        _where += " AND PACKAGE_NAME = '{}'".format(_pkg)
+    _sig = []
+    for _view in ("USER_ARGUMENTS", "ALL_ARGUMENTS"):
+        _sql = ("SELECT POSITION, ARGUMENT_NAME, DATA_TYPE, IN_OUT FROM {} "
+                "WHERE {} ORDER BY POSITION").format(_view, _where)
+        try:
+            _df = spark.read.format("jdbc") \
+                .option("url", get_jdbc_url(conn_config)) \
+                .option("user", conn_config.get("username", "")) \
+                .option("password", _resolve_password(spark, conn_config)) \
+                .option("driver", conn_config.get("driver", "oracle.jdbc.driver.OracleDriver")) \
+                .option("query", _sql).load()
+            _rows = _df.collect()
+        except Exception:
+            _rows = None
+        if _rows:
+            for _r in _rows:
+                try:
+                    _sig.append({
+                        "position": int(_r["POSITION"]),
+                        "name": str(_r["ARGUMENT_NAME"]),
+                        "data_type": str(_r["DATA_TYPE"]),
+                        "in_out": str(_r["IN_OUT"]).upper(),
+                    })
+                except Exception:
+                    pass
+            break
+    _SP_SIG_CACHE[sp_name] = _sig
+    return _sig
+
+
+def call_stored_procedure(spark: SparkSession, conn_config: Dict[str, Any],
+                          sp_name: str, arg_values: list) -> None:
+    """Call a stored procedure by name with positional argument values.
+
+    The actual signature is probed at runtime (see _get_sp_signature):
+      - IN parameters receive the values as quoted literals (Oracle converts
+        them to the target type; None becomes NULL).
+      - OUT / IN OUT parameters are bound to DECLARE'd VARCHAR2 variables —
+        passing a literal to them raises PLS-00306.
+      - If the signature cannot be resolved, falls back to the legacy
+        all-literals call so the previous behavior is preserved.
+    """
+    _sig = _get_sp_signature(spark, conn_config, sp_name)
+    _vals = list(arg_values)
+    if not _sig:
+        # Fallback: legacy behavior — call with all values as string literals
+        _arg_txt = ", ".join(
+            "'" + str(v).replace("'", "''") + "'" if v is not None else "NULL"
+            for v in _vals)
+        _sql = "BEGIN {}({}); END;".format(sp_name, _arg_txt)
+        execute_sql(spark, conn_config, _sql)
+        return
+    _args = []
+    _decls = []
+    for _p in _sig:
+        _pos = int(_p["position"])
+        _io = (_p["in_out"] or "").replace("_", " ").strip()
+        if _io in ("OUT", "IN OUT"):
+            # PL/SQL identifiers must start with a letter — "_v4" is a syntax
+            # error (PLS-00103), hence the "v_out_" prefix.
+            _vname = "v_out_{}".format(_pos)
+            _decls.append("{} VARCHAR2(4000)".format(_vname))
+            _args.append(_vname)
+        else:
+            _val = _vals.pop(0) if _vals else None
+            if _val is None:
+                _args.append("NULL")
+            else:
+                _args.append("'" + str(_val).replace("'", "''") + "'")
+    _call = "{}({})".format(sp_name, ", ".join(_args))
+    if _decls:
+        _sql = "DECLARE {}; BEGIN {}; END;".format(", ".join(_decls), _call)
+    else:
+        _sql = "BEGIN {}; END;".format(_call)
+    logger = get_logger()
+    logger.debug("SP call: %s", _sql)
+    execute_sql(spark, conn_config, _sql)
 
 
 def execute_stored_procedure(spark: SparkSession, conn_config: Dict[str, Any], sp_call: str) -> None:
@@ -667,6 +851,15 @@ def get_spark_session(app_name: str, config: Dict[str, Any] = None) -> SparkSess
     # 4. Apply any spark-level config overrides (can override profile values)
     for key, value in spark_cfg.get("config", {}).items():
         builder = builder.config(key, str(value))
+
+    # 4b. Keep worker interpreters in lockstep with the driver. Without this,
+    #     executors fall back to PATH's default `python`, which may differ from
+    #     the interpreter running this script → [PYTHON_VERSION_MISMATCH] Python
+    #     in worker has different version than that in driver. sys.executable is
+    #     the driver's own interpreter, so `python m_xxx.py` and
+    #     `python3.11 m_xxx.py` both work as long as the same interpreter exists
+    #     on the executor nodes.
+    builder = builder.config("spark.pyspark.python", sys.executable)
 
     # 5. Spark log level — spark.log.level is read at SparkContext construction
     #    (before setLogLevel below), suppressing init-time WARN noise.

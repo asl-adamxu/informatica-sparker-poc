@@ -23,6 +23,11 @@ class CodeGenerator:
         )
         self.env.filters['topython'] = lambda v: json.dumps(v, indent=2).replace(
             'true', 'True').replace('false', 'False').replace('null', 'None')
+        # Case-insensitive replace for schema parameterization: the XML owner
+        # (e.g. "psor") and the SQL text (e.g. "FROM PSOR.TABLE") may differ in
+        # case, and plain `replace` would miss the hardcoded prefix.
+        self.env.filters['ireplace'] = lambda s, old, new: re.sub(
+            re.escape(old), new, s, flags=re.IGNORECASE)
 
     def generate(self, plan: IRPlan, user_config: UserConfig) -> List[GeneratedFile]:
         files = []

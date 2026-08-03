@@ -321,55 +321,9 @@ where a.cust_key = b.cust_key and a.hse_srvc_aply_key = b.hse_srvc_aply_key"""
         logger.info("Step: write_DPA_FACT_EMS_UND_OCPY")
         # Write to Target: write_DPA_FACT_EMS_UND_OCPY
         df_write = df_EXPTRANS1
-        # Cast columns to match target schema data types
-        if "code_addr" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "code_addr":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "dsbl_catg_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "dsbl_catg_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "tncy_agrmt_cmnc_date" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "tncy_agrmt_cmnc_date":
-                    df_write = df_write.withColumn(c, col(c).cast(DateType()))
-        if "tncy_agrmt_trmt_date" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "tncy_agrmt_trmt_date":
-                    df_write = df_write.withColumn(c, col(c).cast(DateType()))
-        if "eldr_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "eldr_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "last_rec_txn_date" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "last_rec_txn_date":
-                    df_write = df_write.withColumn(c, col(c).cast(DateType()))
-        if "last_rec_txn_type_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "last_rec_txn_type_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "rec_rls_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "rec_rls_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        # Map source columns to target columns using connector field map (handles name mismatches)
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
         _field_map = {"CODE_ADDR": "UNIT_CODE_ADDR", "DSBL_CATG_CODE": "DSBL_CATG_CODE", "ELDR_IND": "CUST_AEM_IND", "EST_DMNS_KEY": "EST_DMNS_KEY", "FLAT_TYPE_DMNS_KEY": "FLAT_TYPE_DMNS_KEY", "FMLY_SIZE_NUM": "CUST_FMLY_SIZE_NUM", "IFA_AREA": "UNIT_IFA_AREA", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "REC_RLS_IND": "REC_RLS_IND", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TNCY_AGRMT_CMNC_DATE": "TNCY_AGRMT_CMNC_DATE", "TNCY_AGRMT_TRMT_DATE": "TNCY_AGRMT_TRMT_DATE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:

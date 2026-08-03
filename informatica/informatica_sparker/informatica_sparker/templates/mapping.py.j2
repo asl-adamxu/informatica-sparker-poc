@@ -91,7 +91,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% set src_schema = step.params.get('source_schema') %}
         # Parameterize schema from connection config
         _schema = _conn.get("schema", "") or "{{ src_schema }}"
-        query = f"""{{ step.params.get('query') | replace(src_schema + '.', '{_schema}.') }}"""
+        query = f"""{{ step.params.get('query') | ireplace(src_schema + '.', '{_schema}.') }}"""
         {% else %}
         query = f"""{{ step.params.get('query') }}"""
         {% endif %}
@@ -159,7 +159,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% set src_schema = step.params.get('source_schema') %}
         # Parameterize schema from connection config
         _schema = _conn.get("schema", "") or "{{ src_schema }}"
-        query = f"""{{ step.params.get('sql_query') | replace(src_schema + '.', '{_schema}.') }}"""
+        query = f"""{{ step.params.get('sql_query') | ireplace(src_schema + '.', '{_schema}.') }}"""
         {% else %}
         query = f"""{{ step.params.get('sql_query') }}"""
         {% endif %}
@@ -326,22 +326,28 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% set sp_body = expr_str | replace(':SP.', '') %}
         {% set sp_name = sp_body.split('(')[0] %}
         {% set sp_full = step.params.get('sp_call_text', sp_name) %}
+        {% set sp_schema = step.params.get('sp_schema', '') %}
         {% set sp_arg_raw = sp_body.split('(')[1].rstrip(')') %}
+        {% if sp_schema %}
+        # Parameterize schema from connection config (falls back to the Informatica owner)
+        _schema = _sp_conn.get("schema", "") or "{{ sp_schema }}"
+        _sp_call = _schema + "." + "{{ sp_full }}"
+        {% else %}
+        _sp_call = "{{ sp_full }}"
+        {% endif %}
         {% set sp_args = sp_arg_raw.split(',') %}
         {% if sp_args | length == 1 %}
         {#- Single-argument SP: collect values directly #}
         _input_vals = [row["{{ sp_args[0].strip() }}"] for row in {{ step.df_input }}.select("{{ sp_args[0].strip() }}").collect()]
         for _val in _input_vals:
-            lib.execute_sql(spark, _sp_conn,
-                "BEGIN {{ sp_full }}('" + _val + "'); END;")
+            lib.call_stored_procedure(spark, _sp_conn, _sp_call, [_val])
         {% else %}
         {#- Multi-argument SP: select each column individually #}
         _sp_input_cols = [{% for a in sp_args %}"{{ a.strip() }}"{% if not loop.last %}, {% endif %}{% endfor %}]
         _input_rows = [row for row in {{ step.df_input }}.select(*_sp_input_cols).collect()]
         for _row in _input_rows:
-            _arg_vals = ", ".join("'" + str(_row[c]) + "'" for c in _sp_input_cols)
-            lib.execute_sql(spark, _sp_conn,
-                "BEGIN {{ sp_full }}(" + _arg_vals + "); END;")
+            _arg_vals = [ _row[c] for c in _sp_input_cols ]
+            lib.call_stored_procedure(spark, _sp_conn, _sp_call, _arg_vals)
         {% endif %}
         {{ step.df_output }} = {{ step.df_output }}.withColumn("{{ col.get('name', 'col') }}", lit("SUCCESS"))
         {% elif expr_str | trim != col.get('name', 'col') %}
@@ -441,14 +447,14 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             *[{{ lookup_df_name }}[c] for c in {{ lookup_df_name }}.columns if c not in _lkp_input.columns]
         )
         {% if step.params.get('new_lookup_row_key') %}
-        # Dynamic lookup NewLookupRow: 1 = no match (left join miss), 0 = match.
+        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
         # Judge via a lookup column that survived the merge select (not shadowed
         # by a same-named main column) — a NULL there means the lookup missed.
         _nlr_lkp_cols = [c for c in {{ lookup_df_name }}.columns if c not in _lkp_input.columns]
         if _nlr_lkp_cols:
-            {{ step.df_output }} = {{ step.df_output }}.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 1 ELSE 0 END"))
+            {{ step.df_output }} = {{ step.df_output }}.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
         else:
-            {{ step.df_output }} = {{ step.df_output }}.withColumn("NewLookupRow", lit(0))
+            {{ step.df_output }} = {{ step.df_output }}.withColumn("NewLookupRow", lit(1))
         {% endif %}
         {% if step.df_input != step.df_output %}
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
@@ -810,20 +816,19 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Strategy: {{ step.params.get('strategy_expression', 'DD_INSERT') }}
         {% if step.params.get('strategy_field') %}
         {% set sf = step.params.get('strategy_field') %}
+        # Dynamic strategy from field — split rows by _update_flag
         {{ step.df_output }} = {{ step.df_input }}.withColumn("_update_flag",
             when(col("{{ sf }}") == "DD_INSERT", lit("I"))
             .when(col("{{ sf }}") == "DD_UPDATE", lit("U"))
             .when(col("{{ sf }}") == "DD_DELETE", lit("D"))
             .otherwise(lit("I"))
         )
-        {% elif step.params.get('needs_merge', False) %}
-        {{ step.df_output }} = {{ step.df_input }}.withColumn("_update_flag",
-            when({{ step.params.get('update_condition', 'lit(False)') }}, lit("U"))
-            .when({{ step.params.get('delete_condition', 'lit(False)') }}, lit("D"))
-            .otherwise(lit("I"))
-        )
+        {% elif step.params.get('static_dd') %}
+        # Static {{ step.params.get('static_dd') }} — pass through; the target write
+        # step applies the strategy directly (append / batch_update / batch_delete).
+        {{ step.df_output }} = {{ step.df_input }}
         {% else %}
-        {{ step.df_output }} = {{ step.df_input }}.withColumn("_update_strategy", lit("INSERT"))
+        {{ step.df_output }} = {{ step.df_input }}
         {% endif %}
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
         
@@ -863,9 +868,37 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Target {{ step.step_name }} is /dev/null, skipping write")
         {% else %}
         df_write = {{ step.df_input }}
+        {% if target_columns and step.params.get('field_map') %}
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
+        {% set field_map = step.params.get('field_map', {}) %}
+        _field_map = {{ field_map | tojson }}
+        for _tgt_col, _src_col in _field_map.items():
+            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
+                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
+        {% endif %}
         {% if step.params.get('has_update_flag') %}
         {% set _upd_keys = step.params.get('delete_keys', []) %}
-        # Split by _update_flag operation (INSERT/UPDATE/DELETE) before column processing
+        {% if step.params.get('static_dd') == 'DD_UPDATE' %}
+        # Static DD_UPDATE: batch update ALL rows by primary key (no split needed)
+        {% if _upd_keys %}
+        if not df_write.rdd.isEmpty():
+            _upd_key_cols = {{ _upd_keys }}
+            _upd_set_cols = [c for c in df_write.columns if c not in _upd_key_cols and c != "_update_flag"]
+            if _upd_set_cols:
+                _upd_rows = [tuple(r[c] for c in _upd_set_cols + _upd_key_cols) for r in df_write.collect()]
+                lib.batch_update(spark, conn_target, "{{ table_name }}", _upd_set_cols, _upd_key_cols, _upd_rows, 1000)
+        {% endif %}
+        # No rows to insert (all rows were updated)
+        df_write = df_write.filter(lit(False))
+        {% else %}
+        # Dynamic field strategy — split by _update_flag operation (INSERT/UPDATE/DELETE)
         _df_ins = df_write.filter(col("_update_flag") == "I").drop("_update_flag")
         _df_upd = df_write.filter(col("_update_flag") == "U").drop("_update_flag")
         _df_del = df_write.filter(col("_update_flag") == "D").drop("_update_flag")
@@ -890,53 +923,15 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # INSERT — set df_write to _df_ins so it flows through normal write path
         df_write = _df_ins
         {% endif %}
-        {% if is_delete and delete_keys %}
-        # DD_DELETE: Delete matching rows from target table by key field(s)
-        for _dk in {{ delete_keys }}:
-            _dk_lower = _dk.lower()
-            if _dk_lower in [c.lower() for c in df_write.columns]:
-                _del_vals = [r for r in df_write.select(col(_dk_lower)).distinct().rdd.flatMap(lambda x: x).collect() if r is not None]
-                if _del_vals:
-                    lib.batch_delete(spark, conn_target, "{{ table_name }}", _dk, _del_vals, 1000)
-        {% else %}
-        # Cast columns to match target schema data types
-        {% for col_name, col_type in target_column_types.items() %}
-        {% set col_lower = col_name.lower() %}
-        {% if col_type and col_type.upper().startswith('VARCHAR') or col_type and col_type.upper().startswith('NVARCHAR') or col_type and col_type.upper() == 'STRING' or col_type and col_type.upper().startswith('CHAR') %}
-        if "{{ col_lower }}" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "{{ col_lower }}":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        {% elif col_type and col_type.upper() in ['INTEGER', 'INT', 'BIGINT', 'SMALLINT', 'TINYINT'] %}
-        if "{{ col_lower }}" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "{{ col_lower }}":
-                    df_write = df_write.withColumn(c, col(c).cast(LongType()))
-        {% elif col_type and ('DECIMAL' in col_type.upper() or 'NUMERIC' in col_type.upper()) %}
-        if "{{ col_lower }}" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "{{ col_lower }}":
-                    df_write = df_write.withColumn(c, col(c).cast(DecimalType(38, 10)))
-        {% elif col_type and col_type.upper() in ['FLOAT', 'DOUBLE', 'REAL'] %}
-        if "{{ col_lower }}" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "{{ col_lower }}":
-                    df_write = df_write.withColumn(c, col(c).cast(DoubleType()))
-        {% elif col_type and col_type.upper() in ['DATE'] %}
-        if "{{ col_lower }}" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "{{ col_lower }}":
-                    df_write = df_write.withColumn(c, col(c).cast(DateType()))
-        {% elif col_type and col_type.upper() in ['DATETIME', 'TIMESTAMP', 'DATETIME2'] %}
-        if "{{ col_lower }}" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "{{ col_lower }}":
-                    df_write = df_write.withColumn(c, col(c).cast(TimestampType()))
         {% endif %}
-        {% endfor %}
+        {% if is_delete and delete_keys %}
+        # Static DD_DELETE: composite primary-key delete of all rows
+        _del_key_cols = {{ delete_keys }}
+        if not df_write.rdd.isEmpty():
+            _del_rows = [tuple(r[c] for c in _del_key_cols) for r in df_write.select(*_del_key_cols).distinct().collect()]
+            if _del_rows:
+                lib.batch_delete_composite(spark, conn_target, "{{ table_name }}", _del_key_cols, _del_rows, 1000)
+        {% else %}
         {% if unmapped_columns %}
         # Add NULL for unmapped target columns (schema parity) - excluding identity columns
         {% for col in unmapped_columns %}
@@ -946,19 +941,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% endfor %}
         {% endif %}
         {% if target_columns %}
-        # Map source columns to target columns using connector field map (handles name mismatches)
-        {% set field_map = step.params.get('field_map', {}) %}
-        {% if field_map %}
-        _field_map = {{ field_map | tojson }}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        {% endif %}
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = {{ target_columns }}
         df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])

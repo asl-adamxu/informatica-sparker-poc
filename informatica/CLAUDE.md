@@ -46,12 +46,14 @@ This file captures conventions, patterns, and rules established during developme
 - Hardcoded schema prefixes in SQL queries (e.g. `PSOR.`) are replaced with a dynamic `{_schema}` variable at codegen time.
 - The schema comes from `_conn.get("schema", "")` using the dynamically resolved connection from config.yml.
 - When no matching connection is found, the original schema is kept as the fallback value.
+- **Case-insensitive replace (v2026.08.03)**: the replacement uses the `ireplace` Jinja filter (registered in codegen.py, `re.sub(..., re.IGNORECASE)`), NOT plain `replace` — the XML owner may be lowercase (`psor`) while the SQL text is uppercase (`FROM PSOR.TABLE`), and case-sensitive `replace` silently misses the prefix, leaving the hardcoded schema in the query.
 - Lookup SQL queries extract the schema prefix via regex on `FROM <schema>.` and pass it as `source_schema` in step params.
 - Lookup connection resolution (`_find_lookup_connection`) matches the SQL's schema prefix to a source definition's `owner_name` to use the correct db_name.
 
 ### Stored Procedure Handling
 - Stored procedures referenced via `:SP.xxx()` in expression transforms are handled by detecting the reference and reading the `Stored Procedure Name` attribute (e.g. `PDPA.PKG_CDI_UTIL.SP_TRUNCATE`).
-- The schema prefix is stripped, so the generated call text uses `PKG_CDI_UTIL.SP_TRUNCATE`.
+- **Schema parameterization (v2026.08.03)**: the owner schema (`PDPA`) is NOT stripped — it is kept in `step.params["sp_schema"]` and rendered as `{_schema}` at runtime: `_schema = _sp_conn.get("schema", "") or "PDPA"` then `_sp_call = _schema + "." + "PKG_CDI_UTIL.SP_TRUNCATE"`. Matches the SQL `{_schema}` pattern — the connection's `schema` field wins, the XML owner is the fallback.
+- **Runtime signature resolution (v2026.08.03)**: the Informatica XML only lists the transformation's input ports; the real Oracle procedure may differ (e.g. the UAT wrapper `PYSPARK.SP_DELETE_DDS_FACT` has 4 params — 3 IN + `RET_MSG OUT` — while the metadata lists 3). Calling with metadata-only args → `ORA-06550/PLS-00306 wrong number or types of arguments`. Generated code now calls `lib.call_stored_procedure(spark, conn, sp_call, arg_values)` (runtime_lib), which probes `USER_ARGUMENTS` (fallback `ALL_ARGUMENTS`, cached per call name via `_SP_SIG_CACHE`) and binds OUT/IN OUT params to `DECLARE`'d VARCHAR2 variables (literals are rejected for them by PL/SQL); IN params get quoted literals (None → NULL). Falls back to the legacy all-literals call when the signature is unresolvable.
 - The `Stored Procedure` instance type is recognized in the dispatch chain (logged at INFO, not WARNING).
 
 ### Email Enhancements
@@ -357,7 +359,8 @@ use default python to run pyspark workflow or mapping
 
 ### Dynamic Lookup NewLookupRow (v2026.07.31)
 - **Problem**: Dynamic Lookup transforms expose a `NewLookupRow` output port (1 = no match, 0 = match), referenced by downstream filters (e.g. `NewLookupRow > 0` keeps only unmatched rows). The generated merge DataFrame had no such column → `[UNRESOLVED_COLUMN] A column ... with name \`NewLookupRow\` cannot be resolved`.
-- **Fix** (`handlers.py` + `mapping.py.j2`): Handler detects `NewLookupRow` with `DYNLOOKUP` port type on the lookup transform and sets `new_lookup_row_key` param. Template generates the column after the merge select: `withColumn("NewLookupRow", expr("CASE WHEN \`<probe>\` IS NULL THEN 1 ELSE 0 END"))`.
+- **Fix** (`handlers.py` + `mapping.py.j2`): Handler detects `NewLookupRow` with `DYNLOOKUP` port type on the lookup transform and sets `new_lookup_row_key` param. Template generates the column after the merge select: `withColumn("NewLookupRow", expr("CASE WHEN \`<probe>\` IS NULL THEN 0 ELSE 1 END"))`.
+- **Semantics (confirmed with user)**: `NewLookupRow` = **0 when no match, >0 when a match was found** — `NewLookupRow > 0` keeps MATCHED rows (UPSERT update path). (Informatica docs sometimes state the opposite; this project follows the user's verified behavior.)
 - **Probe column**: chosen at runtime as the first lookup column that **survived the merge select** (`c not in _lkp_input.columns`) — same-named columns are shadowed by main-table values (never NULL), so join keys like `CODE_ADDR` cannot be used. Falls back to `lit(0)` if no lookup column survives.
 
 ### SQL Column Name-Match-First Rename (v2026.07.31)
@@ -392,10 +395,26 @@ use default python to run pyspark workflow or mapping
 
 ### YARN Mode Configuration
 - **Profile switching**: `env/config.yml` `spark.connection` selects the runtime environment — `spark_local` (local[*]), `spark3_client` (YARN client), `spark3_on_yarn` (YARN cluster). Default is `spark3_client`. Override per-run via `SPARK_CONNECTION` env var.
-- **`spark.home`** (config.yml): CDP parcel path (`/opt/cloudera/parcels/SPARK3-3.5.4.../lib/spark3`). The **`runtime_lib.py` module-level bootstrap block** (before any pyspark import) reads it and injects `${home}/python` into `sys.path` — lets `python3.11 m_xxx.py` run directly without `PYTHONPATH`/`SPARK_HOME` env vars. Generated `m_*.py`/`wf_*.py` stay clean (`import env.runtime_lib as lib` only).
+- **`spark.home`** (config.yml): CDP parcel path (`/opt/cloudera/parcels/SPARK3-3.5.4.../lib/spark3`). The **`runtime_lib.py` module-level bootstrap block** (before any pyspark import) reads it and injects `${home}/python` into `sys.path` — lets `python m_xxx.py` run directly without `PYTHONPATH`/`SPARK_HOME` env vars. Generated `m_*.py`/`wf_*.py` stay clean (`import env.runtime_lib as lib` only).
+- **Worker/driver interpreter lockstep (v2026.08.03)**: `get_spark_session` sets `spark.pyspark.python = sys.executable` before `getOrCreate()` — executors always use the same interpreter as the driver, eliminating `[PYTHON_VERSION_MISMATCH]`. Run with plain `python` (3.6) or `python3.11` — both work as long as that interpreter exists on the executor nodes. **Do NOT hardcode `spark.pyspark.python` in config.yml** (was previously `/usr/bin/python3.11`, which mismatched a 3.6 driver).
 - **Auto-kinit**: `get_spark_session` runs `klist -s` when a kerberos profile is selected; if no valid ticket, automatically `kinit -kt <keytab> <principal>` from the profile's `spark.kerberos.keytab` / `spark.kerberos.principal` — no manual kinit needed.
 - **Executor memory**: cluster max container is 8192 MB → executor memory must be ≤ ~7g (8g + 10% overhead = 9011 MB exceeds `yarn.scheduler.maximum-allocation-mb` → `IllegalArgumentException`). Currently 4g.
 - **OJBC driver loading**: `addJar()` in `get_spark_session` loads jars from `spark.driver.extraClassPath`/`spark.jars` at runtime — `spark.driver.extraClassPath` only takes effect at JVM startup via spark-submit; direct `python` runs need `addJar()`.
+
+### Update Strategy Semantics (v2026.07.31)
+- **Problem**: Static `DD_UPDATE` strategies were not detected in `_handle_write_target` (only `DD_DELETE` and dynamic field strategies were) → the write fell through to plain `append`, silently discarding `_update_flag` — no key-based update/delete happened.
+- **Fix** (`handlers.py`): Detect static `DD_UPDATE` → `has_update_flag=True`; UPDATE/DELETE key columns come from the **target definition's KEYTYPE** (fields containing "PRIMARY"), falling back to the connector's `from_field`.
+- **Semantics (static DD_*, no `_update_flag` split)**:
+  - `DD_INSERT` → Update Strategy step passes through; target write appends directly
+  - `DD_UPDATE` → Update Strategy step passes through; target write `lib.batch_update()`s ALL rows by primary key, then writes an empty INSERT df (`filter(lit(False))`)
+  - `DD_DELETE` → Update Strategy step passes through; target write `lib.batch_delete_composite()`s ALL rows by primary key
+  - Only **dynamic field strategies** (strategy expr references a field, e.g. `UPDATE_FLAG`) generate the `_update_flag` when() split + INSERT/UPDATE/DELETE branch code
+- **Distinction**: `static_dd` param ("DD_INSERT"/"DD_UPDATE"/"DD_DELETE") is set on both the Update Strategy step and the write step; the write template branches on `static_dd == 'DD_UPDATE'` vs dynamic-field split.
+- **Template order fix** (`mapping.py.j2`): the connector `_field_map` rename now runs **before** the `_update_flag` split, so `batch_update`/`batch_delete` use target column names (e.g. `TNCY_AGRMT_CMNC_DATE1` → `TNCY_AGRMT_CMNC_DATE`), not source names.
+
+### Target Type Cast Removed (v2026.07.31)
+- The "Cast columns to match target schema data types" block was **removed** from the target write template (per user request, simplify generated code). JDBC writes rely on Spark's native type coercion instead.
+- Kept: connector `_field_map` rename loop, unmapped-column `lit(None)` fill, and the final `_target_cols` select.
 
 ### Spark Log Level (v2026.07.31)
 - `spark.log_level` in config.yml (`${SPARK_LOG_LEVEL:ERROR}`) — applied via `spark.sparkContext.setLogLevel()` in `get_spark_session` right after `getOrCreate()`, suppressing the default WARN noise and Java log4j chatter.
@@ -406,12 +425,20 @@ use default python to run pyspark workflow or mapping
 - **Injection isolation**: `addJar()` loading and `spark.hadoop.*` injection are in **separate try blocks** in `get_spark_session` — a jar-loading failure cannot skip the provider-path injection.
 - **Save flow**: interactive passwords cached in `_PASSWORD_PENDING`, flushed to jceks via `hadoop credential create/update` only after successful connection validation (`_flush_pending_passwords`).
 
+### Local File Read (YARN-safe, v2026.08.03)
+- **Problem**: `addFile()` + `"file://" + SparkFiles.get(...)` broke in YARN client mode — `SparkFiles.get()` on the DRIVER returns the driver's own temp path (`/tmp/spark-<app>/userFiles-<driverUUID>/...`), which does not exist on executors (separate JVMs, separate roots) → `SparkFileNotFoundException` on the executor. It only worked in local mode because driver and workers share the JVM.
+- **Fix** (`runtime_lib.py` `read_file`): three tiers for local files —
+  1. **Small CSV control files (≤64 MB)** are read on the DRIVER (`_read_local_csv` → `spark.createDataFrame`) — no executors involved, works in YARN and local mode regardless of HDFS. Header=true → first row becomes column names; no header → `_c0, _c1, ...` (matches Spark CSV defaults); empty file → empty schema (mapping falls into the "empty or has no columns" warning branch).
+  2. **Larger local files** are staged to HDFS (`/tmp/pcis01_input/<basename>` via `copyFromLocalFile`) and read from the default filesystem, so every executor sees the same path.
+  3. **Fallback** (`addFile` + driver-side `SparkFiles` path) only if staging fails — usable when driver and executors share the filesystem (local mode).
+- The `hdfs://nameservice1/...` re-resolution problem (bare paths being resolved against HDFS) is bypassed by tiers 1–2.
+
 ### Direct Run (no env vars, no spark-submit)
 ```bash
 cd .../WF_EMS_DDS_APLY_MTH
-python3.11 m_<mapping>.py        # or wf_<workflow>.py
+python m_<mapping>.py        # or wf_<workflow>.py   (python3.11 also works)
 ```
-Requires: python3.11 (pyspark 3.5 needs 3.8+; system python3 is 3.6), cwd = workflow dir (import env.runtime_lib), `spark.home` configured, keytab path valid.
+Requires: cwd = workflow dir (import env.runtime_lib), `spark.home` configured, keytab path valid. Default `python` (3.6 on RHEL8) works — the CDP parcel's pyspark 3.5.4 runs under the system python3; `python3.11` also works.
 
 ## Conversion Progress
 

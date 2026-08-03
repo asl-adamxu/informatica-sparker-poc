@@ -688,44 +688,9 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN cycl_sts.BD_CYCL_BGN_DATE AND c
         logger.info("Step: write_DPA_FACT_EMS_BD")
         # Write to Target: write_DPA_FACT_EMS_BD
         df_write = df_lkp_merge_1
-        # Cast columns to match target schema data types
-        if "bd_cycl_bgn_date" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "bd_cycl_bgn_date":
-                    df_write = df_write.withColumn(c, col(c).cast(DateType()))
-        if "bd_cycl_end_date" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "bd_cycl_end_date":
-                    df_write = df_write.withColumn(c, col(c).cast(DateType()))
-        if "cmplt_cnt" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "cmplt_cnt":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "last_rec_txn_date" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "last_rec_txn_date":
-                    df_write = df_write.withColumn(c, col(c).cast(DateType()))
-        if "last_rec_txn_type_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "last_rec_txn_type_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "rec_rls_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "rec_rls_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("REC_RLS_IND", lit(None).cast(StringType()))
-        # Map source columns to target columns using connector field map (handles name mismatches)
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
         _field_map = {"BD_CYCL_BGN_DATE": "BD_CYCL_BGN_DATE", "BD_CYCL_END_DATE": "BD_CYCL_END_DATE", "BD_FORM_PRN_CNT": "PRN_FORM_CNT", "BD_FORM_RTN_CNT": "RTN_FORM_CNT", "CMPLT_CNT": "CMPT_CNT", "DSTR_DMNS_KEY": "DSTR_DMNS_KEY", "EXST_TNCY_CNT": "EXST_TNCY_CNT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "RGN_DMNS_KEY": "RGN_DMNS_KEY", "TF_CASE_CNT": "TASK_FORCE_CASE_CNT", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TRGT_CMPLT_PCT": "TRGT_CMPLT_PCT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
@@ -735,6 +700,9 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN cycl_sts.BD_CYCL_BGN_DATE AND c
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
+        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
+        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
+        df_write = df_write.withColumn("REC_RLS_IND", lit(None).cast(StringType()))
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['EXST_TNCY_CNT', 'BD_FORM_PRN_CNT', 'BD_FORM_RTN_CNT', 'BD_CYCL_BGN_DATE', 'TF_CASE_CNT', 'BD_CYCL_END_DATE', 'CMPLT_CNT', 'TIME_DMNS_KEY', 'RGN_DMNS_KEY', 'DSTR_DMNS_KEY', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND', 'TRGT_CMPLT_PCT']
         df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])

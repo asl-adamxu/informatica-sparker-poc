@@ -195,12 +195,12 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_rename_2
         # Execute stored procedure for each input value via JDBC
         _sp_conn = conn_oracle
+        _sp_call = "SP_DELETE_DDS_FACT"
         _sp_input_cols = ["FACT_TBL_NAME", "MIN_TIME_DMNS_KEY", "REMOVE_ALL_FLG"]
         _input_rows = [row for row in df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_rename_2.select(*_sp_input_cols).collect()]
         for _row in _input_rows:
-            _arg_vals = ", ".join("'" + str(_row[c]) + "'" for c in _sp_input_cols)
-            lib.execute_sql(spark, _sp_conn,
-                "BEGIN SP_DELETE_DDS_FACT(" + _arg_vals + "); END;")
+            _arg_vals = [ _row[c] for c in _sp_input_cols ]
+            lib.call_stored_procedure(spark, _sp_conn, _sp_call, _arg_vals)
         df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE.withColumn("CALL_SP", lit("SUCCESS"))
         df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE.withColumn("RLS_CNTL_BGN_DMNS_KEY", expr("CASE WHEN (DDS_RLS_CNTL_BGN_TIME_DMNS_KEY IS NULL) OR (MIN_TIME_DMNS_KEY < DDS_RLS_CNTL_BGN_TIME_DMNS_KEY) THEN MIN_TIME_DMNS_KEY ELSE DDS_RLS_CNTL_BGN_TIME_DMNS_KEY END"))
         df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE.withColumn("RLS_CNTL_END_DMNS_KEY", expr("CASE WHEN (DDS_RLS_CNTL_END_TIME_DMNS_KEY IS NULL) OR (MAX_TIME_DMNS_KEY > DDS_RLS_CNTL_END_TIME_DMNS_KEY) THEN MAX_TIME_DMNS_KEY ELSE DDS_RLS_CNTL_END_TIME_DMNS_KEY END"))
@@ -229,66 +229,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: write_DDS_FACT_EMS_RMV_RDEV_ALWN")
         # Write to Target: write_DDS_FACT_EMS_RMV_RDEV_ALWN
         df_write = df_AGGTRANS
-        # Cast columns to match target schema data types
-        if "opr_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "opr_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "opr_trgt_evct_date" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "opr_trgt_evct_date":
-                    df_write = df_write.withColumn(c, col(c).cast(DateType()))
-        if "last_rec_txn_date" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "last_rec_txn_date":
-                    df_write = df_write.withColumn(c, col(c).cast(DateType()))
-        if "last_rec_txn_type_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "last_rec_txn_type_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "rec_rls_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "rec_rls_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "opr_desp" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "opr_desp":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "opr_rmk_text" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "opr_rmk_text":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "opr_from_date" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "opr_from_date":
-                    df_write = df_write.withColumn(c, col(c).cast(DateType()))
-        if "opr_to_date" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "opr_to_date":
-                    df_write = df_write.withColumn(c, col(c).cast(DateType()))
-        if "schm_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "schm_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        # Map source columns to target columns using connector field map (handles name mismatches)
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
         _field_map = {"ALWN_AMT": "OUT_ALWN_AMT", "FMLY_CNT": "OUT_FMLY_CNT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "OPR_CODE": "OPR_CODE", "OPR_DESP": "OPR_DESP", "OPR_FROM_DATE": "OPR_FROM_DATE", "OPR_RMK_TEXT": "OPR_RMK_TEXT", "OPR_TO_DATE": "OPR_TO_DATE", "OPR_TRGT_EVCT_DATE": "TRGT_EVCT_DATE", "REC_RLS_IND": "REC_RLS_IND", "RMV_CASE_DMNS_KEY": "RMV_CASE_DMNS_KEY", "SCHM_CODE": "SCHM_CODE", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
@@ -314,6 +257,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: apply_UPD_RLS_CNTL")
         # Update Strategy: apply_UPD_RLS_CNTL
         # Strategy: UPDATE_FLAG
+        # Dynamic strategy from field — split rows by _update_flag
         df_UPD_RLS_CNTL = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD.withColumn("_update_flag",
             when(col("UPDATE_FLAG") == "DD_INSERT", lit("I"))
             .when(col("UPDATE_FLAG") == "DD_UPDATE", lit("U"))
@@ -325,42 +269,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: write_DDS_RLS_CNTL")
         # Write to Target: write_DDS_RLS_CNTL
         df_write = df_UPD_RLS_CNTL
-        # Split by _update_flag operation (INSERT/UPDATE/DELETE) before column processing
-        _df_ins = df_write.filter(col("_update_flag") == "I").drop("_update_flag")
-        _df_upd = df_write.filter(col("_update_flag") == "U").drop("_update_flag")
-        _df_del = df_write.filter(col("_update_flag") == "D").drop("_update_flag")
-        df_write = df_write.drop("_update_flag")
-        # DELETE: composite key batch delete (all key columns together)
-        _del_key_cols = ['rls_cntl_fact_tbl_name', 'rls_cntl_dmns_type_code', 'rls_cntl_bgn_time_dmns_key', 'rls_cntl_end_time_dmns_key']
-        if not _df_del.rdd.isEmpty():
-            _del_rows = [tuple(r[c] for c in _del_key_cols) for r in _df_del.select(*_del_key_cols).distinct().collect()]
-            if _del_rows:
-                lib.batch_delete_composite(spark, conn_target, "DDS_RLS_CNTL", _del_key_cols, _del_rows, 1000)
-        # UPDATE: batch update via JDBC
-        if not _df_upd.rdd.isEmpty():
-            _upd_key_cols = ['rls_cntl_fact_tbl_name', 'rls_cntl_dmns_type_code', 'rls_cntl_bgn_time_dmns_key', 'rls_cntl_end_time_dmns_key']
-            _upd_set_cols = [c for c in _df_upd.columns if c not in _upd_key_cols]
-            if _upd_set_cols:
-                _upd_rows = [tuple(r[c] for c in _upd_set_cols + _upd_key_cols) for r in _df_upd.collect()]
-                lib.batch_update(spark, conn_target, "DDS_RLS_CNTL", _upd_set_cols, _upd_key_cols, _upd_rows, 1000)
-        # INSERT — set df_write to _df_ins so it flows through normal write path
-        df_write = _df_ins
-        # Cast columns to match target schema data types
-        if "rls_cntl_fact_tbl_name" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "rls_cntl_fact_tbl_name":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "rls_cntl_dmns_type_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "rls_cntl_dmns_type_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        # Map source columns to target columns using connector field map (handles name mismatches)
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
         _field_map = {"RLS_CNTL_BGN_TIME_DMNS_KEY": "RLS_CNTL_BGN_TIME_DMNS_KEY", "RLS_CNTL_DMNS_TYPE_CODE": "RLS_CNTL_DMNS_TYPE_CODE", "RLS_CNTL_END_TIME_DMNS_KEY": "RLS_CNTL_END_TIME_DMNS_KEY", "RLS_CNTL_FACT_TBL_NAME": "RLS_CNTL_FACT_TBL_NAME"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
@@ -370,6 +281,26 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
+        # Dynamic field strategy — split by _update_flag operation (INSERT/UPDATE/DELETE)
+        _df_ins = df_write.filter(col("_update_flag") == "I").drop("_update_flag")
+        _df_upd = df_write.filter(col("_update_flag") == "U").drop("_update_flag")
+        _df_del = df_write.filter(col("_update_flag") == "D").drop("_update_flag")
+        df_write = df_write.drop("_update_flag")
+        # DELETE: composite key batch delete (all key columns together)
+        _del_key_cols = ['RLS_CNTL_FACT_TBL_NAME', 'RLS_CNTL_DMNS_TYPE_CODE']
+        if not _df_del.rdd.isEmpty():
+            _del_rows = [tuple(r[c] for c in _del_key_cols) for r in _df_del.select(*_del_key_cols).distinct().collect()]
+            if _del_rows:
+                lib.batch_delete_composite(spark, conn_target, "DDS_RLS_CNTL", _del_key_cols, _del_rows, 1000)
+        # UPDATE: batch update via JDBC
+        if not _df_upd.rdd.isEmpty():
+            _upd_key_cols = ['RLS_CNTL_FACT_TBL_NAME', 'RLS_CNTL_DMNS_TYPE_CODE']
+            _upd_set_cols = [c for c in _df_upd.columns if c not in _upd_key_cols]
+            if _upd_set_cols:
+                _upd_rows = [tuple(r[c] for c in _upd_set_cols + _upd_key_cols) for r in _df_upd.collect()]
+                lib.batch_update(spark, conn_target, "DDS_RLS_CNTL", _upd_set_cols, _upd_key_cols, _upd_rows, 1000)
+        # INSERT — set df_write to _df_ins so it flows through normal write path
+        df_write = _df_ins
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['RLS_CNTL_FACT_TBL_NAME', 'RLS_CNTL_DMNS_TYPE_CODE', 'RLS_CNTL_BGN_TIME_DMNS_KEY', 'RLS_CNTL_END_TIME_DMNS_KEY']
         df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
