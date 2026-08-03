@@ -92,8 +92,8 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
        and d.dstr_key = dd.dstr_key 
        and p.pms_dstr_key = pp.pms_dstr_key(+)
 	   and d.dstr_key > 0
-	   and (TO_DATE ($$v_snsh_date, 'YYYYMMDD') BETWEEN dd.bgn_date AND dd.end_date OR dd.bgn_date is null)
-	   and (TO_DATE ($$v_snsh_date, 'YYYYMMDD') BETWEEN pp.bgn_date AND pp.end_date OR PP.bgn_date is null)
+	   and (TO_DATE ('$$v_snsh_date', 'YYYYMMDD') BETWEEN dd.bgn_date AND dd.end_date OR dd.bgn_date is null)
+	   and (TO_DATE ('$$v_snsh_date', 'YYYYMMDD') BETWEEN pp.bgn_date AND pp.end_date OR PP.bgn_date is null)
  union 
 select 'OTHR' dstr_code, 'Others' dstr_name, 'OTHR' pms_dstr_code,
        'Others' pms_dstr_name, 10000 dstr_disp_seq_num, 1000
@@ -101,14 +101,34 @@ select 'OTHR' dstr_code, 'Others' dstr_name, 'OTHR' pms_dstr_code,
   from dual"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         df_SQ_SOR_HOM_REF_PMS_DSTR = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_HOM_REF_PMS_DSTR.columns
         _port_cols = ["DSTR_CODE", "DSTR_NAME", "PMS_DSTR_CODE", "PMS_DSTR_NAME", "DSTR_DISP_SEQ_NUM", "PMS_DSTR_DISP_SEQ_NUM"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_SOR_HOM_REF_PMS_DSTR = df_SQ_SOR_HOM_REF_PMS_DSTR.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
+        df_SQ_SOR_HOM_REF_PMS_DSTR = df_SQ_SOR_HOM_REF_PMS_DSTR.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_HOM_REF_PMS_DSTR = df_SQ_SOR_HOM_REF_PMS_DSTR.select("DSTR_CODE", "DSTR_NAME", "PMS_DSTR_CODE", "PMS_DSTR_NAME", "DSTR_DISP_SEQ_NUM", "PMS_DSTR_DISP_SEQ_NUM")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_SOR_HOM_REF_PMS_DSTR = df_SQ_SOR_HOM_REF_PMS_DSTR.select([col(c) if c in df_SQ_SOR_HOM_REF_PMS_DSTR.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_HOM_REF_PMS_DSTR", df_SQ_SOR_HOM_REF_PMS_DSTR)
         
@@ -141,13 +161,13 @@ select 'OTHR' dstr_code, 'Others' dstr_name, 'OTHR' pms_dstr_code,
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
         df_EXPTRANS = df_lkp_merge_1
-        df_EXPTRANS = df_EXPTRANS.withColumn("IN_DSTR_NAME", expr("DSTR_NAME"))
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_PMS_DSTR_NAME", expr("PMS_DSTR_NAME"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("IN_DSTR_NAME", expr("DSTR_NAME"))
         df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_PMS_DSTR_KEY IS NULL) OR CASE WHEN DSTR_NAME = DSTR_NAME THEN false ELSE true END OR CASE WHEN PMS_DSTR_NAME = PMS_DSTR_NAME THEN false ELSE true END THEN 1 ELSE 0 END"))
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_DSTR_DISP_SEQ_NUM", expr("DSTR_DISP_SEQ_NUM"))
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_PMS_DSTR_DISP_SEQ_NUM", expr("PMS_DSTR_DISP_SEQ_NUM"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["DSTR_NAME", "PMS_DSTR_NAME", "DMNS_PMS_DSTR_KEY", "DSTR_CODE", "PMS_DSTR_CODE", "DSTR_DISP_SEQ_NUM", "PMS_DSTR_DISP_SEQ_NUM", "IN_DSTR_CODE", "IN_PMS_DSTR_CODE"]:
+        for _col in ["PMS_DSTR_NAME", "DSTR_NAME", "DMNS_PMS_DSTR_KEY", "DSTR_CODE", "PMS_DSTR_CODE", "DSTR_DISP_SEQ_NUM", "PMS_DSTR_DISP_SEQ_NUM", "IN_DSTR_CODE", "IN_PMS_DSTR_CODE"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
@@ -196,36 +216,9 @@ select 'OTHR' dstr_code, 'Others' dstr_name, 'OTHR' pms_dstr_code,
         logger.info("Step: write_DPA_DMNS_PMS_DSTR")
         # Write to Target: write_DPA_DMNS_PMS_DSTR
         df_write = df_Union_Transformation
-        # Cast columns to match target schema data types
-        if "dstr_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "dstr_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "dstr_name" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "dstr_name":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "pms_dstr_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "pms_dstr_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "pms_dstr_name" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "pms_dstr_name":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        # Map source columns to target columns using connector field map (handles name mismatches)
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
         _field_map = {"DMNS_PMS_DSTR_KEY": "DMNS_PMS_DSTR_KEY", "DSTR_CODE": "IN_DSTR_CODE", "DSTR_DISP_SEQ_NUM": "IN_DSTR_DISP_SEQ_NUM", "DSTR_NAME": "IN_DSTR_NAME", "PMS_DSTR_CODE": "IN_PMS_DSTR_CODE", "PMS_DSTR_DISP_SEQ_NUM": "IN_PMS_DSTR_DISP_SEQ_NUM", "PMS_DSTR_NAME": "IN_PMS_DSTR_NAME"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
@@ -266,10 +259,18 @@ def main():
         success = run_mapping(ctx, metrics)
         if success:
             lib._flush_pending_passwords()
-        return 0 if success else 1
+        if not success:
+            # Exit the JVM non-zero so YARN marks the application FAILED.
+            # In client mode the AM lives in this JVM: a normal spark.stop() +
+            # python exit code still reports SUCCEEDED (AM exits cleanly).
+            spark.sparkContext._jvm.System.exit(1)
+        return 0
     finally:
         spark.stop()
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the mapping failed.
+    import sys as _sys
+    _sys.exit(main())

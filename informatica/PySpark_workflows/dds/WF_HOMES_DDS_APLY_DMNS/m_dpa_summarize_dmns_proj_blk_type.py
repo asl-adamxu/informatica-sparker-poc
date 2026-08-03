@@ -87,20 +87,40 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
  where b.last_rec_txn_type_code is null
        and bb.last_rec_txn_type_code is null
 	   and b.blk_type_key = bb.blk_type_key
-	   and TO_DATE ($$v_snsh_date, 'YYYYMMDD') BETWEEN bb.bgn_date AND bb.end_date
+	   and TO_DATE ('$$v_snsh_date', 'YYYYMMDD') BETWEEN bb.bgn_date AND bb.end_date
  union 
 select 'Others' blk_type_code, 'Others' blk_type_desp, 9999 disp_seq_num
   from dual"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         df_SQ_SOR_HOM_REF_BLK_TYPE = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_HOM_REF_BLK_TYPE.columns
         _port_cols = ["BLK_TYPE_CODE", "BLK_TYPE_DESP", "DISP_SEQ_NUM"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_SOR_HOM_REF_BLK_TYPE = df_SQ_SOR_HOM_REF_BLK_TYPE.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
+        df_SQ_SOR_HOM_REF_BLK_TYPE = df_SQ_SOR_HOM_REF_BLK_TYPE.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_HOM_REF_BLK_TYPE = df_SQ_SOR_HOM_REF_BLK_TYPE.select("BLK_TYPE_CODE", "BLK_TYPE_DESP", "DISP_SEQ_NUM")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_SOR_HOM_REF_BLK_TYPE = df_SQ_SOR_HOM_REF_BLK_TYPE.select([col(c) if c in df_SQ_SOR_HOM_REF_BLK_TYPE.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_HOM_REF_BLK_TYPE", df_SQ_SOR_HOM_REF_BLK_TYPE)
         
@@ -131,11 +151,11 @@ select 'Others' blk_type_code, 'Others' blk_type_desp, 9999 disp_seq_num
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
         df_EXPTRANS = df_lkp_merge_1
-        df_EXPTRANS = df_EXPTRANS.withColumn("IN_BLK_TYPE_DESP", expr("BLK_TYPE_DESP"))
         df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_BLK_TYPE_KEY IS NULL) OR CASE WHEN BLK_TYPE_CODE = IN_BLK_TYPE_CODE THEN false ELSE true END OR CASE WHEN BLK_TYPE_DESP = BLK_TYPE_DESP THEN false ELSE true END THEN 1 ELSE 0 END"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("IN_BLK_TYPE_DESP", expr("BLK_TYPE_DESP"))
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_DISP_SEQ_NUM", expr("DISP_SEQ_NUM"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["BLK_TYPE_CODE", "DMNS_BLK_TYPE_KEY", "BLK_TYPE_DESP", "IN_BLK_TYPE_CODE", "DISP_SEQ_NUM"]:
+        for _col in ["DMNS_BLK_TYPE_KEY", "IN_BLK_TYPE_CODE", "BLK_TYPE_CODE", "BLK_TYPE_DESP", "DISP_SEQ_NUM"]:
             if _col not in df_EXPTRANS.columns:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
@@ -178,36 +198,9 @@ select 'Others' blk_type_code, 'Others' blk_type_desp, 9999 disp_seq_num
         logger.info("Step: write_DPA_DMNS_PROJ_BLK_TYPE")
         # Write to Target: write_DPA_DMNS_PROJ_BLK_TYPE
         df_write = df_Union_Transformation
-        # Cast columns to match target schema data types
-        if "proj_num" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "proj_num":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "phase_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "phase_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "proj_ttl" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "proj_ttl":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("DMNS_PROJ_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PROJ_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PROJ_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PHASE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PROJ_TTL", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PROJ_DISP_SEQ_NUM", lit(None).cast(StringType()))
-        # Map source columns to target columns using connector field map (handles name mismatches)
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
         _field_map = {"BLK_TYPE_CODE": "IN_BLK_TYPE_CODE", "BLK_TYPE_DESP": "IN_BLK_TYPE_DESP", "DISP_SEQ_NUM": "IN_DISP_SEQ_NUM", "DMNS_BLK_TYPE_KEY": "DMNS_BLK_TYPE_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
@@ -217,6 +210,13 @@ select 'Others' blk_type_code, 'Others' blk_type_desp, 9999 disp_seq_num
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
+        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
+        df_write = df_write.withColumn("DMNS_PROJ_KEY", lit(None).cast(StringType()))
+        df_write = df_write.withColumn("PROJ_KEY", lit(None).cast(StringType()))
+        df_write = df_write.withColumn("PROJ_NUM", lit(None).cast(StringType()))
+        df_write = df_write.withColumn("PHASE_CODE", lit(None).cast(StringType()))
+        df_write = df_write.withColumn("PROJ_TTL", lit(None).cast(StringType()))
+        df_write = df_write.withColumn("PROJ_DISP_SEQ_NUM", lit(None).cast(StringType()))
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['DMNS_PROJ_KEY', 'PROJ_KEY', 'PROJ_NUM', 'PHASE_CODE', 'PROJ_TTL', 'PROJ_DISP_SEQ_NUM']
         df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
@@ -248,10 +248,18 @@ def main():
         success = run_mapping(ctx, metrics)
         if success:
             lib._flush_pending_passwords()
-        return 0 if success else 1
+        if not success:
+            # Exit the JVM non-zero so YARN marks the application FAILED.
+            # In client mode the AM lives in this JVM: a normal spark.stop() +
+            # python exit code still reports SUCCEEDED (AM exits cleanly).
+            spark.sparkContext._jvm.System.exit(1)
+        return 0
     finally:
         spark.stop()
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the mapping failed.
+    import sys as _sys
+    _sys.exit(main())

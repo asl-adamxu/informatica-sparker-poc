@@ -1,51 +1,51 @@
-[2026-07-29 16:27:02] [CONVERT] WF_CMS_DDS_APLY_MTH.XML
-[2026-07-29 16:27:04] Total Mappings: 10
-[2026-07-29 16:27:04] Successful: 10
-[2026-07-29 16:27:04] Failed: 0
-[2026-07-29 16:27:04] Total Warnings: 0
-[2026-07-29 16:27:04] Total Errors: 0
-[2026-07-29 16:27:04] [COMPLETED] ----------------------------------------
-[2026-07-29 16:27:04] [CONVERT] WF_EMS_DDS_APLY_MTH.XML
-[2026-07-29 16:27:08] Total Mappings: 49
-[2026-07-29 16:27:08] Successful: 49
-[2026-07-29 16:27:08] Failed: 0
-[2026-07-29 16:27:08] Total Warnings: 0
-[2026-07-29 16:27:08] Total Errors: 0
-[2026-07-29 16:27:08] [COMPLETED] ----------------------------------------
-[2026-07-29 16:27:08] [CONVERT] WF_EMS_PRHE_DDS_APLY_HSE_STCK_MTH.XML
-[2026-07-29 16:27:11] Total Mappings: 28
-[2026-07-29 16:27:11] Successful: 28
-[2026-07-29 16:27:11] Failed: 0
-[2026-07-29 16:27:11] Total Warnings: 0
-[2026-07-29 16:27:11] Total Errors: 0
-[2026-07-29 16:27:11] [COMPLETED] ----------------------------------------
-[2026-07-29 16:27:11] [CONVERT] WF_EMS_PRHE_DDS_APLY_RVN_MTH.XML
-[2026-07-29 16:27:13] Total Mappings: 25
-[2026-07-29 16:27:13] Successful: 25
-[2026-07-29 16:27:13] Failed: 0
-[2026-07-29 16:27:13] Total Warnings: 0
-[2026-07-29 16:27:13] Total Errors: 0
-[2026-07-29 16:27:13] [COMPLETED] ----------------------------------------
-[2026-07-29 16:27:13] [CONVERT] WF_GMS_DDS_APLY_DLY.XML
-[2026-07-29 16:27:14] Total Mappings: 8
-[2026-07-29 16:27:14] Successful: 8
-[2026-07-29 16:27:14] Failed: 0
-[2026-07-29 16:27:14] Total Warnings: 0
-[2026-07-29 16:27:14] Total Errors: 0
-[2026-07-29 16:27:14] [COMPLETED] ----------------------------------------
-[2026-07-29 16:27:14] [CONVERT] WF_HOMES_DDS_APLY_DMNS.XML
-[2026-07-29 16:27:17] Total Mappings: 67
-[2026-07-29 16:27:17] Successful: 67
-[2026-07-29 16:27:17] Failed: 0
-[2026-07-29 16:27:17] Total Warnings: 0
-[2026-07-29 16:27:17] Total Errors: 0
-[2026-07-29 16:27:17] [COMPLETED] ----------------------------------------
-[2026-07-29 16:27:17] [MANIFEST] Building manifest.json...
+[2026-08-03 14:19:01] [CONVERT] WF_CMS_DDS_APLY_MTH.XML
+[2026-08-03 14:19:02] Total Mappings: 10
+[2026-08-03 14:19:02] Successful: 10
+[2026-08-03 14:19:02] Failed: 0
+[2026-08-03 14:19:02] Total Warnings: 0
+[2026-08-03 14:19:02] Total Errors: 0
+[2026-08-03 14:19:02] [COMPLETED] ----------------------------------------
+[2026-08-03 14:19:02] [CONVERT] WF_EMS_DDS_APLY_MTH.XML
+[2026-08-03 14:19:06] Total Mappings: 49
+[2026-08-03 14:19:06] Successful: 49
+[2026-08-03 14:19:06] Failed: 0
+[2026-08-03 14:19:06] Total Warnings: 0
+[2026-08-03 14:19:06] Total Errors: 0
+[2026-08-03 14:19:06] [COMPLETED] ----------------------------------------
+[2026-08-03 14:19:06] [CONVERT] WF_EMS_PRHE_DDS_APLY_HSE_STCK_MTH.XML
+[2026-08-03 14:19:09] Total Mappings: 28
+[2026-08-03 14:19:09] Successful: 28
+[2026-08-03 14:19:09] Failed: 0
+[2026-08-03 14:19:09] Total Warnings: 0
+[2026-08-03 14:19:09] Total Errors: 0
+[2026-08-03 14:19:09] [COMPLETED] ----------------------------------------
+[2026-08-03 14:19:09] [CONVERT] WF_EMS_PRHE_DDS_APLY_RVN_MTH.XML
+[2026-08-03 14:19:11] Total Mappings: 25
+[2026-08-03 14:19:11] Successful: 25
+[2026-08-03 14:19:11] Failed: 0
+[2026-08-03 14:19:11] Total Warnings: 0
+[2026-08-03 14:19:11] Total Errors: 0
+[2026-08-03 14:19:11] [COMPLETED] ----------------------------------------
+[2026-08-03 14:19:11] [CONVERT] WF_GMS_DDS_APLY_DLY.XML
+[2026-08-03 14:19:12] Total Mappings: 8
+[2026-08-03 14:19:12] Successful: 8
+[2026-08-03 14:19:12] Failed: 0
+[2026-08-03 14:19:12] Total Warnings: 0
+[2026-08-03 14:19:12] Total Errors: 0
+[2026-08-03 14:19:12] [COMPLETED] ----------------------------------------
+[2026-08-03 14:19:12] [CONVERT] WF_HOMES_DDS_APLY_DMNS.XML
+[2026-08-03 14:19:15] Total Mappings: 67
+[2026-08-03 14:19:15] Successful: 67
+[2026-08-03 14:19:15] Failed: 0
+[2026-08-03 14:19:15] Total Warnings: 0
+[2026-08-03 14:19:15] Total Errors: 0
+[2026-08-03 14:19:15] [COMPLETED] ----------------------------------------
+[2026-08-03 14:19:15] [MANIFEST] Building manifest.json...
 
-[2026-07-29 16:27:18] ==========================================
-[2026-07-29 16:27:18]  Conversion complete
-[2026-07-29 16:27:18]    Source: /var/lib/airflow/dags/adam/informatica/PowerCenter_workflows/dds
-[2026-07-29 16:27:18]    Target: /var/lib/airflow/dags/adam/informatica/PySpark_workflows/dds
-[2026-07-29 16:27:18]    Succeeded: 6
-[2026-07-29 16:27:18]    Failed:    0
-[2026-07-29 16:27:18] ==========================================
+[2026-08-03 14:19:15] ==========================================
+[2026-08-03 14:19:15]  Conversion complete
+[2026-08-03 14:19:15]    Source: /var/lib/airflow/dags/adam/informatica/PowerCenter_workflows/dds
+[2026-08-03 14:19:15]    Target: /var/lib/airflow/dags/adam/informatica/PySpark_workflows/dds
+[2026-08-03 14:19:15]    Succeeded: 6
+[2026-08-03 14:19:15]    Failed:    0
+[2026-08-03 14:19:15] ==========================================

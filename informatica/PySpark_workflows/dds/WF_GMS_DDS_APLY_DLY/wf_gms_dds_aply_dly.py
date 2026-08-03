@@ -22,13 +22,13 @@ EXECUTION_PLAN = [
     "steps": [
       {
         "type": "session",
-        "name": "S_GMS_ETL_PARAM_SETUP",
-        "mapping_name": "M_UTL_PARAM_SETUP"
+        "name": "S_GMS_ETL_DPA_TRUNCATE",
+        "mapping_name": "M_UTL_DPA_TRUNCATE"
       },
       {
         "type": "session",
-        "name": "S_GMS_ETL_DPA_TRUNCATE",
-        "mapping_name": "M_UTL_DPA_TRUNCATE"
+        "name": "S_GMS_ETL_PARAM_SETUP",
+        "mapping_name": "M_UTL_PARAM_SETUP"
       }
     ]
   },
@@ -41,13 +41,13 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_DPA_SUM_FACT_GMS_DLY_MSD_INCDT",
-            "mapping_name": "M_DPA_SUM_FACT_GMS_DLY_MSD_INCDT"
+            "name": "S_DPA_SUM_FACT_GMS_DLY_MSD_SMRY",
+            "mapping_name": "M_DPA_SUM_FACT_GMS_DLY_MSD_SMRY"
           },
           {
             "type": "session",
-            "name": "S_DPA_SUM_FACT_GMS_DLY_MSD_SMRY",
-            "mapping_name": "M_DPA_SUM_FACT_GMS_DLY_MSD_SMRY"
+            "name": "S_DPA_SUM_FACT_GMS_DLY_MSD_INCDT",
+            "mapping_name": "M_DPA_SUM_FACT_GMS_DLY_MSD_INCDT"
           },
           {
             "type": "session",
@@ -67,8 +67,8 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_DDS_APL_FACT_GMS_DLY_MSD_INCDT",
-            "mapping_name": "M_DDS_APL_FACT_GMS_DLY_MSD_INCDT"
+            "name": "S_DDS_APL_FACT_GMS_DLY_MSD_SMRY",
+            "mapping_name": "M_DDS_APL_FACT_GMS_DLY_MSD_SMRY"
           },
           {
             "type": "session",
@@ -77,8 +77,8 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_DDS_APL_FACT_GMS_DLY_MSD_SMRY",
-            "mapping_name": "M_DDS_APL_FACT_GMS_DLY_MSD_SMRY"
+            "name": "S_DDS_APL_FACT_GMS_DLY_MSD_INCDT",
+            "mapping_name": "M_DDS_APL_FACT_GMS_DLY_MSD_INCDT"
           }
         ]
       }
@@ -133,4 +133,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the workflow failed.
+    import sys as _sys
+    _sys.exit(main())

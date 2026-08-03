@@ -95,18 +95,38 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
 from   SOR_HOM_BUD_PARM p, SOR_HOM_BUD_PARM_sts pp
 where  pp.parm_catg_code = 'PPM'
 and p.bdgt_parm_key = pp.bdgt_parm_key
-and TO_DATE ($$v_snsh_date, 'YYYYMMDD') BETWEEN pp.bgn_date AND pp.end_date
+and TO_DATE ('$$v_snsh_date', 'YYYYMMDD') BETWEEN pp.bgn_date AND pp.end_date
 order by pp.parm_name"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         df_SQ_SOR_HOM_BUD_PARM = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_HOM_BUD_PARM.columns
         _port_cols = ["PARM_NAME", "proj_sts_desp", "PARM_TEXT"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_SOR_HOM_BUD_PARM = df_SQ_SOR_HOM_BUD_PARM.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
+        df_SQ_SOR_HOM_BUD_PARM = df_SQ_SOR_HOM_BUD_PARM.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_HOM_BUD_PARM = df_SQ_SOR_HOM_BUD_PARM.select("PARM_NAME", "proj_sts_desp", "PARM_TEXT")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_SOR_HOM_BUD_PARM = df_SQ_SOR_HOM_BUD_PARM.select([col(c) if c in df_SQ_SOR_HOM_BUD_PARM.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_HOM_BUD_PARM", df_SQ_SOR_HOM_BUD_PARM)
         
@@ -185,31 +205,9 @@ order by pp.parm_name"""
         logger.info("Step: write_DPA_DMNS_BDGT_PROJ_STS")
         # Write to Target: write_DPA_DMNS_BDGT_PROJ_STS
         df_write = df_Union_Transformation
-        # Cast columns to match target schema data types
-        if "proj_sts_catg_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "proj_sts_catg_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "proj_sts_desp" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "proj_sts_desp":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "phcp_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "phcp_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("BDGT_STS_DISP_SEQ_NUM", lit(None).cast(StringType()))
-        # Map source columns to target columns using connector field map (handles name mismatches)
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
         _field_map = {"DMNS_BDGT_PROJ_STS_KEY": "DMNS_BDGT_PROJ_STS_KEY", "PHCP_IND": "PHCP_IND", "PROJ_STS_CATG_CODE": "IN_PROJ_STS_CATG_CODE", "PROJ_STS_DESP": "IN_proj_sts_desp"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
@@ -219,6 +217,8 @@ order by pp.parm_name"""
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
+        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
+        df_write = df_write.withColumn("BDGT_STS_DISP_SEQ_NUM", lit(None).cast(StringType()))
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['DMNS_BDGT_PROJ_STS_KEY', 'PROJ_STS_CATG_CODE', 'PROJ_STS_DESP', 'BDGT_STS_DISP_SEQ_NUM', 'PHCP_IND']
         df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
@@ -250,10 +250,18 @@ def main():
         success = run_mapping(ctx, metrics)
         if success:
             lib._flush_pending_passwords()
-        return 0 if success else 1
+        if not success:
+            # Exit the JVM non-zero so YARN marks the application FAILED.
+            # In client mode the AM lives in this JVM: a normal spark.stop() +
+            # python exit code still reports SUCCEEDED (AM exits cleanly).
+            spark.sparkContext._jvm.System.exit(1)
+        return 0
     finally:
         spark.stop()
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the mapping failed.
+    import sys as _sys
+    _sys.exit(main())

@@ -59,22 +59,17 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: apply_SQ_DPA_DMNS_BDGT_PROJ_MGR")
         # Source Qualifier: apply_SQ_DPA_DMNS_BDGT_PROJ_MGR
         df_SQ_DPA_DMNS_BDGT_PROJ_MGR = df_DPA_DMNS_BDGT_PROJ_MGR
-        # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_DPA_DMNS_BDGT_PROJ_MGR = df_SQ_DPA_DMNS_BDGT_PROJ_MGR.select("DMNS_BDGT_PROJ_MGR_KEY", "BDGT_PROJ_MGR_POST_NAME", "BDGT_PROJ_MGR_DISP_SEQ_NUM")
+        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
+        _port_cols = ["DMNS_BDGT_PROJ_MGR_KEY", "BDGT_PROJ_MGR_POST_NAME", "BDGT_PROJ_MGR_DISP_SEQ_NUM"]
+        df_SQ_DPA_DMNS_BDGT_PROJ_MGR = df_SQ_DPA_DMNS_BDGT_PROJ_MGR.select([col(c) if c in df_SQ_DPA_DMNS_BDGT_PROJ_MGR.columns else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_DPA_DMNS_BDGT_PROJ_MGR", df_SQ_DPA_DMNS_BDGT_PROJ_MGR)
         
         logger.info("Step: write_DDS_DMNS_BDGT_PROJ_MGR")
         # Write to Target: write_DDS_DMNS_BDGT_PROJ_MGR
         df_write = df_SQ_DPA_DMNS_BDGT_PROJ_MGR
-        # Cast columns to match target schema data types
-        if "bdgt_proj_mgr_post_name" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "bdgt_proj_mgr_post_name":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        # Map source columns to target columns using connector field map (handles name mismatches)
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
         _field_map = {"BDGT_PROJ_MGR_DISP_SEQ_NUM": "BDGT_PROJ_MGR_DISP_SEQ_NUM", "BDGT_PROJ_MGR_POST_NAME": "BDGT_PROJ_MGR_POST_NAME", "DMNS_BDGT_PROJ_MGR_KEY": "DMNS_BDGT_PROJ_MGR_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
@@ -115,10 +110,18 @@ def main():
         success = run_mapping(ctx, metrics)
         if success:
             lib._flush_pending_passwords()
-        return 0 if success else 1
+        if not success:
+            # Exit the JVM non-zero so YARN marks the application FAILED.
+            # In client mode the AM lives in this JVM: a normal spark.stop() +
+            # python exit code still reports SUCCEEDED (AM exits cleanly).
+            spark.sparkContext._jvm.System.exit(1)
+        return 0
     finally:
         spark.stop()
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the mapping failed.
+    import sys as _sys
+    _sys.exit(main())

@@ -129,14 +129,34 @@ order by HSU.unit_key"""
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         query = query.replace("$$v_snsh_date", v_snsh_date)
         df_SQ_SOR_HSM_UNIT = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_HSM_UNIT.columns
         _port_cols = ["UNIT_KEY", "UNIT_ADDR_CODE", "EST_KEY", "EMMS_DTSR_CHC_DSTR_KEY", "EMMS_DTSR_BRD_DSTR_KEY", "UNIT_TYPE_CODE", "UNIT_IFA_AREA", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_SOR_HSM_UNIT = df_SQ_SOR_HSM_UNIT.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
+        df_SQ_SOR_HSM_UNIT = df_SQ_SOR_HSM_UNIT.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_HSM_UNIT = df_SQ_SOR_HSM_UNIT.select("UNIT_KEY", "UNIT_ADDR_CODE", "EST_KEY", "EMMS_DTSR_CHC_DSTR_KEY", "EMMS_DTSR_BRD_DSTR_KEY", "UNIT_TYPE_CODE", "UNIT_IFA_AREA", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_SOR_HSM_UNIT = df_SQ_SOR_HSM_UNIT.select([col(c) if c in df_SQ_SOR_HSM_UNIT.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_HSM_UNIT", df_SQ_SOR_HSM_UNIT)
         
@@ -176,14 +196,34 @@ ORDER BY HSU.UNIT_KEY"""
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         query = query.replace("$$v_snsh_date", v_snsh_date)
         df_SQ_SOR_WKM_MNR_WORK_DTL = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_WKM_MNR_WORK_DTL.columns
         _port_cols = ["UNIT_KEY", "WORK_ADDR_CODE", "WORK_DRFT_ORD_ISS_DATE", "WORK_CMPLT_RPT_DATE", "WORK_CMPLT_CERT_DATE", "WORK_ORD_NUM", "WORK_DTL_FRZ_DATE", "WORK_DTL_ACT_DATE", "WORK_VFRA_TYPE_CODE", "WORK_DTL_STS_CODE", "WORK_ORD_KEY"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_SOR_WKM_MNR_WORK_DTL = df_SQ_SOR_WKM_MNR_WORK_DTL.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
+        df_SQ_SOR_WKM_MNR_WORK_DTL = df_SQ_SOR_WKM_MNR_WORK_DTL.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_WKM_MNR_WORK_DTL = df_SQ_SOR_WKM_MNR_WORK_DTL.select("UNIT_KEY", "WORK_ADDR_CODE", "WORK_DRFT_ORD_ISS_DATE", "WORK_CMPLT_RPT_DATE", "WORK_CMPLT_CERT_DATE", "WORK_ORD_NUM", "WORK_DTL_FRZ_DATE", "WORK_DTL_ACT_DATE", "WORK_VFRA_TYPE_CODE", "WORK_DTL_STS_CODE", "WORK_ORD_KEY")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_SOR_WKM_MNR_WORK_DTL = df_SQ_SOR_WKM_MNR_WORK_DTL.select([col(c) if c in df_SQ_SOR_WKM_MNR_WORK_DTL.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_WKM_MNR_WORK_DTL", df_SQ_SOR_WKM_MNR_WORK_DTL)
         
@@ -856,7 +896,7 @@ GROUP BY
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
         query = f"""SELECT 
-DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_DSTR_SCD_KEY as DSTR_CHC_DSTR_SCD_KEY, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_DSTR_CODE as DSTR_CHC_DSTR_CODE, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_DSTR_ENG_NAME as DSTR_CHC_DSTR_ENG_NAME, DDS_HRCHY_EMS_DSTR_CHC_DSTR.EMMS_DSTR_KEY as EMMS_DSTR_KEY, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_SBDSTR_CODE as DSTR_CHC_SBDSTR_CODE, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_SBDSTR_ENG_NAME as DSTR_CHC_SBDSTR_ENG_NAME,
+DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_DSTR_SCD_KEY as DSTR_CHC_DSTR_SCD_KEY, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_DSTR_CODE as DSTR_CHC_DSTR_CODE, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_DSTR_ENG_NAME as DSTR_CHC_DSTR_ENG_NAME, DDS_HRCHY_EMS_DSTR_CHC_DSTR.EMMS_DSTR_KEY as EMMS_DSTR_KEY, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_SBDSTR_CODE as DSTR_CHC_SBDSTR_CODE, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_SBDSTR_ENG_NAME as DSTR_CHC_SBDSTR_ENG_NAME
 DDS_HRCHY_EMS_DSTR_CHC_DSTR.EMMS_SBDSTR_KEY as EMMS_SBDSTR_KEY 
 FROM DDS_HRCHY_EMS_DSTR_CHC_DSTR
 WHERE LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','yyyymmdd')) between bgn_date and end_date"""
@@ -965,7 +1005,18 @@ WHERE LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','yyyymmdd')) between bgn_date and e
         logger.info("Step: write_DPA_FACT_EMS_RCVR_FLAT_ANLS")
         # Write to Target: write_DPA_FACT_EMS_RCVR_FLAT_ANLS
         df_write = df_EXPTRANS2
-        # Cast columns to match target schema data types
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
+        _field_map = {"DSTR_BRD_DSTR_DMNS_KEY": "DSTR_BRD_DSTR_DMNS_KEY1", "DSTR_CHC_DSTR_SCD_KEY": "DSTR_CHC_DSTR_SCD_KEY1", "EST_SCD_KEY": "EST_SCD_KEY1", "FLAT_TYPE_DMNS_KEY": "FLAT_TYPE_DMNS_KEY1", "MAX_UNIT_HEAD_CNT": "MAX_UNIT_HEAD_CNT1", "MGT_MODE_DMNS_KEY": "MGT_MODE_DMNS_KEY1", "MIN_UNIT_HEAD_CNT": "MIN_UNIT_HEAD_CNT1", "PRVS_ACPT_TCHUP_CMPLT_CNT": "END_DATE_CNT3", "PRVS_ACPT_TCHUP_CMPLT_DAY_NUM": "DIFF_DAY_NUM3", "PRVS_ACPT_WO_CMPLT_CNT": "END_DATE_CNT", "PRVS_ACPT_WO_CMPLT_DAY_NUM": "DIFF_DAY_NUM", "TIME_DMNS_KEY": "TIME_DMNS_KEY1", "UNIT_SIZE_DMNS_KEY": "UNIT_SIZE_DMNS_KEY1"}
+        for _tgt_col, _src_col in _field_map.items():
+            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
+                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Add NULL for unmapped target columns (schema parity) - excluding identity columns
         df_write = df_write.withColumn("DOT_WO_DRFT_DAY_NUM", lit(None).cast(StringType()))
         df_write = df_write.withColumn("DOT_WO_DRFT_CNT", lit(None).cast(StringType()))
@@ -997,16 +1048,6 @@ WHERE LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','yyyymmdd')) between bgn_date and e
         df_write = df_write.withColumn("DOT_FRZ_FLAT_RTN_CNT", lit(None).cast(StringType()))
         df_write = df_write.withColumn("WO_ISS_FRST_OFR_DAY_NUM", lit(None).cast(StringType()))
         df_write = df_write.withColumn("WO_ISS_FRST_OFR_CNT", lit(None).cast(StringType()))
-        # Map source columns to target columns using connector field map (handles name mismatches)
-        _field_map = {"DSTR_BRD_DSTR_DMNS_KEY": "DSTR_BRD_DSTR_DMNS_KEY1", "DSTR_CHC_DSTR_SCD_KEY": "DSTR_CHC_DSTR_SCD_KEY1", "EST_SCD_KEY": "EST_SCD_KEY1", "FLAT_TYPE_DMNS_KEY": "FLAT_TYPE_DMNS_KEY1", "MAX_UNIT_HEAD_CNT": "MAX_UNIT_HEAD_CNT1", "MGT_MODE_DMNS_KEY": "MGT_MODE_DMNS_KEY1", "MIN_UNIT_HEAD_CNT": "MIN_UNIT_HEAD_CNT1", "PRVS_ACPT_TCHUP_CMPLT_CNT": "END_DATE_CNT3", "PRVS_ACPT_TCHUP_CMPLT_DAY_NUM": "DIFF_DAY_NUM3", "PRVS_ACPT_WO_CMPLT_CNT": "END_DATE_CNT", "PRVS_ACPT_WO_CMPLT_DAY_NUM": "DIFF_DAY_NUM", "TIME_DMNS_KEY": "TIME_DMNS_KEY1", "UNIT_SIZE_DMNS_KEY": "UNIT_SIZE_DMNS_KEY1"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['TIME_DMNS_KEY', 'EST_SCD_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'FLAT_TYPE_DMNS_KEY', 'MAX_UNIT_HEAD_CNT', 'MIN_UNIT_HEAD_CNT', 'UNIT_SIZE_DMNS_KEY', 'MGT_MODE_DMNS_KEY', 'DOT_WO_DRFT_DAY_NUM', 'DOT_WO_DRFT_CNT', 'WO_DRFT_WO_ISS_DAY_NUM', 'WO_DRFT_WO_ISS_CNT', 'WO_ISS_WO_RPT_DAY_NUM', 'WO_ISS_WO_RPT_CNT', 'WO_RPT_WO_CMPLT_DAY_NUM', 'WO_RPT_WO_CMPLT_CNT', 'WO_CMPLT_FRST_OFR_DAY_NUM', 'WO_CMPLT_FRST_OFR_CNT', 'OFR_RLET_DAY_NUM', 'OFR_RLET_CNT', 'FRST_OFR_RLET_DAY_NUM', 'FRST_OFR_RLET_CNT', 'OFR_PRVS_ACPT_DAY_NUM', 'OFR_PRVS_ACPT_CNT', 'PRVS_ACPT_WO_CMPLT_DAY_NUM', 'PRVS_ACPT_WO_CMPLT_CNT', 'WO_CMPLT_RLET_DAY_NUM', 'WO_CMPLT_RLET_CNT', 'PRVS_ACPT_TCHUP_CMPLT_DAY_NUM', 'PRVS_ACPT_TCHUP_CMPLT_CNT', 'TCHUP_CMPLT_RLET_DAY_NUM', 'TCHUP_CMPLT_RLET_CNT', 'WO_ISS_WO_CMPLT_DAY_NUM', 'WO_ISS_WO_CMPLT_CNT', 'TOT_OFR_BFR_SUCC_RLET_CNT', 'OFR_BFR_SUCC_RLET_CNT', 'DOT_RLET_DAY_NUM', 'DOT_RLET_CNT', 'DOT_FRZ_FLAT_RTN_DAY_NUM', 'DOT_FRZ_FLAT_RTN_CNT', 'WO_ISS_FRST_OFR_DAY_NUM', 'WO_ISS_FRST_OFR_CNT']
         df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
@@ -1038,10 +1079,18 @@ def main():
         success = run_mapping(ctx, metrics)
         if success:
             lib._flush_pending_passwords()
-        return 0 if success else 1
+        if not success:
+            # Exit the JVM non-zero so YARN marks the application FAILED.
+            # In client mode the AM lives in this JVM: a normal spark.stop() +
+            # python exit code still reports SUCCEEDED (AM exits cleanly).
+            spark.sparkContext._jvm.System.exit(1)
+        return 0
     finally:
         spark.stop()
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the mapping failed.
+    import sys as _sys
+    _sys.exit(main())

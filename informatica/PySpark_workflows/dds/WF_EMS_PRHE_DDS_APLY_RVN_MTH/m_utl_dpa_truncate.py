@@ -93,8 +93,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: apply_SQ_UTL_SSA_TBL_LIST")
         # Source Qualifier: apply_SQ_UTL_SSA_TBL_LIST
         df_SQ_UTL_SSA_TBL_LIST = df_UTL_SSA_TBL_LIST
-        # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_UTL_SSA_TBL_LIST = df_SQ_UTL_SSA_TBL_LIST.select("TABLE")
+        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
+        _port_cols = ["TABLE"]
+        df_SQ_UTL_SSA_TBL_LIST = df_SQ_UTL_SSA_TBL_LIST.select([col(c) if c in df_SQ_UTL_SSA_TBL_LIST.columns else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_UTL_SSA_TBL_LIST", df_SQ_UTL_SSA_TBL_LIST)
         
         logger.info("Step: apply_EXPTRANS2")
@@ -102,10 +103,12 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_EXPTRANS2 = df_SQ_UTL_SSA_TBL_LIST
         # Execute stored procedure for each input value via JDBC
         _sp_conn = conn_oracle
+        # Parameterize schema from connection config (falls back to the Informatica owner)
+        _schema = _sp_conn.get("schema", "") or "PDPA"
+        _sp_call = _schema + "." + "PKG_CDI_UTIL.SP_TRUNCATE"
         _input_vals = [row["TABLE"] for row in df_SQ_UTL_SSA_TBL_LIST.select("TABLE").collect()]
         for _val in _input_vals:
-            lib.execute_sql(spark, _sp_conn,
-                "BEGIN PKG_CDI_UTIL.SP_TRUNCATE('" + _val + "'); END;")
+            lib.call_stored_procedure(spark, _sp_conn, _sp_call, [_val])
         df_EXPTRANS2 = df_EXPTRANS2.withColumn("OUTPUT", lit("SUCCESS"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["TABLE"]:
@@ -144,10 +147,18 @@ def main():
         success = run_mapping(ctx, metrics)
         if success:
             lib._flush_pending_passwords()
-        return 0 if success else 1
+        if not success:
+            # Exit the JVM non-zero so YARN marks the application FAILED.
+            # In client mode the AM lives in this JVM: a normal spark.stop() +
+            # python exit code still reports SUCCEEDED (AM exits cleanly).
+            spark.sparkContext._jvm.System.exit(1)
+        return 0
     finally:
         spark.stop()
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the mapping failed.
+    import sys as _sys
+    _sys.exit(main())

@@ -89,17 +89,37 @@ where	s.BDGT_PROJ_TEAM_KEY = ss.BDGT_PROJ_TEAM_KEY
 and     s.role_code = 'HOM_SNSH_SEC'
 and     s.LAST_REC_TXN_TYPE_CODE is null
 and     ss.LAST_REC_TXN_TYPE_CODE is null
-and     TO_DATE ($$v_snsh_date, 'YYYYMMDD') BETWEEN ss.bgn_date AND ss.end_date"""
+and     TO_DATE ('$$v_snsh_date', 'YYYYMMDD') BETWEEN ss.bgn_date AND ss.end_date"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         df_SQ_SOR_HOM_BUD_PROJ_TEAM = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_HOM_BUD_PROJ_TEAM.columns
         _port_cols = ["POST_NAME", "bdgt_proj_mgr_disp_seq_num"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_SOR_HOM_BUD_PROJ_TEAM = df_SQ_SOR_HOM_BUD_PROJ_TEAM.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
+        df_SQ_SOR_HOM_BUD_PROJ_TEAM = df_SQ_SOR_HOM_BUD_PROJ_TEAM.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_HOM_BUD_PROJ_TEAM = df_SQ_SOR_HOM_BUD_PROJ_TEAM.select("POST_NAME", "bdgt_proj_mgr_disp_seq_num")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_SOR_HOM_BUD_PROJ_TEAM = df_SQ_SOR_HOM_BUD_PROJ_TEAM.select([col(c) if c in df_SQ_SOR_HOM_BUD_PROJ_TEAM.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_HOM_BUD_PROJ_TEAM", df_SQ_SOR_HOM_BUD_PROJ_TEAM)
         
@@ -133,7 +153,7 @@ and     TO_DATE ($$v_snsh_date, 'YYYYMMDD') BETWEEN ss.bgn_date AND ss.end_date"
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("IN_bdgt_proj_mgr_disp_seq_num", expr("bdgt_proj_mgr_disp_seq_num"))
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_BDGT_PROJ_MGR_KEY IS NULL) OR CASE WHEN BDGT_PROJ_MGR_POST_NAME = IN_BDGT_PROJ_MGR_POST_NAME THEN false ELSE true END THEN 1 ELSE 0 END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["BDGT_PROJ_MGR_POST_NAME", "DMNS_BDGT_PROJ_MGR_KEY", "IN_BDGT_PROJ_MGR_POST_NAME", "BDGT_PROJ_MGR_DISP_SEQ_NUM"]:
+        for _col in ["DMNS_BDGT_PROJ_MGR_KEY", "IN_BDGT_PROJ_MGR_POST_NAME", "BDGT_PROJ_MGR_POST_NAME", "BDGT_PROJ_MGR_DISP_SEQ_NUM"]:
             if _col not in df_EXPTRANS1.columns:
                 df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
@@ -174,15 +194,9 @@ and     TO_DATE ($$v_snsh_date, 'YYYYMMDD') BETWEEN ss.bgn_date AND ss.end_date"
         logger.info("Step: write_DPA_DMNS_BDGT_PROJ_MGR")
         # Write to Target: write_DPA_DMNS_BDGT_PROJ_MGR
         df_write = df_Union_Transformation
-        # Cast columns to match target schema data types
-        if "bdgt_proj_mgr_post_name" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "bdgt_proj_mgr_post_name":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        # Map source columns to target columns using connector field map (handles name mismatches)
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
         _field_map = {"BDGT_PROJ_MGR_DISP_SEQ_NUM": "IN_bdgt_proj_mgr_disp_seq_num", "BDGT_PROJ_MGR_POST_NAME": "IN_BDGT_PROJ_MGR_POST_NAME", "DMNS_BDGT_PROJ_MGR_KEY": "DMNS_BDGT_PROJ_MGR_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
@@ -223,10 +237,18 @@ def main():
         success = run_mapping(ctx, metrics)
         if success:
             lib._flush_pending_passwords()
-        return 0 if success else 1
+        if not success:
+            # Exit the JVM non-zero so YARN marks the application FAILED.
+            # In client mode the AM lives in this JVM: a normal spark.stop() +
+            # python exit code still reports SUCCEEDED (AM exits cleanly).
+            spark.sparkContext._jvm.System.exit(1)
+        return 0
     finally:
         spark.stop()
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the mapping failed.
+    import sys as _sys
+    _sys.exit(main())

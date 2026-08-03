@@ -192,14 +192,34 @@ ORDER BY
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         query = query.replace("$$v_snsh_date", v_snsh_date)
         df_SQ_DATA = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_SQ_DATA.columns
         _port_cols = ["UNIT_ADDR_CODE", "HSE_SRVC_APLY_NUM", "CATG_USER_TYPE_CODE", "FMLY_SIZE_NUM", "MIN_UNIT_HEAD_CNT", "MAX_UNIT_HEAD_CNT", "UNIT_IFA_AREA", "RENT_FCTR_CODE", "RVS_INTK_DATE", "PREV_CODE_ADDR"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_DATA = df_SQ_DATA.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
+        df_SQ_DATA = df_SQ_DATA.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_DATA = df_SQ_DATA.select("UNIT_ADDR_CODE", "HSE_SRVC_APLY_NUM", "CATG_USER_TYPE_CODE", "FMLY_SIZE_NUM", "MIN_UNIT_HEAD_CNT", "MAX_UNIT_HEAD_CNT", "UNIT_IFA_AREA", "RENT_FCTR_CODE", "RVS_INTK_DATE", "PREV_CODE_ADDR")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_DATA = df_SQ_DATA.select([col(c) if c in df_SQ_DATA.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_DATA", df_SQ_DATA)
         
@@ -223,85 +243,9 @@ ORDER BY
         logger.info("Step: write_FLAT_EMS_IH_HSE_CASE")
         # Write to Target: write_FLAT_EMS_IH_HSE_CASE
         df_write = df_EXPTRANS
-        # Cast columns to match target schema data types
-        if "estate_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "estate_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "code_address" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "code_address":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "application_no" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "application_no":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "category_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "category_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "family_size" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "family_size":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "head_min" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "head_min":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "head_max" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "head_max":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "ifa" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "ifa":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "rent_factor" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "rent_factor":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "intake_date" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "intake_date":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "original_code_address" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "original_code_address":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        # Map source columns to target columns using connector field map (handles name mismatches)
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
         _field_map = {"Application_No": "HSE_SRVC_APLY_NUM", "Category_Code": "CATG_USER_TYPE_CODE", "Code_Address": "UNIT_ADDR_CODE", "Estate_Code": "EST_CODE", "Family_Size": "FMLY_SIZE_NUM", "Head_Max": "MAX_UNIT_HEAD_CNT", "Head_Min": "MIN_UNIT_HEAD_CNT", "IFA": "UNIT_IFA_AREA", "Intake_Date": "RVS_INTK_DATE", "Original_Code_Address": "PREV_CODE_ADDR", "Rent_Factor": "RENT_FCTR_CODE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
@@ -350,10 +294,18 @@ def main():
         success = run_mapping(ctx, metrics)
         if success:
             lib._flush_pending_passwords()
-        return 0 if success else 1
+        if not success:
+            # Exit the JVM non-zero so YARN marks the application FAILED.
+            # In client mode the AM lives in this JVM: a normal spark.stop() +
+            # python exit code still reports SUCCEEDED (AM exits cleanly).
+            spark.sparkContext._jvm.System.exit(1)
+        return 0
     finally:
         spark.stop()
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the mapping failed.
+    import sys as _sys
+    _sys.exit(main())

@@ -77,39 +77,25 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: apply_SQ_DPA_FACT_GMS_DLY_MSD_INCDT")
         # Source Qualifier: apply_SQ_DPA_FACT_GMS_DLY_MSD_INCDT
         df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT = df_DPA_FACT_GMS_DLY_MSD_INCDT
-        # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT = df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT.select("MSD_INCDT_DATE_DMNS_KEY", "MSD_CRE_DATE_DMNS_KEY", "EST_SCD_KEY", "OFCR_TYPE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MSD_CODE_SCD_KEY", "OFNDR_GNDR_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY", "AFT_CMLT_WRT_WARN_CASE_CNT", "CMLT_PNT_ALLT_CASE_CNT", "CMLT_MSD_TOT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE")
+        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
+        _port_cols = ["MSD_INCDT_DATE_DMNS_KEY", "MSD_CRE_DATE_DMNS_KEY", "EST_SCD_KEY", "OFCR_TYPE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MSD_CODE_SCD_KEY", "OFNDR_GNDR_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY", "AFT_CMLT_WRT_WARN_CASE_CNT", "CMLT_PNT_ALLT_CASE_CNT", "CMLT_MSD_TOT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE"]
+        df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT = df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT.select([col(c) if c in df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT.columns else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT", df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT)
         
         logger.info("Step: apply_UPDTRANS")
         # Update Strategy: apply_UPDTRANS
         # Strategy: DD_INSERT
-        df_UPDTRANS = df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT.withColumn("_update_strategy", lit("INSERT"))
+        # Static DD_INSERT — pass through; the target write
+        # step applies the strategy directly (append / batch_update / batch_delete).
+        df_UPDTRANS = df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT
         ctx.register_df("df_UPDTRANS", df_UPDTRANS)
         
         logger.info("Step: write_DDS_FACT_GMS_DLY_MSD_INCDT")
         # Write to Target: write_DDS_FACT_GMS_DLY_MSD_INCDT
         df_write = df_UPDTRANS
-        # Cast columns to match target schema data types
-        if "rec_rls_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "rec_rls_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "last_rec_txn_date" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "last_rec_txn_date":
-                    df_write = df_write.withColumn(c, col(c).cast(DateType()))
-        if "last_rec_txn_type_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "last_rec_txn_type_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        # Map source columns to target columns using connector field map (handles name mismatches)
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
         _field_map = {"AFT_CMLT_WRT_WARN_CASE_CNT": "AFT_CMLT_WRT_WARN_CASE_CNT", "CMLT_MSD_TOT_CASE_CNT": "CMLT_MSD_TOT_CASE_CNT", "CMLT_PNT_ALLT_CASE_CNT": "CMLT_PNT_ALLT_CASE_CNT", "EST_SCD_KEY": "EST_SCD_KEY", "HSHLD_SIZE_DMNS_KEY": "HSHLD_SIZE_DMNS_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "MSD_CODE_SCD_KEY": "MSD_CODE_SCD_KEY", "MSD_CRE_DATE_DMNS_KEY": "MSD_CRE_DATE_DMNS_KEY", "MSD_INCDT_DATE_DMNS_KEY": "MSD_INCDT_DATE_DMNS_KEY", "OFCR_TYPE_DMNS_KEY": "OFCR_TYPE_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY": "OFNC_SCORE_GRP_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY": "OFNDR_AGE_GRP_DMNS_KEY", "OFNDR_GNDR_DMNS_KEY": "OFNDR_GNDR_DMNS_KEY", "REC_RLS_IND": "REC_RLS_IND"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
@@ -150,10 +136,18 @@ def main():
         success = run_mapping(ctx, metrics)
         if success:
             lib._flush_pending_passwords()
-        return 0 if success else 1
+        if not success:
+            # Exit the JVM non-zero so YARN marks the application FAILED.
+            # In client mode the AM lives in this JVM: a normal spark.stop() +
+            # python exit code still reports SUCCEEDED (AM exits cleanly).
+            spark.sparkContext._jvm.System.exit(1)
+        return 0
     finally:
         spark.stop()
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the mapping failed.
+    import sys as _sys
+    _sys.exit(main())

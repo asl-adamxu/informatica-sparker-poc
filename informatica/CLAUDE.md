@@ -442,7 +442,7 @@ Requires: cwd = workflow dir (import env.runtime_lib), `spark.home` configured, 
 
 ## Conversion Progress
 
-As of **2026-07-29** (version **v2026.07.29**), 10 workflows (~1,130 mappings) have been converted from Informatica PowerCenter XML to PySpark.
+As of **2026-08-03** (version **v2026.08.03**), 10 workflows (~1,130 mappings) have been converted from Informatica PowerCenter XML to PySpark.
 
 ### ✅ Runtime Verified
 | Workflow | Mappings | XML Size | Status |
@@ -452,11 +452,11 @@ As of **2026-07-29** (version **v2026.07.29**), 10 workflows (~1,130 mappings) h
 | WF_HOMES_DDS_APLY_DMNS | 67 | 2.4M | **Zero warnings**, Sequence Generator tested |
 | WF_EMS_PRHE_DDS_APLY_RVN_MTH | 25 | 3.1M | **Zero warnings** (fixed 8) |
 | WF_EMS_PRHE_DDS_APLY_HSE_STCK_MTH | 28 | 3.9M | **Data-validated** (fixed 15+) |
+| WF_EMS_DDS_APLY_MTH | 49 | 4.0M | **Round complete (v2026.08.03)** — schema `{_schema}` ireplace, SP signature probing (`call_stored_procedure` + OUT binding), YARN-safe local file reads, interpreter lockstep, Update Strategy |
 
 ### ⚠️ Converted (Not Yet Runtime Tested)
 | Workflow | Mappings | XML Size | Notes |
 |----------|----------|----------|-------|
-| WF_EMS_DDS_APLY_MTH | 49 | 4.0M | dds/ layer |
 | WF_EMS_EX | 142 | 9.6M | Source system extract (SSAL1) |
 | WF_NHS_EX | 46 | 2.2M | Source system extract (SSAL1) |
 | WF_EMS_TL | 581 | 36M | Transform & load (largest) |

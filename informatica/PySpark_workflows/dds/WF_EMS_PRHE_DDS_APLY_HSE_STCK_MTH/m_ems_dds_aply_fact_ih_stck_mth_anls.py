@@ -59,39 +59,33 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: apply_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS_1")
         # Source Qualifier: apply_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS_1
         df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS_1 = df_DPA_FACT_EMS_IH_STCK_MTH_ANLS
-        # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS_1 = df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS_1.select("TIME_DMNS_KEY", "LU_FCST_IND")
+        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
+        _port_cols = ["TIME_DMNS_KEY", "LU_FCST_IND"]
+        df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS_1 = df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS_1.select([col(c) if c in df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS_1.columns else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS_1", df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS_1)
         
         logger.info("Step: apply_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS")
         # Source Qualifier: apply_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS
         df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS = df_DPA_FACT_EMS_IH_STCK_MTH_ANLS
-        # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS = df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS.select("TIME_DMNS_KEY", "EST_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "LU_FCST_IND", "UNIT_IFA_AREA", "BLK_CNT", "UNIT_CNT", "OCPY_UNIT_CNT", "VCNT_UNIT_CNT", "UNIT_UND_OFR_CNT", "RCVR_UNIT_CNT", "RCVR_UNIT_TRWL_CNT", "RCVR_UNIT_GWL_CNT", "LU_CLR_DMND_CNT", "LU_CLR_EXRC_DMND_CNT", "EMMS_CLR_DMND_CNT", "EST_TNCY_ACT_DMND_CNT", "TFR_DMND_CNT")
+        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
+        _port_cols = ["TIME_DMNS_KEY", "EST_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "LU_FCST_IND", "UNIT_IFA_AREA", "BLK_CNT", "UNIT_CNT", "OCPY_UNIT_CNT", "VCNT_UNIT_CNT", "UNIT_UND_OFR_CNT", "RCVR_UNIT_CNT", "RCVR_UNIT_TRWL_CNT", "RCVR_UNIT_GWL_CNT", "LU_CLR_DMND_CNT", "LU_CLR_EXRC_DMND_CNT", "EMMS_CLR_DMND_CNT", "EST_TNCY_ACT_DMND_CNT", "TFR_DMND_CNT"]
+        df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS = df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS.select([col(c) if c in df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS.columns else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS", df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS)
         
         logger.info("Step: apply_UPDTRANS")
         # Update Strategy: apply_UPDTRANS
         # Strategy: DD_DELETE
-        df_UPDTRANS = df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS_1.withColumn("_update_flag",
-            when(lit(False), lit("U"))
-            .when(lit(True), lit("D"))
-            .otherwise(lit("I"))
-        )
+        # Static DD_DELETE — pass through; the target write
+        # step applies the strategy directly (append / batch_update / batch_delete).
+        df_UPDTRANS = df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS_1
         ctx.register_df("df_UPDTRANS", df_UPDTRANS)
         
         logger.info("Step: write_DDS_FACT_EMS_IH_STCK_MTH_ANLS")
         # Write to Target: write_DDS_FACT_EMS_IH_STCK_MTH_ANLS
         df_write = df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS
-        # Cast columns to match target schema data types
-        if "lu_fcst_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "lu_fcst_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        # Map source columns to target columns using connector field map (handles name mismatches)
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
         _field_map = {"BLK_CNT": "BLK_CNT", "DSTR_BRD_DSTR_DMNS_KEY": "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY": "DSTR_CHC_DSTR_SCD_KEY", "EMMS_CLR_DMND_CNT": "EMMS_CLR_DMND_CNT", "EST_SCD_KEY": "EST_SCD_KEY", "EST_TNCY_ACT_DMND_CNT": "EST_TNCY_ACT_DMND_CNT", "FLAT_TYPE_DMNS_KEY": "FLAT_TYPE_DMNS_KEY", "LU_CLR_DMND_CNT": "LU_CLR_DMND_CNT", "LU_CLR_EXRC_DMND_CNT": "LU_CLR_EXRC_DMND_CNT", "LU_FCST_IND": "LU_FCST_IND", "MAX_UNIT_HEAD_CNT": "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT": "MIN_UNIT_HEAD_CNT", "OCPY_UNIT_CNT": "OCPY_UNIT_CNT", "RCVR_UNIT_CNT": "RCVR_UNIT_CNT", "RCVR_UNIT_GWL_CNT": "RCVR_UNIT_GWL_CNT", "RCVR_UNIT_TRWL_CNT": "RCVR_UNIT_TRWL_CNT", "TFR_DMND_CNT": "TFR_DMND_CNT", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "UNIT_CNT": "UNIT_CNT", "UNIT_IFA_AREA": "UNIT_IFA_AREA", "UNIT_UND_OFR_CNT": "UNIT_UND_OFR_CNT", "VCNT_UNIT_CNT": "VCNT_UNIT_CNT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
@@ -111,13 +105,24 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: write_DDS_FACT_EMS_IH_STCK_MTH_ANLS_1")
         # Write to Target: write_DDS_FACT_EMS_IH_STCK_MTH_ANLS_1
         df_write = df_UPDTRANS
-        # DD_DELETE: Delete matching rows from target table by key field(s)
-        for _dk in ['TIME_DMNS_KEY']:
-            _dk_lower = _dk.lower()
-            if _dk_lower in [c.lower() for c in df_write.columns]:
-                _del_vals = [r for r in df_write.select(col(_dk_lower)).distinct().rdd.flatMap(lambda x: x).collect() if r is not None]
-                if _del_vals:
-                    lib.batch_delete(spark, conn_target, "DDS_FACT_EMS_IH_STCK_MTH_ANLS", _dk, _del_vals, 1000)
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
+        _field_map = {"LU_FCST_IND": "LU_FCST_IND", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
+        for _tgt_col, _src_col in _field_map.items():
+            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
+                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
+        # Static DD_DELETE: composite primary-key delete of all rows
+        _del_key_cols = ['TIME_DMNS_KEY', 'EST_SCD_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'FLAT_TYPE_DMNS_KEY', 'MAX_UNIT_HEAD_CNT', 'MIN_UNIT_HEAD_CNT', 'LU_FCST_IND', 'UNIT_IFA_AREA']
+        if not df_write.rdd.isEmpty():
+            _del_rows = [tuple(r[c] for c in _del_key_cols) for r in df_write.select(*_del_key_cols).distinct().collect()]
+            if _del_rows:
+                lib.batch_delete_composite(spark, conn_target, "DDS_FACT_EMS_IH_STCK_MTH_ANLS", _del_key_cols, _del_rows, 1000)
 
         logger.info("write_DDS_FACT_EMS_IH_STCK_MTH_ANLS_1 write completed")
         
@@ -144,10 +149,18 @@ def main():
         success = run_mapping(ctx, metrics)
         if success:
             lib._flush_pending_passwords()
-        return 0 if success else 1
+        if not success:
+            # Exit the JVM non-zero so YARN marks the application FAILED.
+            # In client mode the AM lives in this JVM: a normal spark.stop() +
+            # python exit code still reports SUCCEEDED (AM exits cleanly).
+            spark.sparkContext._jvm.System.exit(1)
+        return 0
     finally:
         spark.stop()
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the mapping failed.
+    import sys as _sys
+    _sys.exit(main())

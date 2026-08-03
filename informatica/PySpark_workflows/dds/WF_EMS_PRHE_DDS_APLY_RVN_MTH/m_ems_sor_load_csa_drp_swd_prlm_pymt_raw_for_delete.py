@@ -59,8 +59,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: apply_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW")
         # Source Qualifier: apply_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW
         df_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW = df_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW
-        # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW = df_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW.select("FILE_MTH", "VALUE_DATE", "REC_TYPE", "SEQ_NUM", "SWD_CASE_FILE_REF_NUM", "ADDR_ROOM", "ADDR_BLK", "ADDR_EST", "DRP_PYMT_AMT", "PYMT_FROM_DATE", "PYMT_TO_DATE", "ASGN_STF", "CUST_CNT", "CUST_ROLE_1", "CUST_ID_TYPE_1", "CUST_ID_NUM_1", "CUST_ENG_NAME_1", "CUST_ROLE_2", "CUST_ID_TYPE_2", "CUST_ID_NUM_2", "CUST_ENG_NAME_2", "CUST_ROLE_3", "CUST_ID_TYPE_3", "CUST_ID_NUM_3", "CUST_ENG_NAME_3", "CUST_ROLE_4", "CUST_ID_TYPE_4", "CUST_ID_NUM_4", "CUST_ENG_NAME_4", "CUST_ROLE_5", "CUST_ID_TYPE_5", "CUST_ID_NUM_5", "CUST_ENG_NAME_5", "CUST_ROLE_6", "CUST_ID_TYPE_6", "CUST_ID_NUM_6", "CUST_ENG_NAME_6", "CUST_ROLE_7", "CUST_ID_TYPE_7", "CUST_ID_NUM_7", "CUST_ENG_NAME_7", "CUST_ROLE_8", "CUST_ID_TYPE_8", "CUST_ID_NUM_8", "CUST_ENG_NAME_8", "CUST_ROLE_9", "CUST_ID_TYPE_9", "CUST_ID_NUM_9", "CUST_ENG_NAME_9", "CUST_ROLE_10", "CUST_ID_TYPE_10", "CUST_ID_NUM_10", "CUST_ENG_NAME_10", "CUST_ROLE_11", "CUST_ID_TYPE_11", "CUST_ID_NUM_11", "CUST_ENG_NAME_11", "CUST_ROLE_12", "CUST_ID_TYPE_12", "CUST_ID_NUM_12", "CUST_ENG_NAME_12", "CUST_ROLE_13", "CUST_ID_TYPE_13", "CUST_ID_NUM_13", "CUST_ENG_NAME_13", "CUST_ROLE_14", "CUST_ID_TYPE_14", "CUST_ID_NUM_14", "CUST_ENG_NAME_14", "CUST_ROLE_15", "CUST_ID_TYPE_15", "CUST_ID_NUM_15", "CUST_ENG_NAME_15", "CUST_ROLE_16", "CUST_ID_TYPE_16", "CUST_ID_NUM_16", "CUST_ENG_NAME_16", "CUST_ROLE_17", "CUST_ID_TYPE_17", "CUST_ID_NUM_17", "CUST_ENG_NAME_17", "CUST_ROLE_18", "CUST_ID_TYPE_18", "CUST_ID_NUM_18", "CUST_ENG_NAME_18", "CUST_ROLE_19", "CUST_ID_TYPE_19", "CUST_ID_NUM_19", "CUST_ENG_NAME_19", "CUST_ROLE_20", "CUST_ID_TYPE_20", "CUST_ID_NUM_20", "CUST_ENG_NAME_20")
+        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
+        _port_cols = ["FILE_MTH", "VALUE_DATE", "REC_TYPE", "SEQ_NUM", "SWD_CASE_FILE_REF_NUM", "ADDR_ROOM", "ADDR_BLK", "ADDR_EST", "DRP_PYMT_AMT", "PYMT_FROM_DATE", "PYMT_TO_DATE", "ASGN_STF", "CUST_CNT", "CUST_ROLE_1", "CUST_ID_TYPE_1", "CUST_ID_NUM_1", "CUST_ENG_NAME_1", "CUST_ROLE_2", "CUST_ID_TYPE_2", "CUST_ID_NUM_2", "CUST_ENG_NAME_2", "CUST_ROLE_3", "CUST_ID_TYPE_3", "CUST_ID_NUM_3", "CUST_ENG_NAME_3", "CUST_ROLE_4", "CUST_ID_TYPE_4", "CUST_ID_NUM_4", "CUST_ENG_NAME_4", "CUST_ROLE_5", "CUST_ID_TYPE_5", "CUST_ID_NUM_5", "CUST_ENG_NAME_5", "CUST_ROLE_6", "CUST_ID_TYPE_6", "CUST_ID_NUM_6", "CUST_ENG_NAME_6", "CUST_ROLE_7", "CUST_ID_TYPE_7", "CUST_ID_NUM_7", "CUST_ENG_NAME_7", "CUST_ROLE_8", "CUST_ID_TYPE_8", "CUST_ID_NUM_8", "CUST_ENG_NAME_8", "CUST_ROLE_9", "CUST_ID_TYPE_9", "CUST_ID_NUM_9", "CUST_ENG_NAME_9", "CUST_ROLE_10", "CUST_ID_TYPE_10", "CUST_ID_NUM_10", "CUST_ENG_NAME_10", "CUST_ROLE_11", "CUST_ID_TYPE_11", "CUST_ID_NUM_11", "CUST_ENG_NAME_11", "CUST_ROLE_12", "CUST_ID_TYPE_12", "CUST_ID_NUM_12", "CUST_ENG_NAME_12", "CUST_ROLE_13", "CUST_ID_TYPE_13", "CUST_ID_NUM_13", "CUST_ENG_NAME_13", "CUST_ROLE_14", "CUST_ID_TYPE_14", "CUST_ID_NUM_14", "CUST_ENG_NAME_14", "CUST_ROLE_15", "CUST_ID_TYPE_15", "CUST_ID_NUM_15", "CUST_ENG_NAME_15", "CUST_ROLE_16", "CUST_ID_TYPE_16", "CUST_ID_NUM_16", "CUST_ENG_NAME_16", "CUST_ROLE_17", "CUST_ID_TYPE_17", "CUST_ID_NUM_17", "CUST_ENG_NAME_17", "CUST_ROLE_18", "CUST_ID_TYPE_18", "CUST_ID_NUM_18", "CUST_ENG_NAME_18", "CUST_ROLE_19", "CUST_ID_TYPE_19", "CUST_ID_NUM_19", "CUST_ENG_NAME_19", "CUST_ROLE_20", "CUST_ID_TYPE_20", "CUST_ID_NUM_20", "CUST_ENG_NAME_20"]
+        df_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW = df_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW.select([col(c) if c in df_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW.columns else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW", df_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW)
         
         logger.info("Step: apply_AGGTRANS")
@@ -72,23 +73,32 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: apply_UPDTRANS")
         # Update Strategy: apply_UPDTRANS
         # Strategy: DD_DELETE
-        df_UPDTRANS = df_AGGTRANS.withColumn("_update_flag",
-            when(lit(False), lit("U"))
-            .when(lit(True), lit("D"))
-            .otherwise(lit("I"))
-        )
+        # Static DD_DELETE — pass through; the target write
+        # step applies the strategy directly (append / batch_update / batch_delete).
+        df_UPDTRANS = df_AGGTRANS
         ctx.register_df("df_UPDTRANS", df_UPDTRANS)
         
         logger.info("Step: write_SOR_EMS_CSA_DRP_PRLM_PYMT_RAW")
         # Write to Target: write_SOR_EMS_CSA_DRP_PRLM_PYMT_RAW
         df_write = df_UPDTRANS
-        # DD_DELETE: Delete matching rows from target table by key field(s)
-        for _dk in ['FILE_MTH']:
-            _dk_lower = _dk.lower()
-            if _dk_lower in [c.lower() for c in df_write.columns]:
-                _del_vals = [r for r in df_write.select(col(_dk_lower)).distinct().rdd.flatMap(lambda x: x).collect() if r is not None]
-                if _del_vals:
-                    lib.batch_delete(spark, conn_target, "SOR_EMS_CSA_DRP_PRLM_PYMT_RAW", _dk, _del_vals, 1000)
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
+        _field_map = {"PYMT_MTH": "FILE_MTH"}
+        for _tgt_col, _src_col in _field_map.items():
+            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
+                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
+        # Static DD_DELETE: composite primary-key delete of all rows
+        _del_key_cols = ['PRLM_FILE_REC_KEY', 'PYMT_MTH']
+        if not df_write.rdd.isEmpty():
+            _del_rows = [tuple(r[c] for c in _del_key_cols) for r in df_write.select(*_del_key_cols).distinct().collect()]
+            if _del_rows:
+                lib.batch_delete_composite(spark, conn_target, "SOR_EMS_CSA_DRP_PRLM_PYMT_RAW", _del_key_cols, _del_rows, 1000)
 
         logger.info("write_SOR_EMS_CSA_DRP_PRLM_PYMT_RAW write completed")
         
@@ -115,10 +125,18 @@ def main():
         success = run_mapping(ctx, metrics)
         if success:
             lib._flush_pending_passwords()
-        return 0 if success else 1
+        if not success:
+            # Exit the JVM non-zero so YARN marks the application FAILED.
+            # In client mode the AM lives in this JVM: a normal spark.stop() +
+            # python exit code still reports SUCCEEDED (AM exits cleanly).
+            spark.sparkContext._jvm.System.exit(1)
+        return 0
     finally:
         spark.stop()
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the mapping failed.
+    import sys as _sys
+    _sys.exit(main())

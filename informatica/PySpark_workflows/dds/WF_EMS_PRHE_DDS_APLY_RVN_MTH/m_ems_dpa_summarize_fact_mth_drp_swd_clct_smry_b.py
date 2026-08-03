@@ -83,14 +83,34 @@ and SOR_EMS_CSA_DRP_EXCP_PYMT_STS.END_DATE >= ADD_MONTHS(TO_DATE('$$v_rpt_mth'||
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_DRP_EXCP = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_DRP_EXCP.columns
         _port_cols = ["EXCP_PYMT_TXN_KEY", "SWD_CASE_FILE_REF_NUM", "DRP_TXN_VAL_DATE", "DRP_PYMT_AMT", "HSE_UNIT_KEY"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_DRP_EXCP = df_DRP_EXCP.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
+        df_DRP_EXCP = df_DRP_EXCP.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_DRP_EXCP = df_DRP_EXCP.select("EXCP_PYMT_TXN_KEY", "SWD_CASE_FILE_REF_NUM", "DRP_TXN_VAL_DATE", "DRP_PYMT_AMT", "HSE_UNIT_KEY")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_DRP_EXCP = df_DRP_EXCP.select([col(c) if c in df_DRP_EXCP.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_DRP_EXCP", df_DRP_EXCP)
         
@@ -104,14 +124,34 @@ and SOR_EMS_CSA_DRP_EXCP_PYMT_STS.END_DATE >= ADD_MONTHS(TO_DATE('$$v_rpt_mth'||
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_DRP = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_DRP.columns
         _port_cols = ["DRP_SWD_PYMT_KEY", "SWD_CASE_FILE_REF_NUM", "DRP_TXN_VAL_DATE", "UNIT_KEY"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_DRP = df_DRP.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
+        df_DRP = df_DRP.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_DRP = df_DRP.select("DRP_SWD_PYMT_KEY", "SWD_CASE_FILE_REF_NUM", "DRP_TXN_VAL_DATE", "UNIT_KEY")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_DRP = df_DRP.select([col(c) if c in df_DRP.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_DRP", df_DRP)
         
@@ -127,14 +167,34 @@ and SOR_EMS_CSA_SWD_PYMT_EXCP_STS.END_DATE >= ADD_MONTHS(TO_DATE('$$v_rpt_mth'||
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_DIR_EXCP = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_DIR_EXCP.columns
         _port_cols = ["DIR_PYMT_EXCP_KEY", "SWD_DIR_PYMT_INTF_DATE", "PRPL_CSSA_APLY_ID_TYPE_CODE", "SWD_DIR_PYMT_AMT"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_DIR_EXCP = df_DIR_EXCP.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
+        df_DIR_EXCP = df_DIR_EXCP.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_DIR_EXCP = df_DIR_EXCP.select("DIR_PYMT_EXCP_KEY", "SWD_DIR_PYMT_INTF_DATE", "PRPL_CSSA_APLY_ID_TYPE_CODE", "SWD_DIR_PYMT_AMT")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_DIR_EXCP = df_DIR_EXCP.select([col(c) if c in df_DIR_EXCP.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_DIR_EXCP", df_DIR_EXCP)
         
@@ -150,14 +210,34 @@ and SOR_EMS_CSA_SWD_PYMT_ITEM_STS.END_DATE >= ADD_MONTHS(TO_DATE('$$v_rpt_mth'||
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_DIR = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_DIR.columns
         _port_cols = ["DIR_PYMT_KEY", "SWD_DIR_PYMT_INTF_DATE", "HSE_UNIT_KEY"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_DIR = df_DIR.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
+        df_DIR = df_DIR.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_DIR = df_DIR.select("DIR_PYMT_KEY", "SWD_DIR_PYMT_INTF_DATE", "HSE_UNIT_KEY")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_DIR = df_DIR.select([col(c) if c in df_DIR.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_DIR", df_DIR)
         
@@ -575,7 +655,18 @@ where ADD_MONTHS(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'), 1)-1 between bgn_date
         logger.info("Step: write_DPA_FACT_MTH_DRP_SWD_CLCT_SMRY")
         # Write to Target: write_DPA_FACT_MTH_DRP_SWD_CLCT_SMRY
         df_write = df_EXPTRANS3
-        # Cast columns to match target schema data types
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
+        _field_map = {"DRP_CASE_CNT": "CASE_CNT", "DRP_REJ_TXN_CNT": "TXN_CNT", "DRP_REJ_TXN_PYMT_ITEM_AMT": "EXCP_AMT", "EST_SCD_KEY": "EST_SCD_KEY1", "RVN_TXN_MODE_DMNS_KEY": "RVN_TXN_MODE_DMNS_KEY", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
+        for _tgt_col, _src_col in _field_map.items():
+            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
+                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Add NULL for unmapped target columns (schema parity) - excluding identity columns
         df_write = df_write.withColumn("DRP_ACTL_TXN_PYMT_ITEM_AMT", lit(None).cast(StringType()))
         df_write = df_write.withColumn("DRP_ACTL_TXN_CNT", lit(None).cast(StringType()))
@@ -596,16 +687,6 @@ where ADD_MONTHS(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'), 1)-1 between bgn_date
         df_write = df_write.withColumn("DRP_EXTRA_RENT_TNCY_CNT", lit(None).cast(StringType()))
         df_write = df_write.withColumn("DRP_DBL_RENT_TNCY_CNT", lit(None).cast(StringType()))
         df_write = df_write.withColumn("DRP_MKT_RENT_TNCY_CNT", lit(None).cast(StringType()))
-        # Map source columns to target columns using connector field map (handles name mismatches)
-        _field_map = {"DRP_CASE_CNT": "CASE_CNT", "DRP_REJ_TXN_CNT": "TXN_CNT", "DRP_REJ_TXN_PYMT_ITEM_AMT": "EXCP_AMT", "EST_SCD_KEY": "EST_SCD_KEY1", "RVN_TXN_MODE_DMNS_KEY": "RVN_TXN_MODE_DMNS_KEY", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['TIME_DMNS_KEY', 'RVN_TXN_MODE_DMNS_KEY', 'EST_SCD_KEY', 'DRP_ACTL_TXN_PYMT_ITEM_AMT', 'DRP_ACTL_TXN_CNT', 'DRP_ACTL_TXN_TNCY_CNT', 'DRP_PRLM_FILE_TNCY_CNT', 'DRP_OVER_PAY_TNCY_CNT', 'DRP_EXACT_PAY_TNCY_CNT', 'DRP_UND_PAY_TNCY_CNT', 'DRP_CMLT_ARR_AMT', 'DRP_UND_PAY_CMLT_ARR_AMT', 'DRP_EXACT_PAY_ARR_TNCY_CNT', 'DRP_UND_PAY_ARR_TNCY_CNT', 'DRP_TNCY_CMLT_ADV_AMT', 'DRP_ADV_TNCY_CNT', 'DRP_HALF_RENT_TNCY_CNT', 'DRP_THRD_QTR_RENT_TNCY_CNT', 'DRP_NRML_RENT_TNCY_CNT', 'DRP_EXTRA_RENT_TNCY_CNT', 'DRP_DBL_RENT_TNCY_CNT', 'DRP_MKT_RENT_TNCY_CNT', 'DRP_CASE_CNT', 'DRP_REJ_TXN_PYMT_ITEM_AMT', 'DRP_REJ_TXN_CNT']
         df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
@@ -637,10 +718,18 @@ def main():
         success = run_mapping(ctx, metrics)
         if success:
             lib._flush_pending_passwords()
-        return 0 if success else 1
+        if not success:
+            # Exit the JVM non-zero so YARN marks the application FAILED.
+            # In client mode the AM lives in this JVM: a normal spark.stop() +
+            # python exit code still reports SUCCEEDED (AM exits cleanly).
+            spark.sparkContext._jvm.System.exit(1)
+        return 0
     finally:
         spark.stop()
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the mapping failed.
+    import sys as _sys
+    _sys.exit(main())

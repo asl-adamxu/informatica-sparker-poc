@@ -197,14 +197,34 @@ WHERE
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         query = query.replace("$$v_snsh_date", v_snsh_date)
         df_SELF_WITHDRAW_CANCEL = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_SELF_WITHDRAW_CANCEL.columns
         _port_cols = ["UNIT_KEY", "REF_CASE_TYPE_CODE", "OR_TYPE_CODE", "TFR_RSN_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SELF_WITHDRAW_CANCEL = df_SELF_WITHDRAW_CANCEL.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
+        df_SELF_WITHDRAW_CANCEL = df_SELF_WITHDRAW_CANCEL.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SELF_WITHDRAW_CANCEL = df_SELF_WITHDRAW_CANCEL.select("UNIT_KEY", "REF_CASE_TYPE_CODE", "OR_TYPE_CODE", "TFR_RSN_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SELF_WITHDRAW_CANCEL = df_SELF_WITHDRAW_CANCEL.select([col(c) if c in df_SELF_WITHDRAW_CANCEL.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SELF_WITHDRAW_CANCEL", df_SELF_WITHDRAW_CANCEL)
         
@@ -324,14 +344,34 @@ WHERE
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         query = query.replace("$$v_snsh_date", v_snsh_date)
         df_HOUSED_CASE = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_HOUSED_CASE.columns
         _port_cols = ["UNIT_KEY", "REF_CASE_TYPE_CODE", "OR_TYPE_CODE", "TFR_RSN_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_HOUSED_CASE = df_HOUSED_CASE.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
+        df_HOUSED_CASE = df_HOUSED_CASE.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_HOUSED_CASE = df_HOUSED_CASE.select("UNIT_KEY", "REF_CASE_TYPE_CODE", "OR_TYPE_CODE", "TFR_RSN_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_HOUSED_CASE = df_HOUSED_CASE.select([col(c) if c in df_HOUSED_CASE.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_HOUSED_CASE", df_HOUSED_CASE)
         
@@ -341,8 +381,9 @@ WHERE
         _filter_text = """to_date(cast(TIME_DMNS_KEY-200000000+1 as string), 'yyyyMMdd') = add_months(to_date(cast($$v_rpt_mth || '01' as string), 'yyyyMMdd'),-1)"""
         _filter_text = _filter_text.replace("$$v_rpt_mth", str(v_rpt_mth or "0"))
         df_SQ_DDS_FACT_EMS_REHSE_ANLS = df_SQ_DDS_FACT_EMS_REHSE_ANLS.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_DDS_FACT_EMS_REHSE_ANLS = df_SQ_DDS_FACT_EMS_REHSE_ANLS.select("EST_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "TFR_TYPE_DMNS_KEY", "TFR_RSN_DMNS_KEY", "TIME_DMNS_KEY", "OR_TYPE_CODE", "REHSE_OSTD_CASE_CNT")
+        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
+        _port_cols = ["EST_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "TFR_TYPE_DMNS_KEY", "TFR_RSN_DMNS_KEY", "TIME_DMNS_KEY", "OR_TYPE_CODE", "REHSE_OSTD_CASE_CNT"]
+        df_SQ_DDS_FACT_EMS_REHSE_ANLS = df_SQ_DDS_FACT_EMS_REHSE_ANLS.select([col(c) if c in df_SQ_DDS_FACT_EMS_REHSE_ANLS.columns else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_DDS_FACT_EMS_REHSE_ANLS", df_SQ_DDS_FACT_EMS_REHSE_ANLS)
         
         logger.info("Step: apply_SQ_SOR_EMS_POR_OPR_STS")
@@ -382,14 +423,34 @@ where
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         query = query.replace("$$v_snsh_date", v_snsh_date)
         df_SQ_SOR_EMS_POR_OPR_STS = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_EMS_POR_OPR_STS.columns
         _port_cols = ["UNIT_KEY", "OPR_TYPE_CODE", "PRH_APLY_STS_UPD_DATE", "PRH_APLY_STG_UPD_DATE", "HSE_SRVC_APLY_CRE_DATE", "APLY_KEY", "PRH_APLY_STG_CODE", "PRH_APLY_STS_CODE", "OPR_KEY"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_SOR_EMS_POR_OPR_STS = df_SQ_SOR_EMS_POR_OPR_STS.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
+        df_SQ_SOR_EMS_POR_OPR_STS = df_SQ_SOR_EMS_POR_OPR_STS.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_EMS_POR_OPR_STS = df_SQ_SOR_EMS_POR_OPR_STS.select("UNIT_KEY", "OPR_TYPE_CODE", "PRH_APLY_STS_UPD_DATE", "PRH_APLY_STG_UPD_DATE", "HSE_SRVC_APLY_CRE_DATE", "APLY_KEY", "PRH_APLY_STG_CODE", "PRH_APLY_STS_CODE", "OPR_KEY")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_SOR_EMS_POR_OPR_STS = df_SQ_SOR_EMS_POR_OPR_STS.select([col(c) if c in df_SQ_SOR_EMS_POR_OPR_STS.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_EMS_POR_OPR_STS", df_SQ_SOR_EMS_POR_OPR_STS)
         
@@ -432,14 +493,34 @@ where
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         query = query.replace("$$v_snsh_date", v_snsh_date)
         df_SQ_SOR_EMS_TRF_REF_CASE1 = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_EMS_TRF_REF_CASE1.columns
         _port_cols = ["UNIT_KEY", "REF_CASE_TYPE_CODE", "OR_TYPE_CODE", "TFR_RSN_CODE", "PRH_APLY_STS_UPD_DATE", "PRH_APLY_STG_UPD_DATE", "REF_CASE_STS_UPD_DATE", "REF_CASE_KEY", "APLY_KEY", "PRH_APLY_STG_CODE", "PRH_APLY_STS_CODE", "REF_CASE_STS_CODE", "LU_STS_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_SOR_EMS_TRF_REF_CASE1 = df_SQ_SOR_EMS_TRF_REF_CASE1.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
+        df_SQ_SOR_EMS_TRF_REF_CASE1 = df_SQ_SOR_EMS_TRF_REF_CASE1.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_EMS_TRF_REF_CASE1 = df_SQ_SOR_EMS_TRF_REF_CASE1.select("UNIT_KEY", "REF_CASE_TYPE_CODE", "OR_TYPE_CODE", "TFR_RSN_CODE", "PRH_APLY_STS_UPD_DATE", "PRH_APLY_STG_UPD_DATE", "REF_CASE_STS_UPD_DATE", "REF_CASE_KEY", "APLY_KEY", "PRH_APLY_STG_CODE", "PRH_APLY_STS_CODE", "REF_CASE_STS_CODE", "LU_STS_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_SOR_EMS_TRF_REF_CASE1 = df_SQ_SOR_EMS_TRF_REF_CASE1.select([col(c) if c in df_SQ_SOR_EMS_TRF_REF_CASE1.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_EMS_TRF_REF_CASE1", df_SQ_SOR_EMS_TRF_REF_CASE1)
         
@@ -492,14 +573,34 @@ WHERE
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         query = query.replace("$$v_snsh_date", v_snsh_date)
         df_SQ_SOR_EMS_PHA_APLY = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_EMS_PHA_APLY.columns
         _port_cols = ["UNIT_KEY", "OPR_TYPE_CODE", "HSE_SRVC_APLY_CRE_DATE", "APLY_KEY", "APLY_KEY1", "OPR_KEY"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_SOR_EMS_PHA_APLY = df_SQ_SOR_EMS_PHA_APLY.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
+        df_SQ_SOR_EMS_PHA_APLY = df_SQ_SOR_EMS_PHA_APLY.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_EMS_PHA_APLY = df_SQ_SOR_EMS_PHA_APLY.select("UNIT_KEY", "OPR_TYPE_CODE", "HSE_SRVC_APLY_CRE_DATE", "APLY_KEY", "APLY_KEY1", "OPR_KEY")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_SOR_EMS_PHA_APLY = df_SQ_SOR_EMS_PHA_APLY.select([col(c) if c in df_SQ_SOR_EMS_PHA_APLY.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_EMS_PHA_APLY", df_SQ_SOR_EMS_PHA_APLY)
         
@@ -553,14 +654,34 @@ WHERE
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         query = query.replace("$$v_snsh_date", v_snsh_date)
         df_SQ_SOR_EMS_TRF_REF_CASE = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_EMS_TRF_REF_CASE.columns
         _port_cols = ["UNIT_KEY", "REF_CASE_TYPE_CODE", "OR_TYPE_CODE", "TFR_RSN_CODE", "REF_CASE_CRE_DATE", "REF_CASE_KEY", "APLY_KEY"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_SOR_EMS_TRF_REF_CASE = df_SQ_SOR_EMS_TRF_REF_CASE.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
+        df_SQ_SOR_EMS_TRF_REF_CASE = df_SQ_SOR_EMS_TRF_REF_CASE.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_EMS_TRF_REF_CASE = df_SQ_SOR_EMS_TRF_REF_CASE.select("UNIT_KEY", "REF_CASE_TYPE_CODE", "OR_TYPE_CODE", "TFR_RSN_CODE", "REF_CASE_CRE_DATE", "REF_CASE_KEY", "APLY_KEY")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_SOR_EMS_TRF_REF_CASE = df_SQ_SOR_EMS_TRF_REF_CASE.select([col(c) if c in df_SQ_SOR_EMS_TRF_REF_CASE.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_EMS_TRF_REF_CASE", df_SQ_SOR_EMS_TRF_REF_CASE)
         
@@ -644,20 +765,9 @@ WHERE
         logger.info("Step: write_DPA_FACT_EMS_REHSE_ANLS1")
         # Write to Target: write_DPA_FACT_EMS_REHSE_ANLS1
         df_write = df_EXPTRANS31
-        # Cast columns to match target schema data types
-        if "or_type_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "or_type_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("REHSE_NEW_CASE_CNT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("REHSE_OSTD_CASE_CNT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("REHSE_STL_CASE_CNT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("REHSE_CNCL_CASE_CNT", lit(None).cast(StringType()))
-        # Map source columns to target columns using connector field map (handles name mismatches)
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
         _field_map = {"DSTR_BRD_DSTR_DMNS_KEY": "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY": "DSTR_CHC_DSTR_SCD_KEY", "EST_SCD_KEY": "EST_SCD_KEY", "OR_TYPE_CODE": "OR_TYPE_CODE", "REHSE_BF_CASE_CNT": "REHSE_OSTD_CASE_CNT", "TFR_CASE_RSN_DMNS_KEY": "TFR_CASE_RSN_DMNS_KEY", "TFR_TYPE_DMNS_KEY": "TFR_TYPE_DMNS_KEY", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
@@ -667,6 +777,11 @@ WHERE
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
+        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
+        df_write = df_write.withColumn("REHSE_NEW_CASE_CNT", lit(None).cast(StringType()))
+        df_write = df_write.withColumn("REHSE_OSTD_CASE_CNT", lit(None).cast(StringType()))
+        df_write = df_write.withColumn("REHSE_STL_CASE_CNT", lit(None).cast(StringType()))
+        df_write = df_write.withColumn("REHSE_CNCL_CASE_CNT", lit(None).cast(StringType()))
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['EST_SCD_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'TFR_TYPE_DMNS_KEY', 'TFR_CASE_RSN_DMNS_KEY', 'TIME_DMNS_KEY', 'OR_TYPE_CODE', 'REHSE_NEW_CASE_CNT', 'REHSE_OSTD_CASE_CNT', 'REHSE_STL_CASE_CNT', 'REHSE_CNCL_CASE_CNT', 'REHSE_BF_CASE_CNT']
         df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
@@ -966,7 +1081,7 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "source_db")
         query = f"""SELECT 
-DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_DSTR_SCD_KEY as DSTR_CHC_DSTR_SCD_KEY, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_DSTR_CODE as DSTR_CHC_DSTR_CODE, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_DSTR_ENG_NAME as DSTR_CHC_DSTR_ENG_NAME, DDS_HRCHY_EMS_DSTR_CHC_DSTR.EMMS_DSTR_KEY as EMMS_DSTR_KEY, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_SBDSTR_CODE as DSTR_CHC_SBDSTR_CODE, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_SBDSTR_ENG_NAME as DSTR_CHC_SBDSTR_ENG_NAME,
+DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_DSTR_SCD_KEY as DSTR_CHC_DSTR_SCD_KEY, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_DSTR_CODE as DSTR_CHC_DSTR_CODE, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_DSTR_ENG_NAME as DSTR_CHC_DSTR_ENG_NAME, DDS_HRCHY_EMS_DSTR_CHC_DSTR.EMMS_DSTR_KEY as EMMS_DSTR_KEY, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_SBDSTR_CODE as DSTR_CHC_SBDSTR_CODE, DDS_HRCHY_EMS_DSTR_CHC_DSTR.DSTR_CHC_SBDSTR_ENG_NAME as DSTR_CHC_SBDSTR_ENG_NAME
 DDS_HRCHY_EMS_DSTR_CHC_DSTR.EMMS_SBDSTR_KEY as EMMS_SBDSTR_KEY 
 FROM DDS_HRCHY_EMS_DSTR_CHC_DSTR
 WHERE LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','yyyymmdd')) between bgn_date and end_date"""
@@ -1111,15 +1226,9 @@ WHERE TFR_CASE_RSN_SCHM_CODE = 'EMS'"""
         logger.info("Step: write_DPA_FACT_EMS_REHSE_ANLS")
         # Write to Target: write_DPA_FACT_EMS_REHSE_ANLS
         df_write = df_AGGTRANS
-        # Cast columns to match target schema data types
-        if "or_type_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "or_type_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        # Map source columns to target columns using connector field map (handles name mismatches)
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
         _field_map = {"DSTR_BRD_DSTR_DMNS_KEY": "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY": "DSTR_CHC_DSTR_SCD_KEY", "EST_SCD_KEY": "EST_SCD_KEY", "OR_TYPE_CODE": "OR_TYPE_CODE", "REHSE_BF_CASE_CNT": "REHSE_BF_CASE_CNT", "REHSE_CNCL_CASE_CNT": "REHSE_CNCL_CASE_CNT", "REHSE_NEW_CASE_CNT": "REHSE_NEW_CASE_CNT", "REHSE_OSTD_CASE_CNT": "REHSE_OSTD_CASE_CNT", "REHSE_STL_CASE_CNT": "REHSE_STL_CASE_CNT", "TFR_CASE_RSN_DMNS_KEY": "TFR_CASE_RSN_DMNS_KEY", "TFR_TYPE_DMNS_KEY": "TFR_TYPE_DMNS_KEY", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
@@ -1160,10 +1269,18 @@ def main():
         success = run_mapping(ctx, metrics)
         if success:
             lib._flush_pending_passwords()
-        return 0 if success else 1
+        if not success:
+            # Exit the JVM non-zero so YARN marks the application FAILED.
+            # In client mode the AM lives in this JVM: a normal spark.stop() +
+            # python exit code still reports SUCCEEDED (AM exits cleanly).
+            spark.sparkContext._jvm.System.exit(1)
+        return 0
     finally:
         spark.stop()
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the mapping failed.
+    import sys as _sys
+    _sys.exit(main())

@@ -83,8 +83,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         _filter_text = """PYMT_MTH = cast($$v_rpt_mth as decimal)"""
         _filter_text = _filter_text.replace("$$v_rpt_mth", str(v_rpt_mth or "0"))
         df_SQ_SOR_EMS_CSA_DRP_PRLM_PYMT_RAW = df_SQ_SOR_EMS_CSA_DRP_PRLM_PYMT_RAW.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_EMS_CSA_DRP_PRLM_PYMT_RAW = df_SQ_SOR_EMS_CSA_DRP_PRLM_PYMT_RAW.select("PRLM_FILE_REC_KEY", "PYMT_MTH", "DRP_TXN_VAL_DATE", "REC_TYPE_CODE", "SWD_PYMT_SEQ_NUM", "SWD_CASE_FILE_REF_NUM", "SWD_HSE_UNIT_FLT_NUM", "SWD_HSE_UNIT_BLK_CODE", "SWD_HSE_UNIT_EST_CODE", "DRP_AMT", "PYMT_FROM_DATE", "PYMT_TO_DATE", "ASGN_OFCR_CODE", "CUST_CNT", "CUST_ROLE_CODE_1", "CUST_ID_TYPE_CODE_1", "CUST_ID_NUM_1", "CUST_ENG_NAME_1", "CUST_ROLE_CODE_2", "CUST_ID_TYPE_CODE_2", "CUST_ID_NUM_2", "CUST_ENG_NAME_2", "CUST_ROLE_CODE_3", "CUST_ID_TYPE_CODE_3", "CUST_ID_NUM_3", "CUST_ENG_NAME_3", "CUST_ROLE_CODE_4", "CUST_ID_TYPE_CODE_4", "CUST_ID_NUM_4", "CUST_ENG_NAME_4", "CUST_ROLE_CODE_5", "CUST_ID_TYPE_CODE_5", "CUST_ID_NUM_5", "CUST_ENG_NAME_5", "CUST_ROLE_CODE_6", "CUST_ID_TYPE_CODE_6", "CUST_ID_NUM_6", "CUST_ENG_NAME_6", "CUST_ROLE_CODE_7", "CUST_ID_TYPE_CODE_7", "CUST_ID_NUM_7", "CUST_ENG_NAME_7", "CUST_ROLE_CODE_8", "CUST_ID_TYPE_CODE_8", "CUST_ID_NUM_8", "CUST_ENG_NAME_8", "CUST_ROLE_CODE_9", "CUST_ID_TYPE_CODE_9", "CUST_ID_NUM_9", "CUST_ENG_NAME_9", "CUST_ROLE_CODE_10", "CUST_ID_TYPE_CODE_10", "CUST_ID_NUM_10", "CUST_ENG_NAME_10", "CUST_ROLE_CODE_11", "CUST_ID_TYPE_CODE_11", "CUST_ID_NUM_11", "CUST_ENG_NAME_11", "CUST_ROLE_CODE_12", "CUST_ID_TYPE_CODE_12", "CUST_ID_NUM_12", "CUST_ENG_NAME_12", "CUST_ROLE_CODE_13", "CUST_ID_TYPE_CODE_13", "CUST_ID_NUM_13", "CUST_ENG_NAME_13", "CUST_ROLE_CODE_14", "CUST_ID_TYPE_CODE_14", "CUST_ID_NUM_14", "CUST_ENG_NAME_14", "CUST_ROLE_CODE_15", "CUST_ID_TYPE_CODE_15", "CUST_ID_NUM_15", "CUST_ENG_NAME_15", "CUST_ROLE_CODE_16", "CUST_ID_TYPE_CODE_16", "CUST_ID_NUM_16", "CUST_ENG_NAME_16", "CUST_ROLE_CODE_17", "CUST_ID_TYPE_CODE_17", "CUST_ID_NUM_17", "CUST_ENG_NAME_17", "CUST_ROLE_CODE_18", "CUST_ID_TYPE_CODE_18", "CUST_ID_NUM_18", "CUST_ENG_NAME_18", "CUST_ROLE_CODE_19", "CUST_ID_TYPE_CODE_19", "CUST_ID_NUM_19", "CUST_ENG_NAME_19", "CUST_ROLE_CODE_20", "CUST_ID_TYPE_CODE_20", "CUST_ID_NUM_20", "CUST_ENG_NAME_20", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "AGMT_IND", "BGN_DATE", "END_DATE")
+        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
+        _port_cols = ["PRLM_FILE_REC_KEY", "PYMT_MTH", "DRP_TXN_VAL_DATE", "REC_TYPE_CODE", "SWD_PYMT_SEQ_NUM", "SWD_CASE_FILE_REF_NUM", "SWD_HSE_UNIT_FLT_NUM", "SWD_HSE_UNIT_BLK_CODE", "SWD_HSE_UNIT_EST_CODE", "DRP_AMT", "PYMT_FROM_DATE", "PYMT_TO_DATE", "ASGN_OFCR_CODE", "CUST_CNT", "CUST_ROLE_CODE_1", "CUST_ID_TYPE_CODE_1", "CUST_ID_NUM_1", "CUST_ENG_NAME_1", "CUST_ROLE_CODE_2", "CUST_ID_TYPE_CODE_2", "CUST_ID_NUM_2", "CUST_ENG_NAME_2", "CUST_ROLE_CODE_3", "CUST_ID_TYPE_CODE_3", "CUST_ID_NUM_3", "CUST_ENG_NAME_3", "CUST_ROLE_CODE_4", "CUST_ID_TYPE_CODE_4", "CUST_ID_NUM_4", "CUST_ENG_NAME_4", "CUST_ROLE_CODE_5", "CUST_ID_TYPE_CODE_5", "CUST_ID_NUM_5", "CUST_ENG_NAME_5", "CUST_ROLE_CODE_6", "CUST_ID_TYPE_CODE_6", "CUST_ID_NUM_6", "CUST_ENG_NAME_6", "CUST_ROLE_CODE_7", "CUST_ID_TYPE_CODE_7", "CUST_ID_NUM_7", "CUST_ENG_NAME_7", "CUST_ROLE_CODE_8", "CUST_ID_TYPE_CODE_8", "CUST_ID_NUM_8", "CUST_ENG_NAME_8", "CUST_ROLE_CODE_9", "CUST_ID_TYPE_CODE_9", "CUST_ID_NUM_9", "CUST_ENG_NAME_9", "CUST_ROLE_CODE_10", "CUST_ID_TYPE_CODE_10", "CUST_ID_NUM_10", "CUST_ENG_NAME_10", "CUST_ROLE_CODE_11", "CUST_ID_TYPE_CODE_11", "CUST_ID_NUM_11", "CUST_ENG_NAME_11", "CUST_ROLE_CODE_12", "CUST_ID_TYPE_CODE_12", "CUST_ID_NUM_12", "CUST_ENG_NAME_12", "CUST_ROLE_CODE_13", "CUST_ID_TYPE_CODE_13", "CUST_ID_NUM_13", "CUST_ENG_NAME_13", "CUST_ROLE_CODE_14", "CUST_ID_TYPE_CODE_14", "CUST_ID_NUM_14", "CUST_ENG_NAME_14", "CUST_ROLE_CODE_15", "CUST_ID_TYPE_CODE_15", "CUST_ID_NUM_15", "CUST_ENG_NAME_15", "CUST_ROLE_CODE_16", "CUST_ID_TYPE_CODE_16", "CUST_ID_NUM_16", "CUST_ENG_NAME_16", "CUST_ROLE_CODE_17", "CUST_ID_TYPE_CODE_17", "CUST_ID_NUM_17", "CUST_ENG_NAME_17", "CUST_ROLE_CODE_18", "CUST_ID_TYPE_CODE_18", "CUST_ID_NUM_18", "CUST_ENG_NAME_18", "CUST_ROLE_CODE_19", "CUST_ID_TYPE_CODE_19", "CUST_ID_NUM_19", "CUST_ENG_NAME_19", "CUST_ROLE_CODE_20", "CUST_ID_TYPE_CODE_20", "CUST_ID_NUM_20", "CUST_ENG_NAME_20", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "AGMT_IND", "BGN_DATE", "END_DATE"]
+        df_SQ_SOR_EMS_CSA_DRP_PRLM_PYMT_RAW = df_SQ_SOR_EMS_CSA_DRP_PRLM_PYMT_RAW.select([col(c) if c in df_SQ_SOR_EMS_CSA_DRP_PRLM_PYMT_RAW.columns else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_SOR_EMS_CSA_DRP_PRLM_PYMT_RAW", df_SQ_SOR_EMS_CSA_DRP_PRLM_PYMT_RAW)
         
         logger.info("Step: apply_SQ_SOR_EMS_TAM_TNCY_AGRMT_STS")
@@ -169,14 +170,34 @@ AND SOR_EMS_TAM_TNCY_AGRMT_STS.TNCY_AGRMT_TM_STS_CODE IN ('A','I')
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_SQ_SOR_EMS_TAM_TNCY_AGRMT_STS = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_EMS_TAM_TNCY_AGRMT_STS.columns
         _port_cols = ["TNCY_AGRMT_BK", "TNCY_AGRMT_KEY", "ORIG_TNCY_AGRMT_CMNC_DATE", "SYS_RPT_MTH", "SYS_RPT_YEAR", "EMMS_DSTR_BRD_DSTR_KEY", "EMMS_DSTR_CHC_DSTR_KEY", "EST_KEY", "EST_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_SOR_EMS_TAM_TNCY_AGRMT_STS = df_SQ_SOR_EMS_TAM_TNCY_AGRMT_STS.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
+        df_SQ_SOR_EMS_TAM_TNCY_AGRMT_STS = df_SQ_SOR_EMS_TAM_TNCY_AGRMT_STS.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_EMS_TAM_TNCY_AGRMT_STS = df_SQ_SOR_EMS_TAM_TNCY_AGRMT_STS.select("TNCY_AGRMT_BK", "TNCY_AGRMT_KEY", "ORIG_TNCY_AGRMT_CMNC_DATE", "SYS_RPT_MTH", "SYS_RPT_YEAR", "EMMS_DSTR_BRD_DSTR_KEY", "EMMS_DSTR_CHC_DSTR_KEY", "EST_KEY", "EST_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_SOR_EMS_TAM_TNCY_AGRMT_STS = df_SQ_SOR_EMS_TAM_TNCY_AGRMT_STS.select([col(c) if c in df_SQ_SOR_EMS_TAM_TNCY_AGRMT_STS.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_EMS_TAM_TNCY_AGRMT_STS", df_SQ_SOR_EMS_TAM_TNCY_AGRMT_STS)
         
@@ -221,14 +242,34 @@ order by U.UNIT_ADDR_CODE"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_SQ_SOR_EMS_CPM_PTCL = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_EMS_CPM_PTCL.columns
         _port_cols = ["UNIT_ADDR_CODE", "CUST_MBR_ID_TYPE_CODE", "CUST_MBR_ID_NUM", "CUST_MBR_NAME", "TNCY_AGRMT_BK"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_SOR_EMS_CPM_PTCL = df_SQ_SOR_EMS_CPM_PTCL.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
+        df_SQ_SOR_EMS_CPM_PTCL = df_SQ_SOR_EMS_CPM_PTCL.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_EMS_CPM_PTCL = df_SQ_SOR_EMS_CPM_PTCL.select("UNIT_ADDR_CODE", "CUST_MBR_ID_TYPE_CODE", "CUST_MBR_ID_NUM", "CUST_MBR_NAME", "TNCY_AGRMT_BK")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_SOR_EMS_CPM_PTCL = df_SQ_SOR_EMS_CPM_PTCL.select([col(c) if c in df_SQ_SOR_EMS_CPM_PTCL.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_EMS_CPM_PTCL", df_SQ_SOR_EMS_CPM_PTCL)
         
@@ -1176,7 +1217,7 @@ RENT_FCTR_CODE as RENT_FCTR_CODE,
 rent_bgn_date as RENT_BGN_DATE,
 bgn_date as BGN_DATE
 from sor_ems_tam_tncy_agrmt_sts
-where ( to_date($$v_snsh_date,'yyyymmdd') > end_date or  to_date($$v_snsh_date,'yyyymmdd') between bgn_date and end_date)"""
+where ( to_date('$$v_snsh_date','yyyymmdd') > end_date or  to_date('$$v_snsh_date','yyyymmdd') between bgn_date and end_date)"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY_LKP_SOR_EMS_TAM_TNCY_AGRMT_STS = lib.read_sql(spark, _conn, query=query)
@@ -1713,22 +1754,9 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         logger.info("Step: write_DPA_FACT_TNCY_AND_HSHLD_SMRY")
         # Write to Target: write_DPA_FACT_TNCY_AND_HSHLD_SMRY
         df_write = df_AGGTRANS4
-        # Cast columns to match target schema data types
-        if "hshld_aem_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "hshld_aem_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "hshld_eldr_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "hshld_eldr_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        # Map source columns to target columns using connector field map (handles name mismatches)
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
         _field_map = {"DSBL_HSHLD_CNT": "DSBL_HSHLD_CNT", "DSTR_BRD_DSTR_DMNS_KEY": "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY": "DSTR_CHC_DSTR_SCD_KEY", "EST_SCD_KEY": "EST_SCD_KEY", "HSHLD_AEM_IND": "AEM_IND", "HSHLD_CNT": "HSHLD_CNT", "HSHLD_DSBL_MBR_CNT": "HSHLD_DSBL_MBR_CNT1", "HSHLD_ELDR_IND": "EDR_IND", "HSHLD_FML_MBR_CNT": "HSHLD_FML_MBR_CNT1", "HSHLD_MALE_MBR_CNT": "HSHLD_MALE_MBR_CNT1", "HSHLD_MBR_CNT": "HSHLD_MBR_CNT", "HSHLD_SIZE_DMNS_KEY": "HSHLD_SIZE_DMNS_KEY", "HSHLD_UKWN_GNDR_MBR_CNT": "HSHLD_UNKWN_MBR_CNT1", "PRH_ALL_CSSA_HSHLD_CNT": "ALL1", "PRH_PART_CSSA_HSHLD_CNT": "PARTIAL1", "RENT_FCTR_DMNS_KEY": "RENT_FCTR_DMNS_KEY", "RNTL_PSTN_DMNS_KEY": "RNTL_PSTN_DMNS_KEY", "RSDN_LNG_DMNS_KEY": "RSDN_LNG_DMNS_KEY", "RVN_TXN_MODE_DMNS_KEY": "RVN_TXN_MODE_DMNS_KEY", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TNCY_SCHM_TYPE_DMNS_KEY": "TNCY_SCHM_TYPE_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
@@ -1769,10 +1797,18 @@ def main():
         success = run_mapping(ctx, metrics)
         if success:
             lib._flush_pending_passwords()
-        return 0 if success else 1
+        if not success:
+            # Exit the JVM non-zero so YARN marks the application FAILED.
+            # In client mode the AM lives in this JVM: a normal spark.stop() +
+            # python exit code still reports SUCCEEDED (AM exits cleanly).
+            spark.sparkContext._jvm.System.exit(1)
+        return 0
     finally:
         spark.stop()
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the mapping failed.
+    import sys as _sys
+    _sys.exit(main())

@@ -85,11 +85,11 @@ where tcs.msd_tncy_txn_sts_code='ACTV'
 and t.msd_txn_key=tc.msd_txn_key
 and c.msd_tncy_key=tc.msd_tncy_key
 and t.msd_txn_key=ts.msd_txn_key
-and to_date($$v_snsh_date,'yyyyMMdd') between ts.bgn_date and ts.end_date
+and to_date('$$v_snsh_date','yyyyMMdd') between ts.bgn_date and ts.end_date
 and tc.msd_tncy_txn_key=tcs.msd_tncy_txn_key
-and to_date($$v_snsh_date,'yyyyMMdd') between tcs.bgn_date and tcs.end_date
+and to_date('$$v_snsh_date','yyyyMMdd') between tcs.bgn_date and tcs.end_date
 and c.msd_tncy_key=cs.msd_tncy_key
-and to_date($$v_snsh_date,'yyyyMMdd') between cs.bgn_date and cs.end_date
+and to_date('$$v_snsh_date','yyyyMMdd') between cs.bgn_date and cs.end_date
 )
 -- case view
 select 
@@ -99,7 +99,7 @@ aft_cmlt_wrt_warn_case_cnt, actv_pnt_allt_case_cnt, cmlt_pnt_allt_case_cnt, cmlt
 , 0, sysdate, null
 from (
 select
-(select time_dmns_key from dds_dmns_time where time_val_date=to_date($$v_snsh_date,'yyyyMMdd') and time_dmns_key<200000000) time_dmns_key,
+(select time_dmns_key from dds_dmns_time where time_val_date=to_date('$$v_snsh_date','yyyyMMdd') and time_dmns_key<200000000) time_dmns_key,
 nvl(est_scd_key,0) est_scd_key, ofcr_type_dmns_key, hshld_size_dmns_key, msd_code_scd_key, gndr_dmns_key, age_grp_dmns_key, score_grp_dmns_key,
 count(distinct cmlt_wrt_warn_case) cmlt_wrt_warn_case_cnt,
 count(distinct aft_cmlt_wrt_warn_case) aft_cmlt_wrt_warn_case_cnt,
@@ -155,7 +155,7 @@ from m,
 sor_gms_ref_msd_code r, sor_gms_ref_msd_code_sts rs,
 sor_gms_srf_ref_code s, sor_gms_srf_ref_code_sts ss,
 (select e.hse_est_bk, es.hse_est_type_code, es.hse_est_code from sor_gms_sif_ndms_hse_est e, sor_gms_sif_ndms_hse_est_sts es
-where e.hse_est_key=es.hse_est_key and to_date($$v_snsh_date,'yyyyMMdd') between es.bgn_date and es.end_date) ee
+where e.hse_est_key=es.hse_est_key and to_date('$$v_snsh_date','yyyyMMdd') between es.bgn_date and es.end_date) ee
 where msd_type_code in ('PNT','OTHR','WRT_WARN') 
 and (   msd_txn_sts_code in ('ACTV','INACTV','END')
     or (msd_txn_sts_code='DEL' and msd_del_rsn_code!='DEL_DOM_06') )
@@ -165,13 +165,13 @@ and rs.msd_code_sts_code='ACTV'
 and ss.ref_code_sts_code='ACTV'
 and hse_est_key=ee.hse_est_bk (+)
 and r.msd_code_key=rs.msd_code_key
-and to_date($$v_snsh_date,'yyyyMMdd') between rs.bgn_date and rs.end_date
+and to_date('$$v_snsh_date','yyyyMMdd') between rs.bgn_date and rs.end_date
 and s.ref_code_key=ss.ref_code_key
-and to_date($$v_snsh_date,'yyyyMMdd') between ss.bgn_date and ss.end_date
-) b, (select est_scd_key, est_type_code, est_code from dds_hrchy_gms_est where to_date($$v_snsh_date,'yyyyMMdd') between bgn_date and end_date) e,
+and to_date('$$v_snsh_date','yyyyMMdd') between ss.bgn_date and ss.end_date
+) b, (select est_scd_key, est_type_code, est_code from dds_hrchy_gms_est where to_date('$$v_snsh_date','yyyyMMdd') between bgn_date and end_date) e,
 dds_dmns_mssem_ofcr_type o, 
 (select hshld_size_dmns_key, hshld_size_code from dds_dmns_ems_hshld_size where hshld_size_schm_code='GMS' or hshld_size_code='N/A') h,
-(select msd_code_scd_key, msd_code from dds_dmns_gms_msd_code where to_date($$v_snsh_date,'yyyyMMdd') between bgn_date and end_date) msd,
+(select msd_code_scd_key, msd_code from dds_dmns_gms_msd_code where to_date('$$v_snsh_date','yyyyMMdd') between bgn_date and end_date) msd,
 dds_dmns_gndr g, 
 (select age_grp_dmns_key, age_grp_code from dds_dmns_ems_age_grp where age_grp_schm_code='GMS' or age_grp_code='N/A') a, 
 (select score_grp_dmns_key, score_grp_code from dds_dmns_gms_score_grp where score_grp_schm_code='GMS' or score_grp_code='N/A') s
@@ -190,7 +190,7 @@ cmlt_wrt_warn_case_cnt!=0 or aft_cmlt_wrt_warn_case_cnt!=0 or actv_pnt_allt_case
 -- tncy view
 union all
 select 
-(select time_dmns_key from dds_dmns_time where time_val_date=to_date($$v_snsh_date,'yyyyMMdd') and time_dmns_key<200000000) time_dmns_key,
+(select time_dmns_key from dds_dmns_time where time_val_date=to_date('$$v_snsh_date','yyyyMMdd') and time_dmns_key<200000000) time_dmns_key,
 nvl(e.est_scd_key,0), 0 ofcr_type_dmns_key, h.hshld_size_dmns_key, u.msd_code_scd_key, 0 gndr_dmns_key, 0 age_grp_dmns_key, s.score_grp_dmns_key,
 u.actv_ofnc_tncy_cnt, u.cmlt_ofnc_tncy_cnt, u.aft_cmlt_wrt_warn_tncy_cnt, 0 cmlt_wrt_warn_case_cnt, 
 0 aft_cmlt_wrt_warn_case_cnt, 0 actv_pnt_allt_case_cnt, 0 cmlt_pnt_allt_case_cnt, 0 cmlt_msd_tot_case_cnt
@@ -228,18 +228,18 @@ union all
 select cs.hse_est_key, h.msd_schm_type_code, cs.mbr_size_num, hs.accum_msd_pnt_num msd_pnt_num,
   null actv_ofnc_tncy, h.msd_tncy_key cmlt_ofnc_tncy, null aft_cmlt_wrt_warn_tncy, '2'
 from sor_gms_msd_tncy_hgst_pnt h, sor_gms_msd_tncy_hgst_pnt_sts hs, sor_gms_msd_tncy c, sor_gms_msd_tncy_sts cs
-where h.msd_tncy_hgst_pnt_key=hs.msd_tncy_hgst_pnt_key and to_date($$v_snsh_date,'yyyyMMdd') between hs.bgn_date and hs.end_date
+where h.msd_tncy_hgst_pnt_key=hs.msd_tncy_hgst_pnt_key and to_date('$$v_snsh_date','yyyyMMdd') between hs.bgn_date and hs.end_date
 and h.msd_tncy_key=c.msd_tncy_key
 and c.msd_tncy_key=cs.msd_tncy_key
-and to_date($$v_snsh_date,'yyyyMMdd') between cs.bgn_date and cs.end_date
+and to_date('$$v_snsh_date','yyyyMMdd') between cs.bgn_date and cs.end_date
 union all
 select cs.hse_est_key, n.msd_schm_type_code, cs.mbr_size_num, ns.accum_msd_pnt_num msd_pnt_num,
   null actv_ofnc_tncy, n.msd_tncy_key cmlt_ofnc_tncy, null aft_cmlt_wrt_warn_tncy, '3'
 from sor_gms_msd_tncy_schm_ntq n, sor_gms_msd_tncy_schm_ntq_sts ns, sor_gms_msd_tncy c, sor_gms_msd_tncy_sts cs
-where n.msd_tncy_schm_ntq_key=ns.msd_tncy_schm_ntq_key and to_date($$v_snsh_date,'yyyyMMdd') between ns.bgn_date and ns.end_date 
+where n.msd_tncy_schm_ntq_key=ns.msd_tncy_schm_ntq_key and to_date('$$v_snsh_date','yyyyMMdd') between ns.bgn_date and ns.end_date 
 and n.msd_tncy_key=c.msd_tncy_key
 and c.msd_tncy_key=cs.msd_tncy_key
-and to_date($$v_snsh_date,'yyyyMMdd') between cs.bgn_date and cs.end_date
+and to_date('$$v_snsh_date','yyyyMMdd') between cs.bgn_date and cs.end_date
 union all
 select hse_est_key, msd_schm_type_code, mbr_size_num, 0 msd_pnt_num,
   null actv_ofnc_tncy, null cmlt_ofnc_tncy, msd_tncy_key aft_cmlt_wrt_warn_tncy, '4'
@@ -247,10 +247,10 @@ from m
 where msd_type_code='WRT_WARN' and msd_txn_cre_date>=date'2007-1-1'
 and msd_txn_sts_code in ('ACTV','INACTV','END')
 )) p, (select e.hse_est_bk, es.hse_est_type_code, es.hse_est_code from sor_gms_sif_ndms_hse_est e, sor_gms_sif_ndms_hse_est_sts es
-where e.hse_est_key=es.hse_est_key and to_date($$v_snsh_date,'yyyyMMdd') between es.bgn_date and es.end_date) ee
+where e.hse_est_key=es.hse_est_key and to_date('$$v_snsh_date','yyyyMMdd') between es.bgn_date and es.end_date) ee
 where p.hse_est_key=ee.hse_est_bk (+)
 group by ee.hse_est_type_code, ee.hse_est_code, p.hshld_size_code, p.msd_code_scd_key, p.score_grp_code
-) u, (select est_scd_key, est_type_code, est_code from dds_hrchy_gms_est where to_date($$v_snsh_date,'yyyyMMdd') between bgn_date and end_date) e,
+) u, (select est_scd_key, est_type_code, est_code from dds_hrchy_gms_est where to_date('$$v_snsh_date','yyyyMMdd') between bgn_date and end_date) e,
 (select hshld_size_dmns_key, hshld_size_code from dds_dmns_ems_hshld_size where hshld_size_schm_code='GMS' or hshld_size_code='N/A') h,
 (select score_grp_dmns_key, score_grp_code from dds_dmns_gms_score_grp where score_grp_schm_code='GMS' or score_grp_code='N/A') s
 where u.hse_est_type_code=e.est_type_code (+)
@@ -259,14 +259,34 @@ and u.hshld_size_code=h.hshld_size_code (+)
 and u.score_grp_code=s.score_grp_code (+)"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY.columns
         _port_cols = ["TIME_DMNS_KEY", "EST_SCD_KEY", "OFCR_TYPE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MSD_CODE_SCD_KEY", "OFNDR_GNDR_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY", "ACTV_OFNC_TNCY_CNT", "CMLT_OFNC_TNCY_CNT", "AFT_CMLT_WRT_WARN_TNCY_CNT", "CMLT_WRT_WARN_CASE_CNT", "AFT_CMLT_WRT_WARN_CASE_CNT", "ACTV_PNT_ALLT_CASE_CNT", "CMLT_PNT_ALLT_CASE_CNT", "CMLT_MSD_TOT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY = df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
+        df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY = df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY = df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY.select("TIME_DMNS_KEY", "EST_SCD_KEY", "OFCR_TYPE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MSD_CODE_SCD_KEY", "OFNDR_GNDR_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY", "ACTV_OFNC_TNCY_CNT", "CMLT_OFNC_TNCY_CNT", "AFT_CMLT_WRT_WARN_TNCY_CNT", "CMLT_WRT_WARN_CASE_CNT", "AFT_CMLT_WRT_WARN_CASE_CNT", "ACTV_PNT_ALLT_CASE_CNT", "CMLT_PNT_ALLT_CASE_CNT", "CMLT_MSD_TOT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY = df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY.select([col(c) if c in df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY", df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY)
         
@@ -283,26 +303,9 @@ and u.score_grp_code=s.score_grp_code (+)"""
         logger.info("Step: write_DPA_FACT_GMS_DLY_MSD_SMRY")
         # Write to Target: write_DPA_FACT_GMS_DLY_MSD_SMRY
         df_write = df_EXPTRANS
-        # Cast columns to match target schema data types
-        if "rec_rls_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "rec_rls_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "last_rec_txn_date" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "last_rec_txn_date":
-                    df_write = df_write.withColumn(c, col(c).cast(DateType()))
-        if "last_rec_txn_type_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "last_rec_txn_type_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        # Map source columns to target columns using connector field map (handles name mismatches)
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
         _field_map = {"ACTV_OFNC_TNCY_CNT": "ACTV_OFNC_TNCY_CNT", "ACTV_PNT_ALLT_CASE_CNT": "ACTV_PNT_ALLT_CASE_CNT", "AFT_CMLT_WRT_WARN_CASE_CNT": "AFT_CMLT_WRT_WARN_CASE_CNT", "AFT_CMLT_WRT_WARN_TNCY_CNT": "AFT_CMLT_WRT_WARN_TNCY_CNT", "CMLT_MSD_TOT_CASE_CNT": "CMLT_MSD_TOT_CASE_CNT", "CMLT_OFNC_TNCY_CNT": "CMLT_OFNC_TNCY_CNT", "CMLT_PNT_ALLT_CASE_CNT": "CMLT_PNT_ALLT_CASE_CNT", "CMLT_WRT_WARN_CASE_CNT": "CMLT_WRT_WARN_CASE_CNT", "EST_SCD_KEY": "EST_SCD_KEY", "HSHLD_SIZE_DMNS_KEY": "HSHLD_SIZE_DMNS_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "MSD_CODE_SCD_KEY": "MSD_CODE_SCD_KEY", "OFCR_TYPE_DMNS_KEY": "OFCR_TYPE_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY": "OFNC_SCORE_GRP_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY": "OFNDR_AGE_GRP_DMNS_KEY", "OFNDR_GNDR_DMNS_KEY": "OFNDR_GNDR_DMNS_KEY", "REC_RLS_IND": "REC_RLS_IND", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
@@ -343,10 +346,18 @@ def main():
         success = run_mapping(ctx, metrics)
         if success:
             lib._flush_pending_passwords()
-        return 0 if success else 1
+        if not success:
+            # Exit the JVM non-zero so YARN marks the application FAILED.
+            # In client mode the AM lives in this JVM: a normal spark.stop() +
+            # python exit code still reports SUCCEEDED (AM exits cleanly).
+            spark.sparkContext._jvm.System.exit(1)
+        return 0
     finally:
         spark.stop()
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the mapping failed.
+    import sys as _sys
+    _sys.exit(main())

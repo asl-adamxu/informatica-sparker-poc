@@ -81,8 +81,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # Source Qualifier: apply_SQ_SOR_ISP_EXTL_ADT_TRL
         df_SQ_SOR_ISP_EXTL_ADT_TRL = df_SOR_ISP_EXTL_ADT_TRL
         df_SQ_SOR_ISP_EXTL_ADT_TRL = df_SQ_SOR_ISP_EXTL_ADT_TRL.filter(expr("USER_ID = -1"))
-        # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_ISP_EXTL_ADT_TRL = df_SQ_SOR_ISP_EXTL_ADT_TRL.select("ADT_DATE", "SYS_RPT_YEAR", "SYS_RPT_MTH", "PRCS_ID", "USER_ID", "USER_ROLE_ID", "RSRC_BNDL_ID", "RSRC_BNDL_DESP", "SYS_CODE", "ADT_ACT_CODE", "ADT_ACT_SVTY_CODE", "ADT_ACT_DESP", "ADT_AUX_INFO_TEXT", "REMT_IP_ADDR", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE")
+        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
+        _port_cols = ["ADT_DATE", "SYS_RPT_YEAR", "SYS_RPT_MTH", "PRCS_ID", "USER_ID", "USER_ROLE_ID", "RSRC_BNDL_ID", "RSRC_BNDL_DESP", "SYS_CODE", "ADT_ACT_CODE", "ADT_ACT_SVTY_CODE", "ADT_ACT_DESP", "ADT_AUX_INFO_TEXT", "REMT_IP_ADDR", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE"]
+        df_SQ_SOR_ISP_EXTL_ADT_TRL = df_SQ_SOR_ISP_EXTL_ADT_TRL.select([col(c) if c in df_SQ_SOR_ISP_EXTL_ADT_TRL.columns else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_SOR_ISP_EXTL_ADT_TRL", df_SQ_SOR_ISP_EXTL_ADT_TRL)
         
         logger.info("Step: apply_EXPTRANS1")
@@ -468,8 +469,9 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         logger.info("Step: write_DPA_FACT_RENT_ENQ_RMDR_SMRY")
         # Write to Target: write_DPA_FACT_RENT_ENQ_RMDR_SMRY
         df_write = df_AGG_COUNT
-        # Cast columns to match target schema data types
-        # Map source columns to target columns using connector field map (handles name mismatches)
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
         _field_map = {"ENQ_CHNL_TYPE_KEY": "ENQ_CHNL_TYPE_KEY", "EST_SCD_KEY": "EST_SCD_KEY", "RENT_ENQ_RMDR_DTL_KEY": "RENT_ENQ_RMDR_DTL_KEY", "RENT_ENQ_RMDR_VAL_NUM": "VALUE", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
@@ -510,10 +512,18 @@ def main():
         success = run_mapping(ctx, metrics)
         if success:
             lib._flush_pending_passwords()
-        return 0 if success else 1
+        if not success:
+            # Exit the JVM non-zero so YARN marks the application FAILED.
+            # In client mode the AM lives in this JVM: a normal spark.stop() +
+            # python exit code still reports SUCCEEDED (AM exits cleanly).
+            spark.sparkContext._jvm.System.exit(1)
+        return 0
     finally:
         spark.stop()
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the mapping failed.
+    import sys as _sys
+    _sys.exit(main())

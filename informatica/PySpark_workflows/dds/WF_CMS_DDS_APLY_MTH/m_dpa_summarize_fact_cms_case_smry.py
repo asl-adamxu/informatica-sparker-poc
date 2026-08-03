@@ -156,14 +156,34 @@ and to_date('$$v_rpt_date', 'yyyymmdd') between b.bgn_date and b.end_date
         query = query.replace("$$v_rpt_date", v_rpt_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_SQ_SOR_CMS_CASE = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_CMS_CASE.columns
         _port_cols = ["CASE_KEY", "CMS_CASE_KEY", "BGN_DATE", "END_DATE", "CUST_RQS_KEY", "CASE_NUM", "RPT_CMS_HSE_EST_KEY", "RPT_CMS_HSE_BLK_KEY", "RPT_CMS_HSE_UNIT_KEY", "RPT_CASE_LOC_RMK_TEXT", "ACTL_CMS_HSE_EST_KEY", "ACTL_CMS_HSE_BLK_KEY", "ACTL_CMS_HSE_UNIT_KEY", "ACTL_CASE_LOC_RMK_TEXT", "CASE_CRE_DATE", "LAST_CASE_ACT_DATE", "CASE_CMPLT_DATE", "CASE_RMK_TEXT", "CASE_CRE_CMS_HSE_EST_KEY", "CASE_CRE_USER_ID", "CASE_CRE_USER_TYPE_CODE", "CASE_CRE_OFFC_TYPE_CODE", "CASE_ACT_CMS_HSE_EST_KEY", "CASE_ACT_USER_ID", "CASE_ACT_USER_TYPE_CODE", "CASE_ACT_OFFC_TYPE_CODE", "RLT_CASE_KEY", "CASE_PRIOR_CODE", "RESP_OFCR_USER_ID", "CASE_STS_CODE", "CASE_CNFRM_DATE", "CASE_RPLY_CNT", "LAST_CASE_RPLY_DATE", "DVC_REC_TXN_ID", "CUST_RQS_TXN_ID", "RLT_CASE_TXN_ID", "CLS_CASE_IND", "CASE_ITEM_KEY", "RPT_CASE_TYPE_KEY", "ACTL_CASE_TYPE_KEY", "CASE_CRE_HSE_EST_OFFC_KEY", "CASE_ACT_HSE_EST_OFFC_KEY"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_SOR_CMS_CASE = df_SQ_SOR_CMS_CASE.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
+        df_SQ_SOR_CMS_CASE = df_SQ_SOR_CMS_CASE.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_CMS_CASE = df_SQ_SOR_CMS_CASE.select("CASE_KEY", "CMS_CASE_KEY", "BGN_DATE", "END_DATE", "CUST_RQS_KEY", "CASE_NUM", "RPT_CMS_HSE_EST_KEY", "RPT_CMS_HSE_BLK_KEY", "RPT_CMS_HSE_UNIT_KEY", "RPT_CASE_LOC_RMK_TEXT", "ACTL_CMS_HSE_EST_KEY", "ACTL_CMS_HSE_BLK_KEY", "ACTL_CMS_HSE_UNIT_KEY", "ACTL_CASE_LOC_RMK_TEXT", "CASE_CRE_DATE", "LAST_CASE_ACT_DATE", "CASE_CMPLT_DATE", "CASE_RMK_TEXT", "CASE_CRE_CMS_HSE_EST_KEY", "CASE_CRE_USER_ID", "CASE_CRE_USER_TYPE_CODE", "CASE_CRE_OFFC_TYPE_CODE", "CASE_ACT_CMS_HSE_EST_KEY", "CASE_ACT_USER_ID", "CASE_ACT_USER_TYPE_CODE", "CASE_ACT_OFFC_TYPE_CODE", "RLT_CASE_KEY", "CASE_PRIOR_CODE", "RESP_OFCR_USER_ID", "CASE_STS_CODE", "CASE_CNFRM_DATE", "CASE_RPLY_CNT", "LAST_CASE_RPLY_DATE", "DVC_REC_TXN_ID", "CUST_RQS_TXN_ID", "RLT_CASE_TXN_ID", "CLS_CASE_IND", "CASE_ITEM_KEY", "RPT_CASE_TYPE_KEY", "ACTL_CASE_TYPE_KEY", "CASE_CRE_HSE_EST_OFFC_KEY", "CASE_ACT_HSE_EST_OFFC_KEY")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_SOR_CMS_CASE = df_SQ_SOR_CMS_CASE.select([col(c) if c in df_SQ_SOR_CMS_CASE.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_CMS_CASE", df_SQ_SOR_CMS_CASE)
         
@@ -288,8 +308,8 @@ where last_day(to_date( '$$v_rpt_date', 'YYYYMMDD')) between bgn_date and end_da
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "source_db")
         query = f"""select a.CASE_TYPE_KEY as CASE_TYPE_KEY,
-a.CASE_CATG_KEY as CASE_CATG_KEY1,
-decode(sign(instr(a.CASE_TYPE_PATH_TEXT, '|' , 1, 11)), 1, substr(a.CASE_TYPE_PATH_TEXT, 1, instr(a.CASE_TYPE_PATH_TEXT, '|' , 1, 11)-1), a.CASE_TYPE_PATH_TEXT) as CASE_TYPE_PATH_TEXT1
+a.CASE_CATG_KEY as CASE_CATG_KEY,
+decode(sign(instr(a.CASE_TYPE_PATH_TEXT, '|' , 1, 11)), 1, substr(a.CASE_TYPE_PATH_TEXT, 1, instr(a.CASE_TYPE_PATH_TEXT, '|' , 1, 11)-1), a.CASE_TYPE_PATH_TEXT) as CASE_TYPE_PATH_TEXT
 from SOR_CMS_REF_CASE_TYPE_STS a
 where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and end_date"""
         query = query.replace("$$v_rpt_date", v_rpt_date)
@@ -317,8 +337,8 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
         df_MPLT_GET_CASE_TYPE_SCD_KEY_rename_6 = df_MPLT_GET_CASE_TYPE_SCD_KEY_rename_6.drop("IN_CASE_TYPE_KEY").withColumnRenamed("ACTL_CASE_TYPE_KEY", "IN_CASE_TYPE_KEY")
         df_MPLT_GET_CASE_TYPE_SCD_KEY_rename_6 = df_MPLT_GET_CASE_TYPE_SCD_KEY_rename_6.drop("IN_CASE_CATG_KEY1").withColumnRenamed("CASE_CATG_KEY", "IN_CASE_CATG_KEY1")
         df_MPLT_GET_CASE_TYPE_SCD_KEY_rename_6 = df_MPLT_GET_CASE_TYPE_SCD_KEY_rename_6.drop("IN_CASE_TYPE_PATH_TEXT1").withColumnRenamed("CASE_TYPE_PATH_TEXT", "IN_CASE_TYPE_PATH_TEXT1")
-        df_MPLT_GET_CASE_TYPE_SCD_KEY_rename_6 = df_MPLT_GET_CASE_TYPE_SCD_KEY_rename_6.drop("IN_CASE_CATG_KEY").withColumnRenamed("CASE_CATG_KEY1", "IN_CASE_CATG_KEY")
-        df_MPLT_GET_CASE_TYPE_SCD_KEY_rename_6 = df_MPLT_GET_CASE_TYPE_SCD_KEY_rename_6.drop("IN_CASE_TYPE_PATH_TEXT").withColumnRenamed("CASE_TYPE_PATH_TEXT1", "IN_CASE_TYPE_PATH_TEXT")
+        df_MPLT_GET_CASE_TYPE_SCD_KEY_rename_6 = df_MPLT_GET_CASE_TYPE_SCD_KEY_rename_6.drop("IN_CASE_CATG_KEY").withColumnRenamed("CASE_CATG_KEY", "IN_CASE_CATG_KEY")
+        df_MPLT_GET_CASE_TYPE_SCD_KEY_rename_6 = df_MPLT_GET_CASE_TYPE_SCD_KEY_rename_6.drop("IN_CASE_TYPE_PATH_TEXT").withColumnRenamed("CASE_TYPE_PATH_TEXT", "IN_CASE_TYPE_PATH_TEXT")
         ctx.register_df("df_MPLT_GET_CASE_TYPE_SCD_KEY_rename_6", df_MPLT_GET_CASE_TYPE_SCD_KEY_rename_6)
         
         logger.info("Step: apply_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS1")
@@ -566,8 +586,8 @@ where last_day(to_date( '$$v_rpt_date', 'YYYYMMDD')) between bgn_date and end_da
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "source_db")
         query = f"""select a.CUST_RQS_KEY as CUST_RQS_KEY, 
-a.RCPT_PRN_DATE  as RCPT_PRN_DATE1 ,
-a.CUST_RQS_INCMG_CHNL_CODE as CUST_RQS_INCMG_CHNL_CODE1 
+a.RCPT_PRN_DATE  as RCPT_PRN_DATE ,
+a.CUST_RQS_INCMG_CHNL_CODE as CUST_RQS_INCMG_CHNL_CODE 
 from SOR_CMS_CUST_RQS_STS a
 where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and end_date"""
         query = query.replace("$$v_rpt_date", v_rpt_date)
@@ -595,8 +615,8 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
         df_MPLT_LKP_CHNL_CODE_rename_17 = df_MPLT_LKP_CHNL_CODE_rename_17.drop("IN_CUST_RQS_KEY").withColumnRenamed("CUST_RQS_KEY", "IN_CUST_RQS_KEY")
         df_MPLT_LKP_CHNL_CODE_rename_17 = df_MPLT_LKP_CHNL_CODE_rename_17.drop("IN_CUST_RQS_INCMG_CHNL_CODE1").withColumnRenamed("CUST_RQS_INCMG_CHNL_CODE", "IN_CUST_RQS_INCMG_CHNL_CODE1")
         df_MPLT_LKP_CHNL_CODE_rename_17 = df_MPLT_LKP_CHNL_CODE_rename_17.drop("IN_RCPT_PRN_DATE1").withColumnRenamed("RCPT_PRN_DATE", "IN_RCPT_PRN_DATE1")
-        df_MPLT_LKP_CHNL_CODE_rename_17 = df_MPLT_LKP_CHNL_CODE_rename_17.drop("IN_CUST_RQS_INCMG_CHNL_CODE").withColumnRenamed("CUST_RQS_INCMG_CHNL_CODE1", "IN_CUST_RQS_INCMG_CHNL_CODE")
-        df_MPLT_LKP_CHNL_CODE_rename_17 = df_MPLT_LKP_CHNL_CODE_rename_17.drop("IN_RCPT_PRN_DATE").withColumnRenamed("RCPT_PRN_DATE1", "IN_RCPT_PRN_DATE")
+        df_MPLT_LKP_CHNL_CODE_rename_17 = df_MPLT_LKP_CHNL_CODE_rename_17.drop("IN_CUST_RQS_INCMG_CHNL_CODE").withColumnRenamed("CUST_RQS_INCMG_CHNL_CODE", "IN_CUST_RQS_INCMG_CHNL_CODE")
+        df_MPLT_LKP_CHNL_CODE_rename_17 = df_MPLT_LKP_CHNL_CODE_rename_17.drop("IN_RCPT_PRN_DATE").withColumnRenamed("RCPT_PRN_DATE", "IN_RCPT_PRN_DATE")
         ctx.register_df("df_MPLT_LKP_CHNL_CODE_rename_17", df_MPLT_LKP_CHNL_CODE_rename_17)
         
         logger.info("Step: apply_MPLT_LKP_CHNL_CODE_EXPTRANS1")
@@ -1861,40 +1881,9 @@ GROUP BY
         logger.info("Step: write_DPA_FACT_CMS_CASE_SMRY")
         # Write to Target: write_DPA_FACT_CMS_CASE_SMRY
         df_write = df_EXPTRANS52
-        # Cast columns to match target schema data types
-        if "hshld_aem_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "hshld_aem_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "hshld_eldr_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "hshld_eldr_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "hshld_dsbl_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "hshld_dsbl_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "last_rec_txn_date" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "last_rec_txn_date":
-                    df_write = df_write.withColumn(c, col(c).cast(TimestampType()))
-        if "last_rec_txn_type_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "last_rec_txn_type_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        # Map source columns to target columns using connector field map (handles name mismatches)
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
         _field_map = {"BLK_AGE_DMNS_KEY": "BLK_AGE_DMNS_KEY", "BLK_SCD_KEY": "BLK_SCD_KEY", "CASE_CATG_SCD_KEY": "CASE_CATG_SCD_KEY", "CASE_TYPE_SCD_KEY": "CASE_TYPE_SCD_KEY", "CMS_BLK_SCD_KEY": "CMS_BLK_SCD_KEY", "CMS_CASE_CMPLT_CNT": "CMS_CASE_CMPLT_CNT", "CMS_CASE_CNT": "CMS_CASE_CNT", "CMS_CASE_ITEM_CMPLT_CNT": "CMS_CASE_ITEM_CMPLT_CNT", "CMS_CASE_ITEM_CNT": "CMS_CASE_ITEM_CNT", "CMS_CASE_ITEM_NEW_CNT": "CMS_CASE_ITEM_NEW_CNT", "CMS_CASE_ITEM_RPET_CNT": "CMS_CASE_ITEM_RPET_CNT", "CMS_CASE_NEW_CNT": "CMS_CASE_NEW_CNT", "CMS_CASE_RPET_CNT": "CMS_CASE_RPET_CNT", "CMS_EST_SCD_KEY": "CMS_EST_SCD_KEY", "CMS_RCPT_PRN_CNT": "CMS_RCPT_PRN_CNT", "EST_OFFC_SCD_KEY": "EST_OFFC_SCD_KEY", "EST_SCD_KEY": "EST_SCD_KEY", "HSHLD_AEM_IND": "HSHLD_AEM_IND", "HSHLD_DSBL_IND": "HSHLD_DSBL_IND", "HSHLD_ELDR_IND": "HSHLD_ELDR_IND", "HSHLD_SIZE_DMNS_KEY": "HSHLD_SIZE_DMNS_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "RQS_CHNL_DMNS_KEY": "RQS_CHNL_DMNS_KEY", "RSDN_LNG_DMNS_KEY": "RSDN_LNG_DMNS_KEY", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "UNIT_SIZE_DMNS_KEY": "UNIT_SIZE_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
@@ -1935,10 +1924,18 @@ def main():
         success = run_mapping(ctx, metrics)
         if success:
             lib._flush_pending_passwords()
-        return 0 if success else 1
+        if not success:
+            # Exit the JVM non-zero so YARN marks the application FAILED.
+            # In client mode the AM lives in this JVM: a normal spark.stop() +
+            # python exit code still reports SUCCEEDED (AM exits cleanly).
+            spark.sparkContext._jvm.System.exit(1)
+        return 0
     finally:
         spark.stop()
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the mapping failed.
+    import sys as _sys
+    _sys.exit(main())

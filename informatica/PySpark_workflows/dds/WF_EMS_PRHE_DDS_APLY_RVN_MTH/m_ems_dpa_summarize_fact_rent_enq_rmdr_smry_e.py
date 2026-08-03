@@ -97,14 +97,34 @@ group by time_dmns_key,est_key"""
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         query = query.replace("$$v_snsh_date", v_snsh_date)
         df_SQ_DDS_FACT_MTH_RENT_AND_ARR_SMRY = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_SQ_DDS_FACT_MTH_RENT_AND_ARR_SMRY.columns
         _port_cols = ["TIME_DMNS_KEY", "EST_KEY", "ACTV_TNCY_CNT", "ARR_ACTV_TNCY_CNT"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_DDS_FACT_MTH_RENT_AND_ARR_SMRY = df_SQ_DDS_FACT_MTH_RENT_AND_ARR_SMRY.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
+        df_SQ_DDS_FACT_MTH_RENT_AND_ARR_SMRY = df_SQ_DDS_FACT_MTH_RENT_AND_ARR_SMRY.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_DDS_FACT_MTH_RENT_AND_ARR_SMRY = df_SQ_DDS_FACT_MTH_RENT_AND_ARR_SMRY.select("TIME_DMNS_KEY", "EST_KEY", "ACTV_TNCY_CNT", "ARR_ACTV_TNCY_CNT")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_DDS_FACT_MTH_RENT_AND_ARR_SMRY = df_SQ_DDS_FACT_MTH_RENT_AND_ARR_SMRY.select([col(c) if c in df_SQ_DDS_FACT_MTH_RENT_AND_ARR_SMRY.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_DDS_FACT_MTH_RENT_AND_ARR_SMRY", df_SQ_DDS_FACT_MTH_RENT_AND_ARR_SMRY)
         
@@ -112,8 +132,9 @@ group by time_dmns_key,est_key"""
         # Source Qualifier: apply_SQ_DDS_DMNS_ENQ_CHNL_TYPE
         df_SQ_DDS_DMNS_ENQ_CHNL_TYPE = df_DDS_DMNS_ENQ_CHNL_TYPE
         df_SQ_DDS_DMNS_ENQ_CHNL_TYPE = df_SQ_DDS_DMNS_ENQ_CHNL_TYPE.filter(expr("ENQ_CHNL_TYPE_KEY != 0"))
-        # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_DDS_DMNS_ENQ_CHNL_TYPE = df_SQ_DDS_DMNS_ENQ_CHNL_TYPE.select("ENQ_CHNL_TYPE_KEY", "ENQ_CHNL_TYPE_CODE", "ENQ_CHNL_TYPE_DESP")
+        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
+        _port_cols = ["ENQ_CHNL_TYPE_KEY", "ENQ_CHNL_TYPE_CODE", "ENQ_CHNL_TYPE_DESP"]
+        df_SQ_DDS_DMNS_ENQ_CHNL_TYPE = df_SQ_DDS_DMNS_ENQ_CHNL_TYPE.select([col(c) if c in df_SQ_DDS_DMNS_ENQ_CHNL_TYPE.columns else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_DDS_DMNS_ENQ_CHNL_TYPE", df_SQ_DDS_DMNS_ENQ_CHNL_TYPE)
         
         logger.info("Step: apply_EXPTRANS")
@@ -422,8 +443,9 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         logger.info("Step: write_DPA_FACT_RENT_ENQ_RMDR_SMRY")
         # Write to Target: write_DPA_FACT_RENT_ENQ_RMDR_SMRY
         df_write = df_AGG_SUM
-        # Cast columns to match target schema data types
-        # Map source columns to target columns using connector field map (handles name mismatches)
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
         _field_map = {"ENQ_CHNL_TYPE_KEY": "ENQ_CHNL_TYPE_KEY", "EST_SCD_KEY": "EST_SCD_KEY", "RENT_ENQ_RMDR_DTL_KEY": "RENT_ENQ_RMDR_DTL_KEY", "RENT_ENQ_RMDR_VAL_NUM": "VALUE", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
@@ -464,10 +486,18 @@ def main():
         success = run_mapping(ctx, metrics)
         if success:
             lib._flush_pending_passwords()
-        return 0 if success else 1
+        if not success:
+            # Exit the JVM non-zero so YARN marks the application FAILED.
+            # In client mode the AM lives in this JVM: a normal spark.stop() +
+            # python exit code still reports SUCCEEDED (AM exits cleanly).
+            spark.sparkContext._jvm.System.exit(1)
+        return 0
     finally:
         spark.stop()
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the mapping failed.
+    import sys as _sys
+    _sys.exit(main())

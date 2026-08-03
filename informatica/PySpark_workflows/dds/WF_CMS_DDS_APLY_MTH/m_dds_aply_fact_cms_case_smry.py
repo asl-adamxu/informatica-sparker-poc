@@ -59,47 +59,17 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: apply_SQ_DPA_FACT_CMS_CASE_SMRY")
         # Source Qualifier: apply_SQ_DPA_FACT_CMS_CASE_SMRY
         df_SQ_DPA_FACT_CMS_CASE_SMRY = df_DPA_FACT_CMS_CASE_SMRY
-        # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_DPA_FACT_CMS_CASE_SMRY = df_SQ_DPA_FACT_CMS_CASE_SMRY.select("TIME_DMNS_KEY", "RQS_CHNL_DMNS_KEY", "CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "HSHLD_SIZE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "CASE_CATG_SCD_KEY", "RSDN_LNG_DMNS_KEY", "BLK_SCD_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "HSHLD_DSBL_IND", "CMS_CASE_CNT", "CMS_CASE_CMPLT_CNT", "CMS_CASE_RPET_CNT", "CMS_CASE_NEW_CNT", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "CMS_BLK_SCD_KEY", "EST_SCD_KEY", "CMS_EST_SCD_KEY", "CMS_RCPT_PRN_CNT", "CMS_CASE_ITEM_CNT", "CMS_CASE_ITEM_CMPLT_CNT", "CMS_CASE_ITEM_RPET_CNT", "CMS_CASE_ITEM_NEW_CNT")
+        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
+        _port_cols = ["TIME_DMNS_KEY", "RQS_CHNL_DMNS_KEY", "CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "HSHLD_SIZE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "CASE_CATG_SCD_KEY", "RSDN_LNG_DMNS_KEY", "BLK_SCD_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "HSHLD_DSBL_IND", "CMS_CASE_CNT", "CMS_CASE_CMPLT_CNT", "CMS_CASE_RPET_CNT", "CMS_CASE_NEW_CNT", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "CMS_BLK_SCD_KEY", "EST_SCD_KEY", "CMS_EST_SCD_KEY", "CMS_RCPT_PRN_CNT", "CMS_CASE_ITEM_CNT", "CMS_CASE_ITEM_CMPLT_CNT", "CMS_CASE_ITEM_RPET_CNT", "CMS_CASE_ITEM_NEW_CNT"]
+        df_SQ_DPA_FACT_CMS_CASE_SMRY = df_SQ_DPA_FACT_CMS_CASE_SMRY.select([col(c) if c in df_SQ_DPA_FACT_CMS_CASE_SMRY.columns else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_DPA_FACT_CMS_CASE_SMRY", df_SQ_DPA_FACT_CMS_CASE_SMRY)
         
         logger.info("Step: write_DDS_FACT_CMS_CASE_SMRY")
         # Write to Target: write_DDS_FACT_CMS_CASE_SMRY
         df_write = df_SQ_DPA_FACT_CMS_CASE_SMRY
-        # Cast columns to match target schema data types
-        if "hshld_aem_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "hshld_aem_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "hshld_eldr_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "hshld_eldr_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "hshld_dsbl_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "hshld_dsbl_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "last_rec_txn_date" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "last_rec_txn_date":
-                    df_write = df_write.withColumn(c, col(c).cast(TimestampType()))
-        if "last_rec_txn_type_code" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "last_rec_txn_type_code":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        # Map source columns to target columns using connector field map (handles name mismatches)
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
         _field_map = {"BLK_AGE_DMNS_KEY": "BLK_AGE_DMNS_KEY", "BLK_SCD_KEY": "BLK_SCD_KEY", "CASE_CATG_SCD_KEY": "CASE_CATG_SCD_KEY", "CASE_TYPE_SCD_KEY": "CASE_TYPE_SCD_KEY", "CMS_BLK_SCD_KEY": "CMS_BLK_SCD_KEY", "CMS_CASE_CMPLT_CNT": "CMS_CASE_CMPLT_CNT", "CMS_CASE_CNT": "CMS_CASE_CNT", "CMS_CASE_ITEM_CMPLT_CNT": "CMS_CASE_ITEM_CMPLT_CNT", "CMS_CASE_ITEM_CNT": "CMS_CASE_ITEM_CNT", "CMS_CASE_ITEM_NEW_CNT": "CMS_CASE_ITEM_NEW_CNT", "CMS_CASE_ITEM_RPET_CNT": "CMS_CASE_ITEM_RPET_CNT", "CMS_CASE_NEW_CNT": "CMS_CASE_NEW_CNT", "CMS_CASE_RPET_CNT": "CMS_CASE_RPET_CNT", "CMS_EST_SCD_KEY": "CMS_EST_SCD_KEY", "CMS_RCPT_PRN_CNT": "CMS_RCPT_PRN_CNT", "EST_OFFC_SCD_KEY": "EST_OFFC_SCD_KEY", "EST_SCD_KEY": "EST_SCD_KEY", "HSHLD_AEM_IND": "HSHLD_AEM_IND", "HSHLD_DSBL_IND": "HSHLD_DSBL_IND", "HSHLD_ELDR_IND": "HSHLD_ELDR_IND", "HSHLD_SIZE_DMNS_KEY": "HSHLD_SIZE_DMNS_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "RQS_CHNL_DMNS_KEY": "RQS_CHNL_DMNS_KEY", "RSDN_LNG_DMNS_KEY": "RSDN_LNG_DMNS_KEY", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "UNIT_SIZE_DMNS_KEY": "UNIT_SIZE_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
@@ -140,10 +110,18 @@ def main():
         success = run_mapping(ctx, metrics)
         if success:
             lib._flush_pending_passwords()
-        return 0 if success else 1
+        if not success:
+            # Exit the JVM non-zero so YARN marks the application FAILED.
+            # In client mode the AM lives in this JVM: a normal spark.stop() +
+            # python exit code still reports SUCCEEDED (AM exits cleanly).
+            spark.sparkContext._jvm.System.exit(1)
+        return 0
     finally:
         spark.stop()
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the mapping failed.
+    import sys as _sys
+    _sys.exit(main())

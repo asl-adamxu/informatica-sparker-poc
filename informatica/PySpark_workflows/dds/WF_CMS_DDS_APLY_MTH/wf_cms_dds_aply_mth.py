@@ -76,13 +76,13 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_DDS_APLY_FACT_CMS_CASE_SMRY",
-            "mapping_name": "M_DDS_APLY_FACT_CMS_CASE_SMRY"
+            "name": "S_DDS_APLY_FACT_CMS_CASE_PRNT_SMRY",
+            "mapping_name": "M_DDS_APLY_FACT_CMS_CASE_PRNT_SMRY"
           },
           {
             "type": "session",
-            "name": "S_DDS_APLY_FACT_CMS_CASE_PRNT_SMRY",
-            "mapping_name": "M_DDS_APLY_FACT_CMS_CASE_PRNT_SMRY"
+            "name": "S_DDS_APLY_FACT_CMS_CASE_SMRY",
+            "mapping_name": "M_DDS_APLY_FACT_CMS_CASE_SMRY"
           }
         ]
       },
@@ -157,4 +157,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the workflow failed.
+    import sys as _sys
+    _sys.exit(main())

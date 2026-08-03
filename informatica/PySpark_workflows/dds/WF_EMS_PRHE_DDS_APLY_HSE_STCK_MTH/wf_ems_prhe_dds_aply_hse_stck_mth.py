@@ -22,11 +22,6 @@ EXECUTION_PLAN = [
     "steps": [
       {
         "type": "session",
-        "name": "S_EIS_PRHE_HSE_STCK_MTH_SSA_TRUNCATE",
-        "mapping_name": "M_UTL_SSA_TRUNCATE"
-      },
-      {
-        "type": "session",
         "name": "S_EMS_PRHE_HSE_STCK_MTH_PARAM_SETUP",
         "mapping_name": "M_UTL_PARAM_SETUP"
       },
@@ -34,6 +29,11 @@ EXECUTION_PLAN = [
         "type": "session",
         "name": "S_EMS_PRHE_HSE_STCK_MTH_DPA_TRUNCATE",
         "mapping_name": "M_UTL_DPA_TRUNCATE"
+      },
+      {
+        "type": "session",
+        "name": "S_EIS_PRHE_HSE_STCK_MTH_SSA_TRUNCATE",
+        "mapping_name": "M_UTL_SSA_TRUNCATE"
       }
     ]
   },
@@ -46,18 +46,13 @@ EXECUTION_PLAN = [
     "steps": [
       {
         "type": "session",
-        "name": "S_EMS_DPA_SUMMARIZE_FACT_REHSE_ANLS",
-        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_REHSE_ANLS"
-      },
-      {
-        "type": "session",
         "name": "S_EMS_DPA_SUMMARIZE_FACT_IH_STCK_MTH_ANLS",
         "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_IH_STCK_MTH_ANLS"
       },
       {
         "type": "session",
-        "name": "S_EIS_SSAL1_EXTR_HA_PRH_RNTL_UNIT",
-        "mapping_name": "M_EIS_SSAL1_EXTR_HA_PRH_RNTL_FLAT"
+        "name": "S_EMS_DPA_SUMMARIZE_FACT_IH_CASE_MTH_ANLS",
+        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_IH_CASE_MTH_ANLS"
       },
       {
         "type": "session",
@@ -66,14 +61,34 @@ EXECUTION_PLAN = [
       },
       {
         "type": "session",
-        "name": "S_EMS_DPA_SUMMARIZE_FACT_IH_CASE_MTH_ANLS",
-        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_IH_CASE_MTH_ANLS"
+        "name": "S_EIS_SSAL1_EXTR_HA_PRH_RNTL_UNIT",
+        "mapping_name": "M_EIS_SSAL1_EXTR_HA_PRH_RNTL_FLAT"
+      },
+      {
+        "type": "session",
+        "name": "S_EMS_DPA_SUMMARIZE_FACT_REHSE_ANLS",
+        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_REHSE_ANLS"
       }
     ]
   },
   {
     "type": "parallel_group",
     "steps": [
+      {
+        "type": "session",
+        "name": "S_EMS_DPA_SUMMARIZE_FACT_IH_HSE_CASE",
+        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_IH_HSE_CASE"
+      },
+      {
+        "type": "session",
+        "name": "S_EMS_DDS_APLY_FACT_IH_STCK_MTH_ANLS",
+        "mapping_name": "M_EMS_DDS_APLY_FACT_IH_STCK_MTH_ANLS"
+      },
+      {
+        "type": "session",
+        "name": "S_EMS_DPA_SUMMARIZE_FACT_PRH_STCK_MTH_ANLS_A",
+        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_PRH_STCK_MTH_ANLS_A"
+      },
       {
         "type": "session",
         "name": "S_EMS_DDS_APLY_FACT_PRH_STCK_MTH_STAT",
@@ -86,33 +101,18 @@ EXECUTION_PLAN = [
       },
       {
         "type": "session",
-        "name": "S_EMS_DDS_APLY_FACT_IH_STCK_MTH_ANLS",
-        "mapping_name": "M_EMS_DDS_APLY_FACT_IH_STCK_MTH_ANLS"
-      },
-      {
-        "type": "session",
         "name": "S_EMS_DDS_APLY_FACT_IH_CASE_MTH_ANLS",
         "mapping_name": "M_EMS_DDS_APLY_FACT_IH_CASE_MTH_ANLS"
       },
       {
         "type": "session",
-        "name": "S_EMS_DPA_SUMMARIZE_FACT_PRH_STCK_MTH_ANLS_A",
-        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_PRH_STCK_MTH_ANLS_A"
+        "name": "S_EMS_DPA_SUMMARIZE_FACT_RCVR_FLAT_BASE_B",
+        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_RCVR_FLAT_BASE_B"
       },
       {
         "type": "session",
         "name": "S_EMS_DDS_APLY_FACT_REHSE_ANLS",
         "mapping_name": "M_EMS_DDS_APLY_FACT_REHSE_ANLS"
-      },
-      {
-        "type": "session",
-        "name": "S_EMS_DPA_SUMMARIZE_FACT_IH_HSE_CASE",
-        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_IH_HSE_CASE"
-      },
-      {
-        "type": "session",
-        "name": "S_EMS_DPA_SUMMARIZE_FACT_RCVR_FLAT_BASE_B",
-        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_RCVR_FLAT_BASE_B"
       }
     ]
   },
@@ -136,24 +136,19 @@ EXECUTION_PLAN = [
     "steps": [
       {
         "type": "session",
-        "name": "S_EMS_DPA_SUMMARIZE_FACT_PRH_STCK_MTH_ANLS_C",
-        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_PRH_STCK_MTH_ANLS_C"
+        "name": "S_EMS_DPA_SUMMARIZE_FACT_RCVR_FLAT_BASE_D",
+        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_RCVR_FLAT_BASE_D"
       },
       {
         "type": "session",
-        "name": "S_EMS_DPA_SUMMARIZE_FACT_RCVR_FLAT_BASE_D",
-        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_RCVR_FLAT_BASE_D"
+        "name": "S_EMS_DPA_SUMMARIZE_FACT_PRH_STCK_MTH_ANLS_C",
+        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_PRH_STCK_MTH_ANLS_C"
       }
     ]
   },
   {
     "type": "parallel_group",
     "steps": [
-      {
-        "type": "session",
-        "name": "S_EMS_DDS_APLY_FACT_PRH_VCNT_TERM",
-        "mapping_name": "M_EMS_DDS_APLY_FACT_PRH_VCNT_TERM"
-      },
       {
         "type": "session",
         "name": "S_EMS_DPA_SUMMARIZE_FACT_RCVR_FLAT_BASE_E",
@@ -163,6 +158,11 @@ EXECUTION_PLAN = [
         "type": "session",
         "name": "S_EMS_DDS_APLY_FACT_PRH_STCK_MTH_ANLS",
         "mapping_name": "M_EMS_DDS_APLY_FACT_PRH_STCK_MTH_ANLS"
+      },
+      {
+        "type": "session",
+        "name": "S_EMS_DDS_APLY_FACT_PRH_VCNT_TERM",
+        "mapping_name": "M_EMS_DDS_APLY_FACT_PRH_VCNT_TERM"
       }
     ]
   },
@@ -240,4 +240,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the workflow failed.
+    import sys as _sys
+    _sys.exit(main())

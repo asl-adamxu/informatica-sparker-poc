@@ -134,14 +134,34 @@ ON
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         query = query.replace("$$v_snsh_date", v_snsh_date)
         df_SQ_SOR_HSM_UNIT = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_HSM_UNIT.columns
         _port_cols = ["UNIT_ADDR_CODE", "UNIT_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_IFA_AREA", "UNIT_TYPE_CODE", "INDICATOR", "CV", "UNIT_TAKE_OVER_DATE", "HSE_UNIT_TM_VOID_STS_BGN_DATE", "VCNT_IND"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_SOR_HSM_UNIT = df_SQ_SOR_HSM_UNIT.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
+        df_SQ_SOR_HSM_UNIT = df_SQ_SOR_HSM_UNIT.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_HSM_UNIT = df_SQ_SOR_HSM_UNIT.select("UNIT_ADDR_CODE", "UNIT_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_IFA_AREA", "UNIT_TYPE_CODE", "INDICATOR", "CV", "UNIT_TAKE_OVER_DATE", "HSE_UNIT_TM_VOID_STS_BGN_DATE", "VCNT_IND")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_SOR_HSM_UNIT = df_SQ_SOR_HSM_UNIT.select([col(c) if c in df_SQ_SOR_HSM_UNIT.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_HSM_UNIT", df_SQ_SOR_HSM_UNIT)
         
@@ -772,7 +792,7 @@ GROUP BY
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR = df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR.dropDuplicates(subset=["EMMS_DSTR_KEY"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_1
+        _lkp_input = df_lkp_merge_2
         # Join condition: DSTR_BRD_DSTR_EMMS_KEY=EMMS_DSTR_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
         df_lkp_merge_4 = _lkp_input.alias("_main").join(
@@ -1329,21 +1349,18 @@ WHERE
         logger.info("Step: write_DPA_FACT_EMS_PRH_STCK_MTH_ANLS")
         # Write to Target: write_DPA_FACT_EMS_PRH_STCK_MTH_ANLS
         df_write = df_AGGTRANS
-        # Cast columns to match target schema data types
-        if "unit_advs_env_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "unit_advs_env_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "rec_rls_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "rec_rls_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
+        _field_map = {"ALCT_STS_DMNS_KEY": "ALCT_STS_DMNS_KEY", "BLK_SCD_KEY": "BLK_SCD_KEY1", "DSTR_BRD_DSTR_DMNS_KEY": "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY": "DSTR_CHC_DSTR_SCD_KEY", "EST_SCD_KEY": "EST_SCD_KEY", "FLAT_TYPE_DMNS_KEY": "FLAT_TYPE_DMNS_KEY", "HSC_UNIT_TYPE_DMNS_KEY": "HSC_UNIT_TYPE_DMNS_KEY", "MAX_UNIT_HEAD_CNT": "MAX_UNIT_HEAD_CNT", "MAX_UNIT_VCNCY_DAY_NUM": "MAX_UNIT_VCNCY_DAY_NUM", "MGT_MODE_DMNS_KEY": "MGT_MODE_DMNS_KEY", "MIN_UNIT_HEAD_CNT": "MIN_UNIT_HEAD_CNT", "RLET_AFT_RFBH_CNT": "RLET_AFT_RFBH_CNT", "RLET_AFT_TCHUP_WO_CNT": "RLET_AFT_TCHUP_WO_CNT", "RLET_UNIT_CNT": "RLET_UNIT_CNT", "STA_NONLTB_UNIT_CNT": "STA_NONLTB_UNIT_CNT", "STA_OCPY_UNIT_CNT": "STA_OCPY_UNIT_CNT", "STA_UNIT_CNT": "STA_UNIT_CNT", "STA_UNIT_UND_OFR_CNT": "STA_UND_OFR_UNIT_CNT", "STA_VCNT_UNIT_ALCT_CNT": "STA_VCNT_ALCT_UNIT_CNT", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TOT_UNIT_VCNCY_DAY_NUM": "TOT_UNIT_VCNCY_DAY_NUM", "UNIT_ADVS_ENV_IND": "UNIT_ADVS_ENV_CODE_IND", "UNIT_SIZE_DMNS_KEY": "UNIT_SIZE_DMNS_KEY", "UNIT_UND_FRZ_RFBH_CNT": "UNIT_FRZ_RFBH_CNT", "UNIT_UND_OFR_RFBH_CNT": "UND_OFR_UNIT_RFBH_CNT", "VCNT_UNIT_UND_RFBH_CNT": "VCNT_UNIT_RFBH_CNT"}
+        for _tgt_col, _src_col in _field_map.items():
+            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+                # Drop any column that would conflict case-insensitively with
+                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
+                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Add NULL for unmapped target columns (schema parity) - excluding identity columns
         df_write = df_write.withColumn("BLK_CNT", lit(None).cast(StringType()))
         df_write = df_write.withColumn("PRVS_UNIT_CNT", lit(None).cast(StringType()))
@@ -1356,16 +1373,6 @@ WHERE
         df_write = df_write.withColumn("MIN_UNIT_IFA_RENT_AMT", lit(None).cast(StringType()))
         df_write = df_write.withColumn("TOT_UNIT_IFA_RENT_AMT", lit(None).cast(StringType()))
         df_write = df_write.withColumn("REC_RLS_IND", lit(None).cast(StringType()))
-        # Map source columns to target columns using connector field map (handles name mismatches)
-        _field_map = {"ALCT_STS_DMNS_KEY": "ALCT_STS_DMNS_KEY", "BLK_SCD_KEY": "BLK_SCD_KEY1", "DSTR_BRD_DSTR_DMNS_KEY": "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY": "DSTR_CHC_DSTR_SCD_KEY", "EST_SCD_KEY": "EST_SCD_KEY", "FLAT_TYPE_DMNS_KEY": "FLAT_TYPE_DMNS_KEY", "HSC_UNIT_TYPE_DMNS_KEY": "HSC_UNIT_TYPE_DMNS_KEY", "MAX_UNIT_HEAD_CNT": "MAX_UNIT_HEAD_CNT", "MAX_UNIT_VCNCY_DAY_NUM": "MAX_UNIT_VCNCY_DAY_NUM", "MGT_MODE_DMNS_KEY": "MGT_MODE_DMNS_KEY", "MIN_UNIT_HEAD_CNT": "MIN_UNIT_HEAD_CNT", "RLET_AFT_RFBH_CNT": "RLET_AFT_RFBH_CNT", "RLET_AFT_TCHUP_WO_CNT": "RLET_AFT_TCHUP_WO_CNT", "RLET_UNIT_CNT": "RLET_UNIT_CNT", "STA_NONLTB_UNIT_CNT": "STA_NONLTB_UNIT_CNT", "STA_OCPY_UNIT_CNT": "STA_OCPY_UNIT_CNT", "STA_UNIT_CNT": "STA_UNIT_CNT", "STA_UNIT_UND_OFR_CNT": "STA_UND_OFR_UNIT_CNT", "STA_VCNT_UNIT_ALCT_CNT": "STA_VCNT_ALCT_UNIT_CNT", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TOT_UNIT_VCNCY_DAY_NUM": "TOT_UNIT_VCNCY_DAY_NUM", "UNIT_ADVS_ENV_IND": "UNIT_ADVS_ENV_CODE_IND", "UNIT_SIZE_DMNS_KEY": "UNIT_SIZE_DMNS_KEY", "UNIT_UND_FRZ_RFBH_CNT": "UNIT_FRZ_RFBH_CNT", "UNIT_UND_OFR_RFBH_CNT": "UND_OFR_UNIT_RFBH_CNT", "VCNT_UNIT_UND_RFBH_CNT": "VCNT_UNIT_RFBH_CNT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['TIME_DMNS_KEY', 'EST_SCD_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'FLAT_TYPE_DMNS_KEY', 'UNIT_SIZE_DMNS_KEY', 'ALCT_STS_DMNS_KEY', 'MGT_MODE_DMNS_KEY', 'MAX_UNIT_HEAD_CNT', 'MIN_UNIT_HEAD_CNT', 'UNIT_ADVS_ENV_IND', 'BLK_CNT', 'PRVS_UNIT_CNT', 'RCVR_UNIT_CNT', 'MAX_UNIT_VCNCY_DAY_NUM', 'TOT_UNIT_VCNCY_DAY_NUM', 'RNTL_UNIT_CNT', 'MAX_UNIT_MTH_RENT_AMT', 'MIN_UNIT_MTH_RENT_AMT', 'TOT_UNIT_MTH_RENT_AMT', 'MAX_UNIT_IFA_RENT_AMT', 'MIN_UNIT_IFA_RENT_AMT', 'TOT_UNIT_IFA_RENT_AMT', 'STA_UNIT_CNT', 'STA_OCPY_UNIT_CNT', 'STA_VCNT_UNIT_ALCT_CNT', 'STA_UNIT_UND_OFR_CNT', 'VCNT_UNIT_UND_RFBH_CNT', 'UNIT_UND_OFR_RFBH_CNT', 'RLET_UNIT_CNT', 'RLET_AFT_RFBH_CNT', 'RLET_AFT_TCHUP_WO_CNT', 'UNIT_UND_FRZ_RFBH_CNT', 'BLK_SCD_KEY', 'HSC_UNIT_TYPE_DMNS_KEY', 'STA_NONLTB_UNIT_CNT', 'REC_RLS_IND']
         df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
@@ -1396,25 +1403,9 @@ WHERE
         logger.info("Step: write_DPA_FACT_EMS_PRH_VCNT_TERM")
         # Write to Target: write_DPA_FACT_EMS_PRH_VCNT_TERM
         df_write = df_AGGTRANS2
-        # Cast columns to match target schema data types
-        if "unit_advs_env_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "unit_advs_env_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "rec_rls_ind" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "rec_rls_ind":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("TOT_UNIT_MTH_RENT_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("REC_RLS_IND", lit(None).cast(StringType()))
-        # Map source columns to target columns using connector field map (handles name mismatches)
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
         _field_map = {"BLK_SCD_KEY": "BLK_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY": "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY": "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY": "FLAT_TYPE_DMNS_KEY", "MAX_UNIT_HEAD_CNT": "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT": "MIN_UNIT_HEAD_CNT", "STA_VCNT_UNIT_ALCT_CNT": "STA_VCNT_UNIT_ALCT_CNT", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "UNIT_ADVS_ENV_IND": "UNIT_ADVS_ENV_CODE_IND", "UNIT_SIZE_DMNS_KEY": "UNIT_SIZE_DMNS_KEY", "VCNT_FLAT_TYPE_DMNS_KEY": "VCNT_FLAT_TYPE_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
@@ -1424,6 +1415,9 @@ WHERE
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
+        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
+        df_write = df_write.withColumn("TOT_UNIT_MTH_RENT_AMT", lit(None).cast(StringType()))
+        df_write = df_write.withColumn("REC_RLS_IND", lit(None).cast(StringType()))
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['TIME_DMNS_KEY', 'VCNT_FLAT_TYPE_DMNS_KEY', 'BLK_SCD_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'FLAT_TYPE_DMNS_KEY', 'UNIT_SIZE_DMNS_KEY', 'MAX_UNIT_HEAD_CNT', 'MIN_UNIT_HEAD_CNT', 'UNIT_ADVS_ENV_IND', 'STA_VCNT_UNIT_ALCT_CNT', 'TOT_UNIT_MTH_RENT_AMT', 'REC_RLS_IND']
         df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
@@ -1455,10 +1449,18 @@ def main():
         success = run_mapping(ctx, metrics)
         if success:
             lib._flush_pending_passwords()
-        return 0 if success else 1
+        if not success:
+            # Exit the JVM non-zero so YARN marks the application FAILED.
+            # In client mode the AM lives in this JVM: a normal spark.stop() +
+            # python exit code still reports SUCCEEDED (AM exits cleanly).
+            spark.sparkContext._jvm.System.exit(1)
+        return 0
     finally:
         spark.stop()
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the mapping failed.
+    import sys as _sys
+    _sys.exit(main())

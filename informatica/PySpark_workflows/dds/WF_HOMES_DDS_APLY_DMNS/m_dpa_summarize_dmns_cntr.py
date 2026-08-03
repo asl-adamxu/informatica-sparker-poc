@@ -69,14 +69,34 @@ FROM
  SOR_HOM_CON_CNTR_REF
 ORDER BY SOR_HOM_CON_CNTR_REF.CNTR_KEY"""
         df_SQ_SOR_HOM_CON_CNTR_REF = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports by position (handles unaliased expressions)
+        # Rename SQL result columns to SQ output ports 
+        # name match first, then positional fallback (handles unaliased expressions)
         _sql_cols = df_SQ_SOR_HOM_CON_CNTR_REF.columns
         _port_cols = ["CNTR_KEY", "CNTR_NUM", "TNDR_NUM", "TNDR_TTL", "CNTR_TTL"]
-        for _i in range(len(_sql_cols) if len(_sql_cols) < len(_port_cols) else len(_port_cols)):
-            if _sql_cols[_i].lower() != _port_cols[_i].lower():
-                df_SQ_SOR_HOM_CON_CNTR_REF = df_SQ_SOR_HOM_CON_CNTR_REF.withColumnRenamed(_sql_cols[_i], _port_cols[_i])
+        _rename_map = {}
+        _used_ports = set()
+        # 1) Name-based match first (case-insensitive)
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used_ports and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used_ports.add(_pi)
+                    break
+        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used_ports:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used_ports.add(_pi)
+                _pi += 1
+        df_SQ_SOR_HOM_CON_CNTR_REF = df_SQ_SOR_HOM_CON_CNTR_REF.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
-        df_SQ_SOR_HOM_CON_CNTR_REF = df_SQ_SOR_HOM_CON_CNTR_REF.select("CNTR_KEY", "CNTR_NUM", "TNDR_NUM", "TNDR_TTL", "CNTR_TTL")
+        # ports the SQL didn't return become lit(None) so downstream references never fail
+        df_SQ_SOR_HOM_CON_CNTR_REF = df_SQ_SOR_HOM_CON_CNTR_REF.select([col(c) if c in df_SQ_SOR_HOM_CON_CNTR_REF.columns else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_HOM_CON_CNTR_REF", df_SQ_SOR_HOM_CON_CNTR_REF)
         
@@ -121,10 +141,10 @@ ORDER BY SOR_HOM_CON_CNTR_REF.CNTR_KEY"""
         df_EXPTRANS1 = df_lkp_merge_1
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("IN_CNTR_NUM", expr("CNTR_NUM_OUT"))
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("IN_CNTR_TTL", expr("CNTR_TTL"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_CNTR_KEY IS NULL) OR CASE WHEN TNDR_NUM = TNDR_NUM THEN false ELSE true END OR CASE WHEN CNTR_NUM = CNTR_NUM_OUT THEN false ELSE true END OR CASE WHEN CNTR_TTL = CNTR_TTL THEN false ELSE true END THEN 1 ELSE 0 END"))
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("IN_TNDR_NUM", expr("TNDR_NUM"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_CNTR_KEY IS NULL) OR CASE WHEN TNDR_NUM = TNDR_NUM THEN false ELSE true END OR CASE WHEN CNTR_NUM = CNTR_NUM_OUT THEN false ELSE true END OR CASE WHEN CNTR_TTL = CNTR_TTL THEN false ELSE true END THEN 1 ELSE 0 END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["CNTR_NUM", "DMNS_CNTR_KEY", "CNTR_TTL", "TNDR_NUM", "CNTR_KEY", "CNTR_DISP_SEQ_NUM", "IN_CNTR_KEY"]:
+        for _col in ["CNTR_NUM", "CNTR_TTL", "TNDR_NUM", "DMNS_CNTR_KEY", "CNTR_KEY", "CNTR_DISP_SEQ_NUM", "IN_CNTR_KEY"]:
             if _col not in df_EXPTRANS1.columns:
                 df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
@@ -169,31 +189,9 @@ ORDER BY SOR_HOM_CON_CNTR_REF.CNTR_KEY"""
         logger.info("Step: write_DPA_DMNS_CNTR")
         # Write to Target: write_DPA_DMNS_CNTR
         df_write = df_Union_Transformation
-        # Cast columns to match target schema data types
-        if "cntr_num" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "cntr_num":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "cntr_ttl" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "cntr_ttl":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        if "tndr_num" in [c.lower() for c in df_write.columns]:
-            for c in df_write.columns:
-                if c.lower() == "tndr_num":
-                    df_write = df_write.withColumn(c,
-                        when(col(c).cast(DecimalType(38,0)).isNotNull(),
-                             col(c).cast(DecimalType(38,0)).cast(StringType()))
-                        .otherwise(col(c).cast(StringType())))
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("CNTR_DISP_SEQ_NUM", lit(None).cast(StringType()))
-        # Map source columns to target columns using connector field map (handles name mismatches)
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
         _field_map = {"CNTR_KEY": "IN_CNTR_KEY", "CNTR_NUM": "IN_CNTR_NUM", "CNTR_TTL": "IN_CNTR_TTL", "DMNS_CNTR_KEY": "DMNS_CNTR_KEY", "TNDR_NUM": "IN_TNDR_NUM"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col not in df_write.columns and _src_col in df_write.columns:
@@ -203,6 +201,8 @@ ORDER BY SOR_HOM_CON_CNTR_REF.CNTR_KEY"""
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
+        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
+        df_write = df_write.withColumn("CNTR_DISP_SEQ_NUM", lit(None).cast(StringType()))
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['DMNS_CNTR_KEY', 'CNTR_KEY', 'CNTR_NUM', 'CNTR_TTL', 'TNDR_NUM', 'CNTR_DISP_SEQ_NUM']
         df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
@@ -234,10 +234,18 @@ def main():
         success = run_mapping(ctx, metrics)
         if success:
             lib._flush_pending_passwords()
-        return 0 if success else 1
+        if not success:
+            # Exit the JVM non-zero so YARN marks the application FAILED.
+            # In client mode the AM lives in this JVM: a normal spark.stop() +
+            # python exit code still reports SUCCEEDED (AM exits cleanly).
+            spark.sparkContext._jvm.System.exit(1)
+        return 0
     finally:
         spark.stop()
 
 
 if __name__ == "__main__":
-    main()
+    # sys.exit propagates the failure exit code — without it the process exits 0
+    # and YARN reports SUCCEEDED even when the mapping failed.
+    import sys as _sys
+    _sys.exit(main())
