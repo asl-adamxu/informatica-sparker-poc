@@ -103,8 +103,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"HSE_UNIT_KEY": "HSE_UNIT_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "UNIT_SCND_ENV_CODE": "UNIT_SCND_ENV_CODE", "UNIT_SCND_ENV_CODE_BGN_DATE": "UNIT_SCND_ENV_CODE_BGN_DATE", "UNIT_SCND_ENV_CODE_END_DATE": "UNIT_SCND_ENV_CODE_END_DATE", "UNIT_SCND_ENV_CODE_EXTN_IND": "UNIT_SCND_ENV_CODE_EXTN_IND"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
@@ -125,8 +124,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"HSE_UNIT_KEY": "HSE_UNIT_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "UNIT_SCND_ENV_CODE": "UNIT_SCND_ENV_CODE", "UNIT_SCND_ENV_CODE_BGN_DATE": "UNIT_SCND_ENV_CODE_BGN_DATE", "UNIT_SCND_ENV_CODE_END_DATE": "UNIT_SCND_ENV_CODE_END_DATE", "UNIT_SCND_ENV_CODE_EXTN_IND": "UNIT_SCND_ENV_CODE_EXTN_IND"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

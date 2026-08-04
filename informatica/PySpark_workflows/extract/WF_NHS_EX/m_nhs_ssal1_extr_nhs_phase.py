@@ -79,7 +79,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_NHS_PHASE")
         # Source Qualifier: apply_SQ_NHS_PHASE
         df_SQ_NHS_PHASE = df_NHS_PHASE
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-mm-dd hh24:mi:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-mm-dd hh24:mi:ss')"""
+        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
         _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
         _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
         df_SQ_NHS_PHASE = df_SQ_NHS_PHASE.filter(expr(_filter_text))
@@ -107,8 +107,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"ACK_EMAIL_GNRT_BGN_DATE": "ACK_EMAIL_GNRT_BGN_DATE", "ACK_LTR_GNRT_BGN_DATE": "ACK_LTR_GNRT_BGN_DATE", "ACK_LTR_ISS_DATE": "ACK_LTR_ISS_DATE", "APLY_END_DATE": "APLY_END_DATE", "APLY_STG_END_DATE": "APLY_STG_END_DATE", "CHI_LTR_SCHM_NAME": "CHI_LTR_SCHM_NAME", "EFAS_FLAT_SLCT_EMAIL_ADDR": "EFAS_FLAT_SLCT_EMAIL_ADDR", "EFAS_FLAT_SLCT_INVT_EMAIL_ADDR": "EFAS_FLAT_SLCT_INVT_EMAIL_ADDR", "EFAS_OPR_CODE": "EFAS_OPR_CODE", "ENG_LTR_SCHM_NAME": "ENG_LTR_SCHM_NAME", "GF_CSHR_ORD_AMT": "GF_CSHR_ORD_AMT", "GF_CSHR_ORD_CHI_TEXT": "GF_CSHR_ORD_CHI_TEXT", "GF_PAGE_CNT": "GF_PAGE_CNT", "HSE_SBSCHM_CODE": "HSE_SBSCHM_CODE", "HSE_SCHM_CODE": "HSE_SCHM_CODE", "HSKP_CMPLT_DATE": "HSKP_CMPLT_DATE", "HSKP_CMPLT_IND": "HSKP_CMPLT_IND", "HSKP_RQR_IND": "HSKP_RQR_IND", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "PHASE_APLY_FEE_AMT": "PHASE_APLY_FEE_AMT", "PHASE_BGN_DATE": "PHASE_BGN_DATE", "PHASE_CHI_DESP": "PHASE_CHI_DESP", "PHASE_CODE": "PHASE_CODE", "PHASE_END_DATE": "PHASE_END_DATE", "PHASE_ENG_DESP": "PHASE_ENG_DESP", "PHASE_SALE_END_DATE": "PHASE_SALE_END_DATE", "PHASE_SALE_PRC_DSCT_PCT": "PHASE_SALE_PRC_DSCT_PCT", "PHASE_TOP_UP_FEE_AMT": "PHASE_TOP_UP_FEE_AMT", "ROW_VER_NUM": "ROW_VER_NUM", "TOT_APLY_CNT": "TOT_APLY_CNT", "TOT_APLY_HSKP_CNT": "TOT_APLY_HSKP_CNT", "TOT_APLY_RTA_CNT": "TOT_APLY_RTA_CNT", "TPS_CSHR_ORD_AMT": "TPS_CSHR_ORD_AMT", "TPS_CSHR_ORD_CHI_TEXT": "TPS_CSHR_ORD_CHI_TEXT", "WF_CSHR_ORD_AMT": "WF_CSHR_ORD_AMT", "WF_CSHR_ORD_CHI_TEXT": "WF_CSHR_ORD_CHI_TEXT", "WF_PAGE_CNT": "WF_PAGE_CNT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

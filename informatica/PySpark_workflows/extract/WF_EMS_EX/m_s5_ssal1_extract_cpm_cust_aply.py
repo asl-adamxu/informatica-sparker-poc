@@ -79,7 +79,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_CPM_CUST_APLY")
         # Source Qualifier: apply_SQ_CPM_CUST_APLY
         df_SQ_CPM_CUST_APLY = df_CPM_CUST_APLY
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-mm-dd hh24:mi:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-mm-dd hh24:mi:ss')"""
+        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
         _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
         _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
         df_SQ_CPM_CUST_APLY = df_SQ_CPM_CUST_APLY.filter(expr(_filter_text))
@@ -132,8 +132,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"CUST_ACMD_TYPE_CODE": "CUST_ACMD_TYPE_CODE_OUT", "CUST_AEM_IND": "CUST_AEM_IND_OUT", "CUST_CSSA_IND": "CUST_CSSA_IND_OUT", "CUST_DPO_IND": "CUST_DPO_IND_OUT", "CUST_ELDR_CODE": "CUST_ELDR_CODE_OUT", "CUST_EXOWNR_CODE": "CUST_EXOWNR_CODE_OUT", "CUST_EXPCT_CHILD_NUM": "CUST_EXPCT_CHILD_NUM_OUT", "CUST_EXPCT_DLVR_DATE": "CUST_EXPCT_DLVR_DATE_OUT", "CUST_FMLY_SIZE_NUM": "CUST_FMLY_SIZE_NUM_OUT", "CUST_HDSP_IND": "CUST_HDSP_IND_OUT", "CUST_HSHLD_AST_AMT": "CUST_HSHLD_AST_AMT_OUT", "CUST_HSHLD_INCM_AMT": "CUST_HSHLD_INCM_AMT_OUT", "CUST_KEY": "CUST_KEY_OUT", "CUST_LANG_PREF_CODE": "CUST_LANG_PREF_CODE_OUT", "CUST_PRMY_CNTC_CHI_NAME": "CUST_PRMY_CNTC_CHI_NAME_OUT", "CUST_PRMY_CNTC_ENG_NAME": "CUST_PRMY_CNTC_ENG_NAME_OUT", "CUST_PRMY_CNTC_PHONE_NUM": "CUST_PRMY_CNTC_PHONE_NUM_OUT", "CUST_SCND_CNTC_CHI_NAME": "CUST_SCND_CNTC_CHI_NAME_OUT", "CUST_SCND_CNTC_ENG_NAME": "CUST_SCND_CNTC_ENG_NAME_OUT", "CUST_SCND_CNTC_PHONE_NUM": "CUST_SCND_CNTC_PHONE_NUM_OUT", "CUST_THRD_CNTC_CHI_NAME": "CUST_THRD_CNTC_CHI_NAME", "CUST_THRD_CNTC_ENG_NAME": "CUST_THRD_CNTC_ENG_NAME", "CUST_THRD_CNTC_PHONE_NUM": "CUST_THRD_CNTC_PHONE_NUM", "DUMMY": "DUMMY", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
@@ -154,8 +153,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"ARRS_IND_CODE": "ARRS_IND_CODE", "CUST_ACMD_TYPE_CODE": "CUST_ACMD_TYPE_CODE_OUT", "CUST_AEM_IND": "CUST_AEM_IND_OUT", "CUST_CSSA_IND": "CUST_CSSA_IND_OUT", "CUST_DPO_IND": "CUST_DPO_IND_OUT", "CUST_ELDR_CODE": "CUST_ELDR_CODE_OUT", "CUST_EMAIL_ADDR": "CUST_EMAIL_ADDR", "CUST_EXOWNR_CODE": "CUST_EXOWNR_CODE_OUT", "CUST_EXPCT_CHILD_NUM": "CUST_EXPCT_CHILD_NUM_OUT", "CUST_EXPCT_DLVR_DATE": "CUST_EXPCT_DLVR_DATE_OUT", "CUST_FMLY_SIZE_NUM": "CUST_FMLY_SIZE_NUM_OUT", "CUST_HDSP_IND": "CUST_HDSP_IND_OUT", "CUST_HSHLD_AST_AMT": "CUST_HSHLD_AST_AMT_OUT", "CUST_HSHLD_AST_OVER_IND": "CUST_HSHLD_AST_OVER_IND", "CUST_HSHLD_INCM_AMT": "CUST_HSHLD_INCM_AMT_OUT", "CUST_HSHLD_INCM_OVER_IND": "CUST_HSHLD_INCM_OVER_IND", "CUST_KEY": "CUST_KEY_OUT", "CUST_LANG_PREF_CODE": "CUST_LANG_PREF_CODE_OUT", "CUST_PRMY_CNTC_CHI_NAME": "CUST_PRMY_CNTC_CHI_NAME_OUT", "CUST_PRMY_CNTC_ENG_NAME": "CUST_PRMY_CNTC_ENG_NAME_OUT", "CUST_PRMY_CNTC_PHONE_NUM": "CUST_PRMY_CNTC_PHONE_NUM_OUT", "CUST_SCND_CNTC_CHI_NAME": "CUST_SCND_CNTC_CHI_NAME_OUT", "CUST_SCND_CNTC_ENG_NAME": "CUST_SCND_CNTC_ENG_NAME_OUT", "CUST_SCND_CNTC_PHONE_NUM": "CUST_SCND_CNTC_PHONE_NUM_OUT", "CUST_THRD_CNTC_CHI_NAME": "CUST_THRD_CNTC_CHI_NAME", "CUST_THRD_CNTC_ENG_NAME": "CUST_THRD_CNTC_ENG_NAME", "CUST_THRD_CNTC_PHONE_NUM": "CUST_THRD_CNTC_PHONE_NUM", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "RCV_EMAIL_IND": "RCV_EMAIL_IND"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

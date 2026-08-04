@@ -79,7 +79,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_PHA_PRH_APLY_SLCT_DSTR_EST_CHC")
         # Source Qualifier: apply_SQ_PHA_PRH_APLY_SLCT_DSTR_EST_CHC
         df_SQ_PHA_PRH_APLY_SLCT_DSTR_EST_CHC = df_PHA_PRH_APLY_SLCT_DSTR_EST_CHC
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-mm-dd hh24:mi:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-mm-dd hh24:mi:ss')"""
+        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
         _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
         _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
         df_SQ_PHA_PRH_APLY_SLCT_DSTR_EST_CHC = df_SQ_PHA_PRH_APLY_SLCT_DSTR_EST_CHC.filter(expr(_filter_text))
@@ -135,8 +135,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"DUMMY": "DUMMY", "FLAT_TYPE_CHC_CODE_1": "FLAT_TYPE_CHC_CODE_1_OUT", "FLAT_TYPE_CHC_CODE_2": "FLAT_TYPE_CHC_CODE_2_OUT", "FLAT_TYPE_CHC_CODE_3": "FLAT_TYPE_CHC_CODE_3_OUT", "HSE_DSTR_CHC_KEY_1": "HSE_DSTR_CHC_KEY_1_OUT", "HSE_DSTR_CHC_KEY_2": "HSE_DSTR_CHC_KEY_2_OUT", "HSE_DSTR_CHC_KEY_3": "HSE_DSTR_CHC_KEY_3_OUT", "HSE_DSTR_REF_TYPE_CODE_1": "HSE_DSTR_REF_TYPE_CODE_1_OUT", "HSE_DSTR_REF_TYPE_CODE_2": "HSE_DSTR_REF_TYPE_CODE_2_OUT", "HSE_DSTR_REF_TYPE_CODE_3": "HSE_DSTR_REF_TYPE_CODE_3_OUT", "HSE_EST_CHC_KEY_1": "HSE_EST_CHC_KEY_1_OUT", "HSE_EST_CHC_KEY_2": "HSE_EST_CHC_KEY_2_OUT", "HSE_EST_CHC_KEY_3": "HSE_EST_CHC_KEY_3_OUT", "HSE_EST_CHC_KEY_4": "HSE_EST_CHC_KEY_4_OUT", "HSE_EST_CHC_KEY_5": "HSE_EST_CHC_KEY_5_OUT", "HSE_EST_REF_TYPE_CODE_1": "HSE_EST_REF_TYPE_CODE_1_OUT", "HSE_EST_REF_TYPE_CODE_2": "HSE_EST_REF_TYPE_CODE_2_OUT", "HSE_EST_REF_TYPE_CODE_3": "HSE_EST_REF_TYPE_CODE_3_OUT", "HSE_EST_REF_TYPE_CODE_4": "HSE_EST_REF_TYPE_CODE_4_OUT", "HSE_EST_REF_TYPE_CODE_5": "HSE_EST_REF_TYPE_CODE_5_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "IFA_CHC_AREA_1": "IFA_CHC_AREA_1_OUT", "IFA_CHC_AREA_2": "IFA_CHC_AREA_2_OUT", "IFA_CHC_AREA_3": "IFA_CHC_AREA_3_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "PTCL_PPLR_EST_REF_TYPE_CODE_1": "PTCL_PPLR_EST_REF_TYPE_CODE_1_OUT", "PTCL_PPLR_EST_REF_TYPE_CODE_2": "PTCL_PPLR_EST_REF_TYPE_CODE_2_OUT", "PTCL_PPLR_HSE_EST_CHC_KEY_1": "PTCL_PPLR_HSE_EST_CHC_KEY_1_OUT", "PTCL_PPLR_HSE_EST_CHC_KEY_2": "PTCL_PPLR_HSE_EST_CHC_KEY_2_OUT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
@@ -384,8 +383,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"FLAT_TYPE_CHC_CODE_1": "FLAT_TYPE_CHC_CODE_1_OUT", "FLAT_TYPE_CHC_CODE_2": "FLAT_TYPE_CHC_CODE_2_OUT", "FLAT_TYPE_CHC_CODE_3": "FLAT_TYPE_CHC_CODE_3_OUT", "HSE_DSTR_CHC_KEY_1": "HSE_DSTR_CHC_KEY_1_OUT", "HSE_DSTR_CHC_KEY_2": "HSE_DSTR_CHC_KEY_2_OUT", "HSE_DSTR_CHC_KEY_3": "HSE_DSTR_CHC_KEY_3_OUT", "HSE_DSTR_REF_TYPE_CODE_1": "HSE_DSTR_REF_TYPE_CODE_1_OUT", "HSE_DSTR_REF_TYPE_CODE_2": "HSE_DSTR_REF_TYPE_CODE_2_OUT", "HSE_DSTR_REF_TYPE_CODE_3": "HSE_DSTR_REF_TYPE_CODE_3_OUT", "HSE_EST_CHC_KEY_1": "HSE_EST_CHC_KEY_1_OUT", "HSE_EST_CHC_KEY_2": "HSE_EST_CHC_KEY_2_OUT", "HSE_EST_CHC_KEY_3": "HSE_EST_CHC_KEY_3_OUT", "HSE_EST_CHC_KEY_4": "HSE_EST_CHC_KEY_4_OUT", "HSE_EST_CHC_KEY_5": "HSE_EST_CHC_KEY_5_OUT", "HSE_EST_REF_TYPE_CODE_1": "HSE_EST_REF_TYPE_CODE_1_OUT", "HSE_EST_REF_TYPE_CODE_2": "HSE_EST_REF_TYPE_CODE_2_OUT", "HSE_EST_REF_TYPE_CODE_3": "HSE_EST_REF_TYPE_CODE_3_OUT", "HSE_EST_REF_TYPE_CODE_4": "HSE_EST_REF_TYPE_CODE_4_OUT", "HSE_EST_REF_TYPE_CODE_5": "HSE_EST_REF_TYPE_CODE_5_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "IFA_CHC_AREA_1": "IFA_CHC_AREA_1_OUT", "IFA_CHC_AREA_2": "IFA_CHC_AREA_2_OUT", "IFA_CHC_AREA_3": "IFA_CHC_AREA_3_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "PTCL_PPLR_EST_REF_TYPE_CODE_1": "PTCL_PPLR_EST_REF_TYPE_CODE_1_OUT", "PTCL_PPLR_EST_REF_TYPE_CODE_2": "PTCL_PPLR_EST_REF_TYPE_CODE_2_OUT", "PTCL_PPLR_HSE_EST_CHC_KEY_1": "PTCL_PPLR_HSE_EST_CHC_KEY_1_OUT", "PTCL_PPLR_HSE_EST_CHC_KEY_2": "PTCL_PPLR_HSE_EST_CHC_KEY_2_OUT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

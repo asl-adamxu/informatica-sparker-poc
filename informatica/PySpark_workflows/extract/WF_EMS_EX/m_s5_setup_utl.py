@@ -165,7 +165,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         df_EXP_DATE = df_EXP_DATE.withColumn("SNSH_DATE_VAL", expr(_expr))
         df_EXP_DATE = df_EXP_DATE.withColumn("BGN_TIME", expr("'EMS_EXTRACT_BGN_TIME'"))
         df_EXP_DATE = df_EXP_DATE.withColumn("END_TIME", expr("'EMS_EXTRACT_END_TIME'"))
-        _expr = """CASE WHEN '$$v_load_end_ds' = '' THEN date_format(current_timestamp(), 'yyyy-mm-dd hh24:mi:ss') ELSE '$$v_load_end_ds' END"""
+        _expr = """CASE WHEN '$$v_load_end_ds' = '' THEN date_format(current_timestamp(), 'yyyy-MM-dd HH:mm:ss') ELSE '$$v_load_end_ds' END"""
         _expr = _expr.replace("$$v_ems_archive_path", str(v_ems_archive_path))
         _expr = _expr.replace("$$v_load_start_ds", str(v_load_start_ds))
         _expr = _expr.replace("$$v_load_end_ds", str(v_load_end_ds))
@@ -403,8 +403,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"PRPTY": "PRPTY", "VAL": "VAL"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
@@ -464,8 +463,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"LINE": "LINE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

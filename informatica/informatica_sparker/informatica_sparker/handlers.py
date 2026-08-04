@@ -1170,9 +1170,42 @@ class TransformHandlers:
                         'join_predicates': join_predicates,
                     }
 
+        # --- Unconnected INPUT ports → NULL (Informatica semantics) ----------
+        # Input ports declared on the transformation but fed by NO connector
+        # (e.g. columns added after the upstream SQ was refreshed) hold NULL
+        # at runtime in Informatica. Replace their references with NULL (or
+        # the port's DEFAULTVALUE) so expressions don't crash with
+        # UNRESOLVED_COLUMN.
+        _unconnected_inputs = []
         if transform:
+            _connected_inputs = {
+                conn.to_field.lower()
+                for conn in self.mapping.connectors
+                if conn.to_instance == instance.name
+            }
+            _unconnected_inputs = [
+                f for f in transform.fields
+                if "INPUT" in (f.port_type or "").upper()
+                and f.name.lower() not in _connected_inputs
+            ]
+
             for field in transform.fields:
                 expr_text = field.expression or ""
+
+                # Unconnected input ports referenced in this expression become
+                # NULL (or DEFAULTVALUE) — Informatica treats them as NULL.
+                for _uc in _unconnected_inputs:
+                    if _uc.name.lower() in expr_text.lower():
+                        _replacement = (
+                            "'" + _uc.default_value.replace("'", "''") + "'"
+                            if _uc.default_value else "NULL"
+                        )
+                        expr_text = re.sub(
+                            r'\b' + re.escape(_uc.name) + r'\b',
+                            _replacement,
+                            expr_text,
+                            flags=re.IGNORECASE
+                        )
 
                 # Replace :LKP.xxx() calls with the lookup's RETURN port column
                 if ':LKP.' in expr_text:

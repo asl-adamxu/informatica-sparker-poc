@@ -79,7 +79,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_DOG_APLY_RGSTR")
         # Source Qualifier: apply_SQ_DOG_APLY_RGSTR
         df_SQ_DOG_APLY_RGSTR = df_DOG_APLY_RGSTR
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-mm-dd hh24:mi:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-mm-dd hh24:mi:ss')"""
+        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
         _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
         _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
         df_SQ_DOG_APLY_RGSTR = df_SQ_DOG_APLY_RGSTR.filter(expr(_filter_text))
@@ -107,8 +107,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"CUST_KEY": "CUST_KEY", "DOG_APLY_ADJ_RSN_CODE": "DOG_APLY_ADJ_RSN_CODE", "DOG_APLY_ADJ_RSN_RMK_TEXT": "DOG_APLY_ADJ_RSN_RMK_TEXT", "DOG_APLY_APRV_OFCR_NAME": "DOG_APLY_APRV_OFCR_NAME", "DOG_APLY_APRV_OFCR_TYPE_CODE": "DOG_APLY_APRV_OFCR_TYPE_CODE", "DOG_APLY_CRE_DATE": "DOG_APLY_CRE_DATE", "DOG_APLY_DEL_RSN_CODE": "DOG_APLY_DEL_RSN_CODE", "DOG_APLY_DEL_RSN_RMK_TEXT": "DOG_APLY_DEL_RSN_RMK_TEXT", "DOG_APLY_ISS_OFCR_NAME": "DOG_APLY_ISS_OFCR_NAME", "DOG_APLY_KEY": "DOG_APLY_KEY", "DOG_APLY_NUM": "DOG_APLY_NUM", "DOG_APLY_REJ_RSN_CODE": "DOG_APLY_REJ_RSN_CODE", "DOG_APLY_REJ_RSN_RMK_TEXT": "DOG_APLY_REJ_RSN_RMK_TEXT", "DOG_APLY_RSLT_DATE": "DOG_APLY_RSLT_DATE", "DOG_APLY_SBMT_DATE": "DOG_APLY_SBMT_DATE", "DOG_APLY_STS_CODE": "DOG_APLY_STS_CODE", "DOG_TYPE_CODE": "DOG_TYPE_CODE", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "TPS_HSE_UNIT_IND": "TPS_HSE_UNIT_IND"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
@@ -129,8 +128,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"CUST_KEY": "CUST_KEY", "DOG_APLY_ADJ_RSN_CODE": "DOG_APLY_ADJ_RSN_CODE", "DOG_APLY_ADJ_RSN_RMK_TEXT": "DOG_APLY_ADJ_RSN_RMK_TEXT", "DOG_APLY_APRV_OFCR_NAME": "DOG_APLY_APRV_OFCR_NAME", "DOG_APLY_APRV_OFCR_TYPE_CODE": "DOG_APLY_APRV_OFCR_TYPE_CODE", "DOG_APLY_CRE_DATE": "DOG_APLY_CRE_DATE", "DOG_APLY_DEL_RSN_CODE": "DOG_APLY_DEL_RSN_CODE", "DOG_APLY_DEL_RSN_RMK_TEXT": "DOG_APLY_DEL_RSN_RMK_TEXT", "DOG_APLY_ISS_OFCR_NAME": "DOG_APLY_ISS_OFCR_NAME", "DOG_APLY_KEY": "DOG_APLY_KEY", "DOG_APLY_NUM": "DOG_APLY_NUM", "DOG_APLY_REJ_RSN_CODE": "DOG_APLY_REJ_RSN_CODE", "DOG_APLY_REJ_RSN_RMK_TEXT": "DOG_APLY_REJ_RSN_RMK_TEXT", "DOG_APLY_RSLT_DATE": "DOG_APLY_RSLT_DATE", "DOG_APLY_SBMT_DATE": "DOG_APLY_SBMT_DATE", "DOG_APLY_STS_CODE": "DOG_APLY_STS_CODE", "DOG_TYPE_CODE": "DOG_TYPE_CODE", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "TPS_HSE_UNIT_IND": "TPS_HSE_UNIT_IND"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

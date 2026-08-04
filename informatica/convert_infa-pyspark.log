@@ -1,23 +1,23 @@
-[2026-08-04 17:08:22] [CONVERT] WF_EMS_EX.XML
-[2026-08-04 17:08:44] Total Mappings: 142
-[2026-08-04 17:08:44] Successful: 142
-[2026-08-04 17:08:44] Failed: 0
-[2026-08-04 17:08:44] Total Warnings: 0
-[2026-08-04 17:08:44] Total Errors: 0
-[2026-08-04 17:08:44] [COMPLETED] ----------------------------------------
-[2026-08-04 17:08:44] [CONVERT] WF_NHS_EX.XML
-[2026-08-04 17:08:47] Total Mappings: 46
-[2026-08-04 17:08:47] Successful: 46
-[2026-08-04 17:08:47] Failed: 0
-[2026-08-04 17:08:47] Total Warnings: 0
-[2026-08-04 17:08:47] Total Errors: 0
-[2026-08-04 17:08:47] [COMPLETED] ----------------------------------------
-[2026-08-04 17:08:47] [MANIFEST] Building manifest.json...
+[2026-08-04 17:30:22] [CONVERT] WF_EMS_EX.XML
+[2026-08-04 17:30:46] Total Mappings: 142
+[2026-08-04 17:30:46] Successful: 142
+[2026-08-04 17:30:46] Failed: 0
+[2026-08-04 17:30:46] Total Warnings: 0
+[2026-08-04 17:30:46] Total Errors: 0
+[2026-08-04 17:30:46] [COMPLETED] ----------------------------------------
+[2026-08-04 17:30:46] [CONVERT] WF_NHS_EX.XML
+[2026-08-04 17:30:48] Total Mappings: 46
+[2026-08-04 17:30:48] Successful: 46
+[2026-08-04 17:30:48] Failed: 0
+[2026-08-04 17:30:48] Total Warnings: 0
+[2026-08-04 17:30:48] Total Errors: 0
+[2026-08-04 17:30:48] [COMPLETED] ----------------------------------------
+[2026-08-04 17:30:48] [MANIFEST] Building manifest.json...
 
-[2026-08-04 17:08:48] ==========================================
-[2026-08-04 17:08:48]  Conversion complete
-[2026-08-04 17:08:48]    Source: /var/lib/airflow/dags/adam/informatica/PowerCenter_workflows/extract
-[2026-08-04 17:08:48]    Target: /var/lib/airflow/dags/adam/informatica/PySpark_workflows/extract
-[2026-08-04 17:08:48]    Succeeded: 2
-[2026-08-04 17:08:48]    Failed:    0
-[2026-08-04 17:08:48] ==========================================
+[2026-08-04 17:30:49] ==========================================
+[2026-08-04 17:30:49]  Conversion complete
+[2026-08-04 17:30:49]    Source: /var/lib/airflow/dags/adam/informatica/PowerCenter_workflows/extract
+[2026-08-04 17:30:49]    Target: /var/lib/airflow/dags/adam/informatica/PySpark_workflows/extract
+[2026-08-04 17:30:49]    Succeeded: 2
+[2026-08-04 17:30:49]    Failed:    0
+[2026-08-04 17:30:49] ==========================================

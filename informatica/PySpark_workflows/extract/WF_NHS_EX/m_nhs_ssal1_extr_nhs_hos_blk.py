@@ -79,7 +79,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_NHS_HOS_BLK")
         # Source Qualifier: apply_SQ_NHS_HOS_BLK
         df_SQ_NHS_HOS_BLK = df_NHS_HOS_BLK
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-mm-dd hh24:mi:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-mm-dd hh24:mi:ss')"""
+        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
         _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
         _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
         df_SQ_NHS_HOS_BLK = df_SQ_NHS_HOS_BLK.filter(expr(_filter_text))
@@ -107,8 +107,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"BLK_CHI_NAME": "BLK_CHI_NAME", "BLK_CMPLT_DATE": "BLK_CMPLT_DATE", "BLK_CODE": "BLK_CODE", "BLK_DSG_CODE": "BLK_DSG_CODE", "BLK_ENG_NAME": "BLK_ENG_NAME", "BLK_NUM_CHI_DESP": "BLK_NUM_CHI_DESP", "BLK_NUM_ENG_DESP": "BLK_NUM_ENG_DESP", "CNSTR_PHASE_NUM": "CNSTR_PHASE_NUM", "DLP_DRTN_NUM": "DLP_DRTN_NUM", "HOS_BLK_ID": "HOS_BLK_ID", "HOS_CRT_ID": "HOS_CRT_ID", "INTK_YEAR": "INTK_YEAR", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "LOT_ADDR": "LOT_ADDR", "OCPY_PRM_DATE": "OCPY_PRM_DATE", "ROW_VER_NUM": "ROW_VER_NUM", "TOT_UNDVD_SHR_NUM": "TOT_UNDVD_SHR_NUM"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

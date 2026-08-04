@@ -79,7 +79,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_RVC_RVN_TXN")
         # Source Qualifier: apply_SQ_RVC_RVN_TXN
         df_SQ_RVC_RVN_TXN = df_RVC_RVN_TXN
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-mm-dd hh24:mi:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-mm-dd hh24:mi:ss')"""
+        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
         _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
         _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
         df_SQ_RVC_RVN_TXN = df_SQ_RVC_RVN_TXN.filter(expr(_filter_text))
@@ -107,8 +107,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"CRT_TYPE_CODE": "CRT_TYPE_CODE", "DPST_RCPT_TYPE_CODE": "DPST_RCPT_TYPE_CODE", "EST_BANK_TXN_NUM": "EST_BANK_TXN_NUM", "HOS_APLY_KEY": "HOS_APLY_KEY", "HOS_OWN_KEY": "HOS_OWN_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "PHASE_ASP_ID": "PHASE_ASP_ID", "ROW_VER_NUM": "ROW_VER_NUM", "RVN_CLCT_TRML_ID": "RVN_CLCT_TRML_ID", "RVN_TXN_CNCL_BSNS_DATE": "RVN_TXN_CNCL_BSNS_DATE", "RVN_TXN_CNCL_TRML_ID": "RVN_TXN_CNCL_TRML_ID", "RVN_TXN_CNCL_USER_ID": "RVN_TXN_CNCL_USER_ID", "RVN_TXN_DATE": "RVN_TXN_DATE", "RVN_TXN_INPT_BSNS_DATE": "RVN_TXN_INPT_BSNS_DATE", "RVN_TXN_INPT_DATE": "RVN_TXN_INPT_DATE", "RVN_TXN_INPT_USER_ID": "RVN_TXN_INPT_USER_ID", "RVN_TXN_MODE_CODE": "RVN_TXN_MODE_CODE", "RVN_TXN_NUM": "RVN_TXN_NUM", "RVN_TXN_RCPT_NUM": "RVN_TXN_RCPT_NUM", "RVN_TXN_STS_CODE": "RVN_TXN_STS_CODE", "TXN_CNCL_RMK_TEXT": "TXN_CNCL_RMK_TEXT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
@@ -129,8 +128,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"CRT_TYPE_CODE": "CRT_TYPE_CODE", "DPST_RCPT_TYPE_CODE": "DPST_RCPT_TYPE_CODE", "EST_BANK_TXN_NUM": "EST_BANK_TXN_NUM", "HOS_APLY_KEY": "HOS_APLY_KEY", "HOS_OWN_KEY": "HOS_OWN_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "PHASE_ASP_ID": "PHASE_ASP_ID", "ROW_VER_NUM": "ROW_VER_NUM", "RVN_CLCT_TRML_ID": "RVN_CLCT_TRML_ID", "RVN_TXN_CNCL_BSNS_DATE": "RVN_TXN_CNCL_BSNS_DATE", "RVN_TXN_CNCL_TRML_ID": "RVN_TXN_CNCL_TRML_ID", "RVN_TXN_CNCL_USER_ID": "RVN_TXN_CNCL_USER_ID", "RVN_TXN_DATE": "RVN_TXN_DATE", "RVN_TXN_INPT_BSNS_DATE": "RVN_TXN_INPT_BSNS_DATE", "RVN_TXN_INPT_DATE": "RVN_TXN_INPT_DATE", "RVN_TXN_INPT_USER_ID": "RVN_TXN_INPT_USER_ID", "RVN_TXN_MODE_CODE": "RVN_TXN_MODE_CODE", "RVN_TXN_NUM": "RVN_TXN_NUM", "RVN_TXN_RCPT_NUM": "RVN_TXN_RCPT_NUM", "RVN_TXN_STS_CODE": "RVN_TXN_STS_CODE", "TXN_CNCL_RMK_TEXT": "TXN_CNCL_RMK_TEXT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

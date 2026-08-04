@@ -103,8 +103,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"EFAS_PRIOR_NUM_SFX_NUM": "EFAS_PRIOR_NUM_SFX_NUM", "HOS_APLY_KEY": "HOS_APLY_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "PRIOR_CATG_CODE": "PRIOR_CATG_CODE", "PRIOR_CATG_GRP_CODE": "PRIOR_CATG_GRP_CODE", "PRIOR_NUM": "PRIOR_NUM", "ROW_VER_NUM": "ROW_VER_NUM"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
@@ -240,8 +239,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"EFAS_PRIOR_NUM_SFX_NUM": "EFAS_PRIOR_NUM_SFX_NUM", "HOS_APLY_KEY": "HOS_APLY_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "PRIOR_CATG_CODE": "PRIOR_CATG_CODE", "PRIOR_CATG_GRP_CODE": "PRIOR_CATG_GRP_CODE", "PRIOR_NUM": "PRIOR_NUM", "ROW_VER_NUM": "ROW_VER_NUM"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

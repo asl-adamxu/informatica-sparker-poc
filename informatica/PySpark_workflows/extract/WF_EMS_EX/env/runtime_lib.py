@@ -5,6 +5,7 @@ Provides helper functions for database connections, file reading, transformation
 import logging
 import os
 import sys
+import time
 import yaml
 import inspect
 from datetime import datetime
@@ -133,6 +134,10 @@ def init_logger(log_name: str = None):
         # messages written to the first caller's log file.
         if not any(isinstance(h, logging.FileHandler) for h in root_logger.handlers):
             root_logger.addHandler(file_handler)
+
+    # Quiet py4j's own chatty INFO logs (e.g. "Closing down clientserver
+    # connection" on every gateway connection close) — keep WARNING+ only.
+    logging.getLogger("py4j").setLevel(logging.WARNING)
 
     return logger
 
@@ -1289,7 +1294,9 @@ def validate_execution_plan(execution_plan, mapping_functions, task_info=None):
         elif stype == "task":
             name = step.get("name", "")
             if name and task_info and name not in task_info:
-                logger.warning("Task '%s' has no TASK_INFO entry, will skip", name)
+                # No special handler for this task (e.g. a Decision with no
+                # condition) — it is a pass-through; do not alarm users.
+                logger.debug("Task '%s' has no special handler, pass-through", name)
 
     for i, step in enumerate(execution_plan):
         _validate_step(step, f"Step[{i}]")
@@ -1379,6 +1386,23 @@ def run_sessions_parallel(sessions_list, mapping_functions, ctx, metrics_cls,
     return completed, failed, results
 
 
+def _apply_task_timer(tcfg, task_name):
+    """Apply Informatica Timer task semantics: a Timer task starts counting
+    when its previous task completes (START_RELATIVE_TO_PREVIOUSTASK) and
+    fires after the RECURRING interval — wait that interval before the
+    downstream tasks are allowed to run."""
+    if not tcfg or tcfg.get("type") != "timer":
+        return
+    _tmr = tcfg.get("timer", {}) or {}
+    _days = int(_tmr.get("days", 0) or 0)
+    _hours = int(_tmr.get("hours", 0) or 0)
+    _mins = int(_tmr.get("minutes", 0) or 0)
+    _secs = _days * 86400 + _hours * 3600 + _mins * 60
+    if _secs > 0:
+        logger.info("Task '%s' timer: waiting %d seconds (%dd %dh %dm)", task_name, _secs, _days, _hours, _mins)
+        time.sleep(_secs)
+
+
 def execute_plan_step(step, mapping_functions, ctx, metrics_cls,
                       fail_fast, job_params, workflow_name="",
                       task_info=None, send_email_fn=None,
@@ -1424,6 +1448,7 @@ def execute_plan_step(step, mapping_functions, ctx, metrics_cls,
                 logger.info("Processing task: %s", task_name)
                 try:
                     tcfg = task_info.get(task_name, {}) if task_info else {}
+                    _apply_task_timer(tcfg, task_name)
                     if tcfg.get("type") == "email" and send_email_fn:
                         ctx_data = {
                             "session_name": task_name,
@@ -1488,6 +1513,7 @@ def execute_plan_step(step, mapping_functions, ctx, metrics_cls,
         logger.info("Processing task: %s", task_name)
         try:
             tcfg = task_info.get(task_name, {}) if task_info else {}
+            _apply_task_timer(tcfg, task_name)
             if tcfg.get("type") == "email" and send_email_fn:
                 ctx_data = {
                     "session_name": task_name,

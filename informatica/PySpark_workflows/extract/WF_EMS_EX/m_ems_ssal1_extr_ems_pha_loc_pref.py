@@ -79,7 +79,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_PHA_LOC_PREF")
         # Source Qualifier: apply_SQ_PHA_LOC_PREF
         df_SQ_PHA_LOC_PREF = df_PHA_LOC_PREF
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-mm-dd hh24:mi:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-mm-dd hh24:mi:ss')"""
+        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
         _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
         _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
         df_SQ_PHA_LOC_PREF = df_SQ_PHA_LOC_PREF.filter(expr(_filter_text))
@@ -107,8 +107,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"FLR_LVL_IND": "FLR_LVL_IND", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "LIFT_STOP_IND": "LIFT_STOP_IND", "LOC_PREF_APRV_DATE": "LOC_PREF_APRV_DATE", "LOC_PREF_CHC_LIST": "LOC_PREF_CHC_LIST", "LOC_PREF_CHC_UPD_DATE": "LOC_PREF_CHC_UPD_DATE", "LOC_PREF_KEY": "LOC_PREF_KEY", "LOC_PREF_REF_SRC_CODE": "LOC_PREF_REF_SRC_CODE", "LOC_PREF_RMK_TEXT": "LOC_PREF_RMK_TEXT", "LOC_PREF_STS_CODE": "LOC_PREF_STS_CODE", "LVL_GND_IND": "LVL_GND_IND", "OTHR_PREF_IND": "OTHR_PREF_IND", "QTA_CATG_CODE": "QTA_CATG_CODE", "QTA_CATG_TYPE_CODE": "QTA_CATG_TYPE_CODE", "REC_CRE_DATE": "REC_CRE_DATE", "REC_CRE_USER_ID": "REC_CRE_USER_ID"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
@@ -129,8 +128,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"FLR_LVL_IND": "FLR_LVL_IND", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "LIFT_STOP_IND": "LIFT_STOP_IND", "LOC_PREF_APRV_DATE": "LOC_PREF_APRV_DATE", "LOC_PREF_CHC_LIST": "LOC_PREF_CHC_LIST", "LOC_PREF_CHC_UPD_DATE": "LOC_PREF_CHC_UPD_DATE", "LOC_PREF_KEY": "LOC_PREF_KEY", "LOC_PREF_REF_SRC_CODE": "LOC_PREF_REF_SRC_CODE", "LOC_PREF_RMK_TEXT": "LOC_PREF_RMK_TEXT", "LOC_PREF_STS_CODE": "LOC_PREF_STS_CODE", "LVL_GND_IND": "LVL_GND_IND", "OTHR_PREF_IND": "OTHR_PREF_IND", "QTA_CATG_CODE": "QTA_CATG_CODE", "QTA_CATG_TYPE_CODE": "QTA_CATG_TYPE_CODE", "REC_CRE_DATE": "REC_CRE_DATE", "REC_CRE_USER_ID": "REC_CRE_USER_ID"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

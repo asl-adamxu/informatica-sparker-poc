@@ -79,7 +79,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_WTP_DCLR")
         # Source Qualifier: apply_SQ_WTP_DCLR
         df_SQ_WTP_DCLR = df_WTP_DCLR
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-mm-dd hh24:mi:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-mm-dd hh24:mi:ss')"""
+        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
         _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
         _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
         df_SQ_WTP_DCLR = df_SQ_WTP_DCLR.filter(expr(_filter_text))
@@ -107,8 +107,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"CMT_SBTYP_CODE": "CMT_SBTYP_CODE", "CUST_KEY": "CUST_KEY", "FMLY_SIZE_NUM": "FMLY_SIZE_NUM", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY", "HSE_UNIT_KEY": "HSE_UNIT_KEY", "HSHLD_AST_AMT": "HSHLD_AST_AMT", "HSHLD_INCM_AMT": "HSHLD_INCM_AMT", "INT37_PRN_DATE": "INT37_PRN_DATE", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "ORIG_HSE_SRVC_APLY_KEY": "ORIG_HSE_SRVC_APLY_KEY", "RENT_BGN_DATE": "RENT_BGN_DATE", "RENT_CHNG_RSN_CODE": "RENT_CHNG_RSN_CODE", "RENT_CHNG_RSN_TEXT": "RENT_CHNG_RSN_TEXT", "RENT_END_DATE": "RENT_END_DATE", "RENT_FCTR_CODE": "RENT_FCTR_CODE", "WTP25_PRN_DATE": "WTP25_PRN_DATE", "WTP26_PRN_DATE": "WTP26_PRN_DATE", "WTP28_PRN_DATE": "WTP28_PRN_DATE", "WTP29_PRN_DATE": "WTP29_PRN_DATE", "WTP30_PRN_DATE": "WTP30_PRN_DATE", "WTP31_PRN_DATE": "WTP31_PRN_DATE", "WTP32_PRN_DATE": "WTP32_PRN_DATE", "WTP33_PRN_DATE": "WTP33_PRN_DATE", "WTP34_PRN_DATE": "WTP34_PRN_DATE", "WTP35_PRN_DATE": "WTP35_PRN_DATE", "WTP36_PRN_DATE": "WTP36_PRN_DATE", "WTP37_PRN_DATE": "WTP37_PRN_DATE", "WTP38_PRN_DATE": "WTP38_PRN_DATE", "WTP_CYCL_YEAR_MTH": "WTP_CYCL_YEAR_MTH", "WTP_DCLR_FORM_RCV_IND": "WTP_DCLR_FORM_RCV_IND", "WTP_DSBL_ALWN_RCPT_IND": "WTP_DSBL_ALWN_RCPT_IND", "WTP_EXTRC_DATE": "WTP_EXTRC_DATE", "WTP_HK_DPO_IND": "WTP_HK_DPO_IND", "WTP_HSHLD_AST_OVER_IND": "WTP_HSHLD_AST_OVER_IND", "WTP_HSHLD_INCM_OVER_IND": "WTP_HSHLD_INCM_OVER_IND", "WTP_OPT_NOT_DCLR_IND": "WTP_OPT_NOT_DCLR_IND", "WTP_REC_KEY": "WTP_REC_KEY", "WTP_REF_PHRM_IND": "WTP_REF_PHRM_IND", "WTP_RMK_TEXT": "WTP_RMK_TEXT", "WTP_STS_CODE": "WTP_STS_CODE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
@@ -129,8 +128,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"CMT_SBTYP_CODE": "CMT_SBTYP_CODE", "CUST_KEY": "CUST_KEY", "FMLY_SIZE_NUM": "FMLY_SIZE_NUM", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY", "HSE_UNIT_KEY": "HSE_UNIT_KEY", "HSHLD_AST_AMT": "HSHLD_AST_AMT", "HSHLD_INCM_AMT": "HSHLD_INCM_AMT", "INT37_PRN_DATE": "INT37_PRN_DATE", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "ORIG_HSE_SRVC_APLY_KEY": "ORIG_HSE_SRVC_APLY_KEY", "RENT_BGN_DATE": "RENT_BGN_DATE", "RENT_CHNG_RSN_CODE": "RENT_CHNG_RSN_CODE", "RENT_CHNG_RSN_TEXT": "RENT_CHNG_RSN_TEXT", "RENT_END_DATE": "RENT_END_DATE", "RENT_FCTR_CODE": "RENT_FCTR_CODE", "WTP25_PRN_DATE": "WTP25_PRN_DATE", "WTP26_PRN_DATE": "WTP26_PRN_DATE", "WTP28_PRN_DATE": "WTP28_PRN_DATE", "WTP29_PRN_DATE": "WTP29_PRN_DATE", "WTP30_PRN_DATE": "WTP30_PRN_DATE", "WTP31_PRN_DATE": "WTP31_PRN_DATE", "WTP32_PRN_DATE": "WTP32_PRN_DATE", "WTP33_PRN_DATE": "WTP33_PRN_DATE", "WTP34_PRN_DATE": "WTP34_PRN_DATE", "WTP35_PRN_DATE": "WTP35_PRN_DATE", "WTP36_PRN_DATE": "WTP36_PRN_DATE", "WTP37_PRN_DATE": "WTP37_PRN_DATE", "WTP38_PRN_DATE": "WTP38_PRN_DATE", "WTP_CYCL_YEAR_MTH": "WTP_CYCL_YEAR_MTH", "WTP_DCLR_FORM_RCV_IND": "WTP_DCLR_FORM_RCV_IND", "WTP_DSBL_ALWN_RCPT_IND": "WTP_DSBL_ALWN_RCPT_IND", "WTP_EXTRC_DATE": "WTP_EXTRC_DATE", "WTP_HK_DPO_IND": "WTP_HK_DPO_IND", "WTP_HSHLD_AST_OVER_IND": "WTP_HSHLD_AST_OVER_IND", "WTP_HSHLD_INCM_OVER_IND": "WTP_HSHLD_INCM_OVER_IND", "WTP_OPT_NOT_DCLR_IND": "WTP_OPT_NOT_DCLR_IND", "WTP_REC_KEY": "WTP_REC_KEY", "WTP_REF_PHRM_IND": "WTP_REF_PHRM_IND", "WTP_RMK_TEXT": "WTP_RMK_TEXT", "WTP_STS_CODE": "WTP_STS_CODE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

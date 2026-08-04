@@ -79,7 +79,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_HSM_HSE_BLK")
         # Source Qualifier: apply_SQ_HSM_HSE_BLK
         df_SQ_HSM_HSE_BLK = df_HSM_HSE_BLK
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-mm-dd hh24:mi:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-mm-dd hh24:mi:ss')"""
+        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
         _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
         _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
         df_SQ_HSM_HSE_BLK = df_SQ_HSM_HSE_BLK.filter(expr(_filter_text))
@@ -130,8 +130,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"CRP_IND": "CRP_IND_OUT", "HSE_BLK_ACCS_TYPE_CODE": "HSE_BLK_ACCS_TYPE_CODE_OUT", "HSE_BLK_BGN_DATE": "HSE_BLK_BGN_DATE_OUT", "HSE_BLK_CHI_NAME": "HSE_BLK_CHI_NAME_OUT", "HSE_BLK_CHI_NCKNM_NAME": "HSE_BLK_CHI_NCKNM_NAME_OUT", "HSE_BLK_CMPLT_DATE": "HSE_BLK_CMPLT_DATE_OUT", "HSE_BLK_CODE": "HSE_BLK_CODE_OUT", "HSE_BLK_END_DATE": "HSE_BLK_END_DATE_OUT", "HSE_BLK_ENG_NAME": "HSE_BLK_ENG_NAME_OUT", "HSE_BLK_ENG_NCKNM_NAME": "HSE_BLK_ENG_NCKNM_NAME_OUT", "HSE_BLK_HOVER_DATE": "HSE_BLK_HOVER_DATE_OUT", "HSE_BLK_KEY": "HSE_BLK_KEY_OUT", "HSE_BLK_MARK_TYPE_CODE": "HSE_BLK_MARK_TYPE_CODE_OUT", "HSE_BLK_SELF_CNTA_IND": "HSE_BLK_SELF_CNTA_IND_OUT", "HSE_BLK_TNTV_CMPLT_DATE": "HSE_BLK_TNTV_CMPLT_DATE_OUT", "HSE_BLK_TYPE_CODE": "HSE_BLK_TYPE_CODE_OUT", "HSE_EST_KEY": "HSE_EST_KEY_OUT", "HSE_EST_LOT_CODE": "HSE_EST_LOT_CODE_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "TOT_HSE_BLK_DOM_STRY_NUM": "TOT_HSE_BLK_DOM_STRY_NUM_OUT", "TOT_HSE_BLK_IFA_AREA": "TOT_HSE_BLK_IFA_AREA_OUT", "TOT_HSE_BLK_RATE_AMT": "TOT_HSE_BLK_RATE_AMT_OUT", "TOT_HSE_BLK_STRY_NUM": "TOT_HSE_BLK_STRY_NUM_OUT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
@@ -152,8 +151,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"CRP_IND": "CRP_IND_OUT", "DUMMY": "DUMMY", "HSE_BLK_ACCS_TYPE_CODE": "HSE_BLK_ACCS_TYPE_CODE_OUT", "HSE_BLK_BGN_DATE": "HSE_BLK_BGN_DATE_OUT", "HSE_BLK_CHI_NAME": "HSE_BLK_CHI_NAME_OUT", "HSE_BLK_CHI_NCKNM_NAME": "HSE_BLK_CHI_NCKNM_NAME_OUT", "HSE_BLK_CMPLT_DATE": "HSE_BLK_CMPLT_DATE_OUT", "HSE_BLK_CODE": "HSE_BLK_CODE_OUT", "HSE_BLK_END_DATE": "HSE_BLK_END_DATE_OUT", "HSE_BLK_ENG_NAME": "HSE_BLK_ENG_NAME_OUT", "HSE_BLK_ENG_NCKNM_NAME": "HSE_BLK_ENG_NCKNM_NAME_OUT", "HSE_BLK_HOVER_DATE": "HSE_BLK_HOVER_DATE_OUT", "HSE_BLK_KEY": "HSE_BLK_KEY_OUT", "HSE_BLK_MARK_TYPE_CODE": "HSE_BLK_MARK_TYPE_CODE_OUT", "HSE_BLK_SELF_CNTA_IND": "HSE_BLK_SELF_CNTA_IND_OUT", "HSE_BLK_TNTV_CMPLT_DATE": "HSE_BLK_TNTV_CMPLT_DATE_OUT", "HSE_BLK_TYPE_CODE": "HSE_BLK_TYPE_CODE_OUT", "HSE_EST_KEY": "HSE_EST_KEY_OUT", "HSE_EST_LOT_CODE": "HSE_EST_LOT_CODE_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "TOT_HSE_BLK_DOM_STRY_NUM": "TOT_HSE_BLK_DOM_STRY_NUM_OUT", "TOT_HSE_BLK_IFA_AREA": "TOT_HSE_BLK_IFA_AREA_OUT", "TOT_HSE_BLK_RATE_AMT": "TOT_HSE_BLK_RATE_AMT_OUT", "TOT_HSE_BLK_STRY_NUM": "TOT_HSE_BLK_STRY_NUM_OUT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

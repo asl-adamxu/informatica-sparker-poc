@@ -79,7 +79,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_NHS_PHASE_ASP")
         # Source Qualifier: apply_SQ_NHS_PHASE_ASP
         df_SQ_NHS_PHASE_ASP = df_NHS_PHASE_ASP
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-mm-dd hh24:mi:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-mm-dd hh24:mi:ss')"""
+        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
         _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
         _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
         df_SQ_NHS_PHASE_ASP = df_SQ_NHS_PHASE_ASP.filter(expr(_filter_text))
@@ -107,8 +107,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"ASGN_SLCTR_ID": "ASGN_SLCTR_ID", "ASP_CNCL_DATE": "ASP_CNCL_DATE", "ASP_CNCL_IND": "ASP_CNCL_IND", "ASP_CRE_TS": "ASP_CRE_TS", "ASP_CRE_USER_ID": "ASP_CRE_USER_ID", "ASP_SIGN_DATE": "ASP_SIGN_DATE", "ASP_TMPL_ID": "ASP_TMPL_ID", "CHQ_PAID_AMT": "CHQ_PAID_AMT", "CNCL_RMK_TEXT": "CNCL_RMK_TEXT", "CRT_TYPE_CODE": "CRT_TYPE_CODE", "CSHR_ORD_NUM_1": "CSHR_ORD_NUM_1", "CSHR_ORD_NUM_2": "CSHR_ORD_NUM_2", "CSHR_ORD_NUM_3": "CSHR_ORD_NUM_3", "CSHR_ORD_PAID_AMT": "CSHR_ORD_PAID_AMT", "EFAS_PRIOR_NUM_SFX_NUM": "EFAS_PRIOR_NUM_SFX_NUM", "ELCT_SRVC_APLY_IND": "ELCT_SRVC_APLY_IND", "ELDR_MBR_IND_1": "ELDR_MBR_IND_1", "ELDR_MBR_IND_2": "ELDR_MBR_IND_2", "ELDR_MBR_IND_3": "ELDR_MBR_IND_3", "FLAT_SLCT_KEY": "FLAT_SLCT_KEY", "FRST_ASGN_DATE": "FRST_ASGN_DATE", "HOS_APLY_KEY": "HOS_APLY_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "MBR_ID_CERT_NUM_1": "MBR_ID_CERT_NUM_1", "MBR_ID_CERT_NUM_2": "MBR_ID_CERT_NUM_2", "MBR_ID_CERT_NUM_3": "MBR_ID_CERT_NUM_3", "MBR_ID_NUM_1": "MBR_ID_NUM_1", "MBR_ID_NUM_2": "MBR_ID_NUM_2", "MBR_ID_NUM_3": "MBR_ID_NUM_3", "MBR_ID_TYPE_CODE_1": "MBR_ID_TYPE_CODE_1", "MBR_ID_TYPE_CODE_2": "MBR_ID_TYPE_CODE_2", "MBR_ID_TYPE_CODE_3": "MBR_ID_TYPE_CODE_3", "PAID_AMT": "PAID_AMT", "PCHSR_DUE_DATE": "PCHSR_DUE_DATE", "PHASE_ASP_ID": "PHASE_ASP_ID", "PHASE_CODE": "PHASE_CODE", "PRIOR_CATG_GRP_CODE": "PRIOR_CATG_GRP_CODE", "PRIOR_NUM": "PRIOR_NUM", "PYMT_DUE_DATE": "PYMT_DUE_DATE", "ROW_VER_NUM": "ROW_VER_NUM", "RSCN_DATE": "RSCN_DATE", "TPS_UNIT_ADDR": "TPS_UNIT_ADDR", "VDR_DUE_DATE": "VDR_DUE_DATE", "WSD_SRVC_APLY_IND": "WSD_SRVC_APLY_IND"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

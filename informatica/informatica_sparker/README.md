@@ -2,6 +2,8 @@
 
 **Version v2026.08.04** — A Python framework that converts Informatica PowerCenter workflow/mapping XML exports into PySpark code deployable to Databricks or YARN Spark clusters. **Tested against Informatica output — data results match.**
 
+**v2026.08.04 highlights (extract workflows WF_EMS_EX / WF_NHS_EX)**: Oracle date-format literals (`hh24:mi:ss` etc.) converted to Spark patterns; py4j gateway chatter ("Closing down clientserver connection") suppressed from logs; Informatica **Timer** tasks (START_RELATIVE_TO_PREVIOUSTASK + RECURRING) converted to interval waits; **unconnected Expression input ports** evaluate as NULL (Informatica semantics); **Decision** tasks kept as batch barriers with clean pass-through logging.
+
 Conversion pipeline: **XML → Models → IR Plan → Jinja2 Templates → Generated Python Files**
 
 ## Features
@@ -211,6 +213,8 @@ Features:
 - **Connection validation** before any mapping runs; passwords saved to credential provider only after verification
 - **Mermaid flowchart** generated alongside the workflow file
 - **Workflow run markers** — `===== ... START / END =====` separators in logs for multi-run visibility
+- **Timer tasks** — `START_RELATIVE_TO_PREVIOUSTASK` + `RECURRING` interval converted to an actual wait (`_apply_task_timer`) so downstream waves start after the configured delay, matching Informatica
+- **Decision tasks** — kept as real plan steps (batch barriers between parallel session waves); tasks without a special handler log a non-alarming pass-through (no "will skip")
 
 ## Runtime Library (`runtime_lib.py`)
 

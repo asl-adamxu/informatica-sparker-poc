@@ -656,6 +656,20 @@ class ConversionService:
                     "type": "command",
                     "commands": t.get("commands", []),
                 }
+            elif ttype == "Timer":
+                task_info[tname] = {
+                    "type": "timer",
+                    "timer": t.get("timer") or {},
+                }
+            elif ttype == "Decision":
+                # Decision task — kept as a real plan step (it is the batch
+                # barrier between waves of parallel sessions). Only emit the
+                # non-default condition field when a Decision Name is set.
+                _entry = {"type": "decision"}
+                _cond = t.get("attributes", {}).get("Decision Name", "")
+                if _cond:
+                    _entry["condition"] = _cond
+                task_info[tname] = _entry
 
         # Session Target Pre/Post SQL — flat by session name, only non-empty
         # fields (SESSION_SQLS lives in the workflow, matching the Informatica

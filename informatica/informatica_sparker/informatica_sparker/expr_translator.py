@@ -567,6 +567,56 @@ class ExpressionTranslator:
                 break
         return expr
 
+    _ORACLE_FMT_TOKENS = {
+        'yyyy': 'yyyy', 'yy': 'yy', 'rr': 'yy',
+        'mm': 'MM', 'mon': 'MMM', 'month': 'MMMM',
+        'dd': 'dd', 'd': 'e', 'ddd': 'DDD',
+        'hh24': 'HH', 'hh12': 'hh', 'hh': 'hh',
+        'mi': 'mm', 'ss': 'ss', 'ff': 'SSS',
+        'am': 'a', 'pm': 'a',
+    }
+
+    def _oracle_to_spark_fmt(self, fmt: str) -> str:
+        """Convert an Oracle date-format string to a Spark (Java) pattern.
+
+        Oracle format letters are case-insensitive (HH24, MI) while Spark's
+        DateTimeFormatter is case-sensitive and stricter (HH, mm) — unknown
+        letters such as 'i' raise "Unknown pattern letter: i". Letter runs
+        (with or without separators, e.g. 'yyyy-mm-dd hh24:mi:ss' or
+        'YYYYMMDD') are split into known tokens via longest-match.
+        """
+        _keys = sorted(self._ORACLE_FMT_TOKENS.keys(), key=len, reverse=True)
+        out = []
+        i = 0
+        n = len(fmt)
+        while i < n:
+            ch = fmt[i]
+            if not ch.isalpha():
+                out.append(ch)
+                i += 1
+                continue
+            j = i
+            while j < n and fmt[j].isalpha():
+                j += 1
+            # Oracle HH24 — the digits directly follow the HH letters
+            if fmt[i:j].lower() == 'hh' and fmt[j:j + 2] == '24':
+                out.append('HH')
+                j += 2
+                i = j
+                continue
+            rest = fmt[i:j].lower()
+            while rest:
+                for _k in _keys:
+                    if rest.startswith(_k):
+                        out.append(self._ORACLE_FMT_TOKENS[_k])
+                        rest = rest[len(_k):]
+                        break
+                else:
+                    out.append(rest[0])  # unknown letter — keep as-is
+                    rest = rest[1:]
+            i = j
+        return ''.join(out)
+
     def _translate_date_format_patterns(self, expr: str) -> str:
         """Fix Informatica date format patterns in date-related function calls.
         Spark 3+ uses Java 8 DateTimeFormatter which is stricter:
@@ -576,6 +626,9 @@ class ExpressionTranslator:
           SS               → ss
           MON              → MMM
           MONTH            → MMMM
+          HH24             → HH
+        Oracle letters are case-insensitive (e.g. 'yyyy-mm-dd hh24:mi:ss' must
+        become 'yyyy-MM-dd HH:mm:ss' — otherwise "Unknown pattern letter: i").
         Applies to single-quoted format strings in to_date/to_char/date_format.
         Uses _extract_function_args to handle nested parentheses.
         """
@@ -583,22 +636,26 @@ class ExpressionTranslator:
         _funcs = ['to_date', 'to_char', 'date_format']
         for _func in _funcs:
             _pat = re.compile(r'\b' + _func + r'\s*\(', re.IGNORECASE)
-            for _m in list(_pat.finditer(result)):
+            # Collect every format literal needing conversion in ONE pass over
+            # the original text, then apply replacements from the END so
+            # earlier positions stay valid. Never re-run _oracle_to_spark_fmt
+            # on an already-converted literal (it is not idempotent: Spark's
+            # minute 'mm' would be re-mapped to month 'MM').
+            _pending = []
+            for _m in _pat.finditer(result):
                 _args = self._extract_function_args(result, _m.end() - 1)
                 if _args and len(_args) >= 2:
                     _fmt = _args[-1].strip()
                     if _fmt.startswith("'") and _fmt.endswith("'"):
                         _inner = _fmt[1:-1]
-                        _new = _inner
-                        _new = _new.replace('YYYY', 'yyyy')
-                        _new = _new.replace('YY', 'yy')
-                        _new = _new.replace('DD', 'dd')
-                        _new = _new.replace('MI', 'mm')
-                        _new = _new.replace('SS', 'ss')
-                        _new = _new.replace('MONTH', 'MMMM')
-                        _new = _new.replace('MON', 'MMM')
+                        _new = self._oracle_to_spark_fmt(_inner)
                         if _new != _inner:
-                            result = result.replace("'" + _inner + "'", "'" + _new + "'", 1)
+                            _lit = _m.end() - 1
+                            _pos = result.find("'" + _inner + "'", _lit)
+                            if _pos >= 0:
+                                _pending.append((_pos, _inner, _new))
+            for _pos, _inner, _new in sorted(_pending, key=lambda x: x[0], reverse=True):
+                result = result[:_pos] + "'" + _new + "'" + result[_pos + len(_inner) + 2:]
         return result
 
     def _translate_string_literals(self, expr: str) -> str:

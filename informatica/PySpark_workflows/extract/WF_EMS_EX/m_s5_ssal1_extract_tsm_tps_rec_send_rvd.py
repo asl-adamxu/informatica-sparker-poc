@@ -118,8 +118,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"AMND_DATA_FLD_TEXT": "AMND_DATA_FLD_TEXT_OUT", "HSE_BLK_CODE": "HSE_BLK_CODE_OUT", "HSE_EST_CODE": "HSE_EST_CODE_OUT", "HSE_EST_TYPE_CODE": "HSE_EST_TYPE_CODE_OUT", "HSE_UNIT_FLAT_NUM": "HSE_UNIT_FLAT_NUM_OUT", "IMV_AMT": "IMV_AMT_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "LAST_REC_TXN_USER_ID_TYPE_CODE": "LAST_REC_TXN_USER_ID_TYPE_CODE_OUT", "REC_SEND_RVD_DATE": "REC_SEND_RVD_DATE_OUT", "REC_SEND_RVD_IND": "REC_SEND_RVD_IND_OUT", "REC_TXN_DATE": "REC_TXN_DATE_OUT", "REC_TXN_TYPE_CODE": "REC_TXN_TYPE_CODE_OUT", "SHR_UNIT_IND": "SHR_UNIT_IND_OUT", "TPS_APLY_SEQ_NUM": "TPS_APLY_SEQ_NUM_OUT", "UNIT_CNV_REF_CODE": "UNIT_CNV_REF_CODE_OUT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

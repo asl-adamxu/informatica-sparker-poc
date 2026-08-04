@@ -79,7 +79,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_ABU_TNT_ABU")
         # Source Qualifier: apply_SQ_ABU_TNT_ABU
         df_SQ_ABU_TNT_ABU = df_ABU_TNT_ABU
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-mm-dd hh24:mi:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-mm-dd hh24:mi:ss')"""
+        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
         _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
         _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
         df_SQ_ABU_TNT_ABU = df_SQ_ABU_TNT_ABU.filter(expr(_filter_text))
@@ -126,8 +126,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"ABU_ACT_OFFC_CODE": "ABU_ACT_OFFC_CODE_OUT", "ABU_ACT_OFFC_TEXT": "ABU_ACT_OFFC_TEXT_OUT", "ABU_CRE_DATE": "ABU_CRE_DATE_OUT", "ABU_FIND_DATE": "ABU_FIND_DATE_OUT", "ABU_FXT_CODE": "ABU_FXT_CODE_OUT", "ABU_REF_NUM": "ABU_REF_NUM_OUT", "ABU_REF_SRC_CODE": "ABU_REF_SRC_CODE_OUT", "ABU_RSLT_CODE": "ABU_RSLT_CODE_OUT", "ABU_RSLT_UPD_DATE": "ABU_RSLT_UPD_DATE_OUT", "ABU_SCP_CODE": "ABU_SCP_CODE_OUT", "ABU_STS_CODE": "ABU_STS_CODE_OUT", "ABU_STS_UPD_DATE": "ABU_STS_UPD_DATE_OUT", "ABU_TYPE_CODE": "ABU_TYPE_CODE_OUT", "ABU_TYPE_TEXT": "ABU_TYPE_TEXT_OUT", "ABU_WTHDRW_IND": "ABU_WTHDRW_IND_OUT", "CUST_KEY": "CUST_KEY_OUT", "DUMMY": "DUMMY", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "INTL_ABU_RSLT_CODE": "INTL_ABU_RSLT_CODE_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
@@ -148,8 +147,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"ABU_ACT_OFFC_CODE": "ABU_ACT_OFFC_CODE_OUT", "ABU_ACT_OFFC_TEXT": "ABU_ACT_OFFC_TEXT_OUT", "ABU_CRE_DATE": "ABU_CRE_DATE_OUT", "ABU_FIND_DATE": "ABU_FIND_DATE_OUT", "ABU_FXT_CODE": "ABU_FXT_CODE_OUT", "ABU_REF_NUM": "ABU_REF_NUM_OUT", "ABU_REF_SRC_CODE": "ABU_REF_SRC_CODE_OUT", "ABU_RSLT_CODE": "ABU_RSLT_CODE_OUT", "ABU_RSLT_UPD_DATE": "ABU_RSLT_UPD_DATE_OUT", "ABU_SCP_CODE": "ABU_SCP_CODE_OUT", "ABU_STS_CODE": "ABU_STS_CODE_OUT", "ABU_STS_UPD_DATE": "ABU_STS_UPD_DATE_OUT", "ABU_TYPE_CODE": "ABU_TYPE_CODE_OUT", "ABU_TYPE_TEXT": "ABU_TYPE_TEXT_OUT", "ABU_WTHDRW_IND": "ABU_WTHDRW_IND_OUT", "CUST_KEY": "CUST_KEY_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "INTL_ABU_RSLT_CODE": "INTL_ABU_RSLT_CODE_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

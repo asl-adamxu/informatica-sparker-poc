@@ -79,7 +79,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_PHA_PRH_APLY_QPS")
         # Source Qualifier: apply_SQ_PHA_PRH_APLY_QPS
         df_SQ_PHA_PRH_APLY_QPS = df_PHA_PRH_APLY_QPS
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-mm-dd hh24:mi:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-mm-dd hh24:mi:ss')"""
+        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
         _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
         _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
         df_SQ_PHA_PRH_APLY_QPS = df_SQ_PHA_PRH_APLY_QPS.filter(expr(_filter_text))
@@ -114,8 +114,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"APLY_EQVLN_DATE": "APLY_EQVLN_DATE", "APLY_RGSTR_DATE": "APLY_RGSTR_DATE", "CUST_MBR_DOB_DATE": "CUST_MBR_DOB_DATE", "DUMMY": "DUMMY", "HSE_BNFT_CHK_DATE": "HSE_BNFT_CHK_DATE", "HSE_BNFT_REF_NUM": "HSE_BNFT_REF_NUM", "HSE_BNFT_TYPE_CODE": "HSE_BNFT_TYPE_CODE", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "OCPY_STS_CODE": "OCPY_STS_CODE", "QPS_DUP_REF_PNT_NUM": "QPS_DUP_REF_PNT_NUM", "QPS_JOIN_DATE": "QPS_JOIN_DATE", "QPS_PNT_AMND_TYPE_CODE": "QPS_PNT_AMND_TYPE_CODE", "QPS_RGSTR_AGE_PNT_NUM": "QPS_RGSTR_AGE_PNT_NUM", "QPS_TOT_PNT_NUM": "QPS_TOT_PNT_NUM", "QPS_WAIT_MTH_PNT_NUM": "QPS_WAIT_MTH_PNT_NUM"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
@@ -136,8 +135,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"APLY_EQVLN_DATE": "APLY_EQVLN_DATE", "APLY_RGSTR_DATE": "APLY_RGSTR_DATE", "CUST_MBR_DOB_DATE": "CUST_MBR_DOB_DATE", "HSE_BNFT_CHK_DATE": "HSE_BNFT_CHK_DATE", "HSE_BNFT_REF_NUM": "HSE_BNFT_REF_NUM", "HSE_BNFT_TYPE_CODE": "HSE_BNFT_TYPE_CODE", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "OCPY_STS_CODE": "OCPY_STS_CODE", "QPS_DUP_REF_PNT_NUM": "QPS_DUP_REF_PNT_NUM", "QPS_JOIN_DATE": "QPS_JOIN_DATE", "QPS_PNT_AMND_TYPE_CODE": "QPS_PNT_AMND_TYPE_CODE", "QPS_RGSTR_AGE_PNT_NUM": "QPS_RGSTR_AGE_PNT_NUM", "QPS_TOT_PNT_NUM": "QPS_TOT_PNT_NUM", "QPS_WAIT_MTH_PNT_NUM": "QPS_WAIT_MTH_PNT_NUM"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

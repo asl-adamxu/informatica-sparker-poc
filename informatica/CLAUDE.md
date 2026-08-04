@@ -82,6 +82,12 @@ This file captures conventions, patterns, and rules established during developme
 ### Workflow Run Markers
 - Each `run_workflow()` call prints `===== ... START` / `===== ... END` separators so multiple runs are visually distinguishable in the log.
 
+### Decision Task (v2026.08.04)
+- Informatica **Decision** tasks in WF_EMS_EX have empty `Decision Name` attributes and conditionless links — they are **batch barriers** between waves of parallel extract sessions (wave N sessions → Decision → wave N+1). **They ARE converted as real plan steps** (user preference: keep the structure visible); their DAG levels keep the session waves ordered, and the sequential `parallel_group` execution enforces the barrier.
+- `TASK_INFO` entry: `{"type": "decision"}` — the `condition` field (Decision Name attr) is emitted **only when non-empty** (non-default config rule).
+- **Misleading log removed** (`runtime_lib.py.j2`): the validation warning `"Task 'X' has no TASK_INFO entry, will skip"` is now `logger.debug("Task 'X' has no special handler, pass-through")` — tasks without a special handler (conditionless Decision, etc.) are pass-throughs, not skips, and debug is invisible at INFO level.
+- **Never delete Decision nodes from the DAG** before leveling — that merges adjacent waves into one giant parallel group (all sessions parallel), losing the barrier semantics.
+
 ### Task Command Handling
 - Command tasks (e.g. `T_RM_CMS_CACHE_FACT`) are extracted from XML `<VALUEPAIR>` elements and stored in `TASK_INFO` with `"type": "command"` and the command list.
 - `execute_plan_step` handles both the standalone `"task"` type step AND tasks embedded inside `parallel_group` steps.
@@ -110,10 +116,23 @@ This file captures conventions, patterns, and rules established during developme
 - **Template** (mapping.py.j2): Before processing `computed_columns`, generates a left join with the lookup DataFrame for each inline lookup in `inline_lookup_joins`.
 - **`_translate_lkp_references`** (expr_translator.py) is now a fallback — inline lookups are resolved before translate() is called.
 
-### Oracle JDBC Log Suppression
-- Oracle JDBC driver trace messages (e.g. "Closing down clientserver connection") are suppressed by `_SuppressOracleTraceFilter` on the root logger in `init_logger`.
-- `test_connection` also sets `java.util.logging.Logger.getLogger("oracle.jdbc").setLevel(Level.SEVERE)` as a second line of defense.
+### py4j Log Suppression (v2026.08.04)
+- **"Closing down clientserver connection"** (seen in every workflow log after parallel mapping groups) is **py4j's own Python-side logger** (`py4j/clientserver.py` `ClientServerConnection.close()` logs at INFO), NOT the Oracle JDBC driver — the message propagates from the `py4j` logger to root and lands in workflow log files with the Python formatter.
+- **Fix** (`init_logger` in runtime_lib.py.j2): `logging.getLogger("py4j").setLevel(logging.WARNING)` — quiets `py4j`, `py4j.clientserver`, `py4j.java_gateway` (children inherit), keeps WARNING+ visible.
+- `test_connection` sets `java.util.logging.Logger.getLogger("oracle.jdbc").setLevel(Level.SEVERE)` as defense against JVM-side oracle trace.
 - JDBC reads must NOT set `isolationLevel` — Oracle JDBC driver rejects explicit isolation levels. Rely on Oracle's default `READ_COMMITTED`.
+
+### Timer Task Support (v2026.08.04)
+- **Problem**: Informatica Timer tasks (`TYPE="Timer"`, e.g. `START_RELATIVE_TO_PREVIOUSTASK` + `RECURRING 25 MINUTES`) generated as an empty `task` step — runtime logged "no commands defined" and completed instantly, so downstream worklets started immediately instead of after the 25-minute wait.
+- **Semantics**: `START_RELATIVE_TO_PREVIOUSTASK` = start counting when the previous task completes, fire downstream after the RECURRING interval.
+- **Parser** (`parser.py`): extracts `<TIMER TIMERTYPE=...><RECURRING DAYS/HOURS/MINUTES/></TIMER>` into `task["timer"]` (`timertype` + `days`/`hours`/`minutes`, ints with TypeError/ValueError guards).
+- **service.py**: `task_info[name] = {"type": "timer", "timer": {...}}`.
+- **Runtime** (`runtime_lib.py.j2`): `_apply_task_timer(tcfg, task_name)` sleeps `days*86400 + hours*3600 + minutes*60` seconds; called in BOTH task branches (`parallel_group` loop + standalone `task` step) after `tcfg` is fetched. Timer steps stay in their parallel group — since the group starts right after the timer's previous task completes, the sleep is equivalent to Informatica's relative timing.
+
+### Unconnected INPUT Port → NULL (v2026.08.04)
+- **Problem**: Expression transforms can declare INPUT ports that NO connector feeds (e.g. `ELDR_MBR_ID_TYPE_CODE/NUM/UNIT_KEY` in `M_S5_SSAL1_EXTRACT_TRF_REF_CASE` — added after the upstream SQ was refreshed). Generated code referenced them directly → `[UNRESOLVED_COLUMN]` crash.
+- **Informatica semantics**: unconnected input ports hold **NULL** at runtime (or the port's DEFAULTVALUE if set) — legal, no error.
+- **Fix** (`handlers.py` `_handle_expression`): compute `_connected_inputs` (all `conn.to_field` feeding this instance, lowercased); any INPUT-typed field not in the set is replaced in expression texts (word-boundary, case-insensitive) with `'defaultvalue'` (single-quoted, quotes doubled) or `NULL`. Runs before `:LKP.` replacement/remap so downstream translation sees valid SQL — `expr("ltrim(rtrim(NULL))")` returns NULL in Spark.
 
 ### Multi-Input Expression & Mapplet Handling
 - **Problem**: Expressions/mapplets with multiple upstream DataFrames (e.g. EXPTRANS1 with 12 upstream mapplets) only got one input DF; column references like `IN_HSHLD_SIZE` failed.
@@ -480,12 +499,12 @@ As of **2026-08-04** (version **v2026.08.04**), 10 workflows (~1,130 mappings) h
 | WF_EMS_PRHE_DDS_APLY_RVN_MTH | 25 | 3.1M | **Zero warnings** (fixed 8) |
 | WF_EMS_PRHE_DDS_APLY_HSE_STCK_MTH | 28 | 3.9M | **Data-validated** (fixed 15+) |
 | WF_EMS_DDS_APLY_MTH | 49 | 4.0M | **Round complete (v2026.08.03)** — schema `{_schema}` ireplace, SP signature probing (`call_stored_procedure` + OUT binding), YARN-safe local file reads, interpreter lockstep, Update Strategy |
+| WF_EMS_EX | 142 | 9.6M | **Round complete (v2026.08.04)** — Oracle date format (`hh24/mi` → Spark patterns), py4j log suppression, Timer task wait, unconnected input port → NULL, Decision task barrier |
+| WF_NHS_EX | 46 | 2.2M | **Round complete (v2026.08.04)** — Oracle date format (`hh24/mi` → Spark patterns), py4j log suppression |
 
 ### ⚠️ Converted (Not Yet Runtime Tested)
 | Workflow | Mappings | XML Size | Notes |
 |----------|----------|----------|-------|
-| WF_EMS_EX | 142 | 9.6M | Source system extract (SSAL1) |
-| WF_NHS_EX | 46 | 2.2M | Source system extract (SSAL1) |
 | WF_EMS_TL | 581 | 36M | Transform & load (largest) |
 | WF_NHS_TL | 174 | 11M | Transform & load |
 
@@ -506,6 +525,11 @@ As of **2026-08-04** (version **v2026.08.04**), 10 workflows (~1,130 mappings) h
 | Sequence Generator | WF_HOMES_DDS_APLY_DMNS | ✅ |
 | Mapplet (inline mini-DAG) | WF_CMS_DDS_APLY_MTH | ✅ |
 | Stored Procedure | WF_CMS_DDS_APLY_MTH | ✅ |
+| Timer task (START_RELATIVE_TO_PREVIOUSTASK + RECURRING) | WF_EMS_EX | ✅ |
+| Decision task (conditionless batch barrier) | WF_EMS_EX | ✅ |
+| Unconnected Expression input port → NULL | WF_EMS_EX | ✅ |
+| Oracle date-format literal → Spark pattern (`hh24`, `mi`) | WF_NHS_EX, WF_EMS_EX | ✅ |
+| py4j log suppression ("Closing down clientserver connection") | All workflows | ✅ |
 | Update Strategy / Sorter (ISSORTKEY, rename) | WF_CMS_DDS_APLY_MTH, WF_EMS_PRHE_DDS_APLY_RVN_MTH | ✅ |
 | Inline Lookup (`:LKP.xxx()`) | WF_CMS_DDS_APLY_MTH | ✅ |
 | Multi-input merge | WF_CMS_DDS_APLY_MTH | ✅ |

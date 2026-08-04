@@ -517,6 +517,7 @@ class InfaXMLParser:
                     "pyspark_equivalent": self._get_task_pyspark_equivalent(task_elem.get("TYPE", "")),
                     "attributes": {},
                     "commands": [],
+                    "timer": None,
                 }
                 for attr in task_elem.findall("ATTRIBUTE"):
                     task["attributes"][attr.get("NAME", "")] = attr.get("VALUE", "")
@@ -526,6 +527,26 @@ class InfaXMLParser:
                         "value": vp.get("VALUE", ""),
                         "exec_order": vp.get("EXECORDER", "1"),
                     })
+                # Timer task: TIMERTYPE + RECURRING interval (e.g.
+                # START_RELATIVE_TO_PREVIOUSTASK + 25 minutes = wait 25 min
+                # after the previous task completes).
+                for tm in task_elem.findall("TIMER"):
+                    task["timer"] = {
+                        "timertype": tm.get("TIMERTYPE", ""),
+                    }
+                    for rec in tm.findall("RECURRING"):
+                        try:
+                            task["timer"]["days"] = int(rec.get("DAYS", 0) or 0)
+                        except (TypeError, ValueError):
+                            task["timer"]["days"] = 0
+                        try:
+                            task["timer"]["hours"] = int(rec.get("HOURS", 0) or 0)
+                        except (TypeError, ValueError):
+                            task["timer"]["hours"] = 0
+                        try:
+                            task["timer"]["minutes"] = int(rec.get("MINUTES", 0) or 0)
+                        except (TypeError, ValueError):
+                            task["timer"]["minutes"] = 0
                 workflow_analysis["tasks"].append(task)
 
             for link_elem in wf_elem.findall("WORKFLOWLINK"):

@@ -134,6 +134,10 @@ def init_logger(log_name: str = None):
         if not any(isinstance(h, logging.FileHandler) for h in root_logger.handlers):
             root_logger.addHandler(file_handler)
 
+    # Quiet py4j's own chatty INFO logs (e.g. "Closing down clientserver
+    # connection" on every gateway connection close) — keep WARNING+ only.
+    logging.getLogger("py4j").setLevel(logging.WARNING)
+
     return logger
 
 

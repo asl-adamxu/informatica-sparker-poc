@@ -79,7 +79,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_REF_CASE_TYPE")
         # Source Qualifier: apply_SQ_REF_CASE_TYPE
         df_SQ_REF_CASE_TYPE = df_REF_CASE_TYPE
-        _filter_text = """LAST_REC_TXN_DATE> to_date('$$v_load_start_ds','yyyy-mm-dd hh24:mi:ss') AND LAST_REC_TXN_DATE<= to_date('$$v_load_end_ds','yyyy-mm-dd hh24:mi:ss')"""
+        _filter_text = """LAST_REC_TXN_DATE> to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE<= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
         _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
         _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
         df_SQ_REF_CASE_TYPE = df_SQ_REF_CASE_TYPE.filter(expr(_filter_text))
@@ -106,7 +106,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_MPLT_TRANS_TIME_STAMP_EXPTRANS3")
         # Expression: apply_MPLT_TRANS_TIME_STAMP_EXPTRANS3
         df_MPLT_TRANS_TIME_STAMP_EXPTRANS3 = df_EXPTRANS
-        df_MPLT_TRANS_TIME_STAMP_EXPTRANS3 = df_MPLT_TRANS_TIME_STAMP_EXPTRANS3.withColumn("LAST_REC_TXN_DATE1", expr("CASE WHEN NOT (LAST_REC_TXN_DATE IS NULL) THEN date_format(LAST_REC_TXN_DATE, 'dd-MMM-yy HH.mm.ss') || '.000000 ' || date_format(LAST_REC_TXN_DATE, 'AM') ELSE null END"))
+        df_MPLT_TRANS_TIME_STAMP_EXPTRANS3 = df_MPLT_TRANS_TIME_STAMP_EXPTRANS3.withColumn("LAST_REC_TXN_DATE1", expr("CASE WHEN NOT (LAST_REC_TXN_DATE IS NULL) THEN date_format(LAST_REC_TXN_DATE, 'dd-MMM-yy hh.mm.ss') || '.000000 ' || date_format(LAST_REC_TXN_DATE, 'a') ELSE null END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_MPLT_TRANS_TIME_STAMP_EXPTRANS3", df_MPLT_TRANS_TIME_STAMP_EXPTRANS3)
@@ -125,8 +125,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE1", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "REF_CASE_TYPE_CODE": "REF_CASE_TYPE_CODE", "REF_CASE_TYPE_DESP": "REF_CASE_TYPE_DESP", "REF_CODE_BGN_DATE": "REF_CODE_BGN_DATE", "REF_CODE_END_DATE": "REF_CODE_END_DATE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
@@ -147,8 +146,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"DUMMY": "DUMMY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE1", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "REF_CASE_TYPE_CODE": "REF_CASE_TYPE_CODE", "REF_CASE_TYPE_DESP": "REF_CASE_TYPE_DESP", "REF_CODE_BGN_DATE": "REF_CODE_BGN_DATE", "REF_CODE_END_DATE": "REF_CODE_END_DATE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

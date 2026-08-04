@@ -79,7 +79,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_TAM_EXTNT_INFO")
         # Source Qualifier: apply_SQ_TAM_EXTNT_INFO
         df_SQ_TAM_EXTNT_INFO = df_TAM_EXTNT_INFO
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-mm-dd hh24:mi:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-mm-dd hh24:mi:ss')"""
+        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
         _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
         _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
         df_SQ_TAM_EXTNT_INFO = df_SQ_TAM_EXTNT_INFO.filter(expr(_filter_text))
@@ -138,8 +138,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"AMND_FLAT_RCVR_DATE": "AMND_FLAT_RCVR_DATE_OUT", "AMND_FWD_ADDR": "AMND_FWD_ADDR_OUT", "AMND_TNCY_AGRMT_TRMT_DATE": "AMND_TNCY_AGRMT_TRMT_DATE_OUT", "CUST_KEY": "CUST_KEY_OUT", "EXTNT_PRPL_CHI_NAME": "EXTNT_PRPL_CHI_NAME_OUT", "EXTNT_PRPL_ENG_NAME": "EXTNT_PRPL_ENG_NAME_OUT", "EXTNT_PRPL_ID_NUM": "EXTNT_PRPL_ID_NUM_OUT", "EXTNT_PRPL_ID_TYPE_CODE": "EXTNT_PRPL_ID_TYPE_CODE_OUT", "EXTNT_REC_CRE_DATE": "EXTNT_REC_CRE_DATE_OUT", "EXTNT_REC_PRN_IND": "EXTNT_REC_PRN_IND_OUT", "EXTNT_REC_RMK_TEXT": "EXTNT_REC_RMK_TEXT_OUT", "FMLY_SIZE_NUM": "FMLY_SIZE_NUM_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "HSE_UNIT_CRE_DATE": "HSE_UNIT_CRE_DATE_OUT", "HSE_UNIT_DMLH_DATE": "HSE_UNIT_DMLH_DATE_OUT", "HSE_UNIT_DMLH_RSN_TEXT": "HSE_UNIT_DMLH_RSN_TEXT_OUT", "HSE_UNIT_HIST_KEY": "HSE_UNIT_HIST_KEY_OUT", "HSE_UNIT_KEY": "HSE_UNIT_KEY_OUT", "HSHLD_SCORE_NUM": "HSHLD_SCORE_NUM_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "MAIN_ROOM_HSE_UNIT_KEY": "MAIN_ROOM_HSE_UNIT_KEY_OUT", "ORIG_FLAT_RCVR_DATE": "ORIG_FLAT_RCVR_DATE_OUT", "ORIG_FWD_ADDR": "ORIG_FWD_ADDR_OUT", "ORIG_TNCY_AGRMT_TRMT_DATE": "ORIG_TNCY_AGRMT_TRMT_DATE_OUT", "RENT_FCTR_CODE": "RENT_FCTR_CODE_OUT", "TNCY_AGRMT_CMNC_DATE": "TNCY_AGRMT_CMNC_DATE_OUT", "TNCY_CNCL_CODE": "TNCY_CNCL_CODE_OUT", "TNCY_CNCL_RMK_TEXT": "TNCY_CNCL_RMK_TEXT_OUT", "WARN_ACTV_IND": "WARN_ACTV_IND"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
@@ -160,8 +159,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"AMND_FLAT_RCVR_DATE": "AMND_FLAT_RCVR_DATE_OUT", "AMND_FWD_ADDR": "AMND_FWD_ADDR_OUT", "AMND_TNCY_AGRMT_TRMT_DATE": "AMND_TNCY_AGRMT_TRMT_DATE_OUT", "CUST_KEY": "CUST_KEY_OUT", "DUMMY": "DUMMY", "EXTNT_PRPL_CHI_NAME": "EXTNT_PRPL_CHI_NAME_OUT", "EXTNT_PRPL_ENG_NAME": "EXTNT_PRPL_ENG_NAME_OUT", "EXTNT_PRPL_ID_NUM": "EXTNT_PRPL_ID_NUM_OUT", "EXTNT_PRPL_ID_TYPE_CODE": "EXTNT_PRPL_ID_TYPE_CODE_OUT", "EXTNT_REC_CRE_DATE": "EXTNT_REC_CRE_DATE_OUT", "EXTNT_REC_PRN_IND": "EXTNT_REC_PRN_IND_OUT", "EXTNT_REC_RMK_TEXT": "EXTNT_REC_RMK_TEXT_OUT", "FMLY_SIZE_NUM": "FMLY_SIZE_NUM_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "HSE_UNIT_CRE_DATE": "HSE_UNIT_CRE_DATE_OUT", "HSE_UNIT_DMLH_DATE": "HSE_UNIT_DMLH_DATE_OUT", "HSE_UNIT_DMLH_RSN_TEXT": "HSE_UNIT_DMLH_RSN_TEXT_OUT", "HSE_UNIT_HIST_KEY": "HSE_UNIT_HIST_KEY_OUT", "HSE_UNIT_KEY": "HSE_UNIT_KEY_OUT", "HSHLD_SCORE_NUM": "HSHLD_SCORE_NUM_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "MAIN_ROOM_HSE_UNIT_KEY": "MAIN_ROOM_HSE_UNIT_KEY_OUT", "ORIG_FLAT_RCVR_DATE": "ORIG_FLAT_RCVR_DATE_OUT", "ORIG_FWD_ADDR": "ORIG_FWD_ADDR_OUT", "ORIG_TNCY_AGRMT_TRMT_DATE": "ORIG_TNCY_AGRMT_TRMT_DATE_OUT", "RENT_FCTR_CODE": "RENT_FCTR_CODE_OUT", "TNCY_AGRMT_CMNC_DATE": "TNCY_AGRMT_CMNC_DATE_OUT", "TNCY_CNCL_CODE": "TNCY_CNCL_CODE_OUT", "TNCY_CNCL_RMK_TEXT": "TNCY_CNCL_RMK_TEXT_OUT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

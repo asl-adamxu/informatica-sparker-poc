@@ -79,7 +79,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_HSP_TNT_INCM_DCLR")
         # Source Qualifier: apply_SQ_HSP_TNT_INCM_DCLR
         df_SQ_HSP_TNT_INCM_DCLR = df_HSP_TNT_INCM_DCLR
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-mm-dd hh24:mi:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-mm-dd hh24:mi:ss')"""
+        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
         _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
         _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
         df_SQ_HSP_TNT_INCM_DCLR = df_SQ_HSP_TNT_INCM_DCLR.filter(expr(_filter_text))
@@ -135,8 +135,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"CUST_KEY": "CUST_KEY_OUT", "DUMMY": "DUMMY", "EXTR_RENT_DTL_FRST_PRN_IND": "EXTR_RENT_DTL_FRST_PRN_IND_OUT", "EXTR_RENT_FRST_PRN_IND": "EXTR_RENT_FRST_PRN_IND_OUT", "FMLY_SIZE_NUM": "FMLY_SIZE_NUM_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "HSE_UNIT_KEY": "HSE_UNIT_KEY_OUT", "HSHLD_INCM_AMT": "HSHLD_INCM_AMT_OUT", "HSP_CASE_TYPE_CODE": "HSP_CASE_TYPE_CODE_OUT", "HSP_EXTRC_DATE": "HSP_EXTRC_DATE_OUT", "HSP_FRST_PRN_IND": "HSP_FRST_PRN_IND_OUT", "HSP_IDF_STS_IND": "HSP_IDF_STS_IND_OUT", "HSP_OPT_NOT_DCLR_IND": "HSP_OPT_NOT_DCLR_IND_OUT", "HSP_REC_KEY": "HSP_REC_KEY_OUT", "HSP_REF_PHRM_IND": "HSP_REF_PHRM_IND_OUT", "HSP_RENT_BGN_DATE": "HSP_RENT_BGN_DATE_OUT", "HSP_RENT_CHNG_RSN_CODE": "HSP_RENT_CHNG_RSN_CODE_OUT", "HSP_RENT_CHNG_RSN_TEXT": "HSP_RENT_CHNG_RSN_TEXT_OUT", "HSP_RENT_END_DATE": "HSP_RENT_END_DATE_OUT", "HSP_RENT_FCTR_CODE": "HSP_RENT_FCTR_CODE_OUT", "HSP_RMK_TEXT": "HSP_RMK_TEXT_OUT", "HSP_RVW_YEAR": "HSP_RVW_YEAR_OUT", "HSP_STS_CODE": "HSP_STS_CODE_OUT", "IMG_DOC_KEY": "IMG_DOC_KEY_OUT", "IMG_MINS_KEY": "IMG_MINS_KEY_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "ORIG_HSE_SRVC_APLY_KEY": "ORIG_HSE_SRVC_APLY_KEY_OUT", "RENT_RVW_CATG_BGN_DATE": "RENT_RVW_CATG_BGN_DATE_OUT", "RENT_RVW_CATG_CODE": "RENT_RVW_CATG_CODE_OUT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
@@ -157,8 +156,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"CUST_KEY": "CUST_KEY_OUT", "EXTR_RENT_DTL_FRST_PRN_IND": "EXTR_RENT_DTL_FRST_PRN_IND_OUT", "EXTR_RENT_FRST_PRN_IND": "EXTR_RENT_FRST_PRN_IND_OUT", "FMLY_SIZE_NUM": "FMLY_SIZE_NUM_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "HSE_UNIT_KEY": "HSE_UNIT_KEY_OUT", "HSHLD_INCM_AMT": "HSHLD_INCM_AMT_OUT", "HSP_CASE_TYPE_CODE": "HSP_CASE_TYPE_CODE_OUT", "HSP_EXTRC_DATE": "HSP_EXTRC_DATE_OUT", "HSP_FRST_PRN_IND": "HSP_FRST_PRN_IND_OUT", "HSP_IDF_STS_IND": "HSP_IDF_STS_IND_OUT", "HSP_OPT_NOT_DCLR_IND": "HSP_OPT_NOT_DCLR_IND_OUT", "HSP_REC_KEY": "HSP_REC_KEY_OUT", "HSP_REF_PHRM_IND": "HSP_REF_PHRM_IND_OUT", "HSP_RENT_BGN_DATE": "HSP_RENT_BGN_DATE_OUT", "HSP_RENT_CHNG_RSN_CODE": "HSP_RENT_CHNG_RSN_CODE_OUT", "HSP_RENT_CHNG_RSN_TEXT": "HSP_RENT_CHNG_RSN_TEXT_OUT", "HSP_RENT_END_DATE": "HSP_RENT_END_DATE_OUT", "HSP_RENT_FCTR_CODE": "HSP_RENT_FCTR_CODE_OUT", "HSP_RMK_TEXT": "HSP_RMK_TEXT_OUT", "HSP_RVW_YEAR": "HSP_RVW_YEAR_OUT", "HSP_STS_CODE": "HSP_STS_CODE_OUT", "IMG_DOC_KEY": "IMG_DOC_KEY_OUT", "IMG_MINS_KEY": "IMG_MINS_KEY_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "ORIG_HSE_SRVC_APLY_KEY": "ORIG_HSE_SRVC_APLY_KEY_OUT", "RENT_RVW_CATG_BGN_DATE": "RENT_RVW_CATG_BGN_DATE_OUT", "RENT_RVW_CATG_CODE": "RENT_RVW_CATG_CODE_OUT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

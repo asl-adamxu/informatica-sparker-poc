@@ -79,7 +79,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_TOW_TPS_AGRMT")
         # Source Qualifier: apply_SQ_TOW_TPS_AGRMT
         df_SQ_TOW_TPS_AGRMT = df_TOW_TPS_AGRMT
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-mm-dd hh24:mi:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-mm-dd hh24:mi:ss')"""
+        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
         _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
         _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
         df_SQ_TOW_TPS_AGRMT = df_SQ_TOW_TPS_AGRMT.filter(expr(_filter_text))
@@ -139,8 +139,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"APLY_MBR_REF_NUM": "APLY_MBR_REF_NUM_OUT", "APLY_MBR_TYPE_CODE": "APLY_MBR_TYPE_CODE_OUT", "CUST_KEY": "CUST_KEY_OUT", "DUMMY": "DUMMY", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "MBR_ACT_IND": "MBR_ACT_IND_OUT", "ORIG_CUST_KEY": "ORIG_CUST_KEY_OUT", "ORIG_HSE_SRVC_APLY_KEY": "ORIG_HSE_SRVC_APLY_KEY_OUT", "ORIG_HSE_UNIT_TOT_IFA_AREA": "ORIG_HSE_UNIT_TOT_IFA_AREA_OUT", "TPS_AGRMT_ASGN_DATE": "TPS_AGRMT_ASGN_DATE_OUT", "TPS_AGRMT_CRE_DATE": "TPS_AGRMT_CRE_DATE_OUT", "TPS_AGRMT_EXOWNR_REF_CODE": "TPS_AGRMT_EXOWNR_REF_CODE_OUT", "TPS_AGRMT_FRST_ASGN_DATE": "TPS_AGRMT_FRST_ASGN_DATE_OUT", "TPS_AGRMT_HOME_PHONE_NUM_1": "TPS_AGRMT_HOME_PHONE_NUM_1_OUT", "TPS_AGRMT_HOME_PHONE_NUM_2": "TPS_AGRMT_HOME_PHONE_NUM_2_OUT", "TPS_AGRMT_MBL_PHONE_NUM_1": "TPS_AGRMT_MBL_PHONE_NUM_1_OUT", "TPS_AGRMT_MBL_PHONE_NUM_2": "TPS_AGRMT_MBL_PHONE_NUM_2_OUT", "TPS_AGRMT_OFFC_PHONE_NUM_1": "TPS_AGRMT_OFFC_PHONE_NUM_1_OUT", "TPS_AGRMT_OFFC_PHONE_NUM_2": "TPS_AGRMT_OFFC_PHONE_NUM_2_OUT", "TPS_AGRMT_PHASE_CODE": "TPS_AGRMT_PHASE_CODE_OUT", "TPS_AGRMT_RMK_TEXT": "TPS_AGRMT_RMK_TEXT_OUT", "TPS_AGRMT_SEQ_NUM": "TPS_AGRMT_SEQ_NUM_OUT", "TPS_AGRMT_TRMT_DATE": "TPS_AGRMT_TRMT_DATE_OUT", "TPS_APLY_TYPE_CODE": "TPS_APLY_TYPE_CODE_OUT", "TPS_CHNG_OWNR_RMK_TEXT": "TPS_CHNG_OWNR_RMK_TEXT_OUT", "TPS_HSE_UNIT_KEY": "TPS_HSE_UNIT_KEY_OUT", "TPS_MGT_FEE_DPST_AMT": "TPS_MGT_FEE_DPST_AMT_OUT", "TPS_PCHS_FROM_CODE": "TPS_PCHS_FROM_CODE_OUT", "TPS_TRMT_TYPE_CODE": "TPS_TRMT_TYPE_CODE_OUT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
@@ -163,8 +162,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"APLY_MBR_REF_NUM": "APLY_MBR_REF_NUM_OUT", "APLY_MBR_TYPE_CODE": "APLY_MBR_TYPE_CODE_OUT", "CAS_DBR_END_DATE": "CAS_DBR_END_DATE", "CUST_KEY": "CUST_KEY_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "MBR_ACT_IND": "MBR_ACT_IND_OUT", "ORIG_CUST_KEY": "ORIG_CUST_KEY_OUT", "ORIG_HSE_SRVC_APLY_KEY": "ORIG_HSE_SRVC_APLY_KEY_OUT", "ORIG_HSE_UNIT_TOT_IFA_AREA": "ORIG_HSE_UNIT_TOT_IFA_AREA_OUT", "TPS_AGRMT_ASGN_DATE": "TPS_AGRMT_ASGN_DATE_OUT", "TPS_AGRMT_CRE_DATE": "TPS_AGRMT_CRE_DATE_OUT", "TPS_AGRMT_EXOWNR_REF_CODE": "TPS_AGRMT_EXOWNR_REF_CODE_OUT", "TPS_AGRMT_FRST_ASGN_DATE": "TPS_AGRMT_FRST_ASGN_DATE_OUT", "TPS_AGRMT_HOME_PHONE_NUM_1": "TPS_AGRMT_HOME_PHONE_NUM_1_OUT", "TPS_AGRMT_HOME_PHONE_NUM_2": "TPS_AGRMT_HOME_PHONE_NUM_2_OUT", "TPS_AGRMT_MBL_PHONE_NUM_1": "TPS_AGRMT_MBL_PHONE_NUM_1_OUT", "TPS_AGRMT_MBL_PHONE_NUM_2": "TPS_AGRMT_MBL_PHONE_NUM_2_OUT", "TPS_AGRMT_OFFC_PHONE_NUM_1": "TPS_AGRMT_OFFC_PHONE_NUM_1_OUT", "TPS_AGRMT_OFFC_PHONE_NUM_2": "TPS_AGRMT_OFFC_PHONE_NUM_2_OUT", "TPS_AGRMT_PHASE_CODE": "TPS_AGRMT_PHASE_CODE_OUT", "TPS_AGRMT_RMK_TEXT": "TPS_AGRMT_RMK_TEXT_OUT", "TPS_AGRMT_SEQ_NUM": "TPS_AGRMT_SEQ_NUM_OUT", "TPS_AGRMT_TRMT_DATE": "TPS_AGRMT_TRMT_DATE_OUT", "TPS_APLY_TYPE_CODE": "TPS_APLY_TYPE_CODE_OUT", "TPS_CHNG_OWNR_RMK_TEXT": "TPS_CHNG_OWNR_RMK_TEXT_OUT", "TPS_HSE_UNIT_KEY": "TPS_HSE_UNIT_KEY_OUT", "TPS_MGT_FEE_DPST_AMT": "TPS_MGT_FEE_DPST_AMT_OUT", "TPS_PCHS_FROM_CODE": "TPS_PCHS_FROM_CODE_OUT", "TPS_TRMT_TYPE_CODE": "TPS_TRMT_TYPE_CODE_OUT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

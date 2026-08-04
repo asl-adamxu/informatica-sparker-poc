@@ -135,8 +135,7 @@ LAST_REC_TXN_DATE<= to_date('$$v_load_end_ds','yyyy-mm-dd hh24:mi:ss')"""
         _field_map = {"DTMO_DSTR_CODE": "DTMO_DSTR_CODE_OUT", "HSE_EST_KEY": "HSE_EST_KEY_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "PRH_EST_EMAC_IND": "PRH_EST_EMAC_IND_OUT", "PRH_EST_TPU_NUM": "PRH_EST_TPU_NUM_OUT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

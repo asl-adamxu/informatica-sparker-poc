@@ -79,7 +79,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_TAM_RAS_HIST")
         # Source Qualifier: apply_SQ_TAM_RAS_HIST
         df_SQ_TAM_RAS_HIST = df_TAM_RAS_HIST
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-mm-dd hh24:mi:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-mm-dd hh24:mi:ss')"""
+        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
         _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
         _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
         df_SQ_TAM_RAS_HIST = df_SQ_TAM_RAS_HIST.filter(expr(_filter_text))
@@ -124,8 +124,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"CUST_KEY": "CUST_KEY1", "DUMMY": "DUMMY", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY1", "HSE_UNIT_CODE_ADDR": "HSE_UNIT_CODE_ADDR1", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE1", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE1", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID1", "ORIG_RAS_RENT_FCTR_CODE": "ORIG_RAS_RENT_FCTR_CODE1", "RAS_CNCL_DATE": "RAS_CNCL_DATE1", "RAS_CNCL_IND": "RAS_CNCL_IND1", "RAS_CNCL_USER_ID": "RAS_CNCL_USER_ID1", "RAS_CNFRM_DATE": "RAS_CNFRM_DATE1", "RAS_HIST_REC_KEY": "RAS_HIST_REC_KEY1", "RAS_RENT_BGN_DATE": "RAS_RENT_BGN_DATE1", "RAS_RENT_BGN_DATE_IND": "RAS_RENT_BGN_DATE_IND1", "RAS_RENT_END_DATE": "RAS_RENT_END_DATE1", "RAS_RENT_FCTR_CODE": "RAS_RENT_FCTR_CODE1", "RAS_RENT_PRCS_IND": "RAS_RENT_PRCS_IND1", "RAS_TNCY_TYPE_CODE": "RAS_TNCY_TYPE_CODE1", "RAS_UPD_CNT": "RAS_UPD_CNT1"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
@@ -146,8 +145,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"CUST_KEY": "CUST_KEY1", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY1", "HSE_UNIT_CODE_ADDR": "HSE_UNIT_CODE_ADDR1", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE1", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE1", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID1", "ORIG_RAS_RENT_FCTR_CODE": "ORIG_RAS_RENT_FCTR_CODE1", "RAS_CNCL_DATE": "RAS_CNCL_DATE1", "RAS_CNCL_IND": "RAS_CNCL_IND1", "RAS_CNCL_USER_ID": "RAS_CNCL_USER_ID1", "RAS_CNFRM_DATE": "RAS_CNFRM_DATE1", "RAS_HIST_REC_KEY": "RAS_HIST_REC_KEY1", "RAS_RENT_BGN_DATE": "RAS_RENT_BGN_DATE1", "RAS_RENT_BGN_DATE_IND": "RAS_RENT_BGN_DATE_IND1", "RAS_RENT_END_DATE": "RAS_RENT_END_DATE1", "RAS_RENT_FCTR_CODE": "RAS_RENT_FCTR_CODE1", "RAS_RENT_PRCS_IND": "RAS_RENT_PRCS_IND1", "RAS_TNCY_TYPE_CODE": "RAS_TNCY_TYPE_CODE1", "RAS_UPD_CNT": "RAS_UPD_CNT1"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

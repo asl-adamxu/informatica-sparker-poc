@@ -79,7 +79,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_HSM_HSE_UNIT_HIST")
         # Source Qualifier: apply_SQ_HSM_HSE_UNIT_HIST
         df_SQ_HSM_HSE_UNIT_HIST = df_HSM_HSE_UNIT_HIST
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-mm-dd hh24:mi:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-mm-dd hh24:mi:ss')"""
+        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
         _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
         _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
         df_SQ_HSM_HSE_UNIT_HIST = df_SQ_HSM_HSE_UNIT_HIST.filter(expr(_filter_text))
@@ -119,8 +119,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"HSE_UNIT_CATG_CODE": "HSE_UNIT_CATG_CODE_OUT", "HSE_UNIT_CRE_DATE": "HSE_UNIT_CRE_DATE_OUT", "HSE_UNIT_CSL_VCNCY_IND": "HSE_UNIT_CSL_VCNCY_IND_OUT", "HSE_UNIT_DMLH_DATE": "HSE_UNIT_DMLH_DATE_OUT", "HSE_UNIT_DMLH_RSN_TEXT": "HSE_UNIT_DMLH_RSN_TEXT_OUT", "HSE_UNIT_ENV_CODE": "HSE_UNIT_ENV_CODE_OUT", "HSE_UNIT_HIST_KEY": "HSE_UNIT_HIST_KEY_OUT", "HSE_UNIT_IFA_AREA": "HSE_UNIT_IFA_AREA_OUT", "HSE_UNIT_KEY": "HSE_UNIT_KEY_OUT", "HSE_UNIT_TYPE_CODE": "HSE_UNIT_TYPE_CODE_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "SHR_UNIT_NAME": "SHR_UNIT_NAME_OUT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
@@ -141,8 +140,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"DUMMY": "DUMMY", "HSE_UNIT_CATG_CODE": "HSE_UNIT_CATG_CODE_OUT", "HSE_UNIT_CRE_DATE": "HSE_UNIT_CRE_DATE_OUT", "HSE_UNIT_CSL_VCNCY_IND": "HSE_UNIT_CSL_VCNCY_IND_OUT", "HSE_UNIT_DMLH_DATE": "HSE_UNIT_DMLH_DATE_OUT", "HSE_UNIT_DMLH_RSN_TEXT": "HSE_UNIT_DMLH_RSN_TEXT_OUT", "HSE_UNIT_ENV_CODE": "HSE_UNIT_ENV_CODE_OUT", "HSE_UNIT_HIST_KEY": "HSE_UNIT_HIST_KEY_OUT", "HSE_UNIT_IFA_AREA": "HSE_UNIT_IFA_AREA_OUT", "HSE_UNIT_KEY": "HSE_UNIT_KEY_OUT", "HSE_UNIT_TYPE_CODE": "HSE_UNIT_TYPE_CODE_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "SHR_UNIT_NAME": "SHR_UNIT_NAME_OUT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

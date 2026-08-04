@@ -79,7 +79,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_PHA_PRH_APLY_STG_STS_HIST")
         # Source Qualifier: apply_SQ_PHA_PRH_APLY_STG_STS_HIST
         df_SQ_PHA_PRH_APLY_STG_STS_HIST = df_PHA_PRH_APLY_STG_STS_HIST
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-mm-dd hh24:mi:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-mm-dd hh24:mi:ss')"""
+        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
         _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
         _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
         df_SQ_PHA_PRH_APLY_STG_STS_HIST = df_SQ_PHA_PRH_APLY_STG_STS_HIST.filter(expr(_filter_text))
@@ -137,8 +137,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"APLY_ACPT_APRV_DATE": "APLY_ACPT_APRV_DATE_OUT", "APLY_BU_DATE_1": "APLY_BU_DATE_1_OUT", "APLY_BU_DATE_2": "APLY_BU_DATE_2_OUT", "APLY_BU_DATE_3": "APLY_BU_DATE_3_OUT", "APLY_BU_DATE_4": "APLY_BU_DATE_4_OUT", "APLY_BU_DATE_5": "APLY_BU_DATE_5_OUT", "APLY_RSN_APRV_DATE": "APLY_RSN_APRV_DATE_OUT", "APLY_RSN_CODE_1": "APLY_RSN_CODE_1_OUT", "APLY_RSN_CODE_2": "APLY_RSN_CODE_2_OUT", "APLY_RSN_CODE_3": "APLY_RSN_CODE_3_OUT", "APLY_RSN_CODE_4": "APLY_RSN_CODE_4_OUT", "APLY_RSN_CODE_5": "APLY_RSN_CODE_5_OUT", "APLY_STG_CODE": "APLY_STG_CODE_OUT", "APLY_STG_STS_CHNG_ACT_CODE": "APLY_STG_STS_CHNG_ACT_CODE_OUT", "APLY_STG_STS_CHNG_DATE": "APLY_STG_STS_CHNG_DATE_OUT", "APLY_STG_STS_CRE_DATE": "APLY_STG_STS_CRE_DATE_OUT", "APLY_STG_STS_SEQ_NUM": "APLY_STG_STS_SEQ_NUM_OUT", "APLY_STS_CODE": "APLY_STS_CODE_OUT", "BRO_IND": "BRO_IND_OUT", "BRO_JOIN_DATE": "BRO_JOIN_DATE_OUT", "BRO_PHASE_CODE": "BRO_PHASE_CODE_OUT", "BRO_STS_CODE": "BRO_STS_CODE_OUT", "DUMMY": "DUMMY", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "IELGBL_BYPS_IND": "IELGBL_BYPS_IND_OUT", "LAST_HIST_IND": "LAST_HIST_IND_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "OFR_RFSL_DATE": "OFR_RFSL_DATE_OUT", "OFR_RFSL_RSN_CODE": "OFR_RFSL_RSN_CODE_OUT", "RWL_BU_DATE": "RWL_BU_DATE_OUT", "RWL_RGSTR_DATE": "RWL_RGSTR_DATE_OUT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
@@ -384,8 +383,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"APLY_ACPT_APRV_DATE": "APLY_ACPT_APRV_DATE_OUT", "APLY_BU_DATE_1": "APLY_BU_DATE_1_OUT", "APLY_BU_DATE_2": "APLY_BU_DATE_2_OUT", "APLY_BU_DATE_3": "APLY_BU_DATE_3_OUT", "APLY_BU_DATE_4": "APLY_BU_DATE_4_OUT", "APLY_BU_DATE_5": "APLY_BU_DATE_5_OUT", "APLY_RSN_APRV_DATE": "APLY_RSN_APRV_DATE_OUT", "APLY_RSN_CODE_1": "APLY_RSN_CODE_1_OUT", "APLY_RSN_CODE_2": "APLY_RSN_CODE_2_OUT", "APLY_RSN_CODE_3": "APLY_RSN_CODE_3_OUT", "APLY_RSN_CODE_4": "APLY_RSN_CODE_4_OUT", "APLY_RSN_CODE_5": "APLY_RSN_CODE_5_OUT", "APLY_STG_CODE": "APLY_STG_CODE_OUT", "APLY_STG_STS_CHNG_ACT_CODE": "APLY_STG_STS_CHNG_ACT_CODE_OUT", "APLY_STG_STS_CHNG_DATE": "APLY_STG_STS_CHNG_DATE_OUT", "APLY_STG_STS_CRE_DATE": "APLY_STG_STS_CRE_DATE_OUT", "APLY_STG_STS_SEQ_NUM": "APLY_STG_STS_SEQ_NUM_OUT", "APLY_STS_CODE": "APLY_STS_CODE_OUT", "BRO_IND": "BRO_IND_OUT", "BRO_JOIN_DATE": "BRO_JOIN_DATE_OUT", "BRO_PHASE_CODE": "BRO_PHASE_CODE_OUT", "BRO_STS_CODE": "BRO_STS_CODE_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "IELGBL_BYPS_IND": "IELGBL_BYPS_IND_OUT", "LAST_HIST_IND": "LAST_HIST_IND_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "OFR_RFSL_DATE": "OFR_RFSL_DATE_OUT", "OFR_RFSL_RSN_CODE": "OFR_RFSL_RSN_CODE_OUT", "RWL_BU_DATE": "RWL_BU_DATE_OUT", "RWL_RGSTR_DATE": "RWL_RGSTR_DATE_OUT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

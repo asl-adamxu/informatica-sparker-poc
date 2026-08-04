@@ -70,7 +70,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         df_EXP_DATE = df_EXP_DATE.withColumn("SNSH_DATE_VAL", expr("date_format(date_add(current_timestamp(), CAST(-1 AS INT)), 'yyyyMMdd')"))
         df_EXP_DATE = df_EXP_DATE.withColumn("BGN_TIME", expr("'NHS_EXTRACT_BGN_TIME'"))
         df_EXP_DATE = df_EXP_DATE.withColumn("END_TIME", expr("'NHS_EXTRACT_END_TIME'"))
-        df_EXP_DATE = df_EXP_DATE.withColumn("END_TIME_VAL", expr("date_format(current_timestamp(), 'yyyy-mm-dd hh24:mi:ss')"))
+        df_EXP_DATE = df_EXP_DATE.withColumn("END_TIME_VAL", expr("date_format(current_timestamp(), 'yyyy-MM-dd HH:mm:ss')"))
         df_EXP_DATE = df_EXP_DATE.withColumn("BGN_TIME_VAL", expr("VAL"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["VAL"]:

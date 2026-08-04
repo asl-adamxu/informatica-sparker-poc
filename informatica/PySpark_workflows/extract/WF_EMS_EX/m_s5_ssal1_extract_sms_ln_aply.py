@@ -79,7 +79,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SMS_LN_APLY_V")
         # Source Qualifier: apply_SQ_SMS_LN_APLY_V
         df_SQ_SMS_LN_APLY_V = df_SMS_LN_APLY_V
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-mm-dd hh24:mi:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-mm-dd hh24:mi:ss')"""
+        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
         _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
         _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
         df_SQ_SMS_LN_APLY_V = df_SQ_SMS_LN_APLY_V.filter(expr(_filter_text))
@@ -136,8 +136,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"ASGN_DATE": "ASGN_DATE_OUT", "BANK_CODE": "BANK_CODE_OUT", "CAS_CERT_NUM": "CAS_CERT_NUM_OUT", "CEP_CERT_NUM": "CEP_CERT_NUM_OUT", "CHQ_NUM": "CHQ_NUM_OUT", "DCLR_DATE": "DCLR_DATE_OUT", "DUMMY": "DUMMY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "LAST_REC_TXN_USER_ID_TYPE_CODE": "LAST_REC_TXN_USER_ID_TYPE_CODE1", "LAST_STS_CHNG_DATE": "LAST_STS_CHNG_DAT_OUT", "LN_APLY_CNCL_RSN_CODE": "LN_APLY_CNCL_RSN_CODE_OUT", "LN_APLY_DATE": "LN_APLY_DATE_OUT", "LN_APLY_NUM": "LN_APLY_NUM_OUT", "LN_APLY_REJ_RSN_CODE": "LN_APLY_REJ_RSN_CODE_OUT", "LN_APLY_RINSTA_RSN_CODE": "LN_APLY_RINSTA_RSN_CODE_OUT", "LN_APLY_SBMT_DATE": "LN_APLY_SBMT_DATE_OUT", "LN_APLY_STS_CODE": "LN_APLY_STS_CODE_OUT", "LN_PRN_IND": "LN_PRN_IND_OUT", "PASP_DATE": "PASP_DATE_OUT", "PCHSR_HKIC_NUM_1": "PCHSR_HKIC_NUM_1_OUT", "PCHSR_HKIC_NUM_2": "PCHSR_HKIC_NUM_2_OUT", "PCHSR_HKIC_NUM_3": "PCHSR_HKIC_NUM_3_OUT", "PCHS_PRC_AMT": "PCHS_PRC_AMT_OUT", "RCPT_AMT": "RCPT_AMT_OUT", "RCPT_DATE": "RCPT_DATE_OUT", "SALE_PCHS_DATE": "SALE_PCHS_DATE_OUT", "SALE_TXN_TYPE_CODE": "SALE_TXN_TYPE_CODE_OUT", "SCHM_CODE": "SCHM_CODE_OUT", "TNTV_ASGN_DATE": "TNTV_ASGN_DATE_OUT", "TNTV_SALE_PCHS_DATE": "TNTV_SALE_PCHS_DATE_OUT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
@@ -158,8 +157,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"ASGN_DATE": "ASGN_DATE_OUT", "BANK_CODE": "BANK_CODE_OUT", "CAS_CERT_NUM": "CAS_CERT_NUM_OUT", "CEP_CERT_NUM": "CEP_CERT_NUM_OUT", "CHQ_NUM": "CHQ_NUM_OUT", "DCLR_DATE": "DCLR_DATE_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "LAST_REC_TXN_USER_ID_TYPE_CODE": "LAST_REC_TXN_USER_ID_TYPE_CODE1", "LAST_STS_CHNG_DATE": "LAST_STS_CHNG_DAT_OUT", "LN_APLY_CNCL_RSN_CODE": "LN_APLY_CNCL_RSN_CODE_OUT", "LN_APLY_DATE": "LN_APLY_DATE_OUT", "LN_APLY_NUM": "LN_APLY_NUM_OUT", "LN_APLY_REJ_RSN_CODE": "LN_APLY_REJ_RSN_CODE_OUT", "LN_APLY_RINSTA_RSN_CODE": "LN_APLY_RINSTA_RSN_CODE_OUT", "LN_APLY_SBMT_DATE": "LN_APLY_SBMT_DATE_OUT", "LN_APLY_STS_CODE": "LN_APLY_STS_CODE_OUT", "LN_PRN_IND": "LN_PRN_IND_OUT", "PASP_DATE": "PASP_DATE_OUT", "PCHSR_HKIC_NUM_1": "PCHSR_HKIC_NUM_1_OUT", "PCHSR_HKIC_NUM_2": "PCHSR_HKIC_NUM_2_OUT", "PCHSR_HKIC_NUM_3": "PCHSR_HKIC_NUM_3_OUT", "PCHS_PRC_AMT": "PCHS_PRC_AMT_OUT", "RCPT_AMT": "RCPT_AMT_OUT", "RCPT_DATE": "RCPT_DATE_OUT", "SALE_PCHS_DATE": "SALE_PCHS_DATE_OUT", "SALE_TXN_TYPE_CODE": "SALE_TXN_TYPE_CODE_OUT", "SCHM_CODE": "SCHM_CODE_OUT", "TNTV_ASGN_DATE": "TNTV_ASGN_DATE_OUT", "TNTV_SALE_PCHS_DATE": "TNTV_SALE_PCHS_DATE_OUT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

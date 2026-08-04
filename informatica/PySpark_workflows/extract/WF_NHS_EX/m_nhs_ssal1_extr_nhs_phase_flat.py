@@ -79,7 +79,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_NHS_PHASE_FLAT")
         # Source Qualifier: apply_SQ_NHS_PHASE_FLAT
         df_SQ_NHS_PHASE_FLAT = df_NHS_PHASE_FLAT
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-mm-dd hh24:mi:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-mm-dd hh24:mi:ss')"""
+        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
         _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
         _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
         df_SQ_NHS_PHASE_FLAT = df_SQ_NHS_PHASE_FLAT.filter(expr(_filter_text))
@@ -107,8 +107,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"ASGN_SLCTR_ID": "ASGN_SLCTR_ID", "FLAT_TYPE_CODE": "FLAT_TYPE_CODE", "FLAT_TYPE_DESP": "FLAT_TYPE_DESP", "FRST_ASGN_DATE": "FRST_ASGN_DATE", "GSH_IND": "GSH_IND", "HOS_FLAT_ID": "HOS_FLAT_ID", "INFLT_PCT_1": "INFLT_PCT_1", "INFLT_PCT_2": "INFLT_PCT_2", "INTL_MKT_VAL_AMT": "INTL_MKT_VAL_AMT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "LIST_PRC_AMT": "LIST_PRC_AMT", "PHASE_CODE": "PHASE_CODE", "PRMY_ENV_CHI_DESP": "PRMY_ENV_CHI_DESP", "PRMY_ENV_CODE": "PRMY_ENV_CODE", "PRMY_ENV_ENG_DESP": "PRMY_ENV_ENG_DESP", "ROW_VER_NUM": "ROW_VER_NUM", "SALE_PRC_AMT": "SALE_PRC_AMT", "SCND_ENV_CHI_DESP_1": "SCND_ENV_CHI_DESP_1", "SCND_ENV_CHI_DESP_2": "SCND_ENV_CHI_DESP_2", "SCND_ENV_CHI_DESP_3": "SCND_ENV_CHI_DESP_3", "SCND_ENV_CHI_DESP_4": "SCND_ENV_CHI_DESP_4", "SCND_ENV_CODE_1": "SCND_ENV_CODE_1", "SCND_ENV_CODE_2": "SCND_ENV_CODE_2", "SCND_ENV_CODE_3": "SCND_ENV_CODE_3", "SCND_ENV_CODE_4": "SCND_ENV_CODE_4", "SCND_ENV_ENG_DESP_1": "SCND_ENV_ENG_DESP_1", "SCND_ENV_ENG_DESP_2": "SCND_ENV_ENG_DESP_2", "SCND_ENV_ENG_DESP_3": "SCND_ENV_ENG_DESP_3", "SCND_ENV_ENG_DESP_4": "SCND_ENV_ENG_DESP_4", "SDV_AMT": "SDV_AMT", "STMP_DUTY_AMT_1": "STMP_DUTY_AMT_1", "STMP_DUTY_AMT_2": "STMP_DUTY_AMT_2", "STMP_DUTY_AMT_3": "STMP_DUTY_AMT_3"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

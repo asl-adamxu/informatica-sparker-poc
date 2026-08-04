@@ -79,7 +79,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_HOW_HOS_OWN")
         # Source Qualifier: apply_SQ_HOW_HOS_OWN
         df_SQ_HOW_HOS_OWN = df_HOW_HOS_OWN
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-mm-dd hh24:mi:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-mm-dd hh24:mi:ss')"""
+        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
         _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
         _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
         df_SQ_HOW_HOS_OWN = df_SQ_HOW_HOS_OWN.filter(expr(_filter_text))
@@ -134,8 +134,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"CUST_KEY": "CUST_KEY_OUT", "DUMMY": "DUMMY", "HOS_EXOWNR_REF_CODE": "HOS_EXOWNR_REF_CODE_OUT", "HOS_KEY_HOVR_DATE": "HOS_KEY_HOVR_DATE_OUT", "HOS_KEY_HOVR_INPT_DATE": "HOS_KEY_HOVR_INPT_DATE_OUT", "HOS_OWN_ASGN_DATE": "HOS_OWN_ASGN_DATE_OUT", "HOS_OWN_CRE_DATE": "HOS_OWN_CRE_DATE_OUT", "HOS_OWN_CRSP_ENG_ADDR_1": "HOS_OWN_CRSP_ENG_ADDR_1_OUT", "HOS_OWN_CRSP_ENG_ADDR_2": "HOS_OWN_CRSP_ENG_ADDR_2_OUT", "HOS_OWN_CRSP_ENG_ADDR_3": "HOS_OWN_CRSP_ENG_ADDR_3_OUT", "HOS_OWN_HOME_ENG_ADDR_1": "HOS_OWN_HOME_ENG_ADDR_1_OUT", "HOS_OWN_HOME_ENG_ADDR_2": "HOS_OWN_HOME_ENG_ADDR_2_OUT", "HOS_OWN_HOME_ENG_ADDR_3": "HOS_OWN_HOME_ENG_ADDR_3_OUT", "HOS_OWN_HOME_PHONE_NUM": "HOS_OWN_HOME_PHONE_NUM_OUT", "HOS_OWN_OFFC_PHONE_NUM": "HOS_OWN_OFFC_PHONE_NUM_OUT", "HOS_OWN_PCHS_FROM_CODE": "HOS_OWN_PCHS_FROM_CODE_OUT", "HOS_OWN_RMK_TEXT": "HOS_OWN_RMK_TEXT_OUT", "HOS_OWN_SIGN_DATE": "HOS_OWN_SIGN_DATE_OUT", "HOS_OWN_TRMT_DATE": "HOS_OWN_TRMT_DATE_OUT", "HOS_OWN_TRMT_TYPE_CODE": "HOS_OWN_TRMT_TYPE_CODE_OUT", "HOS_PHASE_CODE": "HOS_PHASE_CODE_OUT", "HOS_PRIOR_NUM": "HOS_PRIOR_NUM_OUT", "HOS_UNIT_KEY": "HOS_UNIT_KEY_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
@@ -156,8 +155,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _field_map = {"APLY_MBR_REF_NUM": "APLY_MBR_REF_NUM", "APLY_MBR_TYPE_CODE": "APLY_MBR_TYPE_CODE", "CAS_DBR_END_DATE": "CAS_DBR_END_DATE", "CUST_KEY": "CUST_KEY_OUT", "HOS_EXOWNR_REF_CODE": "HOS_EXOWNR_REF_CODE_OUT", "HOS_KEY_HOVR_DATE": "HOS_KEY_HOVR_DATE_OUT", "HOS_KEY_HOVR_INPT_DATE": "HOS_KEY_HOVR_INPT_DATE_OUT", "HOS_OWN_ASGN_DATE": "HOS_OWN_ASGN_DATE_OUT", "HOS_OWN_CRE_DATE": "HOS_OWN_CRE_DATE_OUT", "HOS_OWN_CRSP_ENG_ADDR_1": "HOS_OWN_CRSP_ENG_ADDR_1_OUT", "HOS_OWN_CRSP_ENG_ADDR_2": "HOS_OWN_CRSP_ENG_ADDR_2_OUT", "HOS_OWN_CRSP_ENG_ADDR_3": "HOS_OWN_CRSP_ENG_ADDR_3_OUT", "HOS_OWN_HOME_ENG_ADDR_1": "HOS_OWN_HOME_ENG_ADDR_1_OUT", "HOS_OWN_HOME_ENG_ADDR_2": "HOS_OWN_HOME_ENG_ADDR_2_OUT", "HOS_OWN_HOME_ENG_ADDR_3": "HOS_OWN_HOME_ENG_ADDR_3_OUT", "HOS_OWN_HOME_PHONE_NUM": "HOS_OWN_HOME_PHONE_NUM_OUT", "HOS_OWN_OFFC_PHONE_NUM": "HOS_OWN_OFFC_PHONE_NUM_OUT", "HOS_OWN_PCHS_FROM_CODE": "HOS_OWN_PCHS_FROM_CODE_OUT", "HOS_OWN_RMK_TEXT": "HOS_OWN_RMK_TEXT_OUT", "HOS_OWN_SIGN_DATE": "HOS_OWN_SIGN_DATE_OUT", "HOS_OWN_TRMT_DATE": "HOS_OWN_TRMT_DATE_OUT", "HOS_OWN_TRMT_TYPE_CODE": "HOS_OWN_TRMT_TYPE_CODE_OUT", "HOS_PHASE_CODE": "HOS_PHASE_CODE_OUT", "HOS_PRIOR_CATG_GRP_CODE": "HOS_PRIOR_CATG_GRP_CODE", "HOS_PRIOR_NUM": "HOS_PRIOR_NUM_OUT", "HOS_UNIT_GSH_IND": "HOS_UNIT_GSH_IND", "HOS_UNIT_KEY": "HOS_UNIT_KEY_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)
