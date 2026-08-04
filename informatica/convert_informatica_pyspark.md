@@ -19,14 +19,14 @@ pip3.11 install informatica-sparker
 OUT_ROOT=/var/lib/airflow/dags/adam/informatica/PySpark_workflows
 informatica-sparker convert WF_GMS_DDS_APLY_DLY.XML -o $OUT_ROOT/WF_GMS_DDS_APLY_DLY
 
-./convert_infa-pyspark.sh /var/lib/airflow/dags/adam/informatica/PowerCenter_workflows/extract \
-                          /var/lib/airflow/dags/adam/informatica/PySpark_workflows/extract \
+./convert_infa-pyspark.sh /var/lib/airflow/dags/adam/informatica/PowerCenter_workflows/transform_and_load \
+                          /var/lib/airflow/dags/adam/informatica/PySpark_workflows/transform_and_load \
                           > convert_infa-pyspark.log
 
 cd /var/lib/airflow/dags/adam/informatica
-./convert_infa-pyspark.sh /var/lib/airflow/dags/adam/informatica/PowerCenter_workflows/dds \
-                          /var/lib/airflow/dags/adam/informatica/PySpark_workflows/dds \
-                          WF_HOMES_DDS_APLY_DMNS.XML
+./convert_infa-pyspark.sh /var/lib/airflow/dags/adam/informatica/PowerCenter_workflows/transform_and_load \
+                          /var/lib/airflow/dags/adam/informatica/PySpark_workflows/transform_and_load \
+                          WF_NHS_TL.XML
 ```
 
 4. test the generated mapping (example for the truncate step)
