@@ -414,6 +414,16 @@ def read_file(spark: SparkSession, path: str, format: str = "csv", options: Dict
                 path = "file://" + SparkFiles.get(os.path.basename(_local_path))
             except Exception:
                 pass  # best-effort: fall back to Spark's own path resolution
+    elif not _re.match(r'^[a-zA-Z][a-zA-Z0-9+.\-]*://', path):
+        # Local-style path (bare absolute / file://) that does NOT exist on the
+        # driver — do NOT pass it to Spark: it would be resolved against the
+        # default filesystem (HDFS in YARN mode) and fail with a confusing
+        # [PATH_NOT_FOUND] hdfs://... message. Control files (table lists,
+        # session lists) may legitimately be absent — return an empty DataFrame
+        # so the mapping runs empty (callers fall back to their "empty or has
+        # no columns" path).
+        logger.warning("Local file '%s' not found — returning empty DataFrame", path)
+        return spark.createDataFrame([], StructType([]))
 
     if fmt == "csv":
         reader = spark.read.options(header=opts.get("header", "true"))
@@ -445,6 +455,29 @@ def write_sql(df: DataFrame, conn_config: Dict[str, Any], table: str,
         .save()
 
 
+def _write_local_csv(df: DataFrame, local_path: str, opts: Dict[str, Any]) -> None:
+    """Write a DataFrame to a local CSV file on the driver.
+
+    Used for local targets in YARN mode: Spark executors cannot create
+    directories on the driver node's local filesystem (Mkdirs failed ...).
+    Collects the rows on the driver and writes the single file with Python's
+    csv module — mirrors _read_local_csv for the write side.
+    """
+    import csv as _csv
+    _delim = str(opts.get("delimiter", ","))
+    _header = str(opts.get("header", "true")).lower() in ("true", "1", "yes")
+    _cols = list(df.columns)
+    _dir = os.path.dirname(local_path)
+    if _dir and not os.path.isdir(_dir):
+        os.makedirs(_dir, exist_ok=True)
+    with open(local_path, "w") as _fh:
+        _writer = _csv.writer(_fh, delimiter=_delim, lineterminator="\n")
+        if _header:
+            _writer.writerow(_cols)
+        for _r in df.collect():
+            _writer.writerow(["" if _r[_c] is None else str(_r[_c]) for _c in _cols])
+
+
 def write_file(df: DataFrame, path: str, format: str = "csv",
                mode: str = "overwrite", options: Dict[str, Any] = None) -> None:
     """Write DataFrame to file (CSV, Parquet, etc.).
@@ -453,11 +486,58 @@ def write_file(df: DataFrame, path: str, format: str = "csv",
     single part file is renamed to the target path (so the result is a
     single file rather than a Spark-partitioned directory).
     Shell variables ($VAR, ${VAR}) are resolved via _resolve_path.
+
+    Local targets (bare absolute paths without a URI scheme) are written on
+    the DRIVER, never by Spark executors:
+      - Spark resolves bare paths against the default filesystem (HDFS in
+        YARN mode) → data would land on HDFS while the driver-side rename
+        finds nothing locally (the "file silently never appears" bug), and
+      - forcing file:// makes every executor try to mkdir the target dir on
+        its OWN node, which does not exist / is not writable (Mkdirs failed).
+      - CSV: rows are collected on the driver and written with Python's csv
+        module (single file, header handling like Spark).
+      - Other formats: the single part file is staged on the default
+        filesystem (HDFS), then copied back to the local path on the driver.
+    Explicit URIs (hdfs://, s3://, ...) are written with Spark as-is.
     """
     path = _resolve_path(path)
     opts = options or {}
     fmt = (format or "csv").lower()
+
+    _is_local = not _re.match(r'^[a-zA-Z][a-zA-Z0-9+.\-]*://', path)
+
+    if _is_local and fmt == "csv":
+        return _write_local_csv(df, path, opts)
+
     df_out = df.coalesce(1)
+
+    if _is_local:
+        # Non-CSV local target: stage the single part file on the default
+        # filesystem (HDFS), then copy it back to the local path on the driver.
+        _spark = SparkSession.builder.getOrCreate()
+        _stage = "/tmp/pcis01_output/" + os.path.basename(path)
+        _writer = df_out.write.format(fmt).mode("overwrite")
+        for k, v in opts.items():
+            _writer = _writer.option(k, str(v))
+        _writer.save(_stage)
+        try:
+            _fs = _spark._jvm.org.apache.hadoop.fs.FileSystem.get(
+                _spark._jsc.hadoopConfiguration())
+            _parts = _fs.globStatus(
+                _spark._jvm.org.apache.hadoop.fs.Path(_stage + "/part-*"))
+            if _parts and len(_parts) > 0:
+                _dir = os.path.dirname(path)
+                if _dir and not os.path.isdir(_dir):
+                    os.makedirs(_dir, exist_ok=True)
+                if os.path.exists(path):
+                    os.remove(path)
+                _fs.copyToLocalFile(
+                    False, True, _parts[0].getPath(),
+                    _spark._jvm.org.apache.hadoop.fs.Path(path))
+            _fs.delete(_spark._jvm.org.apache.hadoop.fs.Path(_stage), True)
+        except Exception:
+            pass  # best-effort cleanup
+        return
 
     if fmt == "csv":
         # Default CSV options
@@ -1218,7 +1298,7 @@ def validate_execution_plan(execution_plan, mapping_functions, task_info=None):
 
 
 def run_sessions_sequential(sessions_list, mapping_functions, ctx, metrics_cls,
-                            fail_fast=True, job_params=None):
+                            fail_fast=True, job_params=None, session_sqls=None):
     """Execute a list of sessions one after another (respects DAG order)."""
     completed = set()
     failed = set()
@@ -1230,7 +1310,10 @@ def run_sessions_sequential(sessions_list, mapping_functions, ctx, metrics_cls,
         try:
             fn = mapping_functions[mapping_name.lower()]
             logger.info("Start to run mapping %s", mapping_name)
-            _ok = fn(ctx, metrics, job_params)
+            # Pass the session's Target Pre/Post SQL from the workflow's
+            # SESSION_SQLS — the real logic of carrier mappings lives there
+            _ok = fn(ctx, metrics, job_params,
+                     session_sqls=(session_sqls or {}).get(session_name))
             if not _ok:
                 raise RuntimeError("Mapping returned failure status")
             logger.info("Mapping %s completed: SUCCESS", mapping_name)
@@ -1246,7 +1329,7 @@ def run_sessions_sequential(sessions_list, mapping_functions, ctx, metrics_cls,
 
 
 def run_sessions_parallel(sessions_list, mapping_functions, ctx, metrics_cls,
-                          fail_fast=True, job_params=None):
+                          fail_fast=True, job_params=None, session_sqls=None):
     """Execute a list of sessions concurrently (independent tasks at same DAG level)."""
     from concurrent.futures import ThreadPoolExecutor, as_completed
     from threading import Lock
@@ -1265,7 +1348,8 @@ def run_sessions_parallel(sessions_list, mapping_functions, ctx, metrics_cls,
             metrics = metrics_cls(mapping_name) if metrics_cls else NullMetrics()
             fn = mapping_functions[mapping_name.lower()]
             logger.info("Start to run mapping %s", mapping_name)
-            future_map[executor.submit(fn, ctx, metrics, job_params)] = (session_name, mapping_name)
+            future_map[executor.submit(fn, ctx, metrics, job_params,
+                                       session_sqls=(session_sqls or {}).get(session_name))] = (session_name, mapping_name)
 
         for future in as_completed(future_map):
             if should_cancel:
@@ -1298,7 +1382,7 @@ def run_sessions_parallel(sessions_list, mapping_functions, ctx, metrics_cls,
 def execute_plan_step(step, mapping_functions, ctx, metrics_cls,
                       fail_fast, job_params, workflow_name="",
                       task_info=None, send_email_fn=None,
-                      format_infa_fn=None):
+                      format_infa_fn=None, session_sqls=None):
     """Execute a single plan step, recursing into worklets and parallel groups.
 
     Returns (completed: set, failed: set, results: dict).
@@ -1315,7 +1399,8 @@ def execute_plan_step(step, mapping_functions, ctx, metrics_cls,
             "mapping_name": step.get("mapping_name", ""),
         }]
         c, f, r = run_sessions_parallel(sessions_list, mapping_functions, ctx,
-                                        metrics_cls, fail_fast, job_params)
+                                        metrics_cls, fail_fast, job_params,
+                                        session_sqls)
         completed.update(c)
         failed.update(f)
         results.update(r)
@@ -1327,7 +1412,8 @@ def execute_plan_step(step, mapping_functions, ctx, metrics_cls,
             [{"session_name": s.get("name", s.get("mapping_name", "")),
               "mapping_name": s.get("mapping_name", "")}
              for s in sub_steps if s.get("type") == "session"],
-            mapping_functions, ctx, metrics_cls, fail_fast, job_params
+            mapping_functions, ctx, metrics_cls, fail_fast, job_params,
+            session_sqls
         )
         completed.update(c)
         failed.update(f)
@@ -1365,7 +1451,7 @@ def execute_plan_step(step, mapping_functions, ctx, metrics_cls,
                 c2, f2, r2 = execute_plan_step(
                     s, mapping_functions, ctx, metrics_cls,
                     fail_fast, job_params, workflow_name,
-                    task_info, send_email_fn, format_infa_fn
+                    task_info, send_email_fn, format_infa_fn, session_sqls
                 )
                 completed.update(c2)
                 failed.update(f2)
@@ -1375,7 +1461,8 @@ def execute_plan_step(step, mapping_functions, ctx, metrics_cls,
         sessions_list = step.get("sessions", [])
         logger.info("Executing sequential chain: %d sessions", len(sessions_list))
         c, f, r = run_sessions_sequential(sessions_list, mapping_functions, ctx,
-                                          metrics_cls, fail_fast, job_params)
+                                          metrics_cls, fail_fast, job_params,
+                                          session_sqls)
         completed.update(c)
         failed.update(f)
         results.update(r)
@@ -1388,7 +1475,7 @@ def execute_plan_step(step, mapping_functions, ctx, metrics_cls,
             c, f, r = execute_plan_step(
                 sub_step, mapping_functions, ctx, metrics_cls,
                 fail_fast, job_params, workflow_name,
-                task_info, send_email_fn, format_infa_fn
+                task_info, send_email_fn, format_infa_fn, session_sqls
             )
             completed.update(c)
             failed.update(f)
@@ -1433,7 +1520,8 @@ def execute_plan_step(step, mapping_functions, ctx, metrics_cls,
 
 def run_workflow(execution_plan, mapping_functions, workflow_name,
                  task_info=None, send_email_fn=None, format_infa_fn=None,
-                 config=None, fail_fast=True, metrics_cls=None):
+                 config=None, fail_fast=True, metrics_cls=None,
+                 session_sqls=None):
     """Execute a workflow from its execution plan (reusable across workflows).
 
     Args:
@@ -1541,7 +1629,7 @@ def run_workflow(execution_plan, mapping_functions, workflow_name,
                 c, f, r = execute_plan_step(
                     plan_step, mapping_functions, ctx, metrics_cls,
                     fail_fast, job_params, workflow_name,
-                    task_info, send_email_fn, format_infa_fn
+                    task_info, send_email_fn, format_infa_fn, session_sqls
                 )
                 completed.update(c)
                 failed.update(f)

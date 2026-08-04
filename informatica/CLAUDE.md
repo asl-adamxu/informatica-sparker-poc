@@ -56,6 +56,13 @@ This file captures conventions, patterns, and rules established during developme
 - **Runtime signature resolution (v2026.08.03)**: the Informatica XML only lists the transformation's input ports; the real Oracle procedure may differ (e.g. the UAT wrapper `PYSPARK.SP_DELETE_DDS_FACT` has 4 params — 3 IN + `RET_MSG OUT` — while the metadata lists 3). Calling with metadata-only args → `ORA-06550/PLS-00306 wrong number or types of arguments`. Generated code now calls `lib.call_stored_procedure(spark, conn, sp_call, arg_values)` (runtime_lib), which probes `USER_ARGUMENTS` (fallback `ALL_ARGUMENTS`, cached per call name via `_SP_SIG_CACHE`) and binds OUT/IN OUT params to `DECLARE`'d VARCHAR2 variables (literals are rejected for them by PL/SQL); IN params get quoted literals (None → NULL). Falls back to the legacy all-literals call when the signature is unresolvable.
 - The `Stored Procedure` instance type is recognized in the dispatch chain (logged at INFO, not WARNING).
 
+### Session Target Pre/Post SQL (v2026.08.03)
+- **Problem**: carrier mappings (e.g. `DUAL → DUAL`) hold their REAL logic in the session's Target **Pre-SQL / Post-SQL** attributes, not in the mapping graph. The converter only converted the mapping graph → 5 ETL mappings (BKP_DELETE/BKP_INSERT/DMNS_DELETE×2 sessions/FACT_DELETE/RECOVERY in WF_HOMES) became empty shells, and the DUAL write failed with `ORA-01031: insufficient privileges`.
+- **Parser** (`parser.py`): the Pre/Post SQL nest under the target's `SESSTRANSFORMATIONINST → ATTRIBUTE` — iterate `session_elem.iter("ATTRIBUTE")` (NOT `findall`, which only sees direct children), concatenate multiple targets' SQL.
+- **Workflow-layer SESSION_SQLS (refined)**: matching Informatica's layer architecture, `SESSION_SQLS` lives in the **generated wf_*.py** (flat, keyed by session name), NOT in the mappings. Only **non-empty fields** are emitted (a `"post_sql": ""` entry is omitted). `service.py` builds it from `workflow_analysis["sessions"]` (non-empty pre/post SQL only).
+- **Runtime**: `lib.run_workflow(..., session_sqls=SESSION_SQLS)` → `execute_plan_step` → `run_sessions_sequential`/`run_sessions_parallel` pass `session_sqls=(session_sqls or {}).get(session_name)` to the mapping's `run_mapping(..., session_sqls=None)`. The two `S_HOM_ETL_DDS_DMNS_DELETE` sessions (different SQL per invocation) select their own SQL this way; standalone `main()` runs without session SQL. Pre-SQL executes after connection setup, Post-SQL after the pipeline succeeds — both via `lib.execute_sql(spark, conn_target, stmt)` (statements split on `;` at runtime).
+- **DUAL write skip**: the WRITE_TARGET template treats `DUAL` like `/dev/null` (no-op target) — writing to DUAL would fail with ORA-01031.
+
 ### Email Enhancements
 - T_MAIL_FAIL is now sent on ANY mapping failure, including when `fail_fast` raises `RuntimeError`. A local `_send_fail()` helper in `run_workflow` is called from both the normal completion path and the exception handler.
 - The exception handler extracts failed session names from the RuntimeError message.
@@ -385,6 +392,24 @@ use default python to run pyspark workflow or mapping
 - **Problem**: Complex aggregation expressions without an aggregate function wrapper (e.g. raw `CASE WHEN UNIT_ALCT_STS_CODE = '1' THEN 'NPA' ELSE ... END`) fell through to `_translate_aggregation_expr`'s fallback path, which returned the raw translated text. The template rendered `{{ agg_expr }}.alias(...)` → `CASE WHEN ... END END.alias("VCNT_FLAT_TYPE_CODE")` → `SyntaxError: invalid syntax`.
 - **Fix** (`handlers.py`, `_translate_aggregation_expr` fallback): The fallback now always wraps translated text with `expr("""...""")` — `expr("""CASE WHEN ... END""").alias("VCNT_FLAT_TYPE_CODE")` renders valid Python. The f-string path (`expr(f"""...""")`) for `$$` mapping variables is unchanged.
 
+### Lookup Merge Case-Insensitive Exclusion (v2026.08.03)
+- **Problem**: the lookup merge select excluded same-named lookup columns with a case-sensitive check (`c not in _lkp_input.columns`). SQ ports may be lowercase (`dstr_grp_disp_seq_num`) while Oracle lookup columns are uppercase (`DSTR_GRP_DISP_SEQ_NUM`) → the exclusion missed, both columns survived the merge, and Spark's case-insensitive resolution raised `Reference 'dstr_grp_disp_seq_num' is ambiguous`.
+- **Fix** (template `mapping.py.j2`, all four spots): case-insensitive membership tests —
+  - `_cc` common-column detection: `c.lower() in [x.lower() for x in lookup.columns]`
+  - `__lkp_dup` duplicate detection: lookup col matched case-insensitively against input columns and `_cc`
+  - merge select exclusion: `c.lower() not in [x.lower() for x in _lkp_input.columns]`
+  - NewLookupRow probe columns (`_nlr_lkp_cols`): same case-insensitive exclusion
+- **Full class sweep (same session)**: every remaining case-sensitive column-membership check in `mapping.py.j2` is now case-insensitive — SQ port selects (`col(c) if c.lower() in [x.lower() for x in df.columns] else lit(None)`), expression/joiner/union passthrough fills (`if _col.lower() not in [...]`), target `_field_map` rename guard, Update Strategy `_upd_set_cols` key exclusions, and the final `_target_cols` select.
+
+### Union NullType → JDBC void (v2026.08.03)
+- **Problem**: `unionByName(allowMissingColumns=True)` can leave missing-side columns as `NullType` (and upstream `lit(None)` fills stay NullType through the union); JDBC writes then fail with `Can't get JDBC type for void`.
+- **Fix** (template `mapping.py.j2` WRITE_TARGET block): cast any NullType column to `StringType` at write time — but ONLY when the target is fed **directly by a union output** (`_handle_union` records its `df_output` in `self._union_output_dfs`; `_handle_target` sets `cast_nulltype` when `input_df` is in that set). The runtime check is a no-op when the union produced no NullType columns. Mappings without a union in the write path generate no cast code (66 → 30 files in WF_HOMES).
+
+### Connected Sequence Generator (v2026.08.03)
+- **Problem**: Connected Sequence Generators (no upstream connectors) only provide the `NEXTVAL` port to downstream transformations (all 30 in WF_HOMES feed a `FIL_NEW` Filter). `_handle_sequence` fell back to `input_df = "df_input"` when no input resolved → generated `df_SEQ_XXX = df_input.withColumn(...)` → `NameError: name 'df_input' is not defined`. It also registered `df_SEQ_*` in `current_df_map`, so the downstream filter sometimes resolved ITS input from the sequence df instead of the real data path (`__fil_input = df_SEQ_*`).
+- **Fix** (`handlers.py`): when a sequence has no upstream, do NOT emit a standalone step or register a df — record the attachment in `self._sequence_attachments` (`{consumer_instance: [{"col": to_field, "start": start_value}]}` via connector `from_instance` lookup) and return None. `_handle_filter` copies it to `step.params["sequence_attach"]`, and the filter template renders `df_FIL_NEW = df_FIL_NEW.withColumn("NEXTVAL", monotonically_increasing_id() + <start>)` after the filter (post-filter placement, matching validated manual fixes). The filter's input now correctly resolves to the data path (`df_EXPTRANS`/`df_EXPTRANS1`).
+- Sequences WITH an upstream still emit the standalone `ApplySequenceStep` (df_input path unchanged).
+
 ### Sequential Lookup Merge Chain (v2026.07.30)
 - **Problem**: When multiple lookups feed from different intermediate instances, the code generator created parallel merge branches from the same base DataFrame. Downstream components needing columns from BOTH branches (e.g. `CUR_RENT` + `PREV_RENT`) got `cannot resolve 'CUR_RENT'`.
 - **Fix** (`handlers.py`): Added `_last_chain_output` field tracking the most recent chain merge. When a lookup starts a new chain, it chains onto `_last_chain_output` instead of the raw `input_df`, making lookups sequential: `merge_1 → merge_2 → merge_3`.
@@ -425,13 +450,15 @@ use default python to run pyspark workflow or mapping
 - **Injection isolation**: `addJar()` loading and `spark.hadoop.*` injection are in **separate try blocks** in `get_spark_session` — a jar-loading failure cannot skip the provider-path injection.
 - **Save flow**: interactive passwords cached in `_PASSWORD_PENDING`, flushed to jceks via `hadoop credential create/update` only after successful connection validation (`_flush_pending_passwords`).
 
-### Local File Read (YARN-safe, v2026.08.03)
+### Local File Read/Write (YARN-safe, v2026.08.03)
+- **Write side** (`write_file`): local targets (bare absolute paths without a URI scheme) are written on the DRIVER, never by Spark executors. Two failure modes were hit in YARN mode: ① Spark resolves bare paths against the default filesystem (HDFS) → data lands on HDFS, driver-side rename finds nothing locally → target file silently never appears (mapping still reports SUCCESS; `....__tmp__/part-*.csv` found on HDFS); ② forcing `file://` → every executor tries to `Mkdirs` the target dir on its OWN node → `java.io.IOException: Mkdirs failed` (dir doesn't exist / not writable on worker nodes). Fix: CSV local targets are collected on the driver and written with Python's `csv` module (`_write_local_csv`, single file, header like Spark); non-CSV local targets are staged on HDFS (`/tmp/pcis01_output/<basename>`) then copied back with `copyToLocalFile`; explicit URIs (`hdfs://`, `s3://`, ...) are written by Spark as-is.
 - **Problem**: `addFile()` + `"file://" + SparkFiles.get(...)` broke in YARN client mode — `SparkFiles.get()` on the DRIVER returns the driver's own temp path (`/tmp/spark-<app>/userFiles-<driverUUID>/...`), which does not exist on executors (separate JVMs, separate roots) → `SparkFileNotFoundException` on the executor. It only worked in local mode because driver and workers share the JVM.
 - **Fix** (`runtime_lib.py` `read_file`): three tiers for local files —
   1. **Small CSV control files (≤64 MB)** are read on the DRIVER (`_read_local_csv` → `spark.createDataFrame`) — no executors involved, works in YARN and local mode regardless of HDFS. Header=true → first row becomes column names; no header → `_c0, _c1, ...` (matches Spark CSV defaults); empty file → empty schema (mapping falls into the "empty or has no columns" warning branch).
   2. **Larger local files** are staged to HDFS (`/tmp/pcis01_input/<basename>` via `copyFromLocalFile`) and read from the default filesystem, so every executor sees the same path.
   3. **Fallback** (`addFile` + driver-side `SparkFiles` path) only if staging fails — usable when driver and executors share the filesystem (local mode).
 - The `hdfs://nameservice1/...` re-resolution problem (bare paths being resolved against HDFS) is bypassed by tiers 1–2.
+- **Missing local file (v2026.08.03)**: a local-style path (bare absolute / `file://`) that does NOT exist on the driver is NOT passed to Spark (would resolve to HDFS → confusing `[PATH_NOT_FOUND] hdfs://...`). `read_file` warns and returns an empty DataFrame instead, so mappings over absent control files (table lists, session lists) run empty through the callers' "empty or has no columns" path.
 
 ### Direct Run (no env vars, no spark-submit)
 ```bash
@@ -442,14 +469,14 @@ Requires: cwd = workflow dir (import env.runtime_lib), `spark.home` configured, 
 
 ## Conversion Progress
 
-As of **2026-08-03** (version **v2026.08.03**), 10 workflows (~1,130 mappings) have been converted from Informatica PowerCenter XML to PySpark.
+As of **2026-08-04** (version **v2026.08.04**), 10 workflows (~1,130 mappings) have been converted from Informatica PowerCenter XML to PySpark.
 
 ### ✅ Runtime Verified
 | Workflow | Mappings | XML Size | Status |
 |----------|----------|----------|--------|
 | WF_GMS_DDS_APLY_DLY | 8 | 340K | **Data-validated**, zero warnings |
 | WF_CMS_DDS_APLY_MTH | 10 | 1.2M | **3/3 mappings SUCCESS**, 16 mapplets inlined |
-| WF_HOMES_DDS_APLY_DMNS | 67 | 2.4M | **Zero warnings**, Sequence Generator tested |
+| WF_HOMES_DDS_APLY_DMNS | 67 | 2.4M | **Round complete (v2026.08.04)** — case-insensitive columns, Sequence Generator, NullType cast, session Pre/Post SQL (SESSION_SQLS in workflow layer), DUAL no-op, conditional connections, local file read |
 | WF_EMS_PRHE_DDS_APLY_RVN_MTH | 25 | 3.1M | **Zero warnings** (fixed 8) |
 | WF_EMS_PRHE_DDS_APLY_HSE_STCK_MTH | 28 | 3.9M | **Data-validated** (fixed 15+) |
 | WF_EMS_DDS_APLY_MTH | 49 | 4.0M | **Round complete (v2026.08.03)** — schema `{_schema}` ireplace, SP signature probing (`call_stored_procedure` + OUT binding), YARN-safe local file reads, interpreter lockstep, Update Strategy |

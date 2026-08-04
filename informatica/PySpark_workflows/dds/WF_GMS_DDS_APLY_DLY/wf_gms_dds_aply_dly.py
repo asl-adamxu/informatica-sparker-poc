@@ -41,6 +41,11 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
+            "name": "S_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR",
+            "mapping_name": "M_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR"
+          },
+          {
+            "type": "session",
             "name": "S_DPA_SUM_FACT_GMS_DLY_MSD_SMRY",
             "mapping_name": "M_DPA_SUM_FACT_GMS_DLY_MSD_SMRY"
           },
@@ -48,11 +53,6 @@ EXECUTION_PLAN = [
             "type": "session",
             "name": "S_DPA_SUM_FACT_GMS_DLY_MSD_INCDT",
             "mapping_name": "M_DPA_SUM_FACT_GMS_DLY_MSD_INCDT"
-          },
-          {
-            "type": "session",
-            "name": "S_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR",
-            "mapping_name": "M_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR"
           }
         ]
       }
@@ -67,13 +67,13 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_DDS_APL_FACT_GMS_DLY_MSD_SMRY",
-            "mapping_name": "M_DDS_APL_FACT_GMS_DLY_MSD_SMRY"
+            "name": "S_DDS_APL_FACT_GMS_DLY_DOG_RGSTR",
+            "mapping_name": "M_DDS_APL_FACT_GMS_DLY_DOG_RGSTR"
           },
           {
             "type": "session",
-            "name": "S_DDS_APL_FACT_GMS_DLY_DOG_RGSTR",
-            "mapping_name": "M_DDS_APL_FACT_GMS_DLY_DOG_RGSTR"
+            "name": "S_DDS_APL_FACT_GMS_DLY_MSD_SMRY",
+            "mapping_name": "M_DDS_APL_FACT_GMS_DLY_MSD_SMRY"
           },
           {
             "type": "session",
@@ -105,6 +105,8 @@ TASK_INFO = {
   }
 }
 
+SESSION_SQLS = {}
+
 
 def run_workflow(config=None, fail_fast=True):
     """Execute the workflow via the shared runtime library runner."""
@@ -115,6 +117,7 @@ def run_workflow(config=None, fail_fast=True):
         mapping_functions=MAPPING_FUNCTIONS,
         workflow_name="WF_GMS_DDS_APLY_DLY",
         task_info=TASK_INFO,
+        session_sqls=SESSION_SQLS,
         config=config,
         fail_fast=fail_fast,
         metrics_cls=lib.MappingMetrics,

@@ -17,7 +17,8 @@ from pyspark.sql.types import *
 # MAPPING LOGIC
 # =============================================================================
 
-def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> bool:
+def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
+                session_sqls=None) -> bool:
     """
     Execute the M_EMS_DPA_SUMMARIZE_FACT_RENT_ENQ_RMDR_SMRY_D mapping transformations.
 
@@ -28,7 +29,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         ctx: Optional SparkContext for session and DataFrame registry
         metrics: Optional metrics tracker (or NullMetrics if not provided)
         job_params: Optional dict of job parameters loaded by workflow
-    
+        session_sqls: The session's Target Pre/Post SQL dict 
     Returns:
         bool: True if successful
     """
@@ -44,8 +45,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
     metrics = metrics or lib.NullMetrics()
     metrics.start()
 
-    conn_oracle = lib.get_db_config(config, "oracle-defaults")
-    conn_source = lib.get_db_config(config, "SOR")
     conn_target = lib.get_db_config(config, "DPA")
 
     v_rpt_mth = ""
@@ -83,7 +82,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_SQ_SOR_ISP_EXTL_ADT_TRL = df_SQ_SOR_ISP_EXTL_ADT_TRL.filter(expr("USER_ID = -1"))
         # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
         _port_cols = ["ADT_DATE", "SYS_RPT_YEAR", "SYS_RPT_MTH", "PRCS_ID", "USER_ID", "USER_ROLE_ID", "RSRC_BNDL_ID", "RSRC_BNDL_DESP", "SYS_CODE", "ADT_ACT_CODE", "ADT_ACT_SVTY_CODE", "ADT_ACT_DESP", "ADT_AUX_INFO_TEXT", "REMT_IP_ADDR", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE"]
-        df_SQ_SOR_ISP_EXTL_ADT_TRL = df_SQ_SOR_ISP_EXTL_ADT_TRL.select([col(c) if c in df_SQ_SOR_ISP_EXTL_ADT_TRL.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SOR_ISP_EXTL_ADT_TRL = df_SQ_SOR_ISP_EXTL_ADT_TRL.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_ISP_EXTL_ADT_TRL.columns] else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_SOR_ISP_EXTL_ADT_TRL", df_SQ_SOR_ISP_EXTL_ADT_TRL)
         
         logger.info("Step: apply_EXPTRANS1")
@@ -95,7 +94,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("CUST_TNT_CODE_OUT", expr("CASE WHEN V_AUX_TEXT_IND = 'YN' THEN V_USER_ID_K WHEN V_AUX_TEXT_IND = 'NY' THEN V_USER_ID_D ELSE '0' END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["ADT_DATE", "SYS_RPT_YEAR", "SYS_RPT_MTH", "PRCS_ID", "USER_ID", "ADT_AUX_INFO_TEXT", "USER_ROLE_ID", "RSRC_BNDL_ID", "RSRC_BNDL_DESP", "SYS_CODE", "ADT_ACT_CODE", "ADT_ACT_SVTY_CODE", "ADT_ACT_DESP", "REMT_IP_ADDR", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID"]:
-            if _col not in df_EXPTRANS1.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS1.columns]:
                 df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
@@ -108,7 +107,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         _filter_text = _filter_text.replace("$$v_rpt_mth", str(v_rpt_mth or "0"))
         df_FILTRANS = __fil_input.filter(expr(_filter_text))
         ctx.register_df("df_FILTRANS", df_FILTRANS)
-        
+
         logger.info("Step: read_LKP_SOR_EMS_ELP_CUST_RGSTR")
         # Reading Data From Source - read_LKP_SOR_EMS_ELP_CUST_RGSTR
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -155,7 +154,7 @@ AND  SOR_EMS_ELP_CUST_RGSTR_STS.CUST_TNT_CODE_BGN_DATE = max_cust_tnt_code.CUST_
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_SOR_EMS_ELP_CUST_RGSTR[c] for c in df_LKP_SOR_EMS_ELP_CUST_RGSTR.columns if c not in _lkp_input.columns]
+            *[df_LKP_SOR_EMS_ELP_CUST_RGSTR[c] for c in df_LKP_SOR_EMS_ELP_CUST_RGSTR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS")
@@ -165,7 +164,7 @@ AND  SOR_EMS_ELP_CUST_RGSTR_STS.CUST_TNT_CODE_BGN_DATE = max_cust_tnt_code.CUST_
         df_EXPTRANS = df_EXPTRANS.withColumn("RENT_ENQ_RMDR_DTL_CODE", expr("'ISP_RENT_ENQ_CNT'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["CUST_KEY", "HSE_SRVC_APLY_KEY", "ADT_DATE", "SYS_RPT_YEAR", "SYS_RPT_MTH", "PRCS_ID", "USER_ID", "USER_ROLE_ID", "RSRC_BNDL_ID", "RSRC_BNDL_DESP", "SYS_CODE", "ADT_ACT_CODE", "ADT_ACT_SVTY_CODE", "ADT_ACT_DESP", "ADT_AUX_INFO_TEXT", "REMT_IP_ADDR", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID"]:
-            if _col not in df_EXPTRANS.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
@@ -209,7 +208,7 @@ SOR_HSM_UNIT.BLK_KEY = SOR_HSM_BLK.BLK_KEY"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_EST_KEY_BY_TNCY_AGRMT_BK[c] for c in df_LKP_EST_KEY_BY_TNCY_AGRMT_BK.columns if c not in _lkp_input.columns]
+            *[df_LKP_EST_KEY_BY_TNCY_AGRMT_BK[c] for c in df_LKP_EST_KEY_BY_TNCY_AGRMT_BK.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)        
         logger.info("Step: apply_EXPTRANS2")
@@ -253,7 +252,7 @@ SOR_HSM_UNIT.BLK_KEY = SOR_HSM_BLK.BLK_KEY"""
         df_EXP_KIOSK_SUCC = df_EXP_KIOSK_SUCC.withColumn("RENT_ENQ_RMDR_DTL_CODE", expr("'KIOSK_RENT_SUCC_ENQ_CNT'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["EST_KEY1", "SYS_RPT_YEAR1", "SYS_RPT_MTH1"]:
-            if _col not in df_EXP_KIOSK_SUCC.columns:
+            if _col.lower() not in [x.lower() for x in df_EXP_KIOSK_SUCC.columns]:
                 df_EXP_KIOSK_SUCC = df_EXP_KIOSK_SUCC.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXP_KIOSK_SUCC", df_EXP_KIOSK_SUCC)
@@ -265,7 +264,7 @@ SOR_HSM_UNIT.BLK_KEY = SOR_HSM_BLK.BLK_KEY"""
         df_EXP_KIOSK_UNSUCC = df_EXP_KIOSK_UNSUCC.withColumn("RENT_ENQ_RMDR_DTL_CODE", expr("'KIOSK_RENT_UNSUCC_ENQ_CNT'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["EST_KEY3", "SYS_RPT_YEAR3", "SYS_RPT_MTH3"]:
-            if _col not in df_EXP_KIOSK_UNSUCC.columns:
+            if _col.lower() not in [x.lower() for x in df_EXP_KIOSK_UNSUCC.columns]:
                 df_EXP_KIOSK_UNSUCC = df_EXP_KIOSK_UNSUCC.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXP_KIOSK_UNSUCC", df_EXP_KIOSK_UNSUCC)
@@ -277,7 +276,7 @@ SOR_HSM_UNIT.BLK_KEY = SOR_HSM_BLK.BLK_KEY"""
         df_EXP_ISP = df_EXP_ISP.withColumn("RENT_ENQ_RMDR_DTL_CODE", expr("'ISP_RENT_ENQ_CNT'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["EST_KEY4", "SYS_RPT_YEAR4", "SYS_RPT_MTH4"]:
-            if _col not in df_EXP_ISP.columns:
+            if _col.lower() not in [x.lower() for x in df_EXP_ISP.columns]:
                 df_EXP_ISP = df_EXP_ISP.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXP_ISP", df_EXP_ISP)
@@ -308,7 +307,7 @@ SOR_HSM_UNIT.BLK_KEY = SOR_HSM_BLK.BLK_KEY"""
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_isp, allowMissingColumns=True)
         # Select only union output columns (add lit(None) for any missing)
         for _col in ["EST_KEY1", "SYS_RPT_YEAR1", "SYS_RPT_MTH1", "ENQ_CHNL_TYPE_CODE", "RENT_ENQ_RMDR_DTL_CODE"]:
-            if _col not in df_Union_Transformation.columns:
+            if _col.lower() not in [x.lower() for x in df_Union_Transformation.columns]:
                 df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("EST_KEY1", "SYS_RPT_YEAR1", "SYS_RPT_MTH1", "ENQ_CHNL_TYPE_CODE", "RENT_ENQ_RMDR_DTL_CODE")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
@@ -335,7 +334,7 @@ SOR_HSM_UNIT.BLK_KEY = SOR_HSM_BLK.BLK_KEY"""
         df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS1 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS1.withColumn("TIME_DMNS_KEY", expr("200000000+SYS_RPT_YEAR*10000+SYS_RPT_MTH*100"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["SYS_RPT_YEAR", "SYS_RPT_MTH", "EST_KEY", "ENQ_CHNL_TYPE_CODE", "RENT_ENQ_RMDR_DTL_CODE"]:
-            if _col not in df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS1.columns:
+            if _col.lower() not in [x.lower() for x in df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS1.columns]:
                 df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS1 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS1.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS1", df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS1)
@@ -379,7 +378,7 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_HRCHY_EMS_EST[c] for c in df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_HRCHY_EMS_EST.columns if c not in _lkp_input.columns]
+            *[df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_HRCHY_EMS_EST[c] for c in df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_HRCHY_EMS_EST.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_mplt_lkp_chain_9", df_mplt_lkp_chain_9)        
         logger.info("Step: read_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_DMNS_RENT_ENQ_RMDR_DTL")
@@ -400,7 +399,7 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_DMNS_RENT_ENQ_RMDR_DTL[c] for c in df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_DMNS_RENT_ENQ_RMDR_DTL.columns if c not in _lkp_input.columns]
+            *[df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_DMNS_RENT_ENQ_RMDR_DTL[c] for c in df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_DMNS_RENT_ENQ_RMDR_DTL.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_DMNS_ENQ_CHNL_TYPE")
@@ -421,7 +420,7 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_DMNS_ENQ_CHNL_TYPE[c] for c in df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_DMNS_ENQ_CHNL_TYPE.columns if c not in _lkp_input.columns]
+            *[df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_DMNS_ENQ_CHNL_TYPE[c] for c in df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_DMNS_ENQ_CHNL_TYPE.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: rename_EXPTRANS2")
@@ -474,7 +473,7 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         # column names in batch_update/batch_delete.
         _field_map = {"ENQ_CHNL_TYPE_KEY": "ENQ_CHNL_TYPE_KEY", "EST_SCD_KEY": "EST_SCD_KEY", "RENT_ENQ_RMDR_DTL_KEY": "RENT_ENQ_RMDR_DTL_KEY", "RENT_ENQ_RMDR_VAL_NUM": "VALUE", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with
                 # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
                 for _c in list(df_write.columns):
@@ -483,7 +482,7 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['RENT_ENQ_RMDR_DTL_KEY', 'TIME_DMNS_KEY', 'EST_SCD_KEY', 'ENQ_CHNL_TYPE_KEY', 'RENT_ENQ_RMDR_VAL_NUM']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
         # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
         lib.write_table(df_write, conn_target, "DPA_FACT_RENT_ENQ_RMDR_SMRY", mode="append")
 

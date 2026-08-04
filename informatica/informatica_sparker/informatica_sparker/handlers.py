@@ -44,6 +44,15 @@ class TransformHandlers:
         # sequentially instead of branching in parallel (prevents column loss
         # when a downstream lookup starts from a stale intermediate result).
         self._last_chain_output: Optional[str] = None
+        # Connected sequence generators (no upstream) attach their NEXTVAL
+        # column to the downstream consumer's step. Maps consumer instance
+        # name → list of {"col": ..., "start": ...} attachments.
+        self._sequence_attachments: Dict[str, list] = {}
+        # Union step output df names — targets fed directly by a union get the
+        # NullType→StringType cast (unionByName allowMissingColumns can leave
+        # missing-side / lit(None)-filled columns as NullType, which JDBC
+        # cannot map to Oracle: "Can't get JDBC type for void").
+        self._union_output_dfs: set = set()
 
         self._build_maps()
 
@@ -1046,6 +1055,10 @@ class TransformHandlers:
                 })
         if _filter_renames:
             step.params["filter_renames"] = _filter_renames
+        # Connected sequence generator feeding this filter: attach the NEXTVAL
+        # column on the filter's output (post-filter) — see _handle_sequence.
+        if self._sequence_attachments.get(instance.name):
+            step.params["sequence_attach"] = self._sequence_attachments[instance.name]
         return step
 
     def _handle_expression(self, instance: Instance, plan: IRPlan) -> Optional[IRStep]:
@@ -2177,6 +2190,8 @@ class TransformHandlers:
         if _union_selects:
             step.params["union_selects"] = _union_selects
 
+        self._union_output_dfs.add(df_output)
+
         if flag_column:
             step.comments.append(f"Normalizing flag column to: {flag_column}")
 
@@ -2456,11 +2471,6 @@ class TransformHandlers:
 
     def _handle_sequence(self, instance: Instance, plan: IRPlan) -> Optional[IRStep]:
         input_df = self._get_input_df(instance.name)
-        if not input_df:
-            input_df = "df_input"
-
-        df_output = self._get_df_name("df_seq", instance)
-        self._register_df(instance, df_output)
 
         transform = self.transform_map.get(instance.transformation_name or instance.name)
         seq_name = "NEXTVAL"
@@ -2472,6 +2482,24 @@ class TransformHandlers:
                     seq_name = field.name
                     break
             start_value = int(transform.table_attributes.get("Start Value", 1))
+
+        if not input_df:
+            # Connected sequence generator (no upstream): it only provides the
+            # NEXTVAL port to downstream transformations (e.g. a FILTER).
+            # Emitting a standalone step with an undefined df_input produced
+            # `df_input.withColumn(...)` → NameError, and registering df_SEQ_*
+            # made the downstream filter resolve its input from the sequence
+            # instead of the real data path. Instead, record the attachment so
+            # the consumer's step adds the sequence column on its output
+            # (post-filter), and skip registration entirely.
+            for _conn in self.mapping.connectors:
+                if _conn.from_instance == instance.name:
+                    self._sequence_attachments.setdefault(_conn.to_instance, []).append(
+                        {"col": _conn.to_field or seq_name, "start": start_value})
+            return None
+
+        df_output = self._get_df_name("df_seq", instance)
+        self._register_df(instance, df_output)
 
         return ApplySequenceStep(
             step_name=f"apply_{instance.name}",
@@ -2728,6 +2756,11 @@ class TransformHandlers:
         )
 
         write_step.params["connection_alias"] = conn_alias
+        # Targets fed directly by a union may carry NullType columns (from
+        # unionByName allowMissingColumns or lit(None) fills upstream) that
+        # JDBC cannot map — cast them to StringType at write time only here.
+        if input_df in self._union_output_dfs:
+            write_step.params["cast_nulltype"] = True
         if static_dd:
             write_step.params["static_dd"] = static_dd
         if is_delete:

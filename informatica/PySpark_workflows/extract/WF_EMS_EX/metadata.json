@@ -1,0 +1,1843 @@
+{
+  "metadata_version": "1.0",
+  "workflow": "WF_EMS_EX",
+  "mappings": [
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_TSM_TPS_FLAT",
+      "targets": [
+        {
+          "table": "EMS_TSM_TPS_FLAT1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TSM_TPS_FLAT",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_TPA_TPS_OFR_LTR",
+      "targets": [
+        {
+          "table": "EMS_TPA_TPS_OFR_LTR1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TPA_TPS_OFR_LTR",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_TPA_TPS_APLY_DUP",
+      "targets": [
+        {
+          "table": "EMS_TPA_TPS_APLY_DUP1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TPA_TPS_APLY_DUP",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_TSM_TPS_HSE_BLK",
+      "targets": [
+        {
+          "table": "EMS_TSM_TPS_HSE_BLK1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TSM_TPS_HSE_BLK",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_TPA_TPS_APLY",
+      "targets": [
+        {
+          "table": "EMS_TPA_TPS_APLY1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TPA_TPS_APLY",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_TPP_TPS_LIST_PRC",
+      "targets": [
+        {
+          "table": "EMS_TPP_TPS_LIST_PRC",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TPP_TPS_LIST_PRC1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_TSM_TPS_FLAT_DUP",
+      "targets": [
+        {
+          "table": "EMS_TSM_TPS_FLAT_DUP",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TSM_TPS_FLAT_DUP1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_TPP_TPS_CR_DSCT",
+      "targets": [
+        {
+          "table": "EMS_TPP_TPS_CR_DSCT",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TPP_TPS_CR_DSCT1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_SMS_LN_APLY",
+      "targets": [
+        {
+          "table": "EMS_SMS_LN_APLY1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_SMS_LN_APLY",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_SMS_CEP_CERT",
+      "targets": [
+        {
+          "table": "EMS_SMS_CEP_CERT",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_SMS_CEP_CERT1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_TPP_TPS_RATE_AND_GOVT_RENT",
+      "targets": [
+        {
+          "table": "EMS_TPP_TPS_RATE_AND_GOVT_RENT1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TPP_TPS_RATE_AND_GOVT_RENT",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_SMS_CAS_APLY",
+      "targets": [
+        {
+          "table": "EMS_SMS_CAS_APLY1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_SMS_CAS_APLY",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_TPA_TPS_APRV_LTR",
+      "targets": [
+        {
+          "table": "EMS_TPA_TPS_APRV_LTR1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TPA_TPS_APRV_LTR",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_SMS_LN",
+      "targets": [
+        {
+          "table": "EMS_SMS_LN1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_SMS_LN",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_TSM_TPS_REC_SEND_RVD",
+      "targets": [
+        {
+          "table": "EMS_TSM_TPS_REC_SEND_RVD",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_SMS_CAS_CERT",
+      "targets": [
+        {
+          "table": "EMS_SMS_CAS_CERT",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_SMS_CAS_CERT1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_TSM_TPS_EST",
+      "targets": [
+        {
+          "table": "EMS_TSM_TPS_EST",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TSM_TPS_EST1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_SMS_CEP_APLY",
+      "targets": [
+        {
+          "table": "EMS_SMS_CEP_APLY",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_SMS_CEP_APLY1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_TSM_TPS_FLAT_AUTH",
+      "targets": [
+        {
+          "table": "EMS_TSM_TPS_FLAT_AUTH",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TSM_TPS_FLAT_AUTH1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_HPL_LOAN",
+      "targets": [
+        {
+          "table": "EMS_HPL_LOAN",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_HPL_LOAN1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_PAW_ALWN_PYMT",
+      "targets": [
+        {
+          "table": "EMS_PAW_ALWN_PYMT",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_PAW_ALWN_PYMT1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_POR_CRP_STAT",
+      "targets": [
+        {
+          "table": "EMS_POR_CRP_STAT",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_POR_CRP_STAT1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_EMS_PHA_LOC_PREF",
+      "targets": [
+        {
+          "table": "EMS_PHA_LOC_PREF",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_PHA_LOC_PREF",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_EMS_DOG_APLY_OWNR",
+      "targets": [
+        {
+          "table": "EMS_DOG_APLY_OWNR",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_DOG_APLY_OWNR",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_REF_ADTN_DEL_RSN_CODE",
+      "targets": [
+        {
+          "table": "EMS_REF_ADTN_DEL_RSN_CODE",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_REF_ADTN_DEL_RSN_CODE1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_HOW_HOS_OWN",
+      "targets": [
+        {
+          "table": "EMS_HOW_HOS_OWN1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_HOW_HOS_OWN",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_TAM_ADTN_ROOM",
+      "targets": [
+        {
+          "table": "EMS_TAM_ADTN_ROOM",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TAM_ADTN_ROOM1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_REF_TNCY_CNCL_CODE",
+      "targets": [
+        {
+          "table": "EMS_REF_TNCY_CNCL_CODE",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_REF_TNCY_CNCL_CODE1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_TAM_TNCY_AGRMT",
+      "targets": [
+        {
+          "table": "EMS_TAM_TNCY_AGRMT1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TAM_TNCY_AGRMT",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_POR_OPR_AFCT_BLK",
+      "targets": [
+        {
+          "table": "EMS_POR_OPR_AFCT_BLK1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_POR_OPR_AFCT_BLK",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_CPM_CUST_MBR_PTCL",
+      "targets": [
+        {
+          "table": "EMS_CPM_CUST_MBR_PTCL1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_CPM_CUST_MBR_PTCL",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_PAL_PRH_INTK_SCHD",
+      "targets": [
+        {
+          "table": "EMS_PAL_PRH_INTK_SCHD1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_PAL_PRH_INTK_SCHD",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_REF_OPR_TYPE",
+      "targets": [
+        {
+          "table": "EMS_REF_OPR_TYPE1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_REF_OPR_TYPE",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_PHA_PRH_APLY_QPS",
+      "targets": [
+        {
+          "table": "EMS_PHA_PRH_APLY_QPS1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_PHA_PRH_APLY_QPS",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_EMS_WTP_DCLR",
+      "targets": [
+        {
+          "table": "EMS_WTP_DCLR",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_WTP_DCLR",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_PHA_PRH_APLY_OFR_SPCL_GND",
+      "targets": [
+        {
+          "table": "EMS_PHA_PRH_APLY_OFR_SPCL_GND",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_PHA_PRH_APLY_OFR_SPCL_GND1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_CPM_MISC_HSE_BNFT",
+      "targets": [
+        {
+          "table": "EMS_CPM_MISC_HSE_BNFT1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_CPM_MISC_HSE_BNFT",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_HHA_HOS_APLY",
+      "targets": [
+        {
+          "table": "EMS_HHA_HOS_APLY",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_HHA_HOS_APLY1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_HSM_HOMES_PROJ",
+      "targets": [
+        {
+          "table": "EMS_HSM_HOMES_PROJ",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_HSM_HOMES_PROJ1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_PHA_PRH_APLY_RSN_LOG",
+      "targets": [
+        {
+          "table": "EMS_PHA_PRH_APLY_RSN_LOG",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_PHA_PRH_APLY_RSN_LOG1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_CSA_DRP_SWD_ADDR_MAP",
+      "targets": [
+        {
+          "table": "EMS_CSA_DRP_SWD_ADDR_MAP",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_CSA_DRP_SWD_ADDR_MAP1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_PHA_PRH_APLY_OFR_UNIT",
+      "targets": [
+        {
+          "table": "EMS_PHA_PRH_APLY_OFR_UNIT",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_PHA_PRH_APLY_OFR_UNIT1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_HSC_HOS_CHS_PRC_AND_DSCT",
+      "targets": [
+        {
+          "table": "EMS_HSC_HOS_CHS_PRC_AND_DSCT1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_HSC_HOS_CHS_PRC_AND_DSCT",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_PHA_PRH_APLY",
+      "targets": [
+        {
+          "table": "EMS_PHA_PRH_APLY",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_PHA_PRH_APLY1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_EMS_REF_APLY_ASGN_CATG",
+      "targets": [
+        {
+          "table": "EMS_REF_APLY_ASGN_CATG",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_REF_APLY_ASGN_CATG",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_CPM_CUST_APLY_MBR",
+      "targets": [
+        {
+          "table": "EMS_CPM_CUST_APLY_MBR1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_CPM_CUST_APLY_MBR",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_EMS_WTP_RVW_YEAR",
+      "targets": [
+        {
+          "table": "EMS_WTP_RVW_YEAR",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_WTP_RVW_YEAR",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_TAM_RAS_HIST",
+      "targets": [
+        {
+          "table": "EMS_TAM_RAS_HIST1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TAM_RAS_HIST",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_PHA_GF_CERT",
+      "targets": [
+        {
+          "table": "EMS_PHA_GF_CERT",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_PHA_GF_CERT1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_SRA_TNT_AST_DCLR",
+      "targets": [
+        {
+          "table": "EMS_SRA_TNT_AST_DCLR",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_SRA_TNT_AST_DCLR1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_HSM_HSE_BLK",
+      "targets": [
+        {
+          "table": "EMS_HSM_BLK",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_HSM_BLK1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_HSM_HOS_CRT",
+      "targets": [
+        {
+          "table": "EMS_HSM_HOS_CRT",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_HSM_HOS_CRT1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_TAM_FLAT_RCVR",
+      "targets": [
+        {
+          "table": "EMS_TAM_FLAT_RCVR",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TAM_FLAT_RCVR1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_HSC_HOS_RCPT",
+      "targets": [
+        {
+          "table": "EMS_HSC_HOS_RCPT",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_HSC_HOS_RCPT1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_REF_RAES_APLY_STS",
+      "targets": [
+        {
+          "table": "EMS_REF_RAES_APLY_STS",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_REF_RAES_APLY_STS1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_EMS_PHA_QPS_CHK",
+      "targets": [
+        {
+          "table": "EMS_PHA_QPS_CHK",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_PHA_QPS_CHK",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_TAM_TNCY_AGRMT_AMND_HIST",
+      "targets": [
+        {
+          "table": "EMS_TAM_TNCY_AGRMT_AMND_HIST1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TAM_TNCY_AGRMT_AMND_HIST",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_RAL_RAES_APLY",
+      "targets": [
+        {
+          "table": "EMS_RAL_RAES_APLY",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_RAL_RAES_APLY1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_TAM_RFBH_ORD",
+      "targets": [
+        {
+          "table": "EMS_TAM_RFBH_ORD",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TAM_RFBH_ORD1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_TAM_NTQ",
+      "targets": [
+        {
+          "table": "EMS_TAM_NTQ1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TAM_NTQ",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_EMS_REF_APLY_RSN_CODE",
+      "targets": [
+        {
+          "table": "EMS_REF_APLY_RSN_CODE",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_REF_APLY_RSN_CODE",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_REF_QTA_CATG_USER",
+      "targets": [
+        {
+          "table": "EMS_REF_QTA_CATG_USER1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_REF_QTA_CATG_USER",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_PHA_PRH_APLY_OFR",
+      "targets": [
+        {
+          "table": "EMS_PHA_PRH_APLY_OFR",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_PHA_PRH_APLY_OFR1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_PHA_PRH_APLY_OFR_RFSL",
+      "targets": [
+        {
+          "table": "EMS_PHA_PRH_APLY_OFR_RFSL",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_PHA_PRH_APLY_OFR_RFSL1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_EMS_PHA_QPS_CHK_SLCT",
+      "targets": [
+        {
+          "table": "EMS_PHA_QPS_CHK_SLCT",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_PHA_QPS_CHK_SLCT",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_HSC_HOS_RCPT_AMT",
+      "targets": [
+        {
+          "table": "EMS_HSC_HOS_RCPT_AMT1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_HSC_HOS_RCPT_AMT",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_CPM_HSE_BNFT_MBR",
+      "targets": [
+        {
+          "table": "EMS_CPM_HSE_BNFT_MBR1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_CPM_HSE_BNFT_MBR",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_POR_OPR_RCPT_EST",
+      "targets": [
+        {
+          "table": "EMS_POR_OPR_RCPT_EST",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_POR_OPR_RCPT_EST1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_TRF_RQS_RCV",
+      "targets": [
+        {
+          "table": "EMS_TRF_RQS_RCV",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TRF_RQS_RCV1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_POR_CRP_ALL_PYMT_STAT",
+      "targets": [
+        {
+          "table": "EMS_POR_CRP_ALL_PYMT_STAT",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_POR_CRP_ALL_PYMT_STAT1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_POR_OPR",
+      "targets": [
+        {
+          "table": "EMS_POR_OPR",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_POR_OPR1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_SRF_RENT_FCTR_CODE",
+      "targets": [
+        {
+          "table": "EMS_SRF_RENT_FCTR_CODE1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_SRF_RENT_FCTR_CODE",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_EMS_DOG_APLY_RGSTR",
+      "targets": [
+        {
+          "table": "EMS_DOG_APLY_RGSTR",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_DOG_APLY_RGSTR",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_CPM_HKHS_MBR",
+      "targets": [
+        {
+          "table": "EMS_CPM_HKHS_MBR1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_CPM_HKHS_MBR",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_HSM_HSE_UNIT_ACST_BLCY",
+      "targets": [
+        {
+          "table": "EMS_HSM_HSE_UNIT_ACST_BLCY",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_HSM_HSE_UNIT_ACST_BLCY",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_ELP_CUST_EXCP_ACCC_PYMT_TXN",
+      "targets": [
+        {
+          "table": "EMS_ELP_CUST_EXCP_ACCC_PYMT",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_ELP_CUST_EXCP_ACCC_PYMT",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_ABU_TNT_ABU",
+      "targets": [
+        {
+          "table": "EMS_ABU_TNT_ABU1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_ABU_TNT_ABU",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_HSC_HOS_UNIT_PCHS_PRC",
+      "targets": [
+        {
+          "table": "EMS_HSC_HOS_UNIT_PCHS_PRC",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_HSC_HOS_UNIT_PCHS_PRC1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_HSC_TPV_CNTR_AGRMT",
+      "targets": [
+        {
+          "table": "EMS_HSC_TPV_CNTR_AGRMT1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_HSC_TPV_CNTR_AGRMT",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_PHA_PRH_APLY_SLCT_DSTR_EST_CHC",
+      "targets": [
+        {
+          "table": "EMS_PHA_PRH_APLY_SLCT_DSTR_EST1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_PHA_PRH_APLY_SLCT_DSTR_EST",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_CPM_HKHS_TNCY",
+      "targets": [
+        {
+          "table": "EMS_CPM_HKHS_TNCY",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_CPM_HKHS_TNCY1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_CPM_CUST_MBR_PTCL_PND_CNFRM",
+      "targets": [
+        {
+          "table": "EMS_CPM_CUST_MBR_PTCL_PND_CNFR1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_CPM_CUST_MBR_PTCL_PND_CNFR",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_EMS_REF_APLY_SBMT_CHNL",
+      "targets": [
+        {
+          "table": "EMS_REF_APLY_SBMT_CHNL",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_REF_APLY_SBMT_CHNL",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_CPM_CUST_APLY",
+      "targets": [
+        {
+          "table": "EMS_CPM_CUST_APLY1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_CPM_CUST_APLY",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_ELP_CUST_RGSTR",
+      "targets": [
+        {
+          "table": "EMS_ELP_CUST_ELTR_PYMT_RGSTR",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_ELP_CUST_ELTR_PYMT_RGSTR1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_EMS_HSM_UNIT_SCND_ENV_CODE",
+      "targets": [
+        {
+          "table": "EMS_HSM_UNIT_SCND_ENV_CODE",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_HSM_UNIT_SCND_ENV_CODE",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_REF_TFR_RSN_CODE",
+      "targets": [
+        {
+          "table": "EMS_TFR_RSN_CODE",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TFR_RSN_CODE1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_PRV_APLY_MARK_FLAT",
+      "targets": [
+        {
+          "table": "EMS_PRV_APLY_MARK_FLAT",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_PRV_APLY_MARK_FLAT1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_HSM_PRH_UNIT",
+      "targets": [
+        {
+          "table": "EMS_HSM_PRH_UNIT",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_HSM_PRH_UNIT1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_REF_CASE_TYPE",
+      "targets": [
+        {
+          "table": "EMS_REF_CASE_TYPE",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_REF_CASE_TYPE1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_CPM_CUST_APLY_MBR_ADTN_DEL",
+      "targets": [
+        {
+          "table": "EMS_CPM_CUST_APLY_MBR_ADTN_DEL",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_CPM_CUST_APLY_MBR_ADTN_DEL1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_TOW_TPS_AGRMT",
+      "targets": [
+        {
+          "table": "EMS_TOW_TPS_AGRMT1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TOW_TPS_AGRMT",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_TAM_TNCY_CNCL",
+      "targets": [
+        {
+          "table": "EMS_TAM_TNCY_CNCL",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TAM_TNCY_CNCL1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_HSM_HOS_CRT_DSTR",
+      "targets": [
+        {
+          "table": "EMS_HSM_HOS_CRT_DSTR",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_HSM_HOS_CRT_DSTR1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_HSM_HOMES_BLK",
+      "targets": [
+        {
+          "table": "EMS_HSM_HOMES_BLK",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_HSM_HOMES_BLK1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_EMS_CSR_APLY_RCV_BTCH_DTL",
+      "targets": [
+        {
+          "table": "EMS_CSR_APLY_RCV_BTCH_DTL",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_CSR_APLY_RCV_BTCH_DTL",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_TAM_RAS",
+      "targets": [
+        {
+          "table": "EMS_TAM_RAS",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TAM_RAS1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_TFM_TNT_OVRCRD_RLF",
+      "targets": [
+        {
+          "table": "EMS_TFM_TNT_OVRCRD_RLF",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TFM_TNT_OVRCRD_RLF1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_TEM_TNT_WARN",
+      "targets": [
+        {
+          "table": "EMS_TEM_TNT_WARN",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TEM_TNT_WARN1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_DCL_TNT_BD",
+      "targets": [
+        {
+          "table": "EMS_DCL_TNT_BD1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_DCL_TNT_BD",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_PHA_PRH_APLY_DSTR_SBDSTR",
+      "targets": [
+        {
+          "table": "EMS_PHA_DSTR_SBDSTR1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_PHA_DSTR_SBDSTR",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_HSM_HSE_UNIT_HIST",
+      "targets": [
+        {
+          "table": "EMS_HSM_HSE_UNIT_HIST",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_HSM_HSE_UNIT_HIST1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_TOW_TPS_BYBK",
+      "targets": [
+        {
+          "table": "EMS_TOW_TPS_BYBK1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TOW_TPS_BYBK",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_PRV_PRH_UNIT_RSRV_HIST",
+      "targets": [
+        {
+          "table": "EMS_PRV_PRH_UNIT_RSRV_HIST",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_PRV_PRH_UNIT_RSRV_HIST1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_CPM_MISC_HSE_BNFT_MBR",
+      "targets": [
+        {
+          "table": "EMS_CPM_MISC_HSE_BNFT_MBR",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_CPM_MISC_HSE_BNFT_MBR1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_HSM_HSE_ORG",
+      "targets": [
+        {
+          "table": "EMS_HSM_HSE_ORG",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_HSM_HSE_ORG1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_HSM_TPS_EST",
+      "targets": [
+        {
+          "table": "EMS_HSM_TPS_EST1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_HSM_TPS_EST",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_CPM_CUST",
+      "targets": [
+        {
+          "table": "EMS_CPM_CUST1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_CPM_CUST",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_ELP_CUST_ACCC_PYMT_TXN",
+      "targets": [
+        {
+          "table": "EMS_ELP_CUST_ACCC_PYMT_TXN",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_ELP_CUST_ACCC_PYMT_TXN",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_HSM_PRH_BLK",
+      "targets": [
+        {
+          "table": "EMS_HSM_PRH_BLK",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_HSM_PRH_BLK1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_TAM_RENT_RVW_CATG_MAP",
+      "targets": [
+        {
+          "table": "EMS_TAM_RENT_RVW_CATG_MAP1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TAM_RENT_RVW_CATG_MAP",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_CPM_CUST_MBR_DSBL",
+      "targets": [
+        {
+          "table": "EMS_CPM_CUST_MBR_DSBL",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_CPM_CUST_MBR_DSBL1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_EMS_DOG_WARN_TXN",
+      "targets": [
+        {
+          "table": "EMS_DOG_WARN_TXN",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_DOG_WARN_TXN",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_PHA_GF_CERT_ISS",
+      "targets": [
+        {
+          "table": "EMS_PHA_GF_CERT_ISS",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_PHA_GF_CERT_ISS1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_PAL_INTK_DLY_QTA",
+      "targets": [
+        {
+          "table": "EMS_PAL_INTK_DLY_QTA",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_PAL_INTK_DLY_QTA1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_REF_NTQ_RSN_CODE",
+      "targets": [
+        {
+          "table": "EMS_REF_NTQ_RSN_CODE1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_REF_NTQ_RSN_CODE",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_DCL_CUR_BD_CYCL",
+      "targets": [
+        {
+          "table": "EMS_DCL_CUR_BD_CYCL1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_DCL_CUR_BD_CYCL",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_PHA_PRH_APLY_STG_STS_HIST",
+      "targets": [
+        {
+          "table": "EMS_PHA_PRH_APLY_STG_STS_HIST1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_PHA_PRH_APLY_STG_STS_HIST",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_HSP_TNT_INCM_DCLR",
+      "targets": [
+        {
+          "table": "EMS_HSP_TNT_INCM_DCLR1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_HSP_TNT_INCM_DCLR",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_PHA_PRH_APLY_MBR_DSBL",
+      "targets": [
+        {
+          "table": "EMS_PHA_PRH_APLY_MBR_DSBL",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_PHA_PRH_APLY_MBR_DSBL1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_HSM_TPS_HSE_UNIT",
+      "targets": [
+        {
+          "table": "EMS_HSM_TPS_HSE_UNIT",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_HSM_TPS_HSE_UNIT1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_EMS_CSR_APLY_RCV",
+      "targets": [
+        {
+          "table": "EMS_CSR_APLY_RCV",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_CSR_APLY_RCV",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_CPM_CUST_MBR",
+      "targets": [
+        {
+          "table": "EMS_CPM_CUST_MBR1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_CPM_CUST_MBR",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_HSM_PRH_EST",
+      "targets": [
+        {
+          "table": "EMS_HSM_PRH_EST",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_HSC_HOS_CNTR_AGRMT",
+      "targets": [
+        {
+          "table": "EMS_HSC_HOS_CNTR_AGRMT1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_HSC_HOS_CNTR_AGRMT",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_HSM_HOS_UNIT",
+      "targets": [
+        {
+          "table": "EMS_HSM_HOS_UNIT",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_HSM_HOS_UNIT1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_HSM_TPV_UNIT",
+      "targets": [
+        {
+          "table": "EMS_HSM_TPV_UNIT",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_HSM_TPV_UNIT1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_PHA_PRVS_APLY",
+      "targets": [
+        {
+          "table": "EMS_PHA_PRVS_APLY1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_PHA_PRVS_APLY",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_TRF_REF_CASE",
+      "targets": [
+        {
+          "table": "EMS_TRF_REF_CASE1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TRF_REF_CASE",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_DCL_BD_CYCL",
+      "targets": [
+        {
+          "table": "EMS_DCL_BD_CYCL",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_DCL_BD_CYCL1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_RAL_RAES_APRV_IN_PRCP",
+      "targets": [
+        {
+          "table": "EMS_RAL_RAES_APRV_IN_PRCP",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_RAL_RAES_APRV_IN_PRCP1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_TAM_EXTNT_INFO",
+      "targets": [
+        {
+          "table": "EMS_TAM_EXTNT_INFO",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_TAM_EXTNT_INFO1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_PHA_PRH_APLY_SLCT_DSTR_EST",
+      "targets": [
+        {
+          "table": "EMS_PHA_PRH_APLY_SLCT_EST",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_PHA_PRH_APLY_SLCT_EST1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_HSM_PROJ_BLK",
+      "targets": [
+        {
+          "table": "EMS_HSM_PROJ_BLK",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_HSM_PROJ_BLK1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_HSM_HOS_BLK",
+      "targets": [
+        {
+          "table": "EMS_HSM_HOS_BLK1",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_HSM_HOS_BLK",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_PRV_PRH_UNIT_RSRV",
+      "targets": [
+        {
+          "table": "EMS_PRV_PRH_UNIT_RSRV",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_PRV_PRH_UNIT_RSRV1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SSAL1_EXTRACT_CMM_HSE_SRVC_APLY",
+      "targets": [
+        {
+          "table": "EMS_CMM_HSE_SRVC_APLY",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_CMM_HSE_SRVC_APLY1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_EMS_REF_MKT_RENT_CATG",
+      "targets": [
+        {
+          "table": "EMS_REF_MKT_RENT_CATG",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_REF_MKT_RENT_CATG",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_EMS_SSAL1_EXTR_REF_RENT_RVW_CATG_CODE",
+      "targets": [
+        {
+          "table": "EMS_REF_RENT_RVW_CATG_CODE",
+          "connection": "EMS"
+        },
+        {
+          "table": "EMS_REF_RENT_RVW_CATG_CODE1",
+          "connection": "EMS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_UTL_PARAM_SETUP",
+      "targets": [
+        {
+          "table": "UTL_JOB_PARAM",
+          "connection": "$PMSourceFileDir/PCIS01/ems_job_param.txt"
+        }
+      ]
+    },
+    {
+      "mapping": "M_UTL_SSA_TRUNCATE",
+      "targets": [
+        {
+          "table": "UTL_DEV_NULL",
+          "connection": "/dev/null"
+        }
+      ]
+    },
+    {
+      "mapping": "M_S5_SETUP_UTL",
+      "targets": [
+        {
+          "table": "SOR_SYS_PRPTY",
+          "connection": "SOR"
+        },
+        {
+          "table": "UTL_SYMBOLIC_LINK_LIST",
+          "connection": "$PMSourceFileDir/PCIS01/scripts/ems_archive_file_link.sh"
+        },
+        {
+          "table": "SOR_SYS_PRPTY",
+          "connection": "SOR"
+        }
+      ]
+    }
+  ],
+  "output": {
+    "script": "wf_ems_ex.py"
+  }
+}

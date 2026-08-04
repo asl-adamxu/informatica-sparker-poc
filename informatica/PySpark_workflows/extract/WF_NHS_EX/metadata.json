@@ -1,0 +1,643 @@
+{
+  "metadata_version": "1.0",
+  "workflow": "WF_NHS_EX",
+  "mappings": [
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_RVN_TXN",
+      "targets": [
+        {
+          "table": "NHS_RVN_TXN",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_RVN_TXN",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_HOS_APLY",
+      "targets": [
+        {
+          "table": "NHS_HOS_APLY",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_HOS_APLY",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_HOS_APLY_MBR",
+      "targets": [
+        {
+          "table": "NHS_HOS_APLY_MBR",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_HOS_APLY_MBR",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_HOS_OWN",
+      "targets": [
+        {
+          "table": "NHS_HOS_OWN",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_HOS_OWN",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_HOS_OWN",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_PHASE_BLT",
+      "targets": [
+        {
+          "table": "NHS_PHASE_BLT",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_PHASE_BLT",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_HOS_APLY_BLT",
+      "targets": [
+        {
+          "table": "NHS_HOS_APLY_BLT",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_RSCN_PCHS_STL",
+      "targets": [
+        {
+          "table": "NHS_RSCN_PCHS_STL",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_RSCN_PCHS_STL",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_HOS_OWN_MBR_PTCL",
+      "targets": [
+        {
+          "table": "NHS_HOS_OWN_MBR_PTCL",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_HOS_OWN_MBR_PTCL",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_HOS_OWN_MBR_PTCL",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_FLAT_SLCT_SSN_ASGN",
+      "targets": [
+        {
+          "table": "NHS_FLAT_SLCT_SSN_ASGN",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_FLAT_SLCT_SSN_ASGN",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_FLAT_SLCT_SSN",
+      "targets": [
+        {
+          "table": "NHS_FLAT_SLCT_SSN",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_FLAT_SLCT_SSN",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_PHASE_FLAT",
+      "targets": [
+        {
+          "table": "NHS_PHASE_FLAT",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_PHASE_FLAT",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_PHASE_FLAT",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_FLAT_SLCT",
+      "targets": [
+        {
+          "table": "NHS_FLAT_SLCT",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_FLAT_SLCT",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_HOS_APLY_CATG_PRIOR",
+      "targets": [
+        {
+          "table": "NHS_HOS_APLY_CATG_PRIOR",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_HOS_APLY_CATG_PRIOR",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_DUP_CHK_RSLT",
+      "targets": [
+        {
+          "table": "NHS_DUP_CHK_RSLT",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_DUP_CHK_RSLT",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_ADTN_APLY_INFO",
+      "targets": [
+        {
+          "table": "NHS_ADTN_APLY_INFO",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_ADTN_APLY_INFO",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_RVN_TXN_PYMT",
+      "targets": [
+        {
+          "table": "NHS_RVN_TXN_PYMT",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_RVN_TXN_PYMT",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_PRIOR_CATG_GRP",
+      "targets": [
+        {
+          "table": "NHS_PRIOR_CATG_GRP",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_PRIOR_CATG_GRP",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_PCHS_STL_PYMT_SCHD",
+      "targets": [
+        {
+          "table": "NHS_PCHS_STL_PYMT_SCHD",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_PCHS_STL_PYMT_SCHD",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_PHASE_ASP",
+      "targets": [
+        {
+          "table": "NHS_PHASE_ASP",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_PHASE_ASP",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_PHASE_ASP",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_FLAT_SLCT_QUE",
+      "targets": [
+        {
+          "table": "NHS_FLAT_SLCT_QUE",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_FLAT_SLCT_QUE",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_HOS_FLAT",
+      "targets": [
+        {
+          "table": "NHS_HOS_FLAT",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_HOS_FLAT",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_HOS_FLAT",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_REF_CODE_TYPE",
+      "targets": [
+        {
+          "table": "NHS_REF_CODE_TYPE",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_REF_CODE_TYPE",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_EST_BANK_ITEM",
+      "targets": [
+        {
+          "table": "NHS_EST_BANK_ITEM",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_EST_BANK_ITEM",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_PHASE",
+      "targets": [
+        {
+          "table": "NHS_PHASE",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_PHASE",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_PHASE",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_PHASE_FLAT_ORNT",
+      "targets": [
+        {
+          "table": "NHS_PHASE_FLAT_ORNT",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_PHASE_FLAT_ORNT",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_PHASE_FLAT_ORNT",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_PCHS_STL",
+      "targets": [
+        {
+          "table": "NHS_PCHS_STL",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_PCHS_STL",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_REF_CODE",
+      "targets": [
+        {
+          "table": "NHS_REF_CODE",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_REF_CODE",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_RVN_CLCT_TRML",
+      "targets": [
+        {
+          "table": "NHS_RVN_CLCT_TRML",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_RVN_CLCT_TRML",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_HOS_CRT",
+      "targets": [
+        {
+          "table": "NHS_HOS_CRT",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_HOS_CRT",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_HOS_CRT",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_FLAT_SLCT_STMT",
+      "targets": [
+        {
+          "table": "NHS_FLAT_SLCT_STMT",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_FLAT_SLCT_STMT",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_INTVW_SCHD",
+      "targets": [
+        {
+          "table": "NHS_INTVW_SCHD",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_INTVW_SCHD",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_RVN_TXN_ITEM",
+      "targets": [
+        {
+          "table": "NHS_RVN_TXN_ITEM",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_RVN_TXN_ITEM",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_EST_BANK",
+      "targets": [
+        {
+          "table": "NHS_EST_BANK",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_EST_BANK",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_RSRV_FLAT",
+      "targets": [
+        {
+          "table": "NHS_RSRV_FLAT",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_RSRV_FLAT",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_PHASE_CRT",
+      "targets": [
+        {
+          "table": "NHS_PHASE_CRT",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_PHASE_CRT",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_PHASE_CRT",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_PCHS_STL_WVE_INTRST",
+      "targets": [
+        {
+          "table": "NHS_PCHS_STL_WVE_INTRST",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_PCHS_STL_WVE_INTRST",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_HSE_DSTR",
+      "targets": [
+        {
+          "table": "NHS_HSE_DSTR",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_HSE_DSTR",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_HSE_DSTR",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_APLY_VET_RSLT",
+      "targets": [
+        {
+          "table": "NHS_APLY_VET_RSLT",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_APLY_VET_RSLT",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_HSE_RGN",
+      "targets": [
+        {
+          "table": "NHS_HSE_RGN",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_HSE_RGN",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_HSE_RGN",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_RVN_ITEM_TYPE",
+      "targets": [
+        {
+          "table": "NHS_RVN_ITEM_TYPE",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_RVN_ITEM_TYPE",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_RVN_CLCT_OFFC",
+      "targets": [
+        {
+          "table": "NHS_RVN_CLCT_OFFC",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_RVN_CLCT_OFFC",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_HOS_APLY_REJ_RSN",
+      "targets": [
+        {
+          "table": "NHS_HOS_APLY_REJ_RSN",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_HOS_APLY_REJ_RSN",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SSAL1_EXTR_NHS_HOS_BLK",
+      "targets": [
+        {
+          "table": "NHS_HOS_BLK",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_HOS_BLK",
+          "connection": "NHS"
+        },
+        {
+          "table": "NHS_HOS_BLK",
+          "connection": "NHS"
+        }
+      ]
+    },
+    {
+      "mapping": "M_NHS_SETUP_UTL",
+      "targets": [
+        {
+          "table": "SOR_SYS_PRPTY",
+          "connection": "SOR"
+        },
+        {
+          "table": "SOR_SYS_PRPTY",
+          "connection": "SOR"
+        }
+      ]
+    },
+    {
+      "mapping": "M_UTL_SSA_TRUNCATE",
+      "targets": [
+        {
+          "table": "UTL_DEV_NULL",
+          "connection": "/dev/null"
+        }
+      ]
+    },
+    {
+      "mapping": "M_UTL_PARAM_SETUP",
+      "targets": [
+        {
+          "table": "UTL_JOB_PARAM",
+          "connection": "$PMSourceFileDir/PCIS01/nhs_job_param.txt"
+        }
+      ]
+    }
+  ],
+  "output": {
+    "script": "wf_nhs_ex.py"
+  }
+}

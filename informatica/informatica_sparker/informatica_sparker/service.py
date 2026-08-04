@@ -55,6 +55,18 @@ class ConversionService:
             for src_inst, src_info in sess.get("file_sources", {}).items():
                 session_file_sources[src_inst] = src_info
 
+        # Session-level Target Pre/Post SQL per mapping: the real logic of
+        # carrier mappings (DUAL → DUAL) lives in the session config, not the
+        # mapping graph. Map mapping_name → {session_name: {"pre_sql", "post_sql"}}.
+        session_sqls_by_mapping: Dict[str, Dict[str, dict]] = {}
+        for sess in workflow_analysis.get("sessions", []):
+            _sname = sess.get("name", "")
+            _mname = sess.get("mapping_name", "")
+            _sqls = {"pre_sql": sess.get("pre_sql", ""), "post_sql": sess.get("post_sql", "")}
+            if not _sqls["pre_sql"] and not _sqls["post_sql"]:
+                continue
+            session_sqls_by_mapping.setdefault(_mname, {})[_sname] = _sqls
+
         all_files: List[GeneratedFile] = []
         all_warnings: List[str] = []
         all_errors: List[str] = []
@@ -83,7 +95,9 @@ class ConversionService:
                 ir_plans.append(ir_plan)
 
                 self.codegen.reset()
-                generated = self.codegen.generate(ir_plan, self.user_config)
+                generated = self.codegen.generate(
+                    ir_plan, self.user_config,
+                    session_sqls=session_sqls_by_mapping.get(mapping_name, {}))
                 all_files.extend(generated)
                 all_warnings.extend(ir_plan.warnings)
 
@@ -643,6 +657,19 @@ class ConversionService:
                     "commands": t.get("commands", []),
                 }
 
+        # Session Target Pre/Post SQL — flat by session name, only non-empty
+        # fields (SESSION_SQLS lives in the workflow, matching the Informatica
+        # layer architecture: session config belongs to the workflow).
+        session_sqls_flat = {}
+        for sess in workflow_analysis.get("sessions", []):
+            _entry = {}
+            if sess.get("pre_sql"):
+                _entry["pre_sql"] = sess["pre_sql"]
+            if sess.get("post_sql"):
+                _entry["post_sql"] = sess["post_sql"]
+            if _entry:
+                session_sqls_flat[sess.get("name", "")] = _entry
+
         try:
             template = self.codegen.env.get_template("workflow_orchestration.py.j2")
             content = template.render(
@@ -650,10 +677,12 @@ class ConversionService:
                 mappings=mappings_info,
                 execution_plan=execution_plan,
                 task_info=task_info,
+                session_sqls=session_sqls_flat,
             )
         except Exception:
             content = self._generate_workflow_fallback(
-                workflow_name, mappings_info, execution_plan, task_info
+                workflow_name, mappings_info, execution_plan, task_info,
+                session_sqls_flat
             )
 
         # Generate separate markdown file with Mermaid flowchart
@@ -767,7 +796,8 @@ class ConversionService:
     def _generate_workflow_fallback(self, workflow_name: str,
                                  mappings_info: List[dict],
                                  execution_plan: List[dict] = None,
-                                 task_info: dict = None) -> str:
+                                 task_info: dict = None,
+                                 session_sqls: dict = None) -> str:
         import json as _json
         ex_plan_s = _json.dumps(execution_plan or [], indent=2, default=str)
         ti_s = _json.dumps(task_info or {}, indent=2, default=str)
@@ -799,6 +829,7 @@ class ConversionService:
             '',
             f'EXECUTION_PLAN = json.loads("""{ex_plan_s}""")',
             f'TASK_INFO = json.loads("""{ti_s}""")',
+            f'SESSION_SQLS = json.loads("""{_json.dumps(session_sqls or {}, indent=2, default=str)}""")',
             '',
             'def send_email(subject, body, to_address=None):',
             '    import smtplib',
@@ -836,6 +867,7 @@ class ConversionService:
             '        mapping_functions=MAPPING_FUNCTIONS,',
             f'        workflow_name="{workflow_name}",',
             '        task_info=TASK_INFO,',
+            '        session_sqls=SESSION_SQLS,',
             '        send_email_fn=send_email,',
             '        format_infa_fn=format_infa_template,',
             '        config=config,',

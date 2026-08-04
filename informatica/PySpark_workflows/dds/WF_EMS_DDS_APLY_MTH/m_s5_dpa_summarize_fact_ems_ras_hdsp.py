@@ -17,7 +17,8 @@ from pyspark.sql.types import *
 # MAPPING LOGIC
 # =============================================================================
 
-def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> bool:
+def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
+                session_sqls=None) -> bool:
     """
     Execute the M_S5_DPA_SUMMARIZE_FACT_EMS_RAS_HDSP mapping transformations.
 
@@ -28,7 +29,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         ctx: Optional SparkContext for session and DataFrame registry
         metrics: Optional metrics tracker (or NullMetrics if not provided)
         job_params: Optional dict of job parameters loaded by workflow
-    
+        session_sqls: The session's Target Pre/Post SQL dict 
     Returns:
         bool: True if successful
     """
@@ -44,8 +45,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
     metrics = metrics or lib.NullMetrics()
     metrics.start()
 
-    conn_oracle = lib.get_db_config(config, "oracle-defaults")
-    conn_source = lib.get_db_config(config, "SOR")
     conn_target = lib.get_db_config(config, "DPA")
 
     v_snsh_date = ""
@@ -139,7 +138,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
         df_SQ_SOR_HSM_UNIT = df_SQ_SOR_HSM_UNIT.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_SOR_HSM_UNIT = df_SQ_SOR_HSM_UNIT.select([col(c) if c in df_SQ_SOR_HSM_UNIT.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SOR_HSM_UNIT = df_SQ_SOR_HSM_UNIT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_HSM_UNIT.columns] else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_HSM_UNIT", df_SQ_SOR_HSM_UNIT)
         
@@ -181,7 +180,7 @@ GROUP BY rfx.BLK_KEY, rfx_sts.UNIT_TYPE_CODE, rfx.UNIT_ENV_CODE, rfx.UNIT_IFA_AR
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_CUR_RENT[c] for c in df_LKP_CUR_RENT.columns if c not in _lkp_input.columns]
+            *[df_LKP_CUR_RENT[c] for c in df_LKP_CUR_RENT.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: read_LKP_HH_SIZE")
@@ -226,7 +225,7 @@ GROUP BY tncy.CUST_KEY, tncy.HSE_SRVC_APLY_KEY"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_HH_SIZE[c] for c in df_LKP_HH_SIZE.columns if c not in _lkp_input.columns]
+            *[df_LKP_HH_SIZE[c] for c in df_LKP_HH_SIZE.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_PREV_RENT")
@@ -267,7 +266,7 @@ GROUP BY rfx.BLK_KEY, rfx_sts.UNIT_TYPE_CODE, rfx.UNIT_ENV_CODE, rfx.UNIT_IFA_AR
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_PREV_RENT[c] for c in df_LKP_PREV_RENT.columns if c not in _lkp_input.columns]
+            *[df_LKP_PREV_RENT[c] for c in df_LKP_PREV_RENT.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_CUR_RENT1")
@@ -307,7 +306,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN rfx_sts.BGN_DATE AND rfx_sts.EN
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_CUR_RENT1[c] for c in df_LKP_CUR_RENT1.columns if c not in _lkp_input.columns]
+            *[df_LKP_CUR_RENT1[c] for c in df_LKP_CUR_RENT1.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)        
         logger.info("Step: apply_EXPTRANS3")
@@ -315,7 +314,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN rfx_sts.BGN_DATE AND rfx_sts.EN
         df_EXPTRANS3 = df_lkp_merge_1
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["CUST_KEY", "HSE_SRVC_APLY_KEY", "HH_CNT"]:
-            if _col not in df_EXPTRANS3.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS3.columns]:
                 df_EXPTRANS3 = df_EXPTRANS3.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS3", df_EXPTRANS3)
@@ -357,7 +356,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN rfx_sts.BGN_DATE AND rfx_sts.EN
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_PREV_RENT1[c] for c in df_LKP_PREV_RENT1.columns if c not in _lkp_input.columns]
+            *[df_LKP_PREV_RENT1[c] for c in df_LKP_PREV_RENT1.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_3", df_lkp_merge_3)        
         logger.info("Step: apply_EXPTRANS2")
@@ -365,7 +364,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN rfx_sts.BGN_DATE AND rfx_sts.EN
         df_EXPTRANS2 = df_lkp_merge_2
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_KEY", "UNIT_TYPE_CODE", "UNIT_ENV_CODE", "UNIT_IFA_AREA", "CUR_RENT", "RENT_SCHD_BGN_DATE"]:
-            if _col not in df_EXPTRANS2.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS2.columns]:
                 df_EXPTRANS2 = df_EXPTRANS2.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS2", df_EXPTRANS2)
@@ -375,7 +374,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN rfx_sts.BGN_DATE AND rfx_sts.EN
         df_EXPTRANS1 = df_lkp_merge_3
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_KEY", "UNIT_TYPE_CODE", "UNIT_ENV_CODE", "UNIT_IFA_AREA", "PREV_RENT", "RENT_SCHD_BGN_DATE"]:
-            if _col not in df_EXPTRANS1.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS1.columns]:
                 df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
@@ -386,7 +385,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN rfx_sts.BGN_DATE AND rfx_sts.EN
         __fil_input = __fil_input.drop("FORMER_RENT").withColumnRenamed("PREV_RENT", "FORMER_RENT")
         df_FILTRANS = __fil_input.filter(expr("FORMER_RENT > CUR_RENT"))
         ctx.register_df("df_FILTRANS", df_FILTRANS)
-        
+
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
         df_EXPTRANS = df_FILTRANS
@@ -399,7 +398,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN rfx_sts.BGN_DATE AND rfx_sts.EN
         df_EXPTRANS = df_EXPTRANS.withColumn("RMK", expr("CASE WHEN RENT_FCTR_CODE < 1 THEN 'RAS rent $' || cast(round(RENT_FCTR_CODE * CUR_RENT) as string) ELSE '' END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["TNCY_AGRMT_CMNC_DATE", "UNIT_ADDR_CODE_PREV", "UNIT_IFA_AREA_PREV", "UNIT_ADDR_CODE_CUR", "UNIT_IFA_AREA_CUR", "CUST_CSSA_IND", "RENT_FCTR_CODE", "FORMER_RENT", "CUR_RENT", "HH_CNT"]:
-            if _col not in df_EXPTRANS.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
@@ -425,7 +424,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN rfx_sts.BGN_DATE AND rfx_sts.EN
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_DMNS_TIME_1[c] for c in df_LKP_DDS_DMNS_TIME_1.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_DMNS_TIME_1[c] for c in df_LKP_DDS_DMNS_TIME_1.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_4", df_lkp_merge_4)        
         logger.info("Step: write_DPA_FACT_EMS_RAS_HDSP")
@@ -436,7 +435,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN rfx_sts.BGN_DATE AND rfx_sts.EN
         # column names in batch_update/batch_delete.
         _field_map = {"FMR_CODE_ADDR": "UNIT_ADDR_CODE_PREV", "FMR_IFA_AREA": "UNIT_IFA_AREA_PREV", "FMR_NRML_RENT_AMT": "FORMER_RENT", "HSHLD_SIZE_NUM": "HH_CNT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "RAS_CSSA_STS_CODE": "RAS_CSSA_STS_CODE", "RMK_TEXT": "RMK", "TFR_CODE_ADDR": "UNIT_ADDR_CODE_CUR", "TFR_DATE": "TNCY_AGRMT_CMNC_DATE", "TFR_IFA_AREA": "UNIT_IFA_AREA_CUR", "TFR_NRML_RENT_AMT": "CUR_RENT", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with
                 # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
                 for _c in list(df_write.columns):
@@ -448,7 +447,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN rfx_sts.BGN_DATE AND rfx_sts.EN
         df_write = df_write.withColumn("REC_RLS_IND", lit(None).cast(StringType()))
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['TFR_DATE', 'FMR_CODE_ADDR', 'FMR_IFA_AREA', 'FMR_NRML_RENT_AMT', 'TFR_CODE_ADDR', 'TFR_IFA_AREA', 'TFR_NRML_RENT_AMT', 'HSHLD_SIZE_NUM', 'RAS_CSSA_STS_CODE', 'RMK_TEXT', 'TIME_DMNS_KEY', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
         # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
         lib.write_table(df_write, conn_target, "DPA_FACT_EMS_RAS_HDSP", mode="append")
 

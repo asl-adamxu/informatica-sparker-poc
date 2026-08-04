@@ -17,7 +17,8 @@ from pyspark.sql.types import *
 # MAPPING LOGIC
 # =============================================================================
 
-def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> bool:
+def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
+                session_sqls=None) -> bool:
     """
     Execute the M_EMS_DPA_SUMMARIZE_FACT_PRH_STCK_MTH_ANLS_B mapping transformations.
 
@@ -28,7 +29,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         ctx: Optional SparkContext for session and DataFrame registry
         metrics: Optional metrics tracker (or NullMetrics if not provided)
         job_params: Optional dict of job parameters loaded by workflow
-    
+        session_sqls: The session's Target Pre/Post SQL dict 
     Returns:
         bool: True if successful
     """
@@ -44,8 +45,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
     metrics = metrics or lib.NullMetrics()
     metrics.start()
 
-    conn_oracle = lib.get_db_config(config, "oracle-defaults")
-    conn_source = lib.get_db_config(config, "SSA")
     conn_target = lib.get_db_config(config, "DPA")
 
     v_rpt_mth = ""
@@ -161,7 +160,7 @@ ON
         df_SQ_SOR_HSM_UNIT = df_SQ_SOR_HSM_UNIT.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_SOR_HSM_UNIT = df_SQ_SOR_HSM_UNIT.select([col(c) if c in df_SQ_SOR_HSM_UNIT.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SOR_HSM_UNIT = df_SQ_SOR_HSM_UNIT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_HSM_UNIT.columns] else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_HSM_UNIT", df_SQ_SOR_HSM_UNIT)
         
@@ -178,7 +177,7 @@ ON
         df_EXPTRANS = df_EXPTRANS.withColumn("ROOM", expr("substring(UNIT_ADDR_CODE, 9, 7)"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["UNIT_ADDR_CODE", "UNIT_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_IFA_AREA", "UNIT_TYPE_CODE", "INDICATOR", "CV", "UNIT_TAKE_OVER_DATE", "HSE_UNIT_TM_VOID_STS_BGN_DATE", "VCNT_IND"]:
-            if _col not in df_EXPTRANS.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
@@ -203,7 +202,7 @@ ON
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_DMNS_EMS_FLAT_TYPE[c] for c in df_LKP_DDS_DMNS_EMS_FLAT_TYPE.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_DMNS_EMS_FLAT_TYPE[c] for c in df_LKP_DDS_DMNS_EMS_FLAT_TYPE.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: read_LKP_DDS_DMNS_UNIT_SIZE")
@@ -398,7 +397,7 @@ GROUP BY
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_RFBH_RLET_UNIT[c] for c in df_LKP_RFBH_RLET_UNIT.columns if c not in _lkp_input.columns]
+            *[df_LKP_RFBH_RLET_UNIT[c] for c in df_LKP_RFBH_RLET_UNIT.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_RLET_UNIT")
@@ -496,7 +495,7 @@ GROUP BY UNIT_KEY"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_RLET_UNIT[c] for c in df_LKP_RLET_UNIT.columns if c not in _lkp_input.columns]
+            *[df_LKP_RLET_UNIT[c] for c in df_LKP_RLET_UNIT.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_ALCT_STS_CODE")
@@ -560,7 +559,7 @@ GROUP BY UNIT_KEY"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_ALCT_STS_CODE[c] for c in df_LKP_ALCT_STS_CODE.columns if c not in _lkp_input.columns]
+            *[df_LKP_ALCT_STS_CODE[c] for c in df_LKP_ALCT_STS_CODE.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_UNIT_ADVS_ENV_CODE_IND")
@@ -597,7 +596,7 @@ group by UNIT_ADDR_CODE"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_UNIT_ADVS_ENV_CODE_IND[c] for c in df_LKP_UNIT_ADVS_ENV_CODE_IND.columns if c not in _lkp_input.columns]
+            *[df_LKP_UNIT_ADVS_ENV_CODE_IND[c] for c in df_LKP_UNIT_ADVS_ENV_CODE_IND.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: apply_FILTRANS")
@@ -605,7 +604,7 @@ group by UNIT_ADDR_CODE"""
         __fil_input = df_lkp_merge_1
         df_FILTRANS = __fil_input.filter(expr("INDICATOR=2 OR INDICATOR=3"))
         ctx.register_df("df_FILTRANS", df_FILTRANS)
-        
+
         logger.info("Step: read_LKP_DSTR_EST")
         # Reading Data From Source - read_LKP_DSTR_EST
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -648,7 +647,7 @@ AND B.EST_KEY = E.EST_KEY"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DSTR_EST[c] for c in df_LKP_DSTR_EST.columns if c not in _lkp_input.columns]
+            *[df_LKP_DSTR_EST[c] for c in df_LKP_DSTR_EST.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: apply_EXPTRANS4")
@@ -657,7 +656,7 @@ AND B.EST_KEY = E.EST_KEY"""
         df_EXPTRANS4 = df_EXPTRANS4.withColumn("UNIT_ALCT_STS_CODE", expr("CASE WHEN EST_TYPE = NULL THEN NULL ELSE CASE WHEN DT_TK_OVER = NULL THEN 'ADV' ELSE CASE WHEN FL_ALLO_ST = '0' THEN 'PA' WHEN FL_ALLO_ST = '1' THEN CASE WHEN CASE WHEN ltrim(rtrim(OFFER_STAT)) = '' THEN NULL ELSE OFFER_STAT END = NULL THEN CASE WHEN RES_CAT = 'GWLEFASM' THEN 'AMA' ELSE 'AOA' END ELSE 'AOA' END ELSE 'AOA' END END END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["DT_TK_OVER", "FL_ALLO_ST", "OFFER_STAT", "RES_CAT", "EST_TYPE"]:
-            if _col not in df_EXPTRANS4.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS4.columns]:
                 df_EXPTRANS4 = df_EXPTRANS4.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS4", df_EXPTRANS4)
@@ -691,7 +690,7 @@ and T.TPS_AGRMT_TRMT_DATE <= add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD')
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_LAST_TPS_DOT[c] for c in df_LKP_LAST_TPS_DOT.columns if c not in _lkp_input.columns]
+            *[df_LKP_LAST_TPS_DOT[c] for c in df_LKP_LAST_TPS_DOT.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)        
         logger.info("Step: read_LKP_LAST_DOT")
@@ -730,7 +729,7 @@ group by UNIT_KEY"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_LAST_DOT[c] for c in df_LKP_LAST_DOT.columns if c not in _lkp_input.columns]
+            *[df_LKP_LAST_DOT[c] for c in df_LKP_LAST_DOT.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_LKPTRANS")
@@ -773,7 +772,7 @@ GROUP BY
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_LKPTRANS[c] for c in df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_LKPTRANS.columns if c not in _lkp_input.columns]
+            *[df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_LKPTRANS[c] for c in df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_LKPTRANS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_mplt_lkp_chain_3", df_mplt_lkp_chain_3)        
         logger.info("Step: apply_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY")
@@ -801,7 +800,7 @@ GROUP BY
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR[c] for c in df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR[c] for c in df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_4", df_lkp_merge_4)        
         logger.info("Step: read_LKP_DDS_HRCHY_EMS_EST")
@@ -846,7 +845,7 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_HRCHY_EMS_EST[c] for c in df_LKP_DDS_HRCHY_EMS_EST.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_HRCHY_EMS_EST[c] for c in df_LKP_DDS_HRCHY_EMS_EST.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_SCD_BLK_KEY")
@@ -875,7 +874,7 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 BETWEEN BGN_DATE 
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_SCD_BLK_KEY[c] for c in df_LKP_SCD_BLK_KEY.columns if c not in _lkp_input.columns]
+            *[df_LKP_SCD_BLK_KEY[c] for c in df_LKP_SCD_BLK_KEY.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR")
@@ -902,7 +901,7 @@ WHERE add_months(to_date('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR[c] for c in df_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR[c] for c in df_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_DDS_DMNS_ALCT_STS")
@@ -925,7 +924,7 @@ WHERE add_months(to_date('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_DMNS_ALCT_STS[c] for c in df_LKP_DDS_DMNS_ALCT_STS.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_DMNS_ALCT_STS[c] for c in df_LKP_DDS_DMNS_ALCT_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_5", df_lkp_merge_5)        
         logger.info("Step: apply_Union_Transformation")
@@ -933,7 +932,7 @@ WHERE add_months(to_date('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         df_Union_Transformation = df_lkp_merge_2
         # Select only union output columns (add lit(None) for any missing)
         for _col in ["UNIT_KEY", "DATE"]:
-            if _col not in df_Union_Transformation.columns:
+            if _col.lower() not in [x.lower() for x in df_Union_Transformation.columns]:
                 df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("UNIT_KEY", "DATE")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
@@ -959,7 +958,7 @@ WHERE add_months(to_date('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_DMNS_EMS_MGT_MODE[c] for c in df_LKP_DDS_DMNS_EMS_MGT_MODE.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_DMNS_EMS_MGT_MODE[c] for c in df_LKP_DDS_DMNS_EMS_MGT_MODE.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_6", df_lkp_merge_6)        
         logger.info("Step: apply_EXPTRANS3")
@@ -968,7 +967,7 @@ WHERE add_months(to_date('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         df_EXPTRANS3 = df_EXPTRANS3.withColumn("DATE1", expr("CASE WHEN (DATE IS NULL) THEN to_date('19000101', 'yyyyMMdd') ELSE DATE END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["UNIT_KEY"]:
-            if _col not in df_EXPTRANS3.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS3.columns]:
                 df_EXPTRANS3 = df_EXPTRANS3.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS3", df_EXPTRANS3)
@@ -976,10 +975,11 @@ WHERE add_months(to_date('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         logger.info("Step: merge_EXPTRANS2_0")
         # Lookup: merge_EXPTRANS2_0
         # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity).
-        _cc = list(dict.fromkeys(c for c in df_lkp_merge_4.columns if c in df_lkp_merge_1.columns))
+        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
+        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
+        _cc = list(dict.fromkeys(c for c in df_lkp_merge_4.columns if c.lower() in [x.lower() for x in df_lkp_merge_1.columns]))
         if _cc:
-            __lkp_dup = [c for c in df_lkp_merge_1.columns if c in df_lkp_merge_4.columns and c not in _cc]
+            __lkp_dup = [c for c in df_lkp_merge_1.columns if c.lower() in [x.lower() for x in df_lkp_merge_4.columns] and c.lower() not in [x.lower() for x in _cc]]
             df_merge_7 = df_lkp_merge_4.join(
                 df_lkp_merge_1.drop(*__lkp_dup) if __lkp_dup else df_lkp_merge_1,
                 on=_cc, how="left"
@@ -994,10 +994,11 @@ WHERE add_months(to_date('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         logger.info("Step: merge_EXPTRANS2_1")
         # Lookup: merge_EXPTRANS2_1
         # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity).
-        _cc = list(dict.fromkeys(c for c in df_merge_7.columns if c in df_lkp_merge_6.columns))
+        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
+        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
+        _cc = list(dict.fromkeys(c for c in df_merge_7.columns if c.lower() in [x.lower() for x in df_lkp_merge_6.columns]))
         if _cc:
-            __lkp_dup = [c for c in df_lkp_merge_6.columns if c in df_merge_7.columns and c not in _cc]
+            __lkp_dup = [c for c in df_lkp_merge_6.columns if c.lower() in [x.lower() for x in df_merge_7.columns] and c.lower() not in [x.lower() for x in _cc]]
             df_merge_8 = df_merge_7.join(
                 df_lkp_merge_6.drop(*__lkp_dup) if __lkp_dup else df_lkp_merge_6,
                 on=_cc, how="left"
@@ -1012,10 +1013,11 @@ WHERE add_months(to_date('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         logger.info("Step: merge_EXPTRANS2_2")
         # Lookup: merge_EXPTRANS2_2
         # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity).
-        _cc = list(dict.fromkeys(c for c in df_merge_8.columns if c in df_lkp_merge_5.columns))
+        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
+        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
+        _cc = list(dict.fromkeys(c for c in df_merge_8.columns if c.lower() in [x.lower() for x in df_lkp_merge_5.columns]))
         if _cc:
-            __lkp_dup = [c for c in df_lkp_merge_5.columns if c in df_merge_8.columns and c not in _cc]
+            __lkp_dup = [c for c in df_lkp_merge_5.columns if c.lower() in [x.lower() for x in df_merge_8.columns] and c.lower() not in [x.lower() for x in _cc]]
             df_merge_9 = df_merge_8.join(
                 df_lkp_merge_5.drop(*__lkp_dup) if __lkp_dup else df_lkp_merge_5,
                 on=_cc, how="left"
@@ -1042,7 +1044,7 @@ WHERE add_months(to_date('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         df_EXPTRANS2 = df_EXPTRANS2.withColumn("BLK_SCD_KEY1", expr("CASE WHEN (BLK_SCD_KEY IS NULL) THEN 0 ELSE BLK_SCD_KEY END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["UNIT_KEY", "TIME_DMNS_KEY", "EST_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_ADDR_CODE", "VCNT_IND"]:
-            if _col not in df_EXPTRANS2.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS2.columns]:
                 df_EXPTRANS2 = df_EXPTRANS2.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS2", df_EXPTRANS2)
@@ -1080,7 +1082,7 @@ WHERE add_months(to_date('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("VCNY_DAY_NUM", expr(_expr))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["UNIT_KEY"]:
-            if _col not in df_EXPTRANS1.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS1.columns]:
                 df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
@@ -1164,7 +1166,7 @@ WHERE LAST_DAY(TO_DATE($$v_rpt_mth||'01','YYYYMMDD')) BETWEEN STS.BGN_DATE AND S
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_SOR_EMS_HSM_PRH_UNIT_STS[c] for c in df_LKP_SOR_EMS_HSM_PRH_UNIT_STS.columns if c not in _lkp_input.columns]
+            *[df_LKP_SOR_EMS_HSM_PRH_UNIT_STS[c] for c in df_LKP_SOR_EMS_HSM_PRH_UNIT_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_10", df_lkp_merge_10)        
         logger.info("Step: apply_FILTRANS2")
@@ -1173,7 +1175,7 @@ WHERE LAST_DAY(TO_DATE($$v_rpt_mth||'01','YYYYMMDD')) BETWEEN STS.BGN_DATE AND S
         __fil_input = __fil_input.drop("BLK_SCD_KEY").withColumnRenamed("BLK_SCD_KEY1", "BLK_SCD_KEY")
         df_FILTRANS2 = __fil_input.filter(expr("NOT (VCNT_IND IS NULL)"))
         ctx.register_df("df_FILTRANS2", df_FILTRANS2)
-        
+
         logger.info("Step: read_LKP_DDS_DMNS_EMS_HSC_UNIT_TYPE")
         # Reading Data From Source - read_LKP_DDS_DMNS_EMS_HSC_UNIT_TYPE
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -1202,7 +1204,7 @@ WHERE HSC_UNIT_TYPE_SCHM_CODE = 'TYP123'"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_DMNS_EMS_HSC_UNIT_TYPE[c] for c in df_LKP_DDS_DMNS_EMS_HSC_UNIT_TYPE.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_DMNS_EMS_HSC_UNIT_TYPE[c] for c in df_LKP_DDS_DMNS_EMS_HSC_UNIT_TYPE.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_11", df_lkp_merge_11)        
         logger.info("Step: apply_EXPTRANS7")
@@ -1211,7 +1213,7 @@ WHERE HSC_UNIT_TYPE_SCHM_CODE = 'TYP123'"""
         df_EXPTRANS7 = df_EXPTRANS7.withColumn("OUT_VCNT_IND", expr("cast(VCNT_IND as string)"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["TIME_DMNS_KEY", "BLK_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_ADVS_ENV_CODE_IND"]:
-            if _col not in df_EXPTRANS7.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS7.columns]:
                 df_EXPTRANS7 = df_EXPTRANS7.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS7", df_EXPTRANS7)
@@ -1254,16 +1256,17 @@ WHERE
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_DMNS_EMS_VCNT_FLAT_TYPE[c] for c in df_LKP_DDS_DMNS_EMS_VCNT_FLAT_TYPE.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_DMNS_EMS_VCNT_FLAT_TYPE[c] for c in df_LKP_DDS_DMNS_EMS_VCNT_FLAT_TYPE.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_12", df_lkp_merge_12)        
         logger.info("Step: merge_AGGTRANS_0")
         # Lookup: merge_AGGTRANS_0
         # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity).
-        _cc = list(dict.fromkeys(c for c in df_EXPTRANS5.columns if c in df_EXPTRANS6.columns))
+        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
+        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
+        _cc = list(dict.fromkeys(c for c in df_EXPTRANS5.columns if c.lower() in [x.lower() for x in df_EXPTRANS6.columns]))
         if _cc:
-            __lkp_dup = [c for c in df_EXPTRANS6.columns if c in df_EXPTRANS5.columns and c not in _cc]
+            __lkp_dup = [c for c in df_EXPTRANS6.columns if c.lower() in [x.lower() for x in df_EXPTRANS5.columns] and c.lower() not in [x.lower() for x in _cc]]
             df_merge_13 = df_EXPTRANS5.join(
                 df_EXPTRANS6.drop(*__lkp_dup) if __lkp_dup else df_EXPTRANS6,
                 on=_cc, how="left"
@@ -1278,10 +1281,11 @@ WHERE
         logger.info("Step: merge_AGGTRANS_1")
         # Lookup: merge_AGGTRANS_1
         # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity).
-        _cc = list(dict.fromkeys(c for c in df_merge_13.columns if c in df_lkp_merge_12.columns))
+        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
+        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
+        _cc = list(dict.fromkeys(c for c in df_merge_13.columns if c.lower() in [x.lower() for x in df_lkp_merge_12.columns]))
         if _cc:
-            __lkp_dup = [c for c in df_lkp_merge_12.columns if c in df_merge_13.columns and c not in _cc]
+            __lkp_dup = [c for c in df_lkp_merge_12.columns if c.lower() in [x.lower() for x in df_merge_13.columns] and c.lower() not in [x.lower() for x in _cc]]
             df_merge_14 = df_merge_13.join(
                 df_lkp_merge_12.drop(*__lkp_dup) if __lkp_dup else df_lkp_merge_12,
                 on=_cc, how="left"
@@ -1341,7 +1345,7 @@ WHERE
         df_EXPTRANS8 = df_EXPTRANS8.withColumn("out_VCNT_FLAT_TYPE_DMNS_KEY", expr("CASE WHEN (VCNT_FLAT_TYPE_DMNS_KEY IS NULL) THEN 0 ELSE VCNT_FLAT_TYPE_DMNS_KEY END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["TIME_DMNS_KEY", "BLK_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_ADVS_ENV_CODE_IND"]:
-            if _col not in df_EXPTRANS8.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS8.columns]:
                 df_EXPTRANS8 = df_EXPTRANS8.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS8", df_EXPTRANS8)
@@ -1354,7 +1358,7 @@ WHERE
         # column names in batch_update/batch_delete.
         _field_map = {"ALCT_STS_DMNS_KEY": "ALCT_STS_DMNS_KEY", "BLK_SCD_KEY": "BLK_SCD_KEY1", "DSTR_BRD_DSTR_DMNS_KEY": "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY": "DSTR_CHC_DSTR_SCD_KEY", "EST_SCD_KEY": "EST_SCD_KEY", "FLAT_TYPE_DMNS_KEY": "FLAT_TYPE_DMNS_KEY", "HSC_UNIT_TYPE_DMNS_KEY": "HSC_UNIT_TYPE_DMNS_KEY", "MAX_UNIT_HEAD_CNT": "MAX_UNIT_HEAD_CNT", "MAX_UNIT_VCNCY_DAY_NUM": "MAX_UNIT_VCNCY_DAY_NUM", "MGT_MODE_DMNS_KEY": "MGT_MODE_DMNS_KEY", "MIN_UNIT_HEAD_CNT": "MIN_UNIT_HEAD_CNT", "RLET_AFT_RFBH_CNT": "RLET_AFT_RFBH_CNT", "RLET_AFT_TCHUP_WO_CNT": "RLET_AFT_TCHUP_WO_CNT", "RLET_UNIT_CNT": "RLET_UNIT_CNT", "STA_NONLTB_UNIT_CNT": "STA_NONLTB_UNIT_CNT", "STA_OCPY_UNIT_CNT": "STA_OCPY_UNIT_CNT", "STA_UNIT_CNT": "STA_UNIT_CNT", "STA_UNIT_UND_OFR_CNT": "STA_UND_OFR_UNIT_CNT", "STA_VCNT_UNIT_ALCT_CNT": "STA_VCNT_ALCT_UNIT_CNT", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TOT_UNIT_VCNCY_DAY_NUM": "TOT_UNIT_VCNCY_DAY_NUM", "UNIT_ADVS_ENV_IND": "UNIT_ADVS_ENV_CODE_IND", "UNIT_SIZE_DMNS_KEY": "UNIT_SIZE_DMNS_KEY", "UNIT_UND_FRZ_RFBH_CNT": "UNIT_FRZ_RFBH_CNT", "UNIT_UND_OFR_RFBH_CNT": "UND_OFR_UNIT_RFBH_CNT", "VCNT_UNIT_UND_RFBH_CNT": "VCNT_UNIT_RFBH_CNT"}
         for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with
                 # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
                 for _c in list(df_write.columns):
@@ -1375,7 +1379,7 @@ WHERE
         df_write = df_write.withColumn("REC_RLS_IND", lit(None).cast(StringType()))
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['TIME_DMNS_KEY', 'EST_SCD_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'FLAT_TYPE_DMNS_KEY', 'UNIT_SIZE_DMNS_KEY', 'ALCT_STS_DMNS_KEY', 'MGT_MODE_DMNS_KEY', 'MAX_UNIT_HEAD_CNT', 'MIN_UNIT_HEAD_CNT', 'UNIT_ADVS_ENV_IND', 'BLK_CNT', 'PRVS_UNIT_CNT', 'RCVR_UNIT_CNT', 'MAX_UNIT_VCNCY_DAY_NUM', 'TOT_UNIT_VCNCY_DAY_NUM', 'RNTL_UNIT_CNT', 'MAX_UNIT_MTH_RENT_AMT', 'MIN_UNIT_MTH_RENT_AMT', 'TOT_UNIT_MTH_RENT_AMT', 'MAX_UNIT_IFA_RENT_AMT', 'MIN_UNIT_IFA_RENT_AMT', 'TOT_UNIT_IFA_RENT_AMT', 'STA_UNIT_CNT', 'STA_OCPY_UNIT_CNT', 'STA_VCNT_UNIT_ALCT_CNT', 'STA_UNIT_UND_OFR_CNT', 'VCNT_UNIT_UND_RFBH_CNT', 'UNIT_UND_OFR_RFBH_CNT', 'RLET_UNIT_CNT', 'RLET_AFT_RFBH_CNT', 'RLET_AFT_TCHUP_WO_CNT', 'UNIT_UND_FRZ_RFBH_CNT', 'BLK_SCD_KEY', 'HSC_UNIT_TYPE_DMNS_KEY', 'STA_NONLTB_UNIT_CNT', 'REC_RLS_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
         # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
         lib.write_table(df_write, conn_target, "DPA_FACT_EMS_PRH_STCK_MTH_ANLS", mode="append")
 
@@ -1408,7 +1412,7 @@ WHERE
         # column names in batch_update/batch_delete.
         _field_map = {"BLK_SCD_KEY": "BLK_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY": "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY": "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY": "FLAT_TYPE_DMNS_KEY", "MAX_UNIT_HEAD_CNT": "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT": "MIN_UNIT_HEAD_CNT", "STA_VCNT_UNIT_ALCT_CNT": "STA_VCNT_UNIT_ALCT_CNT", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "UNIT_ADVS_ENV_IND": "UNIT_ADVS_ENV_CODE_IND", "UNIT_SIZE_DMNS_KEY": "UNIT_SIZE_DMNS_KEY", "VCNT_FLAT_TYPE_DMNS_KEY": "VCNT_FLAT_TYPE_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with
                 # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
                 for _c in list(df_write.columns):
@@ -1420,7 +1424,7 @@ WHERE
         df_write = df_write.withColumn("REC_RLS_IND", lit(None).cast(StringType()))
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['TIME_DMNS_KEY', 'VCNT_FLAT_TYPE_DMNS_KEY', 'BLK_SCD_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'FLAT_TYPE_DMNS_KEY', 'UNIT_SIZE_DMNS_KEY', 'MAX_UNIT_HEAD_CNT', 'MIN_UNIT_HEAD_CNT', 'UNIT_ADVS_ENV_IND', 'STA_VCNT_UNIT_ALCT_CNT', 'TOT_UNIT_MTH_RENT_AMT', 'REC_RLS_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
         # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
         lib.write_table(df_write, conn_target, "DPA_FACT_EMS_PRH_VCNT_TERM", mode="append")
 

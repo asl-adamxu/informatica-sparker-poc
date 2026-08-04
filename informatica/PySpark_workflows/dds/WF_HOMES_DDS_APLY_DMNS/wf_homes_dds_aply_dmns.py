@@ -22,11 +22,6 @@ EXECUTION_PLAN = [
     "steps": [
       {
         "type": "session",
-        "name": "S_HOM_ETL_PARAM_SETUP",
-        "mapping_name": "M_UTL_PARAM_SETUP"
-      },
-      {
-        "type": "session",
         "name": "S_HOM_ETL_DPA_TRUNCATE",
         "mapping_name": "M_UTL_DPA_TRUNCATE"
       },
@@ -34,6 +29,11 @@ EXECUTION_PLAN = [
         "type": "session",
         "name": "S_HOM_ETL_DDS_BKP_DELETE",
         "mapping_name": "M_HOM_ETL_DDS_BKP_DELETE"
+      },
+      {
+        "type": "session",
+        "name": "S_HOM_ETL_PARAM_SETUP",
+        "mapping_name": "M_UTL_PARAM_SETUP"
       }
     ]
   },
@@ -61,33 +61,18 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_ORG",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_ORG"
+            "name": "S_DPA_SUMMARIZE_DMNS_FIN_NTR",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_FIN_NTR"
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_SNSH",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_SNSH"
+            "name": "S_DPA_SUMMARIZE_DMNS_DSTR",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_DSTR"
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_DSTR_GRP",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_DSTR_GRP"
-          },
-          {
-            "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_MTH",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_MTH"
-          },
-          {
-            "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_FUND_NTR",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_FUND_NTR"
-          },
-          {
-            "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_BDGT_PROJ_STS",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_BDGT_PROJ_STS"
+            "name": "S_DPA_SUMMARIZE_DMNS_KPI_SNSH_MTH",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_KPI_SNSH_MTH"
           },
           {
             "type": "session",
@@ -96,33 +81,53 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_BDGT_COPY",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_BDGT_COPY"
+            "name": "S_DPA_SUMMARIZE_DMNS_SNSH",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_SNSH"
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_FIN_NTR",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_FIN_NTR"
+            "name": "S_DPA_SUMMARIZE_DMNS_CNTR_MGR",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_CNTR_MGR"
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_RPT_CATG",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_RPT_CATG"
+            "name": "S_DPA_SUMMARIZE_DMNS_PHCP",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_PHCP"
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_PROJ",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_PROJ"
+            "name": "S_DPA_SUMMARIZE_DMNS_PMC_DSTR",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_PMC_DSTR"
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_CNTR_STG",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_CNTR_STG"
+            "name": "S_DPA_SUMMARIZE_DMNS_FLATMIX",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_FLATMIX"
           },
           {
             "type": "session",
             "name": "S_DPA_SUMMARIZE_DMNS_SNSH_CNTR",
             "mapping_name": "M_DPA_SUMMARIZE_DMNS_SNSH_CNTR"
+          },
+          {
+            "type": "session",
+            "name": "S_DPA_SUMMARIZE_DMNS_PROJ_BLK_TYPE",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_PROJ_BLK_TYPE"
+          },
+          {
+            "type": "session",
+            "name": "S_DPA_SUMMARIZE_DMNS_BDGT_PRCS_YEAR",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_BDGT_PRCS_YEAR"
+          },
+          {
+            "type": "session",
+            "name": "S_DPA_SUMMARIZE_DMNS_KPI_TYPE",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_KPI_TYPE"
+          },
+          {
+            "type": "session",
+            "name": "S_DPA_SUMMARIZE_DMNS_KPI_SNSH_YEAR",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_KPI_SNSH_YEAR"
           },
           {
             "type": "session",
@@ -136,48 +141,43 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_KPI_TYPE",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_KPI_TYPE"
+            "name": "S_DPA_SUMMARIZE_DMNS_BDGT_COPY",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_BDGT_COPY"
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_SNSH_PROJ",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_SNSH_PROJ"
+            "name": "S_DPA_SUMMARIZE_DMNS_RPT_CATG",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_RPT_CATG"
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_DSTR",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_DSTR"
+            "name": "S_DPA_SUMMARIZE_DMNS_CNTR_STG",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_CNTR_STG"
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_BDGT_PROJ_MGR",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_BDGT_PROJ_MGR"
+            "name": "S_DPA_SUMMARIZE_DMNS_BDGT_PROJ_STS",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_BDGT_PROJ_STS"
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_KPI_SNSH_MTH",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_KPI_SNSH_MTH"
+            "name": "S_DPA_SUMMARIZE_DMNS_VDR",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_VDR"
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_KPI_SNSH_YEAR",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_KPI_SNSH_YEAR"
+            "name": "S_DPA_SUMMARIZE_DMNS_PROJ",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_PROJ"
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_BDGT_PRCS_YEAR",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_BDGT_PRCS_YEAR"
+            "name": "S_DPA_SUMMARIZE_DMNS_DSTR_GRP",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_DSTR_GRP"
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_CNTR_TYPE",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_CNTR_TYPE"
-          },
-          {
-            "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_CNTR_MGR",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_CNTR_MGR"
+            "name": "S_DPA_SUMMARIZE_DMNS_MTH",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_MTH"
           },
           {
             "type": "session",
@@ -186,28 +186,28 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_PMC_DSTR",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_PMC_DSTR"
+            "name": "S_DPA_SUMMARIZE_DMNS_CNTR_TYPE",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_CNTR_TYPE"
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_PHCP",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_PHCP"
+            "name": "S_DPA_SUMMARIZE_DMNS_ORG",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_ORG"
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_PROJ_BLK_TYPE",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_PROJ_BLK_TYPE"
+            "name": "S_DPA_SUMMARIZE_DMNS_SNSH_PROJ",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_SNSH_PROJ"
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_FLATMIX",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_FLATMIX"
+            "name": "S_DPA_SUMMARIZE_DMNS_BDGT_PROJ_MGR",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_BDGT_PROJ_MGR"
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_DMNS_VDR",
-            "mapping_name": "M_DPA_SUMMARIZE_DMNS_VDR"
+            "name": "S_DPA_SUMMARIZE_DMNS_FUND_NTR",
+            "mapping_name": "M_DPA_SUMMARIZE_DMNS_FUND_NTR"
           }
         ]
       }
@@ -222,138 +222,8 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_DDS_APLY_DMNS_KPI_TYPE",
-            "mapping_name": "M_DDS_APLY_DMNS_KPI_TYPE"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_PROJ_NTR",
-            "mapping_name": "M_DDS_APLY_DMNS_PROJ_NTR"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_PROJ_STG",
-            "mapping_name": "M_DDS_APLY_DMNS_PROJ_STG"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_FUND_NTR",
-            "mapping_name": "M_DDS_APLY_DMNS_FUND_NTR"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_FLATMIX",
-            "mapping_name": "M_DDS_APLY_DMNS_FLATMIX"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_SNSH",
-            "mapping_name": "M_DDS_APLY_DMNS_SNSH"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_CNTR_MGR",
-            "mapping_name": "M_DDS_APLY_DMNS_CNTR_MGR"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_PROJ",
-            "mapping_name": "M_DDS_APLY_DMNS_PROJ"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_PMC_DSTR",
-            "mapping_name": "M_DDS_APLY_DMNS_PMC_DSTR"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_CNTR_TYPE",
-            "mapping_name": "M_DDS_APLY_DMNS_CNTR_TYPE"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_BDGT_PRCS_YEAR",
-            "mapping_name": "M_DDS_APLY_DMNS_BDGT_PRCS_YEAR"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_BDGT_PROJ_STS",
-            "mapping_name": "M_DDS_APLY_DMNS_BDGT_PROJ_STS"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_RPT_CATG",
-            "mapping_name": "M_DDS_APLY_DMNS_RPT_CATG"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_PROJ_BLK_TYPE",
-            "mapping_name": "M_DDS_APLY_DMNS_PROJ_BLK_TYPE"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_DSTR",
-            "mapping_name": "M_DDS_APLY_DMNS_DSTR"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_PRCS_YEAR",
-            "mapping_name": "M_DDS_APLY_DMNS_PRCS_YEAR"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_VDR",
-            "mapping_name": "M_DDS_APLY_DMNS_VDR"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_BDGT_PROJ_MGR",
-            "mapping_name": "M_DDS_APLY_DMNS_BDGT_PROJ_MGR"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_CNTR_STG",
-            "mapping_name": "M_DDS_APLY_DMNS_CNTR_STG"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_PHCP",
-            "mapping_name": "M_DDS_APLY_DMNS_PHCP"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_BDGT_COPY",
-            "mapping_name": "M_DDS_APLY_DMNS_BDGT_COPY"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_MTH",
-            "mapping_name": "M_DDS_APLY_DMNS_MTH"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_KPI_SNSH_YEAR",
-            "mapping_name": "M_DDS_APLY_DMNS_KPI_SNSH_YEAR"
-          },
-          {
-            "type": "session",
             "name": "S_DDS_APLY_DMNS_ORG",
             "mapping_name": "M_DDS_APLY_DMNS_ORG"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_FIN_NTR",
-            "mapping_name": "M_DDS_APLY_DMNS_FIN_NTR"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_KPI_SNSH_MTH",
-            "mapping_name": "M_DDS_APLY_DMNS_KPI_SNSH_MTH"
-          },
-          {
-            "type": "session",
-            "name": "S_DDS_APLY_DMNS_SNSH_CNTR",
-            "mapping_name": "M_DDS_APLY_DMNS_SNSH_CNTR"
           },
           {
             "type": "session",
@@ -362,13 +232,143 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_DDS_APLY_DMNS_DSTR_GRP",
-            "mapping_name": "M_DDS_APLY_DMNS_DSTR_GRP"
+            "name": "S_DDS_APLY_DMNS_PROJ_NTR",
+            "mapping_name": "M_DDS_APLY_DMNS_PROJ_NTR"
           },
           {
             "type": "session",
             "name": "S_DDS_APLY_DMNS_CNTR",
             "mapping_name": "M_DDS_APLY_DMNS_CNTR"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_BDGT_PRCS_YEAR",
+            "mapping_name": "M_DDS_APLY_DMNS_BDGT_PRCS_YEAR"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_FIN_NTR",
+            "mapping_name": "M_DDS_APLY_DMNS_FIN_NTR"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_FUND_NTR",
+            "mapping_name": "M_DDS_APLY_DMNS_FUND_NTR"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_BDGT_COPY",
+            "mapping_name": "M_DDS_APLY_DMNS_BDGT_COPY"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_KPI_SNSH_YEAR",
+            "mapping_name": "M_DDS_APLY_DMNS_KPI_SNSH_YEAR"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_RPT_CATG",
+            "mapping_name": "M_DDS_APLY_DMNS_RPT_CATG"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_PROJ_STG",
+            "mapping_name": "M_DDS_APLY_DMNS_PROJ_STG"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_SNSH",
+            "mapping_name": "M_DDS_APLY_DMNS_SNSH"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_BDGT_PROJ_MGR",
+            "mapping_name": "M_DDS_APLY_DMNS_BDGT_PROJ_MGR"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_MTH",
+            "mapping_name": "M_DDS_APLY_DMNS_MTH"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_PROJ",
+            "mapping_name": "M_DDS_APLY_DMNS_PROJ"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_CNTR_MGR",
+            "mapping_name": "M_DDS_APLY_DMNS_CNTR_MGR"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_SNSH_CNTR",
+            "mapping_name": "M_DDS_APLY_DMNS_SNSH_CNTR"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_CNTR_TYPE",
+            "mapping_name": "M_DDS_APLY_DMNS_CNTR_TYPE"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_PHCP",
+            "mapping_name": "M_DDS_APLY_DMNS_PHCP"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_BDGT_PROJ_STS",
+            "mapping_name": "M_DDS_APLY_DMNS_BDGT_PROJ_STS"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_CNTR_STG",
+            "mapping_name": "M_DDS_APLY_DMNS_CNTR_STG"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_KPI_TYPE",
+            "mapping_name": "M_DDS_APLY_DMNS_KPI_TYPE"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_PROJ_BLK_TYPE",
+            "mapping_name": "M_DDS_APLY_DMNS_PROJ_BLK_TYPE"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_PRCS_YEAR",
+            "mapping_name": "M_DDS_APLY_DMNS_PRCS_YEAR"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_KPI_SNSH_MTH",
+            "mapping_name": "M_DDS_APLY_DMNS_KPI_SNSH_MTH"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_VDR",
+            "mapping_name": "M_DDS_APLY_DMNS_VDR"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_DSTR_GRP",
+            "mapping_name": "M_DDS_APLY_DMNS_DSTR_GRP"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_DSTR",
+            "mapping_name": "M_DDS_APLY_DMNS_DSTR"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_FLATMIX",
+            "mapping_name": "M_DDS_APLY_DMNS_FLATMIX"
+          },
+          {
+            "type": "session",
+            "name": "S_DDS_APLY_DMNS_PMC_DSTR",
+            "mapping_name": "M_DDS_APLY_DMNS_PMC_DSTR"
           }
         ]
       }
@@ -378,13 +378,13 @@ EXECUTION_PLAN = [
     "type": "parallel_group",
     "steps": [
       {
+        "type": "task",
+        "name": "T_MAIL_SUCCESS"
+      },
+      {
         "type": "session",
         "name": "S_HOM_ELT_DDS_DMNS_DELETE",
         "mapping_name": "M_HOM_ETL_DDS_DMNS_DELETE"
-      },
-      {
-        "type": "task",
-        "name": "T_MAIL_SUCCESS"
       }
     ]
   },
@@ -410,6 +410,31 @@ TASK_INFO = {
   }
 }
 
+# Session-level Target Pre/Post SQL (from the Informatica session config) —
+# the real logic of carrier mappings lives here, not in the mapping graph.
+# Only non-empty entries are listed; keyed by session name.
+SESSION_SQLS = {
+# skip the pre sql for runtime verify only
+#   "S_HOM_ETL_DDS_BKP_DELETE": {
+#     "pre_sql": "DELETE FROM DDS_FACT_COST_VRTN_BKP;\r\n\r\nDELETE FROM DDS_FACT_DEV_LEAD_TIME_BKP;\r\n\r\nDELETE FROM DDS_FACT_FLAT_PROD_BKP;\r\n\r\nDELETE FROM DDS_FACT_INPT_KPI_BKP;\r\n\r\nDELETE FROM DDS_FACT_LTD_CNTR_SUM_BKP;\r\n\r\nDELETE FROM DDS_FACT_LTD_PDB_BKP;\r\n\r\nDELETE FROM DDS_FACT_PROJ_SLPG_BKP;\r\n\r\nDELETE FROM DDS_FACT_YEAR_BDGT_BKP;\r\n\r\nDELETE FROM DDS_DMNS_BDGT_COPY_BKP;\r\n\r\nDELETE FROM DDS_DMNS_BDGT_PRCS_YEAR_BKP;\r\n\r\nDELETE FROM DDS_DMNS_BDGT_PROJ_MGR_BKP;\r\n\r\nDELETE FROM DDS_DMNS_BDGT_PROJ_STS_BKP;\r\n\r\nDELETE FROM DDS_DMNS_CNTR_BKP;\r\n\r\nDELETE FROM DDS_DMNS_CNTR_MGR_BKP;\r\n\r\nDELETE FROM DDS_DMNS_CNTR_STG_BKP;\r\n\r\nDELETE FROM DDS_DMNS_CNTR_TYPE_BKP;\r\n\r\nDELETE FROM DDS_DMNS_DSTR_BKP;\r\n\r\nDELETE FROM DDS_DMNS_DSTR_GRP_BKP;\r\n\r\nDELETE FROM DDS_DMNS_FIN_NTR_BKP;\r\n\r\nDELETE FROM DDS_DMNS_FLATMIX_BKP;\r\n\r\nDELETE FROM DDS_DMNS_FUND_NTR_BKP;\r\n\r\nDELETE FROM DDS_DMNS_KPI_SNSH_MTH_BKP;\r\n\r\nDELETE FROM DDS_DMNS_KPI_SNSH_YEAR_BKP;\r\n\r\nDELETE FROM DDS_DMNS_KPI_TYPE_BKP;\r\n\r\nDELETE FROM DDS_DMNS_MTH_BKP;\r\n\r\nDELETE FROM DDS_DMNS_ORG_BKP;\r\n\r\nDELETE FROM DDS_DMNS_PHCP_BKP;\r\n\r\nDELETE FROM DDS_DMNS_PMS_DSTR_BKP;\r\n\r\nDELETE FROM DDS_DMNS_PRCS_YEAR_BKP;\r\n\r\nDELETE FROM DDS_DMNS_PROJ_BKP;\r\n\r\nDELETE FROM DDS_DMNS_PROJ_BLK_TYPE_BKP;\r\n\r\nDELETE FROM DDS_DMNS_PROJ_NTR_BKP;\r\n\r\nDELETE FROM DDS_DMNS_PROJ_STG_BKP;\r\n\r\nDELETE FROM DDS_DMNS_RPT_CATG_BKP;\r\n\r\nDELETE FROM DDS_DMNS_SNSH_BKP;\r\n\r\nDELETE FROM DDS_DMNS_SNSH_CNTR_BKP;\r\n\r\nDELETE FROM DDS_DMNS_SNSH_PROJ_BKP;\r\n\r\nDELETE FROM DDS_DMNS_VDR_BKP;\r\n\r\nCOMMIT;"
+#   },
+#   "S_HOM_ETL_DDS_BKP_INSERT": {
+#     "pre_sql": "Insert into DDS_DMNS_BDGT_COPY_BKP\r\nSelect * From DDS_DMNS_BDGT_COPY;\r\n\r\nInsert into DDS_DMNS_BDGT_PRCS_YEAR_BKP\r\nSelect * From DDS_DMNS_BDGT_PRCS_YEAR;\r\n\r\nInsert into DDS_DMNS_BDGT_PROJ_MGR_BKP\r\nSelect * From DDS_DMNS_BDGT_PROJ_MGR;\r\n\r\nInsert into DDS_DMNS_BDGT_PROJ_STS_BKP\r\nSelect * From DDS_DMNS_BDGT_PROJ_STS;\r\n\r\nInsert into DDS_DMNS_CNTR_BKP\r\nSelect * From DDS_DMNS_CNTR;\r\n\r\nInsert into DDS_DMNS_CNTR_MGR_BKP\r\nSelect * From DDS_DMNS_CNTR_MGR;\r\n\r\nInsert into DDS_DMNS_CNTR_STG_BKP\r\nSelect * From DDS_DMNS_CNTR_STG;\r\n\r\nInsert into DDS_DMNS_CNTR_TYPE_BKP\r\nSelect * From DDS_DMNS_CNTR_TYPE;\r\n\r\nInsert into DDS_DMNS_DSTR_BKP\r\nSelect * From DDS_DMNS_DSTR;\r\n\r\nInsert into DDS_DMNS_DSTR_GRP_BKP\r\nSelect * From DDS_DMNS_DSTR_GRP;\r\n\r\nInsert into DDS_DMNS_FIN_NTR_BKP\r\nSelect * From DDS_DMNS_FIN_NTR;\r\n\r\nInsert into DDS_DMNS_FLATMIX_BKP\r\nSelect * From DDS_DMNS_FLATMIX;\r\n\r\nInsert into DDS_DMNS_FUND_NTR_BKP\r\nSelect * From DDS_DMNS_FUND_NTR;\r\n\r\nInsert into DDS_DMNS_KPI_SNSH_MTH_BKP\r\nSelect * From DDS_DMNS_KPI_SNSH_MTH;\r\n\r\nInsert into DDS_DMNS_KPI_SNSH_YEAR_BKP\r\nSelect * From DDS_DMNS_KPI_SNSH_YEAR;\r\n\r\nInsert into DDS_DMNS_KPI_TYPE_BKP\r\nSelect * From DDS_DMNS_KPI_TYPE;\r\n\r\nInsert into DDS_DMNS_MTH_BKP\r\nSelect * From DDS_DMNS_MTH;\r\n\r\nInsert into DDS_DMNS_ORG_BKP\r\nSelect * From DDS_DMNS_ORG;\r\n\r\nInsert into DDS_DMNS_PHCP_BKP\r\nSelect * From DDS_DMNS_PHCP;\r\n\r\nInsert into DDS_DMNS_PMS_DSTR_BKP\r\nSelect * From DDS_DMNS_PMS_DSTR;\r\n\r\nInsert into DDS_DMNS_PRCS_YEAR_BKP\r\nSelect * From DDS_DMNS_PRCS_YEAR;\r\n\r\nInsert into DDS_DMNS_PROJ_BKP\r\nSelect * From DDS_DMNS_PROJ;\r\n\r\nInsert into DDS_DMNS_PROJ_BLK_TYPE_BKP\r\nSelect * From DDS_DMNS_PROJ_BLK_TYPE;\r\n\r\nInsert into DDS_DMNS_PROJ_NTR_BKP\r\nSelect * From DDS_DMNS_PROJ_NTR;\r\n\r\nInsert into DDS_DMNS_PROJ_STG_BKP\r\nSelect * From DDS_DMNS_PROJ_STG;\r\n\r\nInsert into DDS_DMNS_RPT_CATG_BKP\r\nSelect * From DDS_DMNS_RPT_CATG;\r\n\r\nInsert into DDS_DMNS_SNSH_BKP\r\nSelect * From DDS_DMNS_SNSH;\r\n\r\nInsert into DDS_DMNS_SNSH_CNTR_BKP\r\nSelect * From DDS_DMNS_SNSH_CNTR;\r\n\r\nInsert into DDS_DMNS_SNSH_PROJ_BKP\r\nSelect * From DDS_DMNS_SNSH_PROJ;\r\n\r\nInsert into DDS_DMNS_VDR_BKP\r\nSelect * From DDS_DMNS_VDR;\r\n\r\nInsert into DDS_FACT_COST_VRTN_BKP\r\nSelect * From DDS_FACT_COST_VRTN;\r\n\r\nInsert into DDS_FACT_DEV_LEAD_TIME_BKP\r\nSelect * From DDS_FACT_DEV_LEAD_TIME;\r\n\r\nInsert into DDS_FACT_FLAT_PROD_BKP\r\nSelect * From DDS_FACT_FLAT_PROD;\r\n\r\nInsert into DDS_FACT_INPT_KPI_BKP\r\nSelect * From DDS_FACT_INPT_KPI;\r\n\r\nInsert into DDS_FACT_LTD_CNTR_SUM_BKP\r\nSelect * From DDS_FACT_LTD_CNTR_SUM;\r\n\r\nInsert into DDS_FACT_LTD_PDB_BKP\r\nSelect * From DDS_FACT_LTD_PDB;\r\n\r\nInsert into DDS_FACT_PROJ_SLPG_BKP\r\nSelect * From DDS_FACT_PROJ_SLPG;\r\n\r\nInsert into DDS_FACT_YEAR_BDGT_BKP\r\nSelect * From DDS_FACT_YEAR_BDGT;\r\n\r\nCommit;"
+#   },
+#   "S_HOM_ELT_DDS_DMNS_DELETE": {
+#     "pre_sql": "DELETE FROM DDS_DMNS_BDGT_COPY;\r\n\r\nDELETE FROM DDS_DMNS_BDGT_PRCS_YEAR;\r\n\r\nDELETE FROM DDS_DMNS_BDGT_PROJ_MGR;\r\n\r\nDELETE FROM DDS_DMNS_BDGT_PROJ_STS;\r\n\r\nDELETE FROM DDS_DMNS_CNTR;\r\n\r\nDELETE FROM DDS_DMNS_CNTR_MGR;\r\n\r\nDELETE FROM DDS_DMNS_CNTR_STG;\r\n\r\nDELETE FROM DDS_DMNS_CNTR_TYPE;\r\n\r\nDELETE FROM DDS_DMNS_DSTR;\r\n\r\nDELETE FROM DDS_DMNS_DSTR_GRP;\r\n\r\nDELETE FROM DDS_DMNS_FIN_NTR;\r\n\r\nDELETE FROM DDS_DMNS_FLATMIX;\r\n\r\nDELETE FROM DDS_DMNS_FUND_NTR;\r\n\r\nDELETE FROM DDS_DMNS_KPI_SNSH_MTH;\r\n\r\nDELETE FROM DDS_DMNS_KPI_SNSH_YEAR;\r\n\r\nDELETE FROM DDS_DMNS_KPI_TYPE;\r\n\r\nDELETE FROM DDS_DMNS_MTH;\r\n\r\nDELETE FROM DDS_DMNS_ORG;\r\n\r\nDELETE FROM DDS_DMNS_PHCP;\r\n\r\nDELETE FROM DDS_DMNS_PMS_DSTR;\r\n\r\nDELETE FROM DDS_DMNS_PRCS_YEAR;\r\n\r\nDELETE FROM DDS_DMNS_PROJ;\r\n\r\nDELETE FROM DDS_DMNS_PROJ_BLK_TYPE;\r\n\r\nDELETE FROM DDS_DMNS_PROJ_NTR;\r\n\r\nDELETE FROM DDS_DMNS_PROJ_STG;\r\n\r\nDELETE FROM DDS_DMNS_RPT_CATG;\r\n\r\nDELETE FROM DDS_DMNS_SNSH;\r\n\r\nDELETE FROM DDS_DMNS_SNSH_CNTR;\r\n\r\nDELETE FROM DDS_DMNS_SNSH_PROJ;\r\n\r\nDELETE FROM DDS_DMNS_VDR;\r\n\r\nCOMMIT;"
+#   },
+#   "S_HOM_ETL_DDS_FACT_DELETE": {
+#     "pre_sql": "DELETE FROM DDS_FACT_COST_VRTN;\r\n\r\nDELETE FROM DDS_FACT_DEV_LEAD_TIME;\r\n\r\nDELETE FROM DDS_FACT_FLAT_PROD;\r\n\r\nDELETE FROM DDS_FACT_INPT_KPI;\r\n\r\nDELETE FROM DDS_FACT_LTD_CNTR_SUM;\r\n\r\nDELETE FROM DDS_FACT_LTD_PDB;\r\n\r\nDELETE FROM DDS_FACT_PROJ_SLPG;\r\n\r\nDELETE FROM DDS_FACT_YEAR_BDGT;\r\n\r\nCOMMIT;"
+#   },
+#   "S_HOM_ETL_DDS_RECOVERY": {
+#     "pre_sql": "Insert into DDS_DMNS_BDGT_COPY\r\nSelect * From DDS_DMNS_BDGT_COPY_BKP;\r\n\r\nInsert into DDS_DMNS_BDGT_PRCS_YEAR\r\nSelect * From DDS_DMNS_BDGT_PRCS_YEAR_BKP;\r\n\r\nInsert into DDS_DMNS_BDGT_PROJ_MGR\r\nSelect * From DDS_DMNS_BDGT_PROJ_MGR_BKP;\r\n\r\nInsert into DDS_DMNS_BDGT_PROJ_STS\r\nSelect * From DDS_DMNS_BDGT_PROJ_STS_BKP;\r\n\r\nInsert into DDS_DMNS_CNTR\r\nSelect * From DDS_DMNS_CNTR_BKP;\r\n\r\nInsert into DDS_DMNS_CNTR_MGR\r\nSelect * From DDS_DMNS_CNTR_MGR_BKP;\r\n\r\nInsert into DDS_DMNS_CNTR_STG\r\nSelect * From DDS_DMNS_CNTR_STG_BKP;\r\n\r\nInsert into DDS_DMNS_CNTR_TYPE\r\nSelect * From DDS_DMNS_CNTR_TYPE_BKP;\r\n\r\nInsert into DDS_DMNS_DSTR\r\nSelect * From DDS_DMNS_DSTR_BKP;\r\n\r\nInsert into DDS_DMNS_DSTR_GRP\r\nSelect * From DDS_DMNS_DSTR_GRP_BKP;\r\n\r\nInsert into DDS_DMNS_FIN_NTR\r\nSelect * From DDS_DMNS_FIN_NTR_BKP;\r\n\r\nInsert into DDS_DMNS_FLATMIX\r\nSelect * From DDS_DMNS_FLATMIX_BKP;\r\n\r\nInsert into DDS_DMNS_FUND_NTR\r\nSelect * From DDS_DMNS_FUND_NTR_BKP;\r\n\r\nInsert into DDS_DMNS_KPI_SNSH_MTH\r\nSelect * From DDS_DMNS_KPI_SNSH_MTH_BKP;\r\n\r\nInsert into DDS_DMNS_KPI_SNSH_YEAR\r\nSelect * From DDS_DMNS_KPI_SNSH_YEAR_BKP;\r\n\r\nInsert into DDS_DMNS_KPI_TYPE\r\nSelect * From DDS_DMNS_KPI_TYPE_BKP;\r\n\r\nInsert into DDS_DMNS_MTH\r\nSelect * From DDS_DMNS_MTH_BKP;\r\n\r\nInsert into DDS_DMNS_ORG\r\nSelect * From DDS_DMNS_ORG_BKP;\r\n\r\nInsert into DDS_DMNS_PHCP\r\nSelect * From DDS_DMNS_PHCP_BKP;\r\n\r\nInsert into DDS_DMNS_PMS_DSTR\r\nSelect * From DDS_DMNS_PMS_DSTR_BKP;\r\n\r\nInsert into DDS_DMNS_PRCS_YEAR\r\nSelect * From DDS_DMNS_PRCS_YEAR_BKP;\r\n\r\nInsert into DDS_DMNS_PROJ\r\nSelect * From DDS_DMNS_PROJ_BKP;\r\n\r\nInsert into DDS_DMNS_PROJ_BLK_TYPE\r\nSelect * From DDS_DMNS_PROJ_BLK_TYPE_BKP;\r\n\r\nInsert into DDS_DMNS_PROJ_NTR\r\nSelect * From DDS_DMNS_PROJ_NTR_BKP;\r\n\r\nInsert into DDS_DMNS_PROJ_STG\r\nSelect * From DDS_DMNS_PROJ_STG_BKP;\r\n\r\nInsert into DDS_DMNS_RPT_CATG\r\nSelect * From DDS_DMNS_RPT_CATG_BKP;\r\n\r\nInsert into DDS_DMNS_SNSH\r\nSelect * From DDS_DMNS_SNSH_BKP;\r\n\r\nInsert into DDS_DMNS_SNSH_CNTR\r\nSelect * From DDS_DMNS_SNSH_CNTR_BKP;\r\n\r\nInsert into DDS_DMNS_SNSH_PROJ\r\nSelect * From DDS_DMNS_SNSH_PROJ_BKP;\r\n\r\nInsert into DDS_DMNS_VDR\r\nSelect * From DDS_DMNS_VDR_BKP;\r\n\r\nInsert into DDS_FACT_COST_VRTN\r\nSelect * From DDS_FACT_COST_VRTN_BKP;\r\n\r\nInsert into DDS_FACT_DEV_LEAD_TIME\r\nSelect * From DDS_FACT_DEV_LEAD_TIME_BKP;\r\n\r\nInsert into DDS_FACT_FLAT_PROD\r\nSelect * From DDS_FACT_FLAT_PROD_BKP;\r\n\r\nInsert into DDS_FACT_INPT_KPI\r\nSelect * From DDS_FACT_INPT_KPI_BKP;\r\n\r\nInsert into DDS_FACT_LTD_CNTR_SUM\r\nSelect * From DDS_FACT_LTD_CNTR_SUM_BKP;\r\n\r\nInsert into DDS_FACT_LTD_PDB\r\nSelect * From DDS_FACT_LTD_PDB_BKP;\r\n\r\nInsert into DDS_FACT_PROJ_SLPG\r\nSelect * From DDS_FACT_PROJ_SLPG_BKP;\r\n\r\nInsert into DDS_FACT_YEAR_BDGT\r\nSelect * From DDS_FACT_YEAR_BDGT_BKP;\r\n\r\nCommit;"
+#   },
+#   "S_HOM_ETL_DDS_DMNS_DELETE_NONZERO": {
+#     "pre_sql": "delete from dds_dmns_bdgt_copy      where dmns_bdgt_copy_key <> 0;\r\n\r\ndelete from dds_dmns_bdgt_prcs_year where dmns_bdgt_prcs_year_key <> 0;\r\n\r\ndelete from dds_dmns_bdgt_proj_mgr  where dmns_bdgt_proj_mgr_key <> 0;\r\n\r\ndelete from dds_dmns_bdgt_proj_sts  where dmns_bdgt_proj_sts_key <> 0;\r\n\r\ndelete from dds_dmns_cntr           where dmns_cntr_key <> 0;\r\n\r\ndelete from dds_dmns_cntr_mgr       where dmns_cntr_mgr_key <> 0;\r\n\r\ndelete from dds_dmns_cntr_stg       where dmns_cntr_stg_key <> 0;\r\n\r\ndelete from dds_dmns_cntr_type      where dmns_cntr_type_key <> 0;\r\n\r\ndelete from dds_dmns_dstr           where dmns_dstr_key <> 0;\r\n\r\ndelete from dds_dmns_dstr_grp       where dmns_dstr_grp_key <> 0;\r\n\r\ndelete from dds_dmns_fin_ntr        where dmns_fin_ntr_key <> 0;\r\n\r\ndelete from dds_dmns_flatmix        where dmns_flatmix_key <> 0;\r\n\r\ndelete from dds_dmns_fund_ntr       where dmns_fund_ntr_key <> 0;\r\n\r\ndelete from dds_dmns_kpi_snsh_mth   where dmns_kpi_snsh_mth_key <> 0;\r\n\r\ndelete from dds_dmns_kpi_snsh_year  where dmns_kpi_snsh_year_key <> 0;\r\n\r\ndelete from dds_dmns_kpi_type       where dmns_kpi_type_key <> 0;\r\n\r\ndelete from dds_dmns_mth            where dmns_mth_key <> 0;\r\n\r\ndelete from dds_dmns_org            where dmns_org_key <> 0;\r\n\r\ndelete from dds_dmns_phcp           where dmns_phcp_key <> 0;\r\n\r\ndelete from dds_dmns_pms_dstr       where dmns_pms_dstr_key <> 0;\r\n\r\ndelete from dds_dmns_prcs_year      where dmns_prcs_year_key <> 0;\r\n\r\ndelete from dds_dmns_proj           where dmns_proj_key <> 0;\r\n\r\ndelete from dds_dmns_proj_blk_type  where dmns_blk_type_key <> 0;\r\n\r\ndelete from dds_dmns_proj_ntr       where dmns_proj_ntr_key <> 0;\r\n\r\ndelete from dds_dmns_proj_stg       where dmns_proj_stg_key <> 0;\r\n\r\ndelete from dds_dmns_rpt_catg       where dmns_rpt_catg_key <> 0;\r\n\r\ndelete from dds_dmns_snsh           where dmns_snsh_key <> 0;\r\n\r\ndelete from dds_dmns_snsh_cntr      where dmns_snsh_cntr_key <> 0;\r\n\r\ndelete from dds_dmns_snsh_proj      where dmns_snsh_proj_key <> 0;\r\n\r\ndelete from dds_dmns_vdr            where dmns_vdr_key <> 0;"
+#   }
+}
+
 
 def run_workflow(config=None, fail_fast=True):
     """Execute the workflow via the shared runtime library runner."""
@@ -420,6 +445,7 @@ def run_workflow(config=None, fail_fast=True):
         mapping_functions=MAPPING_FUNCTIONS,
         workflow_name="WF_HOMES_DDS_APLY_DMNS",
         task_info=TASK_INFO,
+        session_sqls=SESSION_SQLS,
         config=config,
         fail_fast=fail_fast,
         metrics_cls=lib.MappingMetrics,

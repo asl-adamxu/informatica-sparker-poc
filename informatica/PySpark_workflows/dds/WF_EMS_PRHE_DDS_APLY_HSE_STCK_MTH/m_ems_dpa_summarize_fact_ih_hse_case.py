@@ -17,7 +17,8 @@ from pyspark.sql.types import *
 # MAPPING LOGIC
 # =============================================================================
 
-def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> bool:
+def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
+                session_sqls=None) -> bool:
     """
     Execute the M_EMS_DPA_SUMMARIZE_FACT_IH_HSE_CASE mapping transformations.
 
@@ -28,7 +29,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         ctx: Optional SparkContext for session and DataFrame registry
         metrics: Optional metrics tracker (or NullMetrics if not provided)
         job_params: Optional dict of job parameters loaded by workflow
-    
+        session_sqls: The session's Target Pre/Post SQL dict 
     Returns:
         bool: True if successful
     """
@@ -44,8 +45,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
     metrics = metrics or lib.NullMetrics()
     metrics.start()
 
-    conn_oracle = lib.get_db_config(config, "oracle-defaults")
-    conn_source = lib.get_db_config(config, "SOR")
     conn_target = lib.get_db_config(config, "SOR")
 
     v_rpt_mth = ""
@@ -219,7 +218,7 @@ ORDER BY
         df_SQ_DATA = df_SQ_DATA.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_DATA = df_SQ_DATA.select([col(c) if c in df_SQ_DATA.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DATA = df_SQ_DATA.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DATA.columns] else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_DATA", df_SQ_DATA)
         
@@ -235,7 +234,7 @@ ORDER BY
         df_EXPTRANS = df_EXPTRANS.withColumn("EST_CODE", expr("substring(UNIT_ADDR_CODE,2,5)"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["UNIT_ADDR_CODE", "HSE_SRVC_APLY_NUM", "CATG_USER_TYPE_CODE", "PREV_CODE_ADDR"]:
-            if _col not in df_EXPTRANS.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
@@ -248,7 +247,7 @@ ORDER BY
         # column names in batch_update/batch_delete.
         _field_map = {"Application_No": "HSE_SRVC_APLY_NUM", "Category_Code": "CATG_USER_TYPE_CODE", "Code_Address": "UNIT_ADDR_CODE", "Estate_Code": "EST_CODE", "Family_Size": "FMLY_SIZE_NUM", "Head_Max": "MAX_UNIT_HEAD_CNT", "Head_Min": "MIN_UNIT_HEAD_CNT", "IFA": "UNIT_IFA_AREA", "Intake_Date": "RVS_INTK_DATE", "Original_Code_Address": "PREV_CODE_ADDR", "Rent_Factor": "RENT_FCTR_CODE"}
         for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with
                 # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
                 for _c in list(df_write.columns):
@@ -257,7 +256,7 @@ ORDER BY
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['Estate_Code', 'Code_Address', 'Application_No', 'Category_Code', 'Family_Size', 'Head_Min', 'Head_Max', 'IFA', 'Rent_Factor', 'Intake_Date', 'Original_Code_Address']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
         # Write to flat file — prefer config.yml objects metadata, then derived default path
         _write_obj = objects.get("FLAT_EMS_IH_HSE_CASE")
         if _write_obj and isinstance(_write_obj, dict):

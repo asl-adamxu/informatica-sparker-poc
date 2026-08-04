@@ -17,7 +17,8 @@ from pyspark.sql.types import *
 # MAPPING LOGIC
 # =============================================================================
 
-def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> bool:
+def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
+                session_sqls=None) -> bool:
     """
     Execute the M_S5_DPA_SUMMARIZE_FACT_EMS_VCNT_FLAT mapping transformations.
 
@@ -28,7 +29,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         ctx: Optional SparkContext for session and DataFrame registry
         metrics: Optional metrics tracker (or NullMetrics if not provided)
         job_params: Optional dict of job parameters loaded by workflow
-    
+        session_sqls: The session's Target Pre/Post SQL dict 
     Returns:
         bool: True if successful
     """
@@ -44,8 +45,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
     metrics = metrics or lib.NullMetrics()
     metrics.start()
 
-    conn_oracle = lib.get_db_config(config, "oracle-defaults")
-    conn_source = lib.get_db_config(config, "SOR")
     conn_target = lib.get_db_config(config, "DPA")
 
     v_snsh_date = ""
@@ -133,7 +132,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         df_SQ_NEW_FLAT_2 = df_SQ_NEW_FLAT_2.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_NEW_FLAT_2 = df_SQ_NEW_FLAT_2.select([col(c) if c in df_SQ_NEW_FLAT_2.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_NEW_FLAT_2 = df_SQ_NEW_FLAT_2.select([col(c) if c.lower() in [x.lower() for x in df_SQ_NEW_FLAT_2.columns] else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_NEW_FLAT_2", df_SQ_NEW_FLAT_2)
         
@@ -199,7 +198,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         df_SQ_NEW_FLAT_1 = df_SQ_NEW_FLAT_1.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_NEW_FLAT_1 = df_SQ_NEW_FLAT_1.select([col(c) if c in df_SQ_NEW_FLAT_1.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_NEW_FLAT_1 = df_SQ_NEW_FLAT_1.select([col(c) if c.lower() in [x.lower() for x in df_SQ_NEW_FLAT_1.columns] else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_NEW_FLAT_1", df_SQ_NEW_FLAT_1)
         
@@ -266,7 +265,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         df_SQ_CASUAL_VCNT_3 = df_SQ_CASUAL_VCNT_3.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_CASUAL_VCNT_3 = df_SQ_CASUAL_VCNT_3.select([col(c) if c in df_SQ_CASUAL_VCNT_3.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_CASUAL_VCNT_3 = df_SQ_CASUAL_VCNT_3.select([col(c) if c.lower() in [x.lower() for x in df_SQ_CASUAL_VCNT_3.columns] else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_CASUAL_VCNT_3", df_SQ_CASUAL_VCNT_3)
         
@@ -333,7 +332,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         df_SQ_CASUAL_VCNT_2 = df_SQ_CASUAL_VCNT_2.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_CASUAL_VCNT_2 = df_SQ_CASUAL_VCNT_2.select([col(c) if c in df_SQ_CASUAL_VCNT_2.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_CASUAL_VCNT_2 = df_SQ_CASUAL_VCNT_2.select([col(c) if c.lower() in [x.lower() for x in df_SQ_CASUAL_VCNT_2.columns] else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_CASUAL_VCNT_2", df_SQ_CASUAL_VCNT_2)
         
@@ -399,7 +398,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         df_SQ_CASUAL_VCNT_1 = df_SQ_CASUAL_VCNT_1.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_CASUAL_VCNT_1 = df_SQ_CASUAL_VCNT_1.select([col(c) if c in df_SQ_CASUAL_VCNT_1.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_CASUAL_VCNT_1 = df_SQ_CASUAL_VCNT_1.select([col(c) if c.lower() in [x.lower() for x in df_SQ_CASUAL_VCNT_1.columns] else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_CASUAL_VCNT_1", df_SQ_CASUAL_VCNT_1)
         
@@ -464,7 +463,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         df_SQ_NEW_FLAT_3 = df_SQ_NEW_FLAT_3.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_NEW_FLAT_3 = df_SQ_NEW_FLAT_3.select([col(c) if c in df_SQ_NEW_FLAT_3.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_NEW_FLAT_3 = df_SQ_NEW_FLAT_3.select([col(c) if c.lower() in [x.lower() for x in df_SQ_NEW_FLAT_3.columns] else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_NEW_FLAT_3", df_SQ_NEW_FLAT_3)
         
@@ -529,7 +528,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         df_SQ_CASUAL_VCNT_4 = df_SQ_CASUAL_VCNT_4.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_CASUAL_VCNT_4 = df_SQ_CASUAL_VCNT_4.select([col(c) if c in df_SQ_CASUAL_VCNT_4.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_CASUAL_VCNT_4 = df_SQ_CASUAL_VCNT_4.select([col(c) if c.lower() in [x.lower() for x in df_SQ_CASUAL_VCNT_4.columns] else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_CASUAL_VCNT_4", df_SQ_CASUAL_VCNT_4)
         
@@ -687,7 +686,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_casual_vcnt_4, allowMissingColumns=True)
         # Select only union output columns (add lit(None) for any missing)
         for _col in ["DSTR_CODE", "EST_CODE", "UNIT_TYPE_CODE", "CNT", "VCNT_FLAT_TYPE_CODE"]:
-            if _col not in df_Union_Transformation.columns:
+            if _col.lower() not in [x.lower() for x in df_Union_Transformation.columns]:
                 df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("DSTR_CODE", "EST_CODE", "UNIT_TYPE_CODE", "CNT", "VCNT_FLAT_TYPE_CODE")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
@@ -703,7 +702,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         df_EXPTRANS = df_EXPTRANS.withColumn("EST_SCHM_CODE", expr("'NEW'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["DSTR_CODE", "EST_CODE", "UNIT_TYPE_CODE", "CNT", "VCNT_FLAT_TYPE_CODE"]:
-            if _col not in df_EXPTRANS.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
@@ -731,7 +730,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_DMNS_EMS_VCNT_FLAT_TYPE[c] for c in df_LKP_DDS_DMNS_EMS_VCNT_FLAT_TYPE.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_DMNS_EMS_VCNT_FLAT_TYPE[c] for c in df_LKP_DDS_DMNS_EMS_VCNT_FLAT_TYPE.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: read_LKP_DDS_DMNS_EMS_DSTR")
@@ -757,7 +756,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_DMNS_EMS_DSTR[c] for c in df_LKP_DDS_DMNS_EMS_DSTR.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_DMNS_EMS_DSTR[c] for c in df_LKP_DDS_DMNS_EMS_DSTR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_FLAT_TYPE")
@@ -783,7 +782,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_DMNS_EMS_FLAT_TYPE[c] for c in df_LKP_DDS_DMNS_EMS_FLAT_TYPE.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_DMNS_EMS_FLAT_TYPE[c] for c in df_LKP_DDS_DMNS_EMS_FLAT_TYPE.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_DDS_DMNS_TIME_1")
@@ -807,7 +806,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_DMNS_TIME_1[c] for c in df_LKP_DDS_DMNS_TIME_1.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_DMNS_TIME_1[c] for c in df_LKP_DDS_DMNS_TIME_1.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_EST")
@@ -831,7 +830,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_DMNS_EMS_EST[c] for c in df_LKP_DDS_DMNS_EMS_EST.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_DMNS_EMS_EST[c] for c in df_LKP_DDS_DMNS_EMS_EST.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: write_DPA_FACT_EMS_VCNT_FLAT")
@@ -842,7 +841,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         # column names in batch_update/batch_delete.
         _field_map = {"DSTR_DMNS_KEY": "DSTR_DMNS_KEY", "EST_DMNS_KEY": "EST_SCD_KEY", "FLAT_CNT": "CNT", "FLAT_TYPE_DMNS_KEY": "FLAT_TYPE_DMNS_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "VCNT_FLAT_TYPE_DMNS_KEY": "VCNT_FLAT_TYPE_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with
                 # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
                 for _c in list(df_write.columns):
@@ -854,7 +853,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         df_write = df_write.withColumn("REC_RLS_IND", lit(None).cast(StringType()))
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['EST_DMNS_KEY', 'FLAT_TYPE_DMNS_KEY', 'TIME_DMNS_KEY', 'VCNT_FLAT_TYPE_DMNS_KEY', 'FLAT_CNT', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'DSTR_DMNS_KEY', 'REC_RLS_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
         # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
         lib.write_table(df_write, conn_target, "DPA_FACT_EMS_VCNT_FLAT", mode="append")
 

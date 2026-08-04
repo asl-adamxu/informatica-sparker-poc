@@ -17,7 +17,8 @@ from pyspark.sql.types import *
 # MAPPING LOGIC
 # =============================================================================
 
-def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> bool:
+def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
+                session_sqls=None) -> bool:
     """
     Execute the M_DDS_APLY_DMNS_PRCS_YEAR mapping transformations.
 
@@ -28,7 +29,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         ctx: Optional SparkContext for session and DataFrame registry
         metrics: Optional metrics tracker (or NullMetrics if not provided)
         job_params: Optional dict of job parameters loaded by workflow
-    
+        session_sqls: The session's Target Pre/Post SQL dict 
     Returns:
         bool: True if successful
     """
@@ -44,8 +45,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
     metrics = metrics or lib.NullMetrics()
     metrics.start()
 
-    conn_oracle = lib.get_db_config(config, "oracle-defaults")
-    conn_source = lib.get_db_config(config, "DPA")
     conn_target = lib.get_db_config(config, "DPA")
 
     
@@ -90,7 +89,7 @@ FROM
         df_SQ_DPA_DMNS_PRCS_YEAR = df_SQ_DPA_DMNS_PRCS_YEAR.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_DPA_DMNS_PRCS_YEAR = df_SQ_DPA_DMNS_PRCS_YEAR.select([col(c) if c in df_SQ_DPA_DMNS_PRCS_YEAR.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DPA_DMNS_PRCS_YEAR = df_SQ_DPA_DMNS_PRCS_YEAR.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DPA_DMNS_PRCS_YEAR.columns] else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_DPA_DMNS_PRCS_YEAR", df_SQ_DPA_DMNS_PRCS_YEAR)
         
@@ -102,7 +101,7 @@ FROM
         # column names in batch_update/batch_delete.
         _field_map = {"DMNS_PRCS_YEAR_KEY": "DMNS_PRCS_YEAR_KEY", "PRCS_YEAR_NUM": "PRCS_YEAR_NUM", "PRCS_YEAR_TEXT": "PRCS_YEAR_TEXT", "YEAR_DISP_SEQ_NUM": "YEAR_DISP_SEQ_NUM"}
         for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with
                 # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
                 for _c in list(df_write.columns):
@@ -111,7 +110,7 @@ FROM
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['DMNS_PRCS_YEAR_KEY', 'PRCS_YEAR_NUM', 'PRCS_YEAR_TEXT', 'YEAR_DISP_SEQ_NUM']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
         # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
         lib.write_table(df_write, conn_target, "DDS_DMNS_PRCS_YEAR", mode="append")
 

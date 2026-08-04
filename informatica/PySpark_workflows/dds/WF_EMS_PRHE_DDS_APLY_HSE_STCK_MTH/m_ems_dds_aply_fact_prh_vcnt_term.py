@@ -17,7 +17,8 @@ from pyspark.sql.types import *
 # MAPPING LOGIC
 # =============================================================================
 
-def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> bool:
+def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
+                session_sqls=None) -> bool:
     """
     Execute the M_EMS_DDS_APLY_FACT_PRH_VCNT_TERM mapping transformations.
 
@@ -28,7 +29,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         ctx: Optional SparkContext for session and DataFrame registry
         metrics: Optional metrics tracker (or NullMetrics if not provided)
         job_params: Optional dict of job parameters loaded by workflow
-    
+        session_sqls: The session's Target Pre/Post SQL dict 
     Returns:
         bool: True if successful
     """
@@ -44,8 +45,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
     metrics = metrics or lib.NullMetrics()
     metrics.start()
 
-    conn_oracle = lib.get_db_config(config, "oracle-defaults")
-    conn_source = lib.get_db_config(config, "DPA")
     conn_target = lib.get_db_config(config, "DPA")
 
     v_REC_RLS_IND = ""
@@ -79,7 +78,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM = df_DPA_FACT_EMS_PRH_VCNT_TERM
         # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
         _port_cols = ["TIME_DMNS_KEY", "VCNT_FLAT_TYPE_DMNS_KEY", "BLK_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_ADVS_ENV_IND", "STA_VCNT_UNIT_ALCT_CNT", "TOT_UNIT_MTH_RENT_AMT"]
-        df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM = df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM.select([col(c) if c in df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM = df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM.columns] else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM", df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM)
         
         logger.info("Step: apply_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1")
@@ -87,7 +86,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1 = df_DPA_FACT_EMS_PRH_VCNT_TERM
         # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
         _port_cols = ["TIME_DMNS_KEY", "VCNT_FLAT_TYPE_DMNS_KEY", "BLK_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_ADVS_ENV_IND", "STA_VCNT_UNIT_ALCT_CNT", "TOT_UNIT_MTH_RENT_AMT", "REC_RLS_IND"]
-        df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1 = df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1.select([col(c) if c in df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1 = df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1.columns] else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1", df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1)
         
         logger.info("Step: apply_AGGTRANS")
@@ -131,7 +130,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_EXPTRANS = df_EXPTRANS.withColumn("REC_RLS_IND", expr(_expr))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["TIME_DMNS_KEY", "VCNT_FLAT_TYPE_DMNS_KEY", "BLK_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_ADVS_ENV_IND"]:
-            if _col not in df_EXPTRANS.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
@@ -144,7 +143,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # column names in batch_update/batch_delete.
         _field_map = {"TIME_DMNS_KEY": "TIME_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with
                 # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
                 for _c in list(df_write.columns):
@@ -167,7 +166,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # column names in batch_update/batch_delete.
         _field_map = {"BLK_SCD_KEY": "BLK_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY": "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY": "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY": "FLAT_TYPE_DMNS_KEY", "MAX_UNIT_HEAD_CNT": "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT": "MIN_UNIT_HEAD_CNT", "REC_RLS_IND": "REC_RLS_IND", "STA_VCNT_UNIT_ALCT_CNT": "STA_VCNT_UNIT_ALCT_CNT", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TOT_UNIT_MTH_RENT_AMT": "TOT_UNIT_MTH_RENT_AMT", "UNIT_ADVS_ENV_IND": "UNIT_ADVS_ENV_IND", "UNIT_SIZE_DMNS_KEY": "UNIT_SIZE_DMNS_KEY", "VCNT_FLAT_TYPE_DMNS_KEY": "VCNT_FLAT_TYPE_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with
                 # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
                 for _c in list(df_write.columns):
@@ -176,7 +175,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['TIME_DMNS_KEY', 'VCNT_FLAT_TYPE_DMNS_KEY', 'BLK_SCD_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'FLAT_TYPE_DMNS_KEY', 'UNIT_SIZE_DMNS_KEY', 'MAX_UNIT_HEAD_CNT', 'MIN_UNIT_HEAD_CNT', 'UNIT_ADVS_ENV_IND', 'STA_VCNT_UNIT_ALCT_CNT', 'TOT_UNIT_MTH_RENT_AMT', 'REC_RLS_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
         # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
         lib.write_table(df_write, conn_target, "DDS_FACT_EMS_PRH_VCNT_TERM", mode="append")
 

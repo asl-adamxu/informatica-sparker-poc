@@ -17,7 +17,8 @@ from pyspark.sql.types import *
 # MAPPING LOGIC
 # =============================================================================
 
-def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> bool:
+def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
+                session_sqls=None) -> bool:
     """
     Execute the M_DPA_SUMMARIZE_DMNS_RPT_CATG mapping transformations.
 
@@ -28,7 +29,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         ctx: Optional SparkContext for session and DataFrame registry
         metrics: Optional metrics tracker (or NullMetrics if not provided)
         job_params: Optional dict of job parameters loaded by workflow
-    
+        session_sqls: The session's Target Pre/Post SQL dict 
     Returns:
         bool: True if successful
     """
@@ -44,8 +45,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
     metrics = metrics or lib.NullMetrics()
     metrics.start()
 
-    conn_oracle = lib.get_db_config(config, "oracle-defaults")
-    conn_source = lib.get_db_config(config, "SOR")
     conn_target = lib.get_db_config(config, "DPA")
 
     v_snsh_date = ""
@@ -74,14 +73,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         _conn = lib.get_db_config(config, "SOR")
         df_SOR_HOM_BUD_RPT_CATG = lib.read_sql(spark, _conn, table="SOR_HOM_BUD_RPT_CATG")
         
-        logger.info("Step: apply_SEQ_DMNS_RPT_CATG_KEY")
-        # Sequence Generator: apply_SEQ_DMNS_RPT_CATG_KEY
-        df_SEQ_DMNS_RPT_CATG_KEY = df_input.withColumn(
-            "NEXTVAL", 
-            monotonically_increasing_id() + 0
-        )
-        ctx.register_df("df_SEQ_DMNS_RPT_CATG_KEY", df_SEQ_DMNS_RPT_CATG_KEY)
-
         logger.info("Step: apply_SQ_SOR_HOM_BUD_RPT_CATG")
         # Source Qualifier: apply_SQ_SOR_HOM_BUD_RPT_CATG
         # SQL Pushdown - executes Informatica SQ SQL on source database
@@ -124,7 +115,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_SQ_SOR_HOM_BUD_RPT_CATG = df_SQ_SOR_HOM_BUD_RPT_CATG.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_SOR_HOM_BUD_RPT_CATG = df_SQ_SOR_HOM_BUD_RPT_CATG.select([col(c) if c in df_SQ_SOR_HOM_BUD_RPT_CATG.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SOR_HOM_BUD_RPT_CATG = df_SQ_SOR_HOM_BUD_RPT_CATG.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_HOM_BUD_RPT_CATG.columns] else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_HOM_BUD_RPT_CATG", df_SQ_SOR_HOM_BUD_RPT_CATG)
         
@@ -149,17 +140,17 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_DMNS_RPT_CATG[c] for c in df_LKP_DDS_DMNS_RPT_CATG.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_DMNS_RPT_CATG[c] for c in df_LKP_DDS_DMNS_RPT_CATG.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
         df_EXPTRANS = df_lkp_merge_1
-        df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_RPT_CATG_KEY IS NULL) OR CASE WHEN RPT_CATG_CODE = IN_RPT_CATG_CODE THEN false ELSE true END OR CASE WHEN RPT_CATG_DESP = RPT_CATG_DESP THEN false ELSE true END THEN 1 ELSE 0 END"))
         df_EXPTRANS = df_EXPTRANS.withColumn("IN_RPT_CATG_DESP", expr("RPT_CATG_DESP"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_RPT_CATG_KEY IS NULL) OR CASE WHEN RPT_CATG_CODE = IN_RPT_CATG_CODE THEN false ELSE true END OR CASE WHEN RPT_CATG_DESP = RPT_CATG_DESP THEN false ELSE true END THEN 1 ELSE 0 END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["DMNS_RPT_CATG_KEY", "IN_RPT_CATG_CODE", "RPT_CATG_CODE", "RPT_CATG_DESP", "RPT_CATG_DISP_SEQ_NUM"]:
-            if _col not in df_EXPTRANS.columns:
+        for _col in ["IN_RPT_CATG_CODE", "RPT_CATG_DESP", "DMNS_RPT_CATG_KEY", "RPT_CATG_CODE", "RPT_CATG_DISP_SEQ_NUM"]:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
@@ -169,13 +160,19 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         __fil_input = df_EXPTRANS
         df_FIL_CHANGE = __fil_input.filter(expr("CHANGE_FLAG = 1 AND ( NOT (DMNS_RPT_CATG_KEY IS NULL))"))
         ctx.register_df("df_FIL_CHANGE", df_FIL_CHANGE)
-        
+
         logger.info("Step: apply_FIL_NEW")
         # Filter: apply_FIL_NEW
         __fil_input = df_EXPTRANS
         df_FIL_NEW = __fil_input.filter(expr("CHANGE_FLAG = 1 AND (DMNS_RPT_CATG_KEY IS NULL)"))
         ctx.register_df("df_FIL_NEW", df_FIL_NEW)
-        
+        # Connected sequence generator: attach NEXTVAL (start 0)
+        df_FIL_NEW = df_FIL_NEW.withColumn(
+            "NEXTVAL",
+            monotonically_increasing_id() + 0
+        )
+        ctx.register_df("df_FIL_NEW", df_FIL_NEW)
+
         logger.info("Step: apply_Union_Transformation")
         # Union: apply_Union_Transformation
         # Select + rename upstream columns per input, then union
@@ -191,7 +188,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_new, allowMissingColumns=True)
         # Select only union output columns (add lit(None) for any missing)
         for _col in ["DMNS_RPT_CATG_KEY", "IN_RPT_CATG_CODE", "IN_RPT_CATG_DESP"]:
-            if _col not in df_Union_Transformation.columns:
+            if _col.lower() not in [x.lower() for x in df_Union_Transformation.columns]:
                 df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("DMNS_RPT_CATG_KEY", "IN_RPT_CATG_CODE", "IN_RPT_CATG_DESP")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
@@ -199,12 +196,16 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         logger.info("Step: write_DPA_DMNS_RPT_CATG")
         # Write to Target: write_DPA_DMNS_RPT_CATG
         df_write = df_Union_Transformation
+        # Cast NullType columns to StringType
+        for _c in df_write.columns:
+            if isinstance(df_write.schema[_c].dataType, NullType):
+                df_write = df_write.withColumn(_c, col(_c).cast(StringType()))
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
         _field_map = {"DMNS_RPT_CATG_KEY": "DMNS_RPT_CATG_KEY", "RPT_CATG_CODE": "IN_RPT_CATG_CODE", "RPT_CATG_DESP": "IN_RPT_CATG_DESP"}
         for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with
                 # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
                 for _c in list(df_write.columns):
@@ -215,7 +216,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_write = df_write.withColumn("RPT_CATG_DISP_SEQ_NUM", lit(None).cast(StringType()))
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['DMNS_RPT_CATG_KEY', 'RPT_CATG_CODE', 'RPT_CATG_DESP', 'RPT_CATG_DISP_SEQ_NUM']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
         # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
         lib.write_table(df_write, conn_target, "DPA_DMNS_RPT_CATG", mode="append")
 

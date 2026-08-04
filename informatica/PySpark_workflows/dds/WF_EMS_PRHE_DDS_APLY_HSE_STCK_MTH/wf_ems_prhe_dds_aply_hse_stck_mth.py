@@ -22,8 +22,8 @@ EXECUTION_PLAN = [
     "steps": [
       {
         "type": "session",
-        "name": "S_EMS_PRHE_HSE_STCK_MTH_PARAM_SETUP",
-        "mapping_name": "M_UTL_PARAM_SETUP"
+        "name": "S_EIS_PRHE_HSE_STCK_MTH_SSA_TRUNCATE",
+        "mapping_name": "M_UTL_SSA_TRUNCATE"
       },
       {
         "type": "session",
@@ -32,8 +32,8 @@ EXECUTION_PLAN = [
       },
       {
         "type": "session",
-        "name": "S_EIS_PRHE_HSE_STCK_MTH_SSA_TRUNCATE",
-        "mapping_name": "M_UTL_SSA_TRUNCATE"
+        "name": "S_EMS_PRHE_HSE_STCK_MTH_PARAM_SETUP",
+        "mapping_name": "M_UTL_PARAM_SETUP"
       }
     ]
   },
@@ -44,11 +44,6 @@ EXECUTION_PLAN = [
   {
     "type": "parallel_group",
     "steps": [
-      {
-        "type": "session",
-        "name": "S_EMS_DPA_SUMMARIZE_FACT_IH_STCK_MTH_ANLS",
-        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_IH_STCK_MTH_ANLS"
-      },
       {
         "type": "session",
         "name": "S_EMS_DPA_SUMMARIZE_FACT_IH_CASE_MTH_ANLS",
@@ -66,6 +61,11 @@ EXECUTION_PLAN = [
       },
       {
         "type": "session",
+        "name": "S_EMS_DPA_SUMMARIZE_FACT_IH_STCK_MTH_ANLS",
+        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_IH_STCK_MTH_ANLS"
+      },
+      {
+        "type": "session",
         "name": "S_EMS_DPA_SUMMARIZE_FACT_REHSE_ANLS",
         "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_REHSE_ANLS"
       }
@@ -76,18 +76,18 @@ EXECUTION_PLAN = [
     "steps": [
       {
         "type": "session",
+        "name": "S_EMS_DDS_APLY_FACT_IH_CASE_MTH_ANLS",
+        "mapping_name": "M_EMS_DDS_APLY_FACT_IH_CASE_MTH_ANLS"
+      },
+      {
+        "type": "session",
         "name": "S_EMS_DPA_SUMMARIZE_FACT_IH_HSE_CASE",
         "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_IH_HSE_CASE"
       },
       {
         "type": "session",
-        "name": "S_EMS_DDS_APLY_FACT_IH_STCK_MTH_ANLS",
-        "mapping_name": "M_EMS_DDS_APLY_FACT_IH_STCK_MTH_ANLS"
-      },
-      {
-        "type": "session",
-        "name": "S_EMS_DPA_SUMMARIZE_FACT_PRH_STCK_MTH_ANLS_A",
-        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_PRH_STCK_MTH_ANLS_A"
+        "name": "S_EMS_DPA_SUMMARIZE_FACT_RCVR_FLAT_BASE_B",
+        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_RCVR_FLAT_BASE_B"
       },
       {
         "type": "session",
@@ -101,18 +101,18 @@ EXECUTION_PLAN = [
       },
       {
         "type": "session",
-        "name": "S_EMS_DDS_APLY_FACT_IH_CASE_MTH_ANLS",
-        "mapping_name": "M_EMS_DDS_APLY_FACT_IH_CASE_MTH_ANLS"
-      },
-      {
-        "type": "session",
-        "name": "S_EMS_DPA_SUMMARIZE_FACT_RCVR_FLAT_BASE_B",
-        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_RCVR_FLAT_BASE_B"
+        "name": "S_EMS_DPA_SUMMARIZE_FACT_PRH_STCK_MTH_ANLS_A",
+        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_PRH_STCK_MTH_ANLS_A"
       },
       {
         "type": "session",
         "name": "S_EMS_DDS_APLY_FACT_REHSE_ANLS",
         "mapping_name": "M_EMS_DDS_APLY_FACT_REHSE_ANLS"
+      },
+      {
+        "type": "session",
+        "name": "S_EMS_DDS_APLY_FACT_IH_STCK_MTH_ANLS",
+        "mapping_name": "M_EMS_DDS_APLY_FACT_IH_STCK_MTH_ANLS"
       }
     ]
   },
@@ -121,13 +121,13 @@ EXECUTION_PLAN = [
     "steps": [
       {
         "type": "session",
-        "name": "S_EMS_DPA_SUMMARIZE_FACT_PRH_STCK_MTH_ANLS_B",
-        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_PRH_STCK_MTH_ANLS_B"
+        "name": "S_EMS_DPA_SUMMARIZE_FACT_RCVR_FLAT_BASE_C",
+        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_RCVR_FLAT_BASE_C"
       },
       {
         "type": "session",
-        "name": "S_EMS_DPA_SUMMARIZE_FACT_RCVR_FLAT_BASE_C",
-        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_RCVR_FLAT_BASE_C"
+        "name": "S_EMS_DPA_SUMMARIZE_FACT_PRH_STCK_MTH_ANLS_B",
+        "mapping_name": "M_EMS_DPA_SUMMARIZE_FACT_PRH_STCK_MTH_ANLS_B"
       }
     ]
   },
@@ -156,13 +156,13 @@ EXECUTION_PLAN = [
       },
       {
         "type": "session",
-        "name": "S_EMS_DDS_APLY_FACT_PRH_STCK_MTH_ANLS",
-        "mapping_name": "M_EMS_DDS_APLY_FACT_PRH_STCK_MTH_ANLS"
+        "name": "S_EMS_DDS_APLY_FACT_PRH_VCNT_TERM",
+        "mapping_name": "M_EMS_DDS_APLY_FACT_PRH_VCNT_TERM"
       },
       {
         "type": "session",
-        "name": "S_EMS_DDS_APLY_FACT_PRH_VCNT_TERM",
-        "mapping_name": "M_EMS_DDS_APLY_FACT_PRH_VCNT_TERM"
+        "name": "S_EMS_DDS_APLY_FACT_PRH_STCK_MTH_ANLS",
+        "mapping_name": "M_EMS_DDS_APLY_FACT_PRH_STCK_MTH_ANLS"
       }
     ]
   },
@@ -212,6 +212,8 @@ TASK_INFO = {
   }
 }
 
+SESSION_SQLS = {}
+
 
 def run_workflow(config=None, fail_fast=True):
     """Execute the workflow via the shared runtime library runner."""
@@ -222,6 +224,7 @@ def run_workflow(config=None, fail_fast=True):
         mapping_functions=MAPPING_FUNCTIONS,
         workflow_name="WF_EMS_PRHE_DDS_APLY_HSE_STCK_MTH",
         task_info=TASK_INFO,
+        session_sqls=SESSION_SQLS,
         config=config,
         fail_fast=fail_fast,
         metrics_cls=lib.MappingMetrics,

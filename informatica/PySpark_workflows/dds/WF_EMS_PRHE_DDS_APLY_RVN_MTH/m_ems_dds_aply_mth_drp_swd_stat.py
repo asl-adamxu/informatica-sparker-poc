@@ -17,7 +17,8 @@ from pyspark.sql.types import *
 # MAPPING LOGIC
 # =============================================================================
 
-def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> bool:
+def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
+                session_sqls=None) -> bool:
     """
     Execute the M_EMS_DDS_APLY_MTH_DRP_SWD_STAT mapping transformations.
 
@@ -28,7 +29,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         ctx: Optional SparkContext for session and DataFrame registry
         metrics: Optional metrics tracker (or NullMetrics if not provided)
         job_params: Optional dict of job parameters loaded by workflow
-    
+        session_sqls: The session's Target Pre/Post SQL dict 
     Returns:
         bool: True if successful
     """
@@ -44,8 +45,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
     metrics = metrics or lib.NullMetrics()
     metrics.start()
 
-    conn_oracle = lib.get_db_config(config, "oracle-defaults")
-    conn_source = lib.get_db_config(config, "SOR")
     conn_target = lib.get_db_config(config, "SOR")
 
     v_rpt_mth = ""
@@ -124,7 +123,7 @@ and c.drp_txn_val_date < add_months(to_date('$$v_rpt_mth'||'01','yyyymmdd'),1)""
         df_SQTRANS = df_SQTRANS.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQTRANS = df_SQTRANS.select([col(c) if c in df_SQTRANS.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQTRANS = df_SQTRANS.select([col(c) if c.lower() in [x.lower() for x in df_SQTRANS.columns] else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQTRANS", df_SQTRANS)
         
@@ -136,7 +135,7 @@ and c.drp_txn_val_date < add_months(to_date('$$v_rpt_mth'||'01','yyyymmdd'),1)""
         df_EXPTRANS2 = df_EXPTRANS2.withColumn("TNCY_AGRMT_BK", expr("lpad(CUST_KEY_V,9,'0') || lpad(PRH_APLY_BK_2_V,15,'0')"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["TXN_MTHD_CODE", "TXN_DATE", "TXN_PYMT_ITEM_AMT", "CUST_KEY", "PRH_APLY_BK_2", "DRP_PYMT_SEQ_NUM", "SWD_CASE_FILE_REF_NUM", "DRP_PYMT_FROM_DATE", "DRP_PYMT_TO_DATE", "DRP_CUST_CNT"]:
-            if _col not in df_EXPTRANS2.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS2.columns]:
                 df_EXPTRANS2 = df_EXPTRANS2.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS2", df_EXPTRANS2)
@@ -172,7 +171,7 @@ and u.unit_key = ta2.unit_key"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_UNIT_ADDR_CODE[c] for c in df_LKP_UNIT_ADDR_CODE.columns if c not in _lkp_input.columns]
+            *[df_LKP_UNIT_ADDR_CODE[c] for c in df_LKP_UNIT_ADDR_CODE.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: read_LKP_CUST_EXPCT_CHILD_NUM")
@@ -206,7 +205,7 @@ and ADD_MONTHS(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'), 1)-1 between SOR_EMS_CP
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_CUST_EXPCT_CHILD_NUM[c] for c in df_LKP_CUST_EXPCT_CHILD_NUM.columns if c not in _lkp_input.columns]
+            *[df_LKP_CUST_EXPCT_CHILD_NUM[c] for c in df_LKP_CUST_EXPCT_CHILD_NUM.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_LKP_ELD_MTH")
@@ -261,7 +260,7 @@ GROUP BY
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_LKP_ELD_MTH[c] for c in df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_LKP_ELD_MTH.columns if c not in _lkp_input.columns]
+            *[df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_LKP_ELD_MTH[c] for c in df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_LKP_ELD_MTH.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_mplt_lkp_chain_2", df_mplt_lkp_chain_2)        
         logger.info("Step: apply_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31")
@@ -271,7 +270,7 @@ GROUP BY
         df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31 = df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31.withColumn("AEM_IND", expr("CASE WHEN NOT ((ELD_CNT IS NULL)) AND ELD_CNT = HSHLD_SIZE THEN 'Y' ELSE 'N' END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["TNCY_AGRMT_BK", "HSHLD_SIZE", "HSHLD_MALE_MBR_CNT", "HSHLD_FML_MBR_CNT", "HSHLD_UNKWN_MBR_CNT", "HSHLD_DSBL_MBR_CNT"]:
-            if _col not in df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31.columns:
+            if _col.lower() not in [x.lower() for x in df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31.columns]:
                 df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31 = df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31", df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31)
@@ -285,10 +284,11 @@ GROUP BY
         logger.info("Step: merge_EXPTRANS1_0")
         # Lookup: merge_EXPTRANS1_0
         # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity).
-        _cc = list(dict.fromkeys(c for c in df_lkp_merge_1.columns if c in df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY.columns))
+        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
+        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
+        _cc = list(dict.fromkeys(c for c in df_lkp_merge_1.columns if c.lower() in [x.lower() for x in df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY.columns]))
         if _cc:
-            __lkp_dup = [c for c in df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY.columns if c in df_lkp_merge_1.columns and c not in _cc]
+            __lkp_dup = [c for c in df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY.columns if c.lower() in [x.lower() for x in df_lkp_merge_1.columns] and c.lower() not in [x.lower() for x in _cc]]
             df_merge_3 = df_lkp_merge_1.join(
                 df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY.drop(*__lkp_dup) if __lkp_dup else df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY,
                 on=_cc, how="left"
@@ -314,7 +314,7 @@ GROUP BY
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("DRP_CUST_CNT_OUT", expr("lpad(cast(DRP_CUST_CNT as string),2)"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["UNIT_ADDR_CODE", "TXN_MTHD_CODE", "AEM_IND"]:
-            if _col not in df_EXPTRANS1.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS1.columns]:
                 df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
@@ -327,7 +327,7 @@ GROUP BY
         # column names in batch_update/batch_delete.
         _field_map = {"DRP_CUST_CNT": "DRP_CUST_CNT_OUT", "DRP_PYMT_FROM_DATE": "DRP_PYMT_FROM_DATE_OUT", "DRP_PYMT_SEQ_NUM": "DRP_PYMT_SEQ_NUM_OUT", "DRP_PYMT_TO_DATE": "DRP_PYMT_TO_DATE_OUT", "EXPCT_CHILD_CNT": "CUST_EXPCT_CHILD_NUM1", "FMLY_MBR_CNT": "HSHLD_SIZE1", "HSHLD_AEM_IND": "AEM_IND", "RVN_TXN_MODE_CODE": "TXN_MTHD_CODE", "SWD_CASE_FILE_REF_NUM": "SWD_CASE_FILE_REF_NUM_OUT", "TXN_DATE": "TXN_DATE1", "TXN_PYMT_ITEM_AMT": "DRP_AMT1", "UNIT_ADDR_CODE": "UNIT_ADDR_CODE"}
         for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with
                 # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
                 for _c in list(df_write.columns):
@@ -336,7 +336,7 @@ GROUP BY
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['TXN_DATE', 'UNIT_ADDR_CODE', 'RVN_TXN_MODE_CODE', 'TXN_PYMT_ITEM_AMT', 'HSHLD_AEM_IND', 'FMLY_MBR_CNT', 'EXPCT_CHILD_CNT', 'DRP_PYMT_SEQ_NUM', 'SWD_CASE_FILE_REF_NUM', 'DRP_PYMT_FROM_DATE', 'DRP_PYMT_TO_DATE', 'DRP_CUST_CNT']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
         # Write to flat file — prefer config.yml objects metadata, then derived default path
         _write_obj = objects.get("DDS_FACT_MTH_DRP_SWD_STAT")
         if _write_obj and isinstance(_write_obj, dict):

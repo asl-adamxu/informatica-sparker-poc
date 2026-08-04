@@ -20,7 +20,8 @@ from pyspark.sql.types import *
 # MAPPING LOGIC
 # =============================================================================
 
-def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> bool:
+def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
+                session_sqls=None) -> bool:
     """
     Execute the {{ mapping_name }} mapping transformations.
 
@@ -31,7 +32,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         ctx: Optional SparkContext for session and DataFrame registry
         metrics: Optional metrics tracker (or NullMetrics if not provided)
         job_params: Optional dict of job parameters loaded by workflow
-    
+        session_sqls: The session's Target Pre/Post SQL dict 
     Returns:
         bool: True if successful
     """
@@ -47,10 +48,20 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
     metrics = metrics or lib.NullMetrics()
     metrics.start()
 
+    {% if has_stored_proc %}
     conn_oracle = lib.get_db_config(config, "oracle-defaults")
-    conn_source = lib.get_db_config(config, "{{ source_conn_name }}")
+    {% endif %}
+    {% if needs_conn_target %}
     conn_target = lib.get_db_config(config, "{{ target_conn_name }}")
+    {% endif %}
 
+    {% if session_sqls %}
+    # Execute the session's Target Pre-SQL 
+    if session_sqls and session_sqls.get("pre_sql"):
+        for _stmt in [s.strip() for s in session_sqls["pre_sql"].split(";") if s.strip()]:
+            logger.info("Session Pre-SQL: %s", _stmt[:150])
+            lib.execute_sql(spark, conn_target, _stmt)
+    {% endif %}
     {% if mapping_variables %}
     {% for var_name, var_default in mapping_variables.items() %}
     {% set clean_name = var_name | replace('$', '') %}
@@ -198,7 +209,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {{ step.df_output }} = {{ step.df_output }}.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
-        {{ step.df_output }} = {{ step.df_output }}.select([col(c) if c in {{ step.df_output }}.columns else lit(None).alias(c) for c in _port_cols])
+        {{ step.df_output }} = {{ step.df_output }}.select([col(c) if c.lower() in [x.lower() for x in {{ step.df_output }}.columns] else lit(None).alias(c) for c in _port_cols])
         
         {% set sq_col_types = step.params.get('output_column_types', {}) %}
         {% for col_name, col_type in sq_col_types.items() %}
@@ -255,7 +266,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% if sq_output_columns %}
         # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
         _port_cols = [{% for c in sq_output_columns %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %}]
-        {{ step.df_output }} = {{ step.df_output }}.select([col(c) if c in {{ step.df_output }}.columns else lit(None).alias(c) for c in _port_cols])
+        {{ step.df_output }} = {{ step.df_output }}.select([col(c) if c.lower() in [x.lower() for x in {{ step.df_output }}.columns] else lit(None).alias(c) for c in _port_cols])
         {% endif %}
         {% endif %}
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
@@ -286,7 +297,15 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {{ step.df_output }} = __fil_input.filter({{ step.params.get('condition', 'True') }})
         {% endif %}
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
-        
+        {% for att in step.params.get('sequence_attach', []) %}
+        # Connected sequence generator: attach {{ att.col }} (start {{ att.start }})
+        {{ step.df_output }} = {{ step.df_output }}.withColumn(
+            "{{ att.col }}",
+            monotonically_increasing_id() + {{ att.start }}
+        )
+        ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
+        {% endfor %}
+
         {% elif step.step_type == IRStepType.APPLY_EXPRESSION %}
         # Expression: {{ step.step_name }}
         {% if step.params.get('window_imports') %}
@@ -375,7 +394,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% for c in output_columns if c not in computed_names %}{% set _ = pass_through_cols.append(c) %}{% endfor %}
         {% if pass_through_cols %}
         for _col in [{% for c in pass_through_cols %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %}]:
-            if _col not in {{ step.df_output }}.columns:
+            if _col.lower() not in [x.lower() for x in {{ step.df_output }}.columns]:
                 {{ step.df_output }} = {{ step.df_output }}.withColumn(_col, lit(None))
         {% endif %}
         # Keep all upstream columns + computed columns (no select filtering)
@@ -389,10 +408,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% set join_expr = step.params.get('join_expr') %}
         {% if join_expr == '__common_cols__' %}
         # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity).
-        _cc = list(dict.fromkeys(c for c in {{ step.df_input }}.columns if c in {{ lookup_df_name }}.columns))
+        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
+        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
+        _cc = list(dict.fromkeys(c for c in {{ step.df_input }}.columns if c.lower() in [x.lower() for x in {{ lookup_df_name }}.columns]))
         if _cc:
-            __lkp_dup = [c for c in {{ lookup_df_name }}.columns if c in {{ step.df_input }}.columns and c not in _cc]
+            __lkp_dup = [c for c in {{ lookup_df_name }}.columns if c.lower() in [x.lower() for x in {{ step.df_input }}.columns] and c.lower() not in [x.lower() for x in _cc]]
             {{ step.df_output }} = {{ step.df_input }}.join(
                 {{ lookup_df_name }}.drop(*__lkp_dup) if __lkp_dup else {{ lookup_df_name }},
                 on=_cc, how="left"
@@ -444,13 +464,13 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             "{{ step.params.get('lookup_type', 'left') }}"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[{{ lookup_df_name }}[c] for c in {{ lookup_df_name }}.columns if c not in _lkp_input.columns]
+            *[{{ lookup_df_name }}[c] for c in {{ lookup_df_name }}.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         {% if step.params.get('new_lookup_row_key') %}
         # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
         # Judge via a lookup column that survived the merge select (not shadowed
         # by a same-named main column) — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in {{ lookup_df_name }}.columns if c not in _lkp_input.columns]
+        _nlr_lkp_cols = [c for c in {{ lookup_df_name }}.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         if _nlr_lkp_cols:
             {{ step.df_output }} = {{ step.df_output }}.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
         else:
@@ -548,7 +568,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% if step.params.get('joiner_missing_cols') %}
         # Add NULL for Joiner ports without upstream connectors
         for _col in [{% for c in step.params['joiner_missing_cols'] %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %}]:
-            if _col not in {{ step.df_output }}.columns:
+            if _col.lower() not in [x.lower() for x in {{ step.df_output }}.columns]:
                 {{ step.df_output }} = {{ step.df_output }}.withColumn(_col, lit(None))
         {% endif %}
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
@@ -679,7 +699,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% if union_output_columns %}
         # Select only union output columns (add lit(None) for any missing)
         for _col in [{% for c in union_output_columns %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %}]:
-            if _col not in {{ step.df_output }}.columns:
+            if _col.lower() not in [x.lower() for x in {{ step.df_output }}.columns]:
                 {{ step.df_output }} = {{ step.df_output }}.withColumn(_col, lit(None))
         {{ step.df_output }} = {{ step.df_output }}.select({% for c in union_output_columns %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %})
         {% endif %}
@@ -863,11 +883,17 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% set unmapped_columns = step.params.get('unmapped_columns', []) %}
         {% set is_delete = step.params.get('is_delete', False) %}
         {% set delete_keys = step.params.get('delete_keys', []) %}
-        {% if table_name.endswith('DEV_NULL') or '/dev/null' in table_name.lower() %}
-        # /dev/null — skip entire write component (no-op target in Informatica)
-        logger.info("Target {{ step.step_name }} is /dev/null, skipping write")
+        {% if table_name.endswith('DEV_NULL') or '/dev/null' in table_name.lower() or table_name.upper() == 'DUAL' %}
+        # /dev/null / DUAL — skip entire write component 
+        logger.info("Target {{ step.step_name }} is a no-op target (/dev/null or DUAL), skipping write")
         {% else %}
         df_write = {{ step.df_input }}
+        {% if step.params.get('cast_nulltype') %}
+        # Cast NullType columns to StringType
+        for _c in df_write.columns:
+            if isinstance(df_write.schema[_c].dataType, NullType):
+                df_write = df_write.withColumn(_c, col(_c).cast(StringType()))
+        {% endif %}
         {% if target_columns and step.params.get('field_map') %}
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
@@ -875,7 +901,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% set field_map = step.params.get('field_map', {}) %}
         _field_map = {{ field_map | tojson }}
         for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with
                 # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
                 for _c in list(df_write.columns):
@@ -890,7 +916,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% if _upd_keys %}
         if not df_write.rdd.isEmpty():
             _upd_key_cols = {{ _upd_keys }}
-            _upd_set_cols = [c for c in df_write.columns if c not in _upd_key_cols and c != "_update_flag"]
+            _upd_set_cols = [c for c in df_write.columns if c.lower() not in [k.lower() for k in _upd_key_cols] and c != "_update_flag"]
             if _upd_set_cols:
                 _upd_rows = [tuple(r[c] for c in _upd_set_cols + _upd_key_cols) for r in df_write.collect()]
                 lib.batch_update(spark, conn_target, "{{ table_name }}", _upd_set_cols, _upd_key_cols, _upd_rows, 1000)
@@ -915,7 +941,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% if _upd_keys %}
         if not _df_upd.rdd.isEmpty():
             _upd_key_cols = {{ _upd_keys }}
-            _upd_set_cols = [c for c in _df_upd.columns if c not in _upd_key_cols]
+            _upd_set_cols = [c for c in _df_upd.columns if c.lower() not in [k.lower() for k in _upd_key_cols]]
             if _upd_set_cols:
                 _upd_rows = [tuple(r[c] for c in _upd_set_cols + _upd_key_cols) for r in _df_upd.collect()]
                 lib.batch_update(spark, conn_target, "{{ table_name }}", _upd_set_cols, _upd_key_cols, _upd_rows, 1000)
@@ -943,7 +969,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% if target_columns %}
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = {{ target_columns }}
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
         {% endif %}
         {% if sink_type == 'csv' %}
         # Write to flat file — prefer config.yml objects metadata, then derived default path
@@ -976,6 +1002,13 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         {% endif %}
         {% endfor %}
         
+        {% if session_sqls %}
+        # Session Post-SQL after the pipeline succeeds
+        if session_sqls and session_sqls.get("post_sql"):
+            for _stmt in [s.strip() for s in session_sqls["post_sql"].split(";") if s.strip()]:
+                logger.info("Session Post-SQL: %s", _stmt[:150])
+                lib.execute_sql(spark, conn_target, _stmt)
+        {% endif %}
         metrics.complete()
         logger.info("Mapping {{ mapping_name }} completed: SUCCESS")
         return True

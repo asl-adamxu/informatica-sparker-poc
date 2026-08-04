@@ -17,7 +17,8 @@ from pyspark.sql.types import *
 # MAPPING LOGIC
 # =============================================================================
 
-def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> bool:
+def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
+                session_sqls=None) -> bool:
     """
     Execute the M_S5_DPA_SUMMARIZE_FACT_EMS_EST_PLT_B mapping transformations.
 
@@ -28,7 +29,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         ctx: Optional SparkContext for session and DataFrame registry
         metrics: Optional metrics tracker (or NullMetrics if not provided)
         job_params: Optional dict of job parameters loaded by workflow
-    
+        session_sqls: The session's Target Pre/Post SQL dict 
     Returns:
         bool: True if successful
     """
@@ -44,8 +45,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
     metrics = metrics or lib.NullMetrics()
     metrics.start()
 
-    conn_oracle = lib.get_db_config(config, "oracle-defaults")
-    conn_source = lib.get_db_config(config, "SOR")
     conn_target = lib.get_db_config(config, "DPA")
 
     v_snsh_date = ""
@@ -134,7 +133,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_SQ_SOR_EMS_HSM_EST = df_SQ_SOR_EMS_HSM_EST.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_SOR_EMS_HSM_EST = df_SQ_SOR_EMS_HSM_EST.select([col(c) if c in df_SQ_SOR_EMS_HSM_EST.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SOR_EMS_HSM_EST = df_SQ_SOR_EMS_HSM_EST.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_EMS_HSM_EST.columns] else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_EMS_HSM_EST", df_SQ_SOR_EMS_HSM_EST)
         
@@ -342,7 +341,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS1111111111111111111111111111 = df_EXPTRANS1111111111111111111111111111.withColumn("AGE_GRP_CODE", expr("'55 - 59'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE29"]:
-            if _col not in df_EXPTRANS1111111111111111111111111111.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS1111111111111111111111111111.columns]:
                 df_EXPTRANS1111111111111111111111111111 = df_EXPTRANS1111111111111111111111111111.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS1111111111111111111111111111", df_EXPTRANS1111111111111111111111111111)
@@ -356,7 +355,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS111111111111111111111111111 = df_EXPTRANS111111111111111111111111111.withColumn("AGE_GRP_CODE", expr("'50 - 54'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE28"]:
-            if _col not in df_EXPTRANS111111111111111111111111111.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS111111111111111111111111111.columns]:
                 df_EXPTRANS111111111111111111111111111 = df_EXPTRANS111111111111111111111111111.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS111111111111111111111111111", df_EXPTRANS111111111111111111111111111)
@@ -370,7 +369,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS11111111111111111111111111 = df_EXPTRANS11111111111111111111111111.withColumn("AGE_GRP_CODE", expr("'45 - 49'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE27"]:
-            if _col not in df_EXPTRANS11111111111111111111111111.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS11111111111111111111111111.columns]:
                 df_EXPTRANS11111111111111111111111111 = df_EXPTRANS11111111111111111111111111.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS11111111111111111111111111", df_EXPTRANS11111111111111111111111111)
@@ -384,7 +383,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS1111111111111111111111111 = df_EXPTRANS1111111111111111111111111.withColumn("AGE_GRP_CODE", expr("'40 - 44'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE26"]:
-            if _col not in df_EXPTRANS1111111111111111111111111.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS1111111111111111111111111.columns]:
                 df_EXPTRANS1111111111111111111111111 = df_EXPTRANS1111111111111111111111111.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS1111111111111111111111111", df_EXPTRANS1111111111111111111111111)
@@ -398,7 +397,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS111111111111111111111111 = df_EXPTRANS111111111111111111111111.withColumn("AGE_GRP_CODE", expr("'35 - 39'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE25"]:
-            if _col not in df_EXPTRANS111111111111111111111111.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS111111111111111111111111.columns]:
                 df_EXPTRANS111111111111111111111111 = df_EXPTRANS111111111111111111111111.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS111111111111111111111111", df_EXPTRANS111111111111111111111111)
@@ -412,7 +411,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS11111111111111111111111 = df_EXPTRANS11111111111111111111111.withColumn("AGE_GRP_CODE", expr("'30 - 34'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE24"]:
-            if _col not in df_EXPTRANS11111111111111111111111.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS11111111111111111111111.columns]:
                 df_EXPTRANS11111111111111111111111 = df_EXPTRANS11111111111111111111111.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS11111111111111111111111", df_EXPTRANS11111111111111111111111)
@@ -426,7 +425,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS1111111111111111111111 = df_EXPTRANS1111111111111111111111.withColumn("AGE_GRP_CODE", expr("'25 - 29'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE23"]:
-            if _col not in df_EXPTRANS1111111111111111111111.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS1111111111111111111111.columns]:
                 df_EXPTRANS1111111111111111111111 = df_EXPTRANS1111111111111111111111.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS1111111111111111111111", df_EXPTRANS1111111111111111111111)
@@ -440,7 +439,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS111111111111111111111 = df_EXPTRANS111111111111111111111.withColumn("AGE_GRP_CODE", expr("'20 - 24'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE22"]:
-            if _col not in df_EXPTRANS111111111111111111111.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS111111111111111111111.columns]:
                 df_EXPTRANS111111111111111111111 = df_EXPTRANS111111111111111111111.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS111111111111111111111", df_EXPTRANS111111111111111111111)
@@ -454,7 +453,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS11111111111111111111 = df_EXPTRANS11111111111111111111.withColumn("AGE_GRP_CODE", expr("'19'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE21"]:
-            if _col not in df_EXPTRANS11111111111111111111.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS11111111111111111111.columns]:
                 df_EXPTRANS11111111111111111111 = df_EXPTRANS11111111111111111111.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS11111111111111111111", df_EXPTRANS11111111111111111111)
@@ -468,7 +467,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS1111111111111111111 = df_EXPTRANS1111111111111111111.withColumn("AGE_GRP_CODE", expr("'18'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE20"]:
-            if _col not in df_EXPTRANS1111111111111111111.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS1111111111111111111.columns]:
                 df_EXPTRANS1111111111111111111 = df_EXPTRANS1111111111111111111.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS1111111111111111111", df_EXPTRANS1111111111111111111)
@@ -482,7 +481,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS111111111111111111 = df_EXPTRANS111111111111111111.withColumn("AGE_GRP_CODE", expr("'17'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE19"]:
-            if _col not in df_EXPTRANS111111111111111111.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS111111111111111111.columns]:
                 df_EXPTRANS111111111111111111 = df_EXPTRANS111111111111111111.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS111111111111111111", df_EXPTRANS111111111111111111)
@@ -496,7 +495,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS11111111111111111 = df_EXPTRANS11111111111111111.withColumn("AGE_GRP_CODE", expr("'16'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE18"]:
-            if _col not in df_EXPTRANS11111111111111111.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS11111111111111111.columns]:
                 df_EXPTRANS11111111111111111 = df_EXPTRANS11111111111111111.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS11111111111111111", df_EXPTRANS11111111111111111)
@@ -510,7 +509,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS1111111111111111 = df_EXPTRANS1111111111111111.withColumn("AGE_GRP_CODE", expr("'15'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE17"]:
-            if _col not in df_EXPTRANS1111111111111111.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS1111111111111111.columns]:
                 df_EXPTRANS1111111111111111 = df_EXPTRANS1111111111111111.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS1111111111111111", df_EXPTRANS1111111111111111)
@@ -524,7 +523,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS111111111111111 = df_EXPTRANS111111111111111.withColumn("AGE_GRP_CODE", expr("'14'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE16"]:
-            if _col not in df_EXPTRANS111111111111111.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS111111111111111.columns]:
                 df_EXPTRANS111111111111111 = df_EXPTRANS111111111111111.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS111111111111111", df_EXPTRANS111111111111111)
@@ -538,7 +537,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS11111111111111 = df_EXPTRANS11111111111111.withColumn("AGE_GRP_CODE", expr("'13'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE15"]:
-            if _col not in df_EXPTRANS11111111111111.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS11111111111111.columns]:
                 df_EXPTRANS11111111111111 = df_EXPTRANS11111111111111.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS11111111111111", df_EXPTRANS11111111111111)
@@ -552,7 +551,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS1111111111111 = df_EXPTRANS1111111111111.withColumn("AGE_GRP_CODE", expr("'12'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE14"]:
-            if _col not in df_EXPTRANS1111111111111.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS1111111111111.columns]:
                 df_EXPTRANS1111111111111 = df_EXPTRANS1111111111111.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS1111111111111", df_EXPTRANS1111111111111)
@@ -566,7 +565,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS111111111111 = df_EXPTRANS111111111111.withColumn("AGE_GRP_CODE", expr("'11'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE13"]:
-            if _col not in df_EXPTRANS111111111111.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS111111111111.columns]:
                 df_EXPTRANS111111111111 = df_EXPTRANS111111111111.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS111111111111", df_EXPTRANS111111111111)
@@ -580,7 +579,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS11111111111 = df_EXPTRANS11111111111.withColumn("AGE_GRP_CODE", expr("'10'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE12"]:
-            if _col not in df_EXPTRANS11111111111.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS11111111111.columns]:
                 df_EXPTRANS11111111111 = df_EXPTRANS11111111111.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS11111111111", df_EXPTRANS11111111111)
@@ -594,7 +593,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS1111111111 = df_EXPTRANS1111111111.withColumn("AGE_GRP_CODE", expr("'9'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE11"]:
-            if _col not in df_EXPTRANS1111111111.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS1111111111.columns]:
                 df_EXPTRANS1111111111 = df_EXPTRANS1111111111.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS1111111111", df_EXPTRANS1111111111)
@@ -608,7 +607,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS1111111 = df_EXPTRANS1111111.withColumn("AGE_GRP_CODE", expr("'6'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE8"]:
-            if _col not in df_EXPTRANS1111111.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS1111111.columns]:
                 df_EXPTRANS1111111 = df_EXPTRANS1111111.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS1111111", df_EXPTRANS1111111)
@@ -622,7 +621,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS111111 = df_EXPTRANS111111.withColumn("AGE_GRP_CODE", expr("'5'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE7"]:
-            if _col not in df_EXPTRANS111111.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS111111.columns]:
                 df_EXPTRANS111111 = df_EXPTRANS111111.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS111111", df_EXPTRANS111111)
@@ -636,7 +635,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS11111 = df_EXPTRANS11111.withColumn("AGE_GRP_CODE", expr("'4'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE6"]:
-            if _col not in df_EXPTRANS11111.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS11111.columns]:
                 df_EXPTRANS11111 = df_EXPTRANS11111.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS11111", df_EXPTRANS11111)
@@ -650,7 +649,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS1111 = df_EXPTRANS1111.withColumn("AGE_GRP_CODE", expr("'3'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE5"]:
-            if _col not in df_EXPTRANS1111.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS1111.columns]:
                 df_EXPTRANS1111 = df_EXPTRANS1111.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS1111", df_EXPTRANS1111)
@@ -664,7 +663,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS111 = df_EXPTRANS111.withColumn("AGE_GRP_CODE", expr("'2'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE4"]:
-            if _col not in df_EXPTRANS111.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS111.columns]:
                 df_EXPTRANS111 = df_EXPTRANS111.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS111", df_EXPTRANS111)
@@ -678,7 +677,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS11 = df_EXPTRANS11.withColumn("AGE_GRP_CODE", expr("'1'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE3"]:
-            if _col not in df_EXPTRANS11.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS11.columns]:
                 df_EXPTRANS11 = df_EXPTRANS11.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS11", df_EXPTRANS11)
@@ -692,7 +691,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS111111111 = df_EXPTRANS111111111.withColumn("AGE_GRP_CODE", expr("'8'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE10"]:
-            if _col not in df_EXPTRANS111111111.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS111111111.columns]:
                 df_EXPTRANS111111111 = df_EXPTRANS111111111.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS111111111", df_EXPTRANS111111111)
@@ -706,7 +705,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS11111111 = df_EXPTRANS11111111.withColumn("AGE_GRP_CODE", expr("'7'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE9"]:
-            if _col not in df_EXPTRANS11111111.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS11111111.columns]:
                 df_EXPTRANS11111111 = df_EXPTRANS11111111.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS11111111", df_EXPTRANS11111111)
@@ -717,7 +716,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("AGE_GRP_CODE", expr("'0'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "BLK_CODE1"]:
-            if _col not in df_EXPTRANS1.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS1.columns]:
                 df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
@@ -731,7 +730,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS1111111111111111111111111111111 = df_EXPTRANS1111111111111111111111111111111.withColumn("AGE_GRP_CODE", expr("'70+'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE32"]:
-            if _col not in df_EXPTRANS1111111111111111111111111111111.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS1111111111111111111111111111111.columns]:
                 df_EXPTRANS1111111111111111111111111111111 = df_EXPTRANS1111111111111111111111111111111.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS1111111111111111111111111111111", df_EXPTRANS1111111111111111111111111111111)
@@ -745,7 +744,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS111111111111111111111111111111 = df_EXPTRANS111111111111111111111111111111.withColumn("AGE_GRP_CODE", expr("'65 - 69'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE31"]:
-            if _col not in df_EXPTRANS111111111111111111111111111111.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS111111111111111111111111111111.columns]:
                 df_EXPTRANS111111111111111111111111111111 = df_EXPTRANS111111111111111111111111111111.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS111111111111111111111111111111", df_EXPTRANS111111111111111111111111111111)
@@ -759,7 +758,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS11111111111111111111111111111 = df_EXPTRANS11111111111111111111111111111.withColumn("AGE_GRP_CODE", expr("'60 - 64'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["BLK_CODE30"]:
-            if _col not in df_EXPTRANS11111111111111111111111111111.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS11111111111111111111111111111.columns]:
                 df_EXPTRANS11111111111111111111111111111 = df_EXPTRANS11111111111111111111111111111.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS11111111111111111111111111111", df_EXPTRANS11111111111111111111111111111)
@@ -986,7 +985,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup30, allowMissingColumns=True)
         # Select only union output columns (add lit(None) for any missing)
         for _col in ["EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE"]:
-            if _col not in df_Union_Transformation.columns:
+            if _col.lower() not in [x.lower() for x in df_Union_Transformation.columns]:
                 df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("EST_CODE1", "AGE_GRP1", "CUST_MBR_GNDR_CODE1", "AGE_GRP_CODE", "BLK_CODE")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
@@ -1018,7 +1017,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_EXPTRANS = df_EXPTRANS.withColumn("AGE_GRP_SCHM_CODE", expr("'NEW'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["EST_CODE", "AGE_GRP_CODE", "PLT_CNT", "CUST_MBR_GNDR_CODE", "BLK_CODE"]:
-            if _col not in df_EXPTRANS.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
@@ -1044,7 +1043,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_DMNS_EMS_EST[c] for c in df_LKP_DDS_DMNS_EMS_EST.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_DMNS_EMS_EST[c] for c in df_LKP_DDS_DMNS_EMS_EST.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_33", df_lkp_merge_33)        
         logger.info("Step: read_LKP_DDS_DMNS_TIME_1")
@@ -1068,7 +1067,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_DMNS_TIME_1[c] for c in df_LKP_DDS_DMNS_TIME_1.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_DMNS_TIME_1[c] for c in df_LKP_DDS_DMNS_TIME_1.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_AGE_GRP")
@@ -1094,7 +1093,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_DMNS_EMS_AGE_GRP[c] for c in df_LKP_DDS_DMNS_EMS_AGE_GRP.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_DMNS_EMS_AGE_GRP[c] for c in df_LKP_DDS_DMNS_EMS_AGE_GRP.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_EST_PLT_TYPE")
@@ -1120,7 +1119,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_DMNS_EMS_EST_PLT_TYPE[c] for c in df_LKP_DDS_DMNS_EMS_EST_PLT_TYPE.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_DMNS_EMS_EST_PLT_TYPE[c] for c in df_LKP_DDS_DMNS_EMS_EST_PLT_TYPE.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_BLK")
@@ -1146,7 +1145,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_DMNS_EMS_BLK[c] for c in df_LKP_DDS_DMNS_EMS_BLK.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_DMNS_EMS_BLK[c] for c in df_LKP_DDS_DMNS_EMS_BLK.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: write_DPA_FACT_EMS_EST_PLT")
@@ -1157,7 +1156,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         # column names in batch_update/batch_delete.
         _field_map = {"AGE_GRP_DMNS_KEY": "AGE_GRP_DMNS_KEY", "BLK_SCD_KEY": "BLK_SCD_KEY", "DSTR_DMNS_KEY": "DSTR_DMNS_KEY", "EST_DMNS_KEY": "EST_SCD_KEY", "EST_PLT_SCHM_CODE": "SCHM_CODE", "EST_PLT_TYPE_DMNS_KEY": "EST_PLT_TYPE_DMNS_KEY", "LAST_REC_TXN_DATE": "SYSTIME", "PLT_CNT": "PLT_CNT", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with
                 # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
                 for _c in list(df_write.columns):
@@ -1169,7 +1168,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ptcl_sts.BGN_DATE AND ptcl_sts.
         df_write = df_write.withColumn("REC_RLS_IND", lit(None).cast(StringType()))
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['PLT_CNT', 'AGE_GRP_DMNS_KEY', 'TIME_DMNS_KEY', 'EST_PLT_SCHM_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND', 'EST_PLT_TYPE_DMNS_KEY', 'EST_DMNS_KEY', 'DSTR_DMNS_KEY', 'BLK_SCD_KEY']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
         # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
         lib.write_table(df_write, conn_target, "DPA_FACT_EMS_EST_PLT", mode="append")
 

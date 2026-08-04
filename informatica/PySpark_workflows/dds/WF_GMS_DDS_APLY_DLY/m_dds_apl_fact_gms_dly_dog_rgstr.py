@@ -17,7 +17,8 @@ from pyspark.sql.types import *
 # MAPPING LOGIC
 # =============================================================================
 
-def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> bool:
+def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
+                session_sqls=None) -> bool:
     """
     Execute the M_DDS_APL_FACT_GMS_DLY_DOG_RGSTR mapping transformations.
 
@@ -28,7 +29,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         ctx: Optional SparkContext for session and DataFrame registry
         metrics: Optional metrics tracker (or NullMetrics if not provided)
         job_params: Optional dict of job parameters loaded by workflow
-    
+        session_sqls: The session's Target Pre/Post SQL dict 
     Returns:
         bool: True if successful
     """
@@ -44,8 +45,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
     metrics = metrics or lib.NullMetrics()
     metrics.start()
 
-    conn_oracle = lib.get_db_config(config, "oracle-defaults")
-    conn_source = lib.get_db_config(config, "DPA")
     conn_target = lib.get_db_config(config, "DDS")
 
     v_snsh_date = ""
@@ -110,7 +109,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR = df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR = df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR.select([col(c) if c in df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR = df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR.columns] else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR", df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR)
         
@@ -119,7 +118,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR = df_DPA_FACT_GMS_DLY_DOG_RGSTR
         # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
         _port_cols = ["TIME_DMNS_KEY", "EST_SCD_KEY", "DOG_RGSTR_APRV_CNT", "DOG_RGSTR_APRV_CNCL_CNT", "AUTH_DOG_PNT_ALLT_CASE_CNT", "UNAUTH_DOG_PNT_ALLT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE"]
-        df_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR = df_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR.select([col(c) if c in df_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR = df_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR.columns] else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR", df_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR)
         
         logger.info("Step: apply_UPDTRANS")
@@ -146,7 +145,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # column names in batch_update/batch_delete.
         _field_map = {"TIME_DMNS_KEY": "TIME_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with
                 # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
                 for _c in list(df_write.columns):
@@ -169,7 +168,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # column names in batch_update/batch_delete.
         _field_map = {"AUTH_DOG_PNT_ALLT_CASE_CNT": "AUTH_DOG_PNT_ALLT_CASE_CNT", "DOG_RGSTR_APRV_CNCL_CNT": "DOG_RGSTR_APRV_CNCL_CNT", "DOG_RGSTR_APRV_CNT": "DOG_RGSTR_APRV_CNT", "EST_SCD_KEY": "EST_SCD_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "REC_RLS_IND": "REC_RLS_IND", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "UNAUTH_DOG_PNT_ALLT_CASE_CNT": "UNAUTH_DOG_PNT_ALLT_CASE_CNT"}
         for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with
                 # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
                 for _c in list(df_write.columns):
@@ -178,7 +177,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['TIME_DMNS_KEY', 'EST_SCD_KEY', 'DOG_RGSTR_APRV_CNT', 'DOG_RGSTR_APRV_CNCL_CNT', 'AUTH_DOG_PNT_ALLT_CASE_CNT', 'UNAUTH_DOG_PNT_ALLT_CASE_CNT', 'REC_RLS_IND', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
         # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
         lib.write_table(df_write, conn_target, "DDS_FACT_GMS_DLY_DOG_RGSTR", mode="append")
 

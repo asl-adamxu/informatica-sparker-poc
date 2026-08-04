@@ -29,8 +29,10 @@ class CodeGenerator:
         self.env.filters['ireplace'] = lambda s, old, new: re.sub(
             re.escape(old), new, s, flags=re.IGNORECASE)
 
-    def generate(self, plan: IRPlan, user_config: UserConfig) -> List[GeneratedFile]:
+    def generate(self, plan: IRPlan, user_config: UserConfig,
+                 session_sqls: Dict[str, dict] = None) -> List[GeneratedFile]:
         files = []
+        self._session_sqls = session_sqls or {}
 
         mapping_content = self._generate_mapping(plan, user_config)
         safe_name = self._make_safe_name(plan.mapping_name)
@@ -104,7 +106,21 @@ class CodeGenerator:
                     break
             if not lookup_conn_name:
                 lookup_conn_name = source_conn_name
-            
+
+            # Only emit the connection helpers the mapping actually uses:
+            # conn_oracle → stored-procedure calls; conn_target → target write /
+            # ExecuteSQL steps / session Pre-Post SQL. conn_source has no usage.
+            _has_sp = False
+            _has_target = False
+            for _step in plan.steps:
+                for _col in _step.params.get('computed_columns', []):
+                    _expr = str(_col.get('expression', ''))
+                    if ':SP.' in _expr or '.SP_' in _expr:
+                        _has_sp = True
+                if _step.step_type in (IRStepType.WRITE_TARGET, IRStepType.EXECUTE_SQL):
+                    _has_target = True
+            _has_target = _has_target or bool(getattr(self, "_session_sqls", {}))
+
             return template.render(
                 mapping_name=plan.mapping_name,
                 steps=plan.steps,
@@ -118,7 +134,10 @@ class CodeGenerator:
                 target_conn_name=target_conn_name,
                 mapping_variables=mapping_vars,
                 needs_window_import=plan.needs_window_import,
-                generation_date=datetime.date.today().isoformat()
+                generation_date=datetime.date.today().isoformat(),
+                session_sqls=getattr(self, "_session_sqls", {}),
+                has_stored_proc=_has_sp,
+                needs_conn_target=_has_target
             )
         except Exception as e:
             import traceback

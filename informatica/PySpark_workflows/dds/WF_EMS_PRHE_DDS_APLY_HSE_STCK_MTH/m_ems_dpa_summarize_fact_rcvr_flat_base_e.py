@@ -17,7 +17,8 @@ from pyspark.sql.types import *
 # MAPPING LOGIC
 # =============================================================================
 
-def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> bool:
+def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
+                session_sqls=None) -> bool:
     """
     Execute the M_EMS_DPA_SUMMARIZE_FACT_RCVR_FLAT_BASE_E mapping transformations.
 
@@ -28,7 +29,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         ctx: Optional SparkContext for session and DataFrame registry
         metrics: Optional metrics tracker (or NullMetrics if not provided)
         job_params: Optional dict of job parameters loaded by workflow
-    
+        session_sqls: The session's Target Pre/Post SQL dict 
     Returns:
         bool: True if successful
     """
@@ -44,8 +45,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
     metrics = metrics or lib.NullMetrics()
     metrics.start()
 
-    conn_oracle = lib.get_db_config(config, "oracle-defaults")
-    conn_source = lib.get_db_config(config, "SOR")
     conn_target = lib.get_db_config(config, "DPA")
 
     v_rpt_mth = ""
@@ -152,7 +151,7 @@ ORDER BY HSU.UNIT_KEY"""
         df_SQ_SOR_WKM_MNR_WORK_ISS_DTL = df_SQ_SOR_WKM_MNR_WORK_ISS_DTL.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_SOR_WKM_MNR_WORK_ISS_DTL = df_SQ_SOR_WKM_MNR_WORK_ISS_DTL.select([col(c) if c in df_SQ_SOR_WKM_MNR_WORK_ISS_DTL.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SOR_WKM_MNR_WORK_ISS_DTL = df_SQ_SOR_WKM_MNR_WORK_ISS_DTL.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_WKM_MNR_WORK_ISS_DTL.columns] else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_WKM_MNR_WORK_ISS_DTL", df_SQ_SOR_WKM_MNR_WORK_ISS_DTL)
         
@@ -225,7 +224,7 @@ order by HSU.UNIT_KEY"""
         df_SQ_SOR_WKM_MNR_WORK_DTL = df_SQ_SOR_WKM_MNR_WORK_DTL.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_SOR_WKM_MNR_WORK_DTL = df_SQ_SOR_WKM_MNR_WORK_DTL.select([col(c) if c in df_SQ_SOR_WKM_MNR_WORK_DTL.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SOR_WKM_MNR_WORK_DTL = df_SQ_SOR_WKM_MNR_WORK_DTL.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_WKM_MNR_WORK_DTL.columns] else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_WKM_MNR_WORK_DTL", df_SQ_SOR_WKM_MNR_WORK_DTL)
         
@@ -302,7 +301,7 @@ order by HSU.unit_key"""
         df_SQ_SOR_HSM_UNIT = df_SQ_SOR_HSM_UNIT.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_SOR_HSM_UNIT = df_SQ_SOR_HSM_UNIT.select([col(c) if c in df_SQ_SOR_HSM_UNIT.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SOR_HSM_UNIT = df_SQ_SOR_HSM_UNIT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_HSM_UNIT.columns] else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_HSM_UNIT", df_SQ_SOR_HSM_UNIT)
         
@@ -383,7 +382,7 @@ ORDER BY OFU.UNIT_KEY"""
         df_SQ_SOR_EMS_PHA_APLY_OFR = df_SQ_SOR_EMS_PHA_APLY_OFR.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_SOR_EMS_PHA_APLY_OFR = df_SQ_SOR_EMS_PHA_APLY_OFR.select([col(c) if c in df_SQ_SOR_EMS_PHA_APLY_OFR.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SOR_EMS_PHA_APLY_OFR = df_SQ_SOR_EMS_PHA_APLY_OFR.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_EMS_PHA_APLY_OFR.columns] else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_EMS_PHA_APLY_OFR", df_SQ_SOR_EMS_PHA_APLY_OFR)
         
@@ -433,7 +432,7 @@ group by RM.unit_key
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_UNIT_VALID_MAX_DOT[c] for c in df_LKP_UNIT_VALID_MAX_DOT.columns if c not in _lkp_input.columns]
+            *[df_LKP_UNIT_VALID_MAX_DOT[c] for c in df_LKP_UNIT_VALID_MAX_DOT.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_FILTRANS11")
@@ -441,14 +440,14 @@ group by RM.unit_key
         __fil_input = df_lkp_merge_1
         df_FILTRANS11 = __fil_input.filter(expr("TNCY_AGRMT_TM_TRMT_DATE >= to_date('20080201','yyyyMMdd')"))
         ctx.register_df("df_FILTRANS11", df_FILTRANS11)
-        
+
         logger.info("Step: apply_EXPTRANS11")
         # Expression: apply_EXPTRANS11
         df_EXPTRANS11 = df_FILTRANS11
         df_EXPTRANS11 = df_EXPTRANS11.withColumn("UNIT_KEY_OUT", expr("CASE WHEN (UNIT_KEY IS NULL) THEN UNIT_KEY_IN ELSE UNIT_KEY END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["TNCY_AGRMT_TM_TRMT_DATE", "UNIT_ADDR_CODE", "EST_KEY", "EMMS_DTSR_CHC_DSTR_KEY", "EMMS_DTSR_BRD_DSTR_KEY", "UNIT_TYPE_CODE", "UNIT_IFA_AREA", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT"]:
-            if _col not in df_EXPTRANS11.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS11.columns]:
                 df_EXPTRANS11 = df_EXPTRANS11.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS11", df_EXPTRANS11)
@@ -560,7 +559,7 @@ group by RM.unit_key
         __fil_input = __fil_input.drop("MAX_UNIT_HEAD_CNT").withColumnRenamed("MAX_UNIT_HEAD_CNT1", "MAX_UNIT_HEAD_CNT")
         df_FILTRANS1 = __fil_input.filter(expr("OFR_STS_CODE !='D'"))
         ctx.register_df("df_FILTRANS1", df_FILTRANS1)
-        
+
         logger.info("Step: apply_FILTRANS2")
         # Filter: apply_FILTRANS2
         __fil_input = df_rtr_prvs_acpt_3
@@ -568,7 +567,7 @@ group by RM.unit_key
         _filter_text = _filter_text.replace("$$v_rpt_mth", str(v_rpt_mth or "0"))
         df_FILTRANS2 = __fil_input.filter(expr(_filter_text))
         ctx.register_df("df_FILTRANS2", df_FILTRANS2)
-        
+
         logger.info("Step: apply_AGG_FRST_OFR")
         # Aggregator: apply_AGG_FRST_OFR
         # Select only mapped upstream columns with correct port names
@@ -633,7 +632,7 @@ group by RM.unit_key
         df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS = df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS.withColumn("DIFF_DAY_NUM", expr("floor(datediff(V_END_DATE, V_BGN_DATE))"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["UNIT_KEY", "BGN_DATE", "END_DATE", "EST_KEY", "EMMS_DSTR_CHC_DSTR_KEY", "EMMS_DSTR_BRD_DSTR_KEY", "UNIT_TYPE_CODE", "UNIT_IFA_AREA", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "COUNT_IN"]:
-            if _col not in df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS.columns:
+            if _col.lower() not in [x.lower() for x in df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS.columns]:
                 df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS = df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS", df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS)
@@ -676,13 +675,13 @@ group by RM.unit_key
         _filter_text = _filter_text.replace("$$v_rpt_mth", str(v_rpt_mth or "0"))
         df_FILTRANS = __fil_input.filter(expr(_filter_text))
         ctx.register_df("df_FILTRANS", df_FILTRANS)
-        
+
         logger.info("Step: apply_DIFF_DAY_NUM_FILTER")
         # Filter: apply_DIFF_DAY_NUM_FILTER
         __fil_input = df_MPLT_DPA_RCVR_FLAT_CALC1
         df_DIFF_DAY_NUM_FILTER = __fil_input.filter(expr("NOT (DIFF_DAY_NUM IS NULL)"))
         ctx.register_df("df_DIFF_DAY_NUM_FILTER", df_DIFF_DAY_NUM_FILTER)
-        
+
         logger.info("Step: apply_SRTTRANS")
         # Sorter: apply_SRTTRANS
         __srt_input = df_FILTRANS
@@ -705,7 +704,7 @@ group by RM.unit_key
         df_EXPTRANS3 = df_EXPTRANS3.withColumn("TIME_DMNS_KEY", expr("200000000+SYS_RPT_YEAR*10000+SYS_RPT_MTH*100"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["UNIT_KEY1", "DIFF_DAY_NUM", "END_DATE_CNT", "EST_KEY1", "EMMS_DSTR_CHC_DSTR_KEY1", "EMMS_DSTR_BRD_DSTR_KEY1", "UNIT_TYPE_CODE1", "UNIT_IFA_AREA1", "MAX_UNIT_HEAD_CNT1", "MIN_UNIT_HEAD_CNT1"]:
-            if _col not in df_EXPTRANS3.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS3.columns]:
                 df_EXPTRANS3 = df_EXPTRANS3.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS3", df_EXPTRANS3)
@@ -785,25 +784,25 @@ group by RM.unit_key
         __fil_input = df_JNRTRANS1
         df_NULL_FROZEN_DATE_FILTER = __fil_input.filter(expr("TRUE"))
         ctx.register_df("df_NULL_FROZEN_DATE_FILTER", df_NULL_FROZEN_DATE_FILTER)
-        
+
         logger.info("Step: apply_NULL_FROZEN_DATE_FILTER1")
         # Filter: apply_NULL_FROZEN_DATE_FILTER1
         __fil_input = df_JNRTRANS11
         df_NULL_FROZEN_DATE_FILTER1 = __fil_input.filter(expr("TRUE"))
         ctx.register_df("df_NULL_FROZEN_DATE_FILTER1", df_NULL_FROZEN_DATE_FILTER1)
-        
+
         logger.info("Step: apply_FILTRANS3")
         # Filter: apply_FILTRANS3
         __fil_input = df_NULL_FROZEN_DATE_FILTER
         df_FILTRANS3 = __fil_input.filter(expr("datediff(OFR_DATE, WORK_CMPLT_CERT_DATE) >= 0"))
         ctx.register_df("df_FILTRANS3", df_FILTRANS3)
-        
+
         logger.info("Step: apply_FILTRANS31")
         # Filter: apply_FILTRANS31
         __fil_input = df_NULL_FROZEN_DATE_FILTER1
         df_FILTRANS31 = __fil_input.filter(expr("datediff(OFR_DATE, WORK_ISS_DATE) >= 0"))
         ctx.register_df("df_FILTRANS31", df_FILTRANS31)
-        
+
         logger.info("Step: nullinput_MPLT_DPA_RCVR_FLAT_CALC")
         # Expression: nullinput_MPLT_DPA_RCVR_FLAT_CALC
         df_MPLT_DPA_RCVR_FLAT_CALC_nullinput_8 = df_FILTRANS3
@@ -836,7 +835,7 @@ group by RM.unit_key
         df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS = df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS.withColumn("DIFF_DAY_NUM", expr("floor(datediff(V_END_DATE, V_BGN_DATE))"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["UNIT_KEY", "BGN_DATE", "END_DATE", "EST_KEY", "EMMS_DSTR_CHC_DSTR_KEY", "EMMS_DSTR_BRD_DSTR_KEY", "UNIT_TYPE_CODE", "UNIT_IFA_AREA", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "COUNT_IN"]:
-            if _col not in df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS.columns:
+            if _col.lower() not in [x.lower() for x in df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS.columns]:
                 df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS = df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS", df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS)
@@ -903,7 +902,7 @@ group by RM.unit_key
         df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS = df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS.withColumn("DIFF_DAY_NUM", expr("floor(datediff(V_END_DATE, V_BGN_DATE))"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["UNIT_KEY", "BGN_DATE", "END_DATE", "EST_KEY", "EMMS_DSTR_CHC_DSTR_KEY", "EMMS_DSTR_BRD_DSTR_KEY", "UNIT_TYPE_CODE", "UNIT_IFA_AREA", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "COUNT_IN"]:
-            if _col not in df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS.columns:
+            if _col.lower() not in [x.lower() for x in df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS.columns]:
                 df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS = df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS", df_MPLT_DPA_RCVR_FLAT_CALC_EXPTRANS)
@@ -943,13 +942,13 @@ group by RM.unit_key
         __fil_input = df_MPLT_DPA_RCVR_FLAT_CALC2
         df_DIFF_DAY_NUM_FILTER1 = __fil_input.filter(expr("NOT (DIFF_DAY_NUM IS NULL)"))
         ctx.register_df("df_DIFF_DAY_NUM_FILTER1", df_DIFF_DAY_NUM_FILTER1)
-        
+
         logger.info("Step: apply_DIFF_DAY_NUM_FILTER11")
         # Filter: apply_DIFF_DAY_NUM_FILTER11
         __fil_input = df_MPLT_DPA_RCVR_FLAT_CALC2
         df_DIFF_DAY_NUM_FILTER11 = __fil_input.filter(expr("NOT (DIFF_DAY_NUM IS NULL)"))
         ctx.register_df("df_DIFF_DAY_NUM_FILTER11", df_DIFF_DAY_NUM_FILTER11)
-        
+
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
         df_EXPTRANS = df_DIFF_DAY_NUM_FILTER1
@@ -964,7 +963,7 @@ group by RM.unit_key
         df_EXPTRANS = df_EXPTRANS.withColumn("TIME_DMNS_KEY", expr("200000000+SYS_RPT_YEAR*10000+SYS_RPT_MTH*100"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["UNIT_KEY1", "DIFF_DAY_NUM", "END_DATE_CNT", "EST_KEY1", "EMMS_DSTR_CHC_DSTR_KEY1", "EMMS_DSTR_BRD_DSTR_KEY1", "UNIT_TYPE_CODE1", "UNIT_IFA_AREA1", "MAX_UNIT_HEAD_CNT1", "MIN_UNIT_HEAD_CNT1"]:
-            if _col not in df_EXPTRANS.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
@@ -983,7 +982,7 @@ group by RM.unit_key
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("TIME_DMNS_KEY", expr("200000000+SYS_RPT_YEAR*10000+SYS_RPT_MTH*100"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["UNIT_KEY1", "DIFF_DAY_NUM", "END_DATE_CNT", "EST_KEY1", "EMMS_DSTR_CHC_DSTR_KEY1", "EMMS_DSTR_BRD_DSTR_KEY1", "UNIT_TYPE_CODE1", "UNIT_IFA_AREA1", "MAX_UNIT_HEAD_CNT1", "MIN_UNIT_HEAD_CNT1"]:
-            if _col not in df_EXPTRANS1.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS1.columns]:
                 df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
@@ -1032,7 +1031,7 @@ group by RM.unit_key
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_wo_iss, allowMissingColumns=True)
         # Select only union output columns (add lit(None) for any missing)
         for _col in ["TIME_DMNS_KEY", "UNIT_KEY1", "DIFF_DAY_NUM", "END_DATE_CNT", "EST_KEY1", "EMMS_DSTR_CHC_DSTR_KEY1", "EMMS_DSTR_BRD_DSTR_KEY1", "UNIT_TYPE_CODE1", "UNIT_IFA_AREA1", "MAX_UNIT_HEAD_CNT1", "MIN_UNIT_HEAD_CNT1", "DIFF_DAY_NUM2", "END_DATE_CNT2", "DIFF_DAY_NUM3", "END_DATE_CNT3"]:
-            if _col not in df_Union_Transformation.columns:
+            if _col.lower() not in [x.lower() for x in df_Union_Transformation.columns]:
                 df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("TIME_DMNS_KEY", "UNIT_KEY1", "DIFF_DAY_NUM", "END_DATE_CNT", "EST_KEY1", "EMMS_DSTR_CHC_DSTR_KEY1", "EMMS_DSTR_BRD_DSTR_KEY1", "UNIT_TYPE_CODE1", "UNIT_IFA_AREA1", "MAX_UNIT_HEAD_CNT1", "MIN_UNIT_HEAD_CNT1", "DIFF_DAY_NUM2", "END_DATE_CNT2", "DIFF_DAY_NUM3", "END_DATE_CNT3")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
@@ -1058,7 +1057,7 @@ group by RM.unit_key
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR[c] for c in df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR[c] for c in df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_14", df_lkp_merge_14)        
         logger.info("Step: read_LKP_DDS_DMNS_UNIT_SIZE")
@@ -1118,7 +1117,7 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_HRCHY_EMS_EST[c] for c in df_LKP_DDS_HRCHY_EMS_EST.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_HRCHY_EMS_EST[c] for c in df_LKP_DDS_HRCHY_EMS_EST.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR")
@@ -1149,7 +1148,7 @@ WHERE LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','yyyymmdd')) between bgn_date and e
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR[c] for c in df_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR[c] for c in df_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_FLAT_TYPE")
@@ -1173,7 +1172,7 @@ WHERE LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','yyyymmdd')) between bgn_date and e
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_DMNS_EMS_FLAT_TYPE[c] for c in df_LKP_DDS_DMNS_EMS_FLAT_TYPE.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_DMNS_EMS_FLAT_TYPE[c] for c in df_LKP_DDS_DMNS_EMS_FLAT_TYPE.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: input_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY")
@@ -1222,7 +1221,7 @@ GROUP BY
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_LKPTRANS[c] for c in df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_LKPTRANS.columns if c not in _lkp_input.columns]
+            *[df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_LKPTRANS[c] for c in df_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY_LKPTRANS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_mplt_lkp_chain_16", df_mplt_lkp_chain_16)        
         logger.info("Step: apply_MPLT_EMS_GET_MGT_MODE_BY_EST_KEY")
@@ -1251,16 +1250,17 @@ GROUP BY
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_DMNS_EMS_MGT_MODE[c] for c in df_LKP_DDS_DMNS_EMS_MGT_MODE.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_DMNS_EMS_MGT_MODE[c] for c in df_LKP_DDS_DMNS_EMS_MGT_MODE.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_17", df_lkp_merge_17)        
         logger.info("Step: merge_EXPTRANS2_0")
         # Lookup: merge_EXPTRANS2_0
         # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity).
-        _cc = list(dict.fromkeys(c for c in df_lkp_merge_14.columns if c in df_lkp_merge_17.columns))
+        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
+        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
+        _cc = list(dict.fromkeys(c for c in df_lkp_merge_14.columns if c.lower() in [x.lower() for x in df_lkp_merge_17.columns]))
         if _cc:
-            __lkp_dup = [c for c in df_lkp_merge_17.columns if c in df_lkp_merge_14.columns and c not in _cc]
+            __lkp_dup = [c for c in df_lkp_merge_17.columns if c.lower() in [x.lower() for x in df_lkp_merge_14.columns] and c.lower() not in [x.lower() for x in _cc]]
             df_merge_18 = df_lkp_merge_14.join(
                 df_lkp_merge_17.drop(*__lkp_dup) if __lkp_dup else df_lkp_merge_17,
                 on=_cc, how="left"
@@ -1294,7 +1294,7 @@ GROUP BY
         # column names in batch_update/batch_delete.
         _field_map = {"DSTR_BRD_DSTR_DMNS_KEY": "DSTR_BRD_DSTR_DMNS_KEY1", "DSTR_CHC_DSTR_SCD_KEY": "DSTR_CHC_DSTR_SCD_KEY1", "EST_SCD_KEY": "EST_SCD_KEY1", "FLAT_TYPE_DMNS_KEY": "TFR_CASE_RSN_DMNS_KEY1", "MAX_UNIT_HEAD_CNT": "MAX_UNIT_HEAD_CNT1", "MGT_MODE_DMNS_KEY": "MGT_MODE_DMNS_KEY1", "MIN_UNIT_HEAD_CNT": "MIN_UNIT_HEAD_CNT1", "OFR_PRVS_ACPT_CNT": "END_DATE_CNT2", "OFR_PRVS_ACPT_DAY_NUM": "DIFF_DAY_NUM2", "TIME_DMNS_KEY": "TIME_DMNS_KEY1", "UNIT_SIZE_DMNS_KEY": "UNIT_SIZE_DMNS_KEY1", "WO_CMPLT_FRST_OFR_CNT": "END_DATE_CNT", "WO_CMPLT_FRST_OFR_DAY_NUM": "DIFF_DAY_NUM", "WO_ISS_FRST_OFR_CNT": "END_DATE_CNT3", "WO_ISS_FRST_OFR_DAY_NUM": "DIFF_DAY_NUM3"}
         for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with
                 # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
                 for _c in list(df_write.columns):
@@ -1332,7 +1332,7 @@ GROUP BY
         df_write = df_write.withColumn("DOT_FRZ_FLAT_RTN_CNT", lit(None).cast(StringType()))
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['TIME_DMNS_KEY', 'EST_SCD_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'FLAT_TYPE_DMNS_KEY', 'MAX_UNIT_HEAD_CNT', 'MIN_UNIT_HEAD_CNT', 'UNIT_SIZE_DMNS_KEY', 'MGT_MODE_DMNS_KEY', 'DOT_WO_DRFT_DAY_NUM', 'DOT_WO_DRFT_CNT', 'WO_DRFT_WO_ISS_DAY_NUM', 'WO_DRFT_WO_ISS_CNT', 'WO_ISS_WO_RPT_DAY_NUM', 'WO_ISS_WO_RPT_CNT', 'WO_RPT_WO_CMPLT_DAY_NUM', 'WO_RPT_WO_CMPLT_CNT', 'WO_CMPLT_FRST_OFR_DAY_NUM', 'WO_CMPLT_FRST_OFR_CNT', 'OFR_RLET_DAY_NUM', 'OFR_RLET_CNT', 'FRST_OFR_RLET_DAY_NUM', 'FRST_OFR_RLET_CNT', 'OFR_PRVS_ACPT_DAY_NUM', 'OFR_PRVS_ACPT_CNT', 'PRVS_ACPT_WO_CMPLT_DAY_NUM', 'PRVS_ACPT_WO_CMPLT_CNT', 'WO_CMPLT_RLET_DAY_NUM', 'WO_CMPLT_RLET_CNT', 'PRVS_ACPT_TCHUP_CMPLT_DAY_NUM', 'PRVS_ACPT_TCHUP_CMPLT_CNT', 'TCHUP_CMPLT_RLET_DAY_NUM', 'TCHUP_CMPLT_RLET_CNT', 'WO_ISS_WO_CMPLT_DAY_NUM', 'WO_ISS_WO_CMPLT_CNT', 'TOT_OFR_BFR_SUCC_RLET_CNT', 'OFR_BFR_SUCC_RLET_CNT', 'DOT_RLET_DAY_NUM', 'DOT_RLET_CNT', 'DOT_FRZ_FLAT_RTN_DAY_NUM', 'DOT_FRZ_FLAT_RTN_CNT', 'WO_ISS_FRST_OFR_DAY_NUM', 'WO_ISS_FRST_OFR_CNT']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
         # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
         lib.write_table(df_write, conn_target, "DPA_FACT_EMS_RCVR_FLAT_ANLS", mode="append")
 

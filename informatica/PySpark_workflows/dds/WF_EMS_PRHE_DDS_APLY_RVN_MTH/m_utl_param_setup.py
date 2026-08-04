@@ -17,7 +17,8 @@ from pyspark.sql.types import *
 # MAPPING LOGIC
 # =============================================================================
 
-def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> bool:
+def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
+                session_sqls=None) -> bool:
     """
     Execute the M_UTL_PARAM_SETUP mapping transformations.
 
@@ -28,7 +29,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         ctx: Optional SparkContext for session and DataFrame registry
         metrics: Optional metrics tracker (or NullMetrics if not provided)
         job_params: Optional dict of job parameters loaded by workflow
-    
+        session_sqls: The session's Target Pre/Post SQL dict 
     Returns:
         bool: True if successful
     """
@@ -44,8 +45,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
     metrics = metrics or lib.NullMetrics()
     metrics.start()
 
-    conn_oracle = lib.get_db_config(config, "oracle-defaults")
-    conn_source = lib.get_db_config(config, "UTL")
     conn_target = lib.get_db_config(config, "UTL")
 
     
@@ -95,7 +94,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_SQ_UTL_SESSION_LIST = df_UTL_SESSION_LIST
         # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
         _port_cols = ["SESSION"]
-        df_SQ_UTL_SESSION_LIST = df_SQ_UTL_SESSION_LIST.select([col(c) if c in df_SQ_UTL_SESSION_LIST.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_UTL_SESSION_LIST = df_SQ_UTL_SESSION_LIST.select([col(c) if c.lower() in [x.lower() for x in df_SQ_UTL_SESSION_LIST.columns] else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_UTL_SESSION_LIST", df_SQ_UTL_SESSION_LIST)
         
         logger.info("Step: apply_EXPTRANS")
@@ -130,7 +129,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKPTRANS[c] for c in df_LKPTRANS.columns if c not in _lkp_input.columns]
+            *[df_LKPTRANS[c] for c in df_LKPTRANS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: apply_EXPTRANS1")
@@ -149,7 +148,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # column names in batch_update/batch_delete.
         _field_map = {"LINE": "LINE"}
         for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with
                 # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
                 for _c in list(df_write.columns):
@@ -158,7 +157,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['LINE']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
         # Write to flat file — prefer config.yml objects metadata, then derived default path
         _write_obj = objects.get("UTL_JOB_PARAM")
         if _write_obj and isinstance(_write_obj, dict):

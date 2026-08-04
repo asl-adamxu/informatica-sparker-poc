@@ -17,7 +17,8 @@ from pyspark.sql.types import *
 # MAPPING LOGIC
 # =============================================================================
 
-def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> bool:
+def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
+                session_sqls=None) -> bool:
     """
     Execute the M_S5_DDS_APLY_FACT_EMS_UND_OCPY mapping transformations.
 
@@ -28,7 +29,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         ctx: Optional SparkContext for session and DataFrame registry
         metrics: Optional metrics tracker (or NullMetrics if not provided)
         job_params: Optional dict of job parameters loaded by workflow
-    
+        session_sqls: The session's Target Pre/Post SQL dict 
     Returns:
         bool: True if successful
     """
@@ -44,8 +45,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
     metrics = metrics or lib.NullMetrics()
     metrics.start()
 
-    conn_oracle = lib.get_db_config(config, "oracle-defaults")
-    conn_source = lib.get_db_config(config, "DPA")
     conn_target = lib.get_db_config(config, "DDS")
 
     v_REC_RLS_IND = ""
@@ -82,7 +81,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_SQ_DPA_FACT_EMS_UND_OCPY = df_DPA_FACT_EMS_UND_OCPY
         # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
         _port_cols = ["CODE_ADDR", "IFA_AREA", "FMLY_SIZE_NUM", "DSBL_CODE", "TNCY_AGRMT_CMNC_DATE", "TNCY_AGRMT_TRMT_DATE", "ELDR_IND", "FLAT_TYPE_DMNS_KEY", "EST_DMNS_KEY", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "REC_RLS_IND", "TIME_DMNS_KEY"]
-        df_SQ_DPA_FACT_EMS_UND_OCPY = df_SQ_DPA_FACT_EMS_UND_OCPY.select([col(c) if c in df_SQ_DPA_FACT_EMS_UND_OCPY.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DPA_FACT_EMS_UND_OCPY = df_SQ_DPA_FACT_EMS_UND_OCPY.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DPA_FACT_EMS_UND_OCPY.columns] else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_DPA_FACT_EMS_UND_OCPY", df_SQ_DPA_FACT_EMS_UND_OCPY)
         
         logger.info("Step: apply_SQ_DDS_FACT_EMS_UND_OCPY")
@@ -122,7 +121,7 @@ FROM
         df_SQ_DDS_FACT_EMS_UND_OCPY = df_SQ_DDS_FACT_EMS_UND_OCPY.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_DDS_FACT_EMS_UND_OCPY = df_SQ_DDS_FACT_EMS_UND_OCPY.select([col(c) if c in df_SQ_DDS_FACT_EMS_UND_OCPY.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DDS_FACT_EMS_UND_OCPY = df_SQ_DDS_FACT_EMS_UND_OCPY.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DDS_FACT_EMS_UND_OCPY.columns] else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_DDS_FACT_EMS_UND_OCPY", df_SQ_DDS_FACT_EMS_UND_OCPY)
         
@@ -135,7 +134,7 @@ FROM
         df_EXPTRANS = df_EXPTRANS.withColumn("REC_RLS_IND", expr(_expr))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["CODE_ADDR", "IFA_AREA", "FMLY_SIZE_NUM", "DSBL_CODE", "TNCY_AGRMT_CMNC_DATE", "TNCY_AGRMT_TRMT_DATE", "ELDR_IND", "FLAT_TYPE_DMNS_KEY", "EST_DMNS_KEY", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "TIME_DMNS_KEY"]:
-            if _col not in df_EXPTRANS.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
@@ -154,7 +153,7 @@ FROM
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("REC_RLS_IND", expr(_expr))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["CODE_ADDR", "IFA_AREA", "FMLY_SIZE_NUM", "TNCY_AGRMT_CMNC_DATE", "ELDR_IND", "FLAT_TYPE_DMNS_KEY", "EST_DMNS_KEY", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "TIME_DMNS_KEY"]:
-            if _col not in df_EXPTRANS1.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS1.columns]:
                 df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
@@ -197,12 +196,12 @@ FROM
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_FACT_EMS_UND_OCPY[c] for c in df_LKP_DDS_FACT_EMS_UND_OCPY.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_FACT_EMS_UND_OCPY[c] for c in df_LKP_DDS_FACT_EMS_UND_OCPY.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
         # Judge via a lookup column that survived the merge select (not shadowed
         # by a same-named main column) — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_LKP_DDS_FACT_EMS_UND_OCPY.columns if c not in _lkp_input.columns]
+        _nlr_lkp_cols = [c for c in df_LKP_DDS_FACT_EMS_UND_OCPY.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         if _nlr_lkp_cols:
             df_lkp_merge_1 = df_lkp_merge_1.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
         else:
@@ -242,7 +241,7 @@ FROM
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DPA_FACT_EMS_UND_OCPY[c] for c in df_LKP_DPA_FACT_EMS_UND_OCPY.columns if c not in _lkp_input.columns]
+            *[df_LKP_DPA_FACT_EMS_UND_OCPY[c] for c in df_LKP_DPA_FACT_EMS_UND_OCPY.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)        
         logger.info("Step: apply_FILTRANS")
@@ -251,7 +250,7 @@ FROM
         __fil_input = __fil_input.drop("DSBL_CODE").withColumnRenamed("DSBL_CATG_CODE", "DSBL_CODE")
         df_FILTRANS = __fil_input.filter(expr("NewLookupRow > 0"))
         ctx.register_df("df_FILTRANS", df_FILTRANS)
-        
+
         logger.info("Step: apply_FILTRANS1")
         # Filter: apply_FILTRANS1
         __fil_input = df_lkp_merge_2
@@ -259,7 +258,7 @@ FROM
         __fil_input = __fil_input.drop("UNIT_CODE_ADDR").withColumnRenamed("IN_UNIT_CODE_ADDR", "UNIT_CODE_ADDR")
         df_FILTRANS1 = __fil_input.filter(expr("(CODE_ADDR IS NULL)"))
         ctx.register_df("df_FILTRANS1", df_FILTRANS1)
-        
+
         logger.info("Step: apply_UPS_INSERT")
         # Update Strategy: apply_UPS_INSERT
         # Strategy: DD_INSERT
@@ -284,7 +283,7 @@ FROM
         # column names in batch_update/batch_delete.
         _field_map = {"CODE_ADDR": "CODE_ADDR", "DSBL_CATG_CODE": "DSBL_CODE", "ELDR_IND": "ELDR_IND", "EST_DMNS_KEY": "EST_DMNS_KEY", "FLAT_TYPE_DMNS_KEY": "FLAT_TYPE_DMNS_KEY", "FMLY_SIZE_NUM": "FMLY_SIZE_NUM", "IFA_AREA": "IFA_AREA", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "REC_RLS_IND": "REC_RLS_IND", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TNCY_AGRMT_CMNC_DATE": "TNCY_AGRMT_CMNC_DATE", "TNCY_AGRMT_TRMT_DATE": "TNCY_AGRMT_TRMT_DATE"}
         for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with
                 # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
                 for _c in list(df_write.columns):
@@ -293,7 +292,7 @@ FROM
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['CODE_ADDR', 'IFA_AREA', 'FMLY_SIZE_NUM', 'DSBL_CATG_CODE', 'TNCY_AGRMT_CMNC_DATE', 'TNCY_AGRMT_TRMT_DATE', 'ELDR_IND', 'FLAT_TYPE_DMNS_KEY', 'EST_DMNS_KEY', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND', 'TIME_DMNS_KEY']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
         # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
         lib.write_table(df_write, conn_target, "DDS_FACT_EMS_UND_OCPY", mode="append")
 
@@ -306,7 +305,7 @@ FROM
         # column names in batch_update/batch_delete.
         _field_map = {"CODE_ADDR": "UNIT_CODE_ADDR", "TNCY_AGRMT_CMNC_DATE": "TNCY_AGRMT_CMNC_DATE1", "TNCY_AGRMT_TRMT_DATE": "TNCY_AGRMT_TRMT_DATE"}
         for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with
                 # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
                 for _c in list(df_write.columns):
@@ -316,7 +315,7 @@ FROM
         # Static DD_UPDATE: batch update ALL rows by primary key (no split needed)
         if not df_write.rdd.isEmpty():
             _upd_key_cols = ['CODE_ADDR', 'TNCY_AGRMT_CMNC_DATE', 'FLAT_TYPE_DMNS_KEY', 'EST_DMNS_KEY', 'TIME_DMNS_KEY']
-            _upd_set_cols = [c for c in df_write.columns if c not in _upd_key_cols and c != "_update_flag"]
+            _upd_set_cols = [c for c in df_write.columns if c.lower() not in [k.lower() for k in _upd_key_cols] and c != "_update_flag"]
             if _upd_set_cols:
                 _upd_rows = [tuple(r[c] for c in _upd_set_cols + _upd_key_cols) for r in df_write.collect()]
                 lib.batch_update(spark, conn_target, "DDS_FACT_EMS_UND_OCPY", _upd_set_cols, _upd_key_cols, _upd_rows, 1000)
@@ -335,7 +334,7 @@ FROM
         df_write = df_write.withColumn("TIME_DMNS_KEY", lit(None).cast(StringType()))
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['CODE_ADDR', 'IFA_AREA', 'FMLY_SIZE_NUM', 'DSBL_CATG_CODE', 'TNCY_AGRMT_CMNC_DATE', 'TNCY_AGRMT_TRMT_DATE', 'ELDR_IND', 'FLAT_TYPE_DMNS_KEY', 'EST_DMNS_KEY', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND', 'TIME_DMNS_KEY']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
         # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
         lib.write_table(df_write, conn_target, "DDS_FACT_EMS_UND_OCPY", mode="append")
 

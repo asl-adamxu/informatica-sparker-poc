@@ -17,7 +17,8 @@ from pyspark.sql.types import *
 # MAPPING LOGIC
 # =============================================================================
 
-def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> bool:
+def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
+                session_sqls=None) -> bool:
     """
     Execute the M_S5_DPA_SUMMARIZE_FACT_EMS_PRH_ABU mapping transformations.
 
@@ -28,7 +29,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         ctx: Optional SparkContext for session and DataFrame registry
         metrics: Optional metrics tracker (or NullMetrics if not provided)
         job_params: Optional dict of job parameters loaded by workflow
-    
+        session_sqls: The session's Target Pre/Post SQL dict 
     Returns:
         bool: True if successful
     """
@@ -44,8 +45,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
     metrics = metrics or lib.NullMetrics()
     metrics.start()
 
-    conn_oracle = lib.get_db_config(config, "oracle-defaults")
-    conn_source = lib.get_db_config(config, "SOR")
     conn_target = lib.get_db_config(config, "DPA")
 
     v_snsh_date = ""
@@ -160,7 +159,7 @@ GROUP BY RGN.RGN_CODE, ABU_STS.ABU_TYPE_CODE"""
         df_SQ_SOR_TYPE_CODE = df_SQ_SOR_TYPE_CODE.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_SOR_TYPE_CODE = df_SQ_SOR_TYPE_CODE.select([col(c) if c in df_SQ_SOR_TYPE_CODE.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SOR_TYPE_CODE = df_SQ_SOR_TYPE_CODE.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_TYPE_CODE.columns] else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_TYPE_CODE", df_SQ_SOR_TYPE_CODE)
         
@@ -253,7 +252,7 @@ GROUP BY RGN.RGN_CODE, ABU_STS.ABU_SCP_CODE"""
         df_SQ_SOR_SCP_CODE = df_SQ_SOR_SCP_CODE.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_SOR_SCP_CODE = df_SQ_SOR_SCP_CODE.select([col(c) if c in df_SQ_SOR_SCP_CODE.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SOR_SCP_CODE = df_SQ_SOR_SCP_CODE.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_SCP_CODE.columns] else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_SCP_CODE", df_SQ_SOR_SCP_CODE)
         
@@ -272,7 +271,7 @@ GROUP BY RGN.RGN_CODE, ABU_STS.ABU_SCP_CODE"""
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_type_code, allowMissingColumns=True)
         # Select only union output columns (add lit(None) for any missing)
         for _col in ["RGN_CODE", "ABU_SCP_CODE", "CNT"]:
-            if _col not in df_Union_Transformation.columns:
+            if _col.lower() not in [x.lower() for x in df_Union_Transformation.columns]:
                 df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("RGN_CODE", "ABU_SCP_CODE", "CNT")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
@@ -289,7 +288,7 @@ GROUP BY RGN.RGN_CODE, ABU_STS.ABU_SCP_CODE"""
         df_EXPTRANS = df_EXPTRANS.withColumn("ABU_SCHM_CODE", expr("'NEW'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["RGN_CODE", "ABU_SCP_CODE", "CNT"]:
-            if _col not in df_EXPTRANS.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
@@ -317,7 +316,7 @@ GROUP BY RGN.RGN_CODE, ABU_STS.ABU_SCP_CODE"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_DMNS_EMS_RGN[c] for c in df_LKP_DDS_DMNS_EMS_RGN.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_DMNS_EMS_RGN[c] for c in df_LKP_DDS_DMNS_EMS_RGN.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: read_LKP_DDS_DMNS_TIME_1")
@@ -341,7 +340,7 @@ GROUP BY RGN.RGN_CODE, ABU_STS.ABU_SCP_CODE"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_DMNS_TIME_1[c] for c in df_LKP_DDS_DMNS_TIME_1.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_DMNS_TIME_1[c] for c in df_LKP_DDS_DMNS_TIME_1.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_ABU")
@@ -367,7 +366,7 @@ GROUP BY RGN.RGN_CODE, ABU_STS.ABU_SCP_CODE"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_DMNS_EMS_ABU[c] for c in df_LKP_DDS_DMNS_EMS_ABU.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_DMNS_EMS_ABU[c] for c in df_LKP_DDS_DMNS_EMS_ABU.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: write_DPA_FACT_EMS_PRH_ABU")
@@ -378,7 +377,7 @@ GROUP BY RGN.RGN_CODE, ABU_STS.ABU_SCP_CODE"""
         # column names in batch_update/batch_delete.
         _field_map = {"ABU_DMNS_KEY": "ABU_DMNS_KEY", "CASE_CNT": "CNT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "RGN_DMNS_KEY": "RGN_DMNS_KEY", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with
                 # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
                 for _c in list(df_write.columns):
@@ -390,7 +389,7 @@ GROUP BY RGN.RGN_CODE, ABU_STS.ABU_SCP_CODE"""
         df_write = df_write.withColumn("REC_RLS_IND", lit(None).cast(StringType()))
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['CASE_CNT', 'TIME_DMNS_KEY', 'RGN_DMNS_KEY', 'ABU_DMNS_KEY', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
         # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
         lib.write_table(df_write, conn_target, "DPA_FACT_EMS_PRH_ABU", mode="append")
 

@@ -17,7 +17,8 @@ from pyspark.sql.types import *
 # MAPPING LOGIC
 # =============================================================================
 
-def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> bool:
+def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
+                session_sqls=None) -> bool:
     """
     Execute the M_HOM_ETL_DDS_RECOVERY mapping transformations.
 
@@ -28,7 +29,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         ctx: Optional SparkContext for session and DataFrame registry
         metrics: Optional metrics tracker (or NullMetrics if not provided)
         job_params: Optional dict of job parameters loaded by workflow
-    
+        session_sqls: The session's Target Pre/Post SQL dict 
     Returns:
         bool: True if successful
     """
@@ -44,10 +45,13 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
     metrics = metrics or lib.NullMetrics()
     metrics.start()
 
-    conn_oracle = lib.get_db_config(config, "oracle-defaults")
-    conn_source = lib.get_db_config(config, "DDS")
     conn_target = lib.get_db_config(config, "DDS")
 
+    # Execute the session's Target Pre-SQL 
+    if session_sqls and session_sqls.get("pre_sql"):
+        for _stmt in [s.strip() for s in session_sqls["pre_sql"].split(";") if s.strip()]:
+            logger.info("Session Pre-SQL: %s", _stmt[:150])
+            lib.execute_sql(spark, conn_target, _stmt)
     
     try:
         logger.info("Step: read_DUAL")
@@ -61,32 +65,21 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_SQ_DUAL = df_DUAL
         # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
         _port_cols = ["DUMMY"]
-        df_SQ_DUAL = df_SQ_DUAL.select([col(c) if c in df_SQ_DUAL.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DUAL = df_SQ_DUAL.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DUAL.columns] else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_DUAL", df_SQ_DUAL)
         
         logger.info("Step: write_DUAL1")
         # Write to Target: write_DUAL1
-        df_write = df_SQ_DUAL
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"DUMMY": "DUMMY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['DUMMY']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DUAL", mode="append")
+        # /dev/null / DUAL — skip entire write component 
+        logger.info("Target write_DUAL1 is a no-op target (/dev/null or DUAL), skipping write")
 
         logger.info("write_DUAL1 write completed")
         
+        # Session Post-SQL after the pipeline succeeds
+        if session_sqls and session_sqls.get("post_sql"):
+            for _stmt in [s.strip() for s in session_sqls["post_sql"].split(";") if s.strip()]:
+                logger.info("Session Post-SQL: %s", _stmt[:150])
+                lib.execute_sql(spark, conn_target, _stmt)
         metrics.complete()
         logger.info("Mapping M_HOM_ETL_DDS_RECOVERY completed: SUCCESS")
         return True

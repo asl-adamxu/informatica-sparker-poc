@@ -24,6 +24,15 @@ TASK_INFO = {{ task_info | topython }}
 TASK_INFO = {}
 {% endif %}
 
+{% if session_sqls %}
+# Session-level Target Pre/Post SQL (from the Informatica session config) —
+# the real logic of carrier mappings lives here, not in the mapping graph.
+# Only non-empty entries are listed; keyed by session name.
+SESSION_SQLS = {{ session_sqls | topython }}
+{% else %}
+SESSION_SQLS = {}
+{% endif %}
+
 
 def run_workflow(config=None, fail_fast=True):
     """Execute the workflow via the shared runtime library runner."""
@@ -34,6 +43,7 @@ def run_workflow(config=None, fail_fast=True):
         mapping_functions=MAPPING_FUNCTIONS,
         workflow_name="{{ workflow_name }}",
         task_info=TASK_INFO,
+        session_sqls=SESSION_SQLS,
         config=config,
         fail_fast=fail_fast,
         metrics_cls=lib.MappingMetrics,

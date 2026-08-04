@@ -17,7 +17,8 @@ from pyspark.sql.types import *
 # MAPPING LOGIC
 # =============================================================================
 
-def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> bool:
+def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
+                session_sqls=None) -> bool:
     """
     Execute the M_EMS_SOR_LOAD_CSA_DRP_SWD_PRLM_PYMT_RAW_FOR_INSERT mapping transformations.
 
@@ -28,7 +29,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         ctx: Optional SparkContext for session and DataFrame registry
         metrics: Optional metrics tracker (or NullMetrics if not provided)
         job_params: Optional dict of job parameters loaded by workflow
-    
+        session_sqls: The session's Target Pre/Post SQL dict 
     Returns:
         bool: True if successful
     """
@@ -44,8 +45,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
     metrics = metrics or lib.NullMetrics()
     metrics.start()
 
-    conn_oracle = lib.get_db_config(config, "oracle-defaults")
-    conn_source = lib.get_db_config(config, "SSA")
     conn_target = lib.get_db_config(config, "SOR")
 
     
@@ -61,7 +60,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW = df_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW
         # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
         _port_cols = ["FILE_MTH", "VALUE_DATE", "REC_TYPE", "SEQ_NUM", "SWD_CASE_FILE_REF_NUM", "ADDR_ROOM", "ADDR_BLK", "ADDR_EST", "DRP_PYMT_AMT", "PYMT_FROM_DATE", "PYMT_TO_DATE", "ASGN_STF", "CUST_CNT", "CUST_ROLE_1", "CUST_ID_TYPE_1", "CUST_ID_NUM_1", "CUST_ENG_NAME_1", "CUST_ROLE_2", "CUST_ID_TYPE_2", "CUST_ID_NUM_2", "CUST_ENG_NAME_2", "CUST_ROLE_3", "CUST_ID_TYPE_3", "CUST_ID_NUM_3", "CUST_ENG_NAME_3", "CUST_ROLE_4", "CUST_ID_TYPE_4", "CUST_ID_NUM_4", "CUST_ENG_NAME_4", "CUST_ROLE_5", "CUST_ID_TYPE_5", "CUST_ID_NUM_5", "CUST_ENG_NAME_5", "CUST_ROLE_6", "CUST_ID_TYPE_6", "CUST_ID_NUM_6", "CUST_ENG_NAME_6", "CUST_ROLE_7", "CUST_ID_TYPE_7", "CUST_ID_NUM_7", "CUST_ENG_NAME_7", "CUST_ROLE_8", "CUST_ID_TYPE_8", "CUST_ID_NUM_8", "CUST_ENG_NAME_8", "CUST_ROLE_9", "CUST_ID_TYPE_9", "CUST_ID_NUM_9", "CUST_ENG_NAME_9", "CUST_ROLE_10", "CUST_ID_TYPE_10", "CUST_ID_NUM_10", "CUST_ENG_NAME_10", "CUST_ROLE_11", "CUST_ID_TYPE_11", "CUST_ID_NUM_11", "CUST_ENG_NAME_11", "CUST_ROLE_12", "CUST_ID_TYPE_12", "CUST_ID_NUM_12", "CUST_ENG_NAME_12", "CUST_ROLE_13", "CUST_ID_TYPE_13", "CUST_ID_NUM_13", "CUST_ENG_NAME_13", "CUST_ROLE_14", "CUST_ID_TYPE_14", "CUST_ID_NUM_14", "CUST_ENG_NAME_14", "CUST_ROLE_15", "CUST_ID_TYPE_15", "CUST_ID_NUM_15", "CUST_ENG_NAME_15", "CUST_ROLE_16", "CUST_ID_TYPE_16", "CUST_ID_NUM_16", "CUST_ENG_NAME_16", "CUST_ROLE_17", "CUST_ID_TYPE_17", "CUST_ID_NUM_17", "CUST_ENG_NAME_17", "CUST_ROLE_18", "CUST_ID_TYPE_18", "CUST_ID_NUM_18", "CUST_ENG_NAME_18", "CUST_ROLE_19", "CUST_ID_TYPE_19", "CUST_ID_NUM_19", "CUST_ENG_NAME_19", "CUST_ROLE_20", "CUST_ID_TYPE_20", "CUST_ID_NUM_20", "CUST_ENG_NAME_20"]
-        df_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW = df_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW.select([col(c) if c in df_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW = df_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW.select([col(c) if c.lower() in [x.lower() for x in df_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW.columns] else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW", df_SQ_EMS_CSA_DRP_SWD_PRLM_PYMT_RAW)
         
         logger.info("Step: apply_EXPTRANS1")
@@ -73,7 +72,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("PRLM_FILE_REC_KEY1", expr("PRLM_FILE_REC_KEY1_V"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["FILE_MTH", "VALUE_DATE", "REC_TYPE", "SEQ_NUM", "SWD_CASE_FILE_REF_NUM", "ADDR_ROOM", "ADDR_BLK", "ADDR_EST", "DRP_PYMT_AMT", "PYMT_FROM_DATE", "PYMT_TO_DATE", "ASGN_STF", "CUST_CNT", "CUST_ROLE_1", "CUST_ID_TYPE_1", "CUST_ID_NUM_1", "CUST_ENG_NAME_1", "CUST_ROLE_2", "CUST_ID_TYPE_2", "CUST_ID_NUM_2", "CUST_ENG_NAME_2", "CUST_ROLE_3", "CUST_ID_TYPE_3", "CUST_ID_NUM_3", "CUST_ENG_NAME_3", "CUST_ROLE_4", "CUST_ID_TYPE_4", "CUST_ID_NUM_4", "CUST_ENG_NAME_4", "CUST_ROLE_5", "CUST_ID_TYPE_5", "CUST_ID_NUM_5", "CUST_ENG_NAME_5", "CUST_ROLE_6", "CUST_ID_TYPE_6", "CUST_ID_NUM_6", "CUST_ENG_NAME_6", "CUST_ROLE_7", "CUST_ID_TYPE_7", "CUST_ID_NUM_7", "CUST_ENG_NAME_7", "CUST_ROLE_8", "CUST_ID_TYPE_8", "CUST_ID_NUM_8", "CUST_ENG_NAME_8", "CUST_ROLE_9", "CUST_ID_TYPE_9", "CUST_ID_NUM_9", "CUST_ENG_NAME_9", "CUST_ROLE_10", "CUST_ID_TYPE_10", "CUST_ID_NUM_10", "CUST_ENG_NAME_10", "CUST_ROLE_11", "CUST_ID_TYPE_11", "CUST_ID_NUM_11", "CUST_ENG_NAME_11", "CUST_ROLE_12", "CUST_ID_TYPE_12", "CUST_ID_NUM_12", "CUST_ENG_NAME_12", "CUST_ROLE_13", "CUST_ID_TYPE_13", "CUST_ID_NUM_13", "CUST_ENG_NAME_13", "CUST_ROLE_14", "CUST_ID_TYPE_14", "CUST_ID_NUM_14", "CUST_ENG_NAME_14", "CUST_ROLE_15", "CUST_ID_TYPE_15", "CUST_ID_NUM_15", "CUST_ENG_NAME_15", "CUST_ROLE_16", "CUST_ID_TYPE_16", "CUST_ID_NUM_16", "CUST_ENG_NAME_16", "CUST_ROLE_17", "CUST_ID_TYPE_17", "CUST_ID_NUM_17", "CUST_ENG_NAME_17", "CUST_ROLE_18", "CUST_ID_TYPE_18", "CUST_ID_NUM_18", "CUST_ENG_NAME_18", "CUST_ROLE_19", "CUST_ID_TYPE_19", "CUST_ID_NUM_19", "CUST_ENG_NAME_19", "CUST_ROLE_20", "CUST_ID_TYPE_20", "CUST_ID_NUM_20", "CUST_ENG_NAME_20"]:
-            if _col not in df_EXPTRANS1.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS1.columns]:
                 df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
@@ -105,12 +104,12 @@ FROM SOR_EMS_CSA_DRP_PRLM_PYMT_RAW"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKPTRANS[c] for c in df_LKPTRANS.columns if c not in _lkp_input.columns]
+            *[df_LKPTRANS[c] for c in df_LKPTRANS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
         # Judge via a lookup column that survived the merge select (not shadowed
         # by a same-named main column) — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_LKPTRANS.columns if c not in _lkp_input.columns]
+        _nlr_lkp_cols = [c for c in df_LKPTRANS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         if _nlr_lkp_cols:
             df_lkp_merge_1 = df_lkp_merge_1.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
         else:
@@ -124,7 +123,7 @@ FROM SOR_EMS_CSA_DRP_PRLM_PYMT_RAW"""
         # column names in batch_update/batch_delete.
         _field_map = {"ASGN_OFCR_CODE": "ASGN_STF", "CUST_CNT": "CUST_CNT", "CUST_ENG_NAME_1": "CUST_ENG_NAME_1", "CUST_ENG_NAME_10": "CUST_ENG_NAME_10", "CUST_ENG_NAME_11": "CUST_ENG_NAME_11", "CUST_ENG_NAME_12": "CUST_ENG_NAME_12", "CUST_ENG_NAME_13": "CUST_ENG_NAME_13", "CUST_ENG_NAME_14": "CUST_ENG_NAME_14", "CUST_ENG_NAME_15": "CUST_ENG_NAME_15", "CUST_ENG_NAME_16": "CUST_ENG_NAME_16", "CUST_ENG_NAME_17": "CUST_ENG_NAME_17", "CUST_ENG_NAME_18": "CUST_ENG_NAME_18", "CUST_ENG_NAME_19": "CUST_ENG_NAME_19", "CUST_ENG_NAME_2": "CUST_ENG_NAME_2", "CUST_ENG_NAME_20": "CUST_ENG_NAME_20", "CUST_ENG_NAME_3": "CUST_ENG_NAME_3", "CUST_ENG_NAME_4": "CUST_ENG_NAME_4", "CUST_ENG_NAME_5": "CUST_ENG_NAME_5", "CUST_ENG_NAME_6": "CUST_ENG_NAME_6", "CUST_ENG_NAME_7": "CUST_ENG_NAME_7", "CUST_ENG_NAME_8": "CUST_ENG_NAME_8", "CUST_ENG_NAME_9": "CUST_ENG_NAME_9", "CUST_ID_NUM_1": "CUST_ID_NUM_1", "CUST_ID_NUM_10": "CUST_ID_NUM_10", "CUST_ID_NUM_11": "CUST_ID_NUM_11", "CUST_ID_NUM_12": "CUST_ID_NUM_12", "CUST_ID_NUM_13": "CUST_ID_NUM_13", "CUST_ID_NUM_14": "CUST_ID_NUM_14", "CUST_ID_NUM_15": "CUST_ID_NUM_15", "CUST_ID_NUM_16": "CUST_ID_NUM_16", "CUST_ID_NUM_17": "CUST_ID_NUM_17", "CUST_ID_NUM_18": "CUST_ID_NUM_18", "CUST_ID_NUM_19": "CUST_ID_NUM_19", "CUST_ID_NUM_2": "CUST_ID_NUM_2", "CUST_ID_NUM_20": "CUST_ID_NUM_20", "CUST_ID_NUM_3": "CUST_ID_NUM_3", "CUST_ID_NUM_4": "CUST_ID_NUM_4", "CUST_ID_NUM_5": "CUST_ID_NUM_5", "CUST_ID_NUM_6": "CUST_ID_NUM_6", "CUST_ID_NUM_7": "CUST_ID_NUM_7", "CUST_ID_NUM_8": "CUST_ID_NUM_8", "CUST_ID_NUM_9": "CUST_ID_NUM_9", "CUST_ID_TYPE_CODE_1": "CUST_ID_TYPE_1", "CUST_ID_TYPE_CODE_10": "CUST_ID_TYPE_10", "CUST_ID_TYPE_CODE_11": "CUST_ID_TYPE_11", "CUST_ID_TYPE_CODE_12": "CUST_ID_TYPE_12", "CUST_ID_TYPE_CODE_13": "CUST_ID_TYPE_13", "CUST_ID_TYPE_CODE_14": "CUST_ID_TYPE_14", "CUST_ID_TYPE_CODE_15": "CUST_ID_TYPE_15", "CUST_ID_TYPE_CODE_16": "CUST_ID_TYPE_16", "CUST_ID_TYPE_CODE_17": "CUST_ID_TYPE_17", "CUST_ID_TYPE_CODE_18": "CUST_ID_TYPE_18", "CUST_ID_TYPE_CODE_19": "CUST_ID_TYPE_19", "CUST_ID_TYPE_CODE_2": "CUST_ID_TYPE_2", "CUST_ID_TYPE_CODE_20": "CUST_ID_TYPE_20", "CUST_ID_TYPE_CODE_3": "CUST_ID_TYPE_3", "CUST_ID_TYPE_CODE_4": "CUST_ID_TYPE_4", "CUST_ID_TYPE_CODE_5": "CUST_ID_TYPE_5", "CUST_ID_TYPE_CODE_6": "CUST_ID_TYPE_6", "CUST_ID_TYPE_CODE_7": "CUST_ID_TYPE_7", "CUST_ID_TYPE_CODE_8": "CUST_ID_TYPE_8", "CUST_ID_TYPE_CODE_9": "CUST_ID_TYPE_9", "CUST_ROLE_CODE_1": "CUST_ROLE_1", "CUST_ROLE_CODE_10": "CUST_ROLE_10", "CUST_ROLE_CODE_11": "CUST_ROLE_11", "CUST_ROLE_CODE_12": "CUST_ROLE_12", "CUST_ROLE_CODE_13": "CUST_ROLE_13", "CUST_ROLE_CODE_14": "CUST_ROLE_14", "CUST_ROLE_CODE_15": "CUST_ROLE_15", "CUST_ROLE_CODE_16": "CUST_ROLE_16", "CUST_ROLE_CODE_17": "CUST_ROLE_17", "CUST_ROLE_CODE_18": "CUST_ROLE_18", "CUST_ROLE_CODE_19": "CUST_ROLE_19", "CUST_ROLE_CODE_2": "CUST_ROLE_2", "CUST_ROLE_CODE_20": "CUST_ROLE_20", "CUST_ROLE_CODE_3": "CUST_ROLE_3", "CUST_ROLE_CODE_4": "CUST_ROLE_4", "CUST_ROLE_CODE_5": "CUST_ROLE_5", "CUST_ROLE_CODE_6": "CUST_ROLE_6", "CUST_ROLE_CODE_7": "CUST_ROLE_7", "CUST_ROLE_CODE_8": "CUST_ROLE_8", "CUST_ROLE_CODE_9": "CUST_ROLE_9", "DRP_AMT": "DRP_PYMT_AMT", "DRP_TXN_VAL_DATE": "VALUE_DATE", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "PRLM_FILE_REC_KEY": "PRLM_FILE_REC_KEY", "PYMT_FROM_DATE": "PYMT_FROM_DATE", "PYMT_MTH": "FILE_MTH", "PYMT_TO_DATE": "PYMT_TO_DATE", "REC_TYPE_CODE": "REC_TYPE", "SWD_CASE_FILE_REF_NUM": "SWD_CASE_FILE_REF_NUM", "SWD_HSE_UNIT_BLK_CODE": "ADDR_BLK", "SWD_HSE_UNIT_EST_CODE": "ADDR_EST", "SWD_HSE_UNIT_FLT_NUM": "ADDR_ROOM", "SWD_PYMT_SEQ_NUM": "SEQ_NUM"}
         for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with
                 # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
                 for _c in list(df_write.columns):
@@ -133,7 +132,7 @@ FROM SOR_EMS_CSA_DRP_PRLM_PYMT_RAW"""
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['PRLM_FILE_REC_KEY', 'PYMT_MTH', 'DRP_TXN_VAL_DATE', 'REC_TYPE_CODE', 'SWD_PYMT_SEQ_NUM', 'SWD_CASE_FILE_REF_NUM', 'SWD_HSE_UNIT_FLT_NUM', 'SWD_HSE_UNIT_BLK_CODE', 'SWD_HSE_UNIT_EST_CODE', 'DRP_AMT', 'PYMT_FROM_DATE', 'PYMT_TO_DATE', 'ASGN_OFCR_CODE', 'CUST_CNT', 'CUST_ROLE_CODE_1', 'CUST_ID_TYPE_CODE_1', 'CUST_ID_NUM_1', 'CUST_ENG_NAME_1', 'CUST_ROLE_CODE_2', 'CUST_ID_TYPE_CODE_2', 'CUST_ID_NUM_2', 'CUST_ENG_NAME_2', 'CUST_ROLE_CODE_3', 'CUST_ID_TYPE_CODE_3', 'CUST_ID_NUM_3', 'CUST_ENG_NAME_3', 'CUST_ROLE_CODE_4', 'CUST_ID_TYPE_CODE_4', 'CUST_ID_NUM_4', 'CUST_ENG_NAME_4', 'CUST_ROLE_CODE_5', 'CUST_ID_TYPE_CODE_5', 'CUST_ID_NUM_5', 'CUST_ENG_NAME_5', 'CUST_ROLE_CODE_6', 'CUST_ID_TYPE_CODE_6', 'CUST_ID_NUM_6', 'CUST_ENG_NAME_6', 'CUST_ROLE_CODE_7', 'CUST_ID_TYPE_CODE_7', 'CUST_ID_NUM_7', 'CUST_ENG_NAME_7', 'CUST_ROLE_CODE_8', 'CUST_ID_TYPE_CODE_8', 'CUST_ID_NUM_8', 'CUST_ENG_NAME_8', 'CUST_ROLE_CODE_9', 'CUST_ID_TYPE_CODE_9', 'CUST_ID_NUM_9', 'CUST_ENG_NAME_9', 'CUST_ROLE_CODE_10', 'CUST_ID_TYPE_CODE_10', 'CUST_ID_NUM_10', 'CUST_ENG_NAME_10', 'CUST_ROLE_CODE_11', 'CUST_ID_TYPE_CODE_11', 'CUST_ID_NUM_11', 'CUST_ENG_NAME_11', 'CUST_ROLE_CODE_12', 'CUST_ID_TYPE_CODE_12', 'CUST_ID_NUM_12', 'CUST_ENG_NAME_12', 'CUST_ROLE_CODE_13', 'CUST_ID_TYPE_CODE_13', 'CUST_ID_NUM_13', 'CUST_ENG_NAME_13', 'CUST_ROLE_CODE_14', 'CUST_ID_TYPE_CODE_14', 'CUST_ID_NUM_14', 'CUST_ENG_NAME_14', 'CUST_ROLE_CODE_15', 'CUST_ID_TYPE_CODE_15', 'CUST_ID_NUM_15', 'CUST_ENG_NAME_15', 'CUST_ROLE_CODE_16', 'CUST_ID_TYPE_CODE_16', 'CUST_ID_NUM_16', 'CUST_ENG_NAME_16', 'CUST_ROLE_CODE_17', 'CUST_ID_TYPE_CODE_17', 'CUST_ID_NUM_17', 'CUST_ENG_NAME_17', 'CUST_ROLE_CODE_18', 'CUST_ID_TYPE_CODE_18', 'CUST_ID_NUM_18', 'CUST_ENG_NAME_18', 'CUST_ROLE_CODE_19', 'CUST_ID_TYPE_CODE_19', 'CUST_ID_NUM_19', 'CUST_ENG_NAME_19', 'CUST_ROLE_CODE_20', 'CUST_ID_TYPE_CODE_20', 'CUST_ID_NUM_20', 'CUST_ENG_NAME_20', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
         # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
         lib.write_table(df_write, conn_target, "SOR_EMS_CSA_DRP_PRLM_PYMT_RAW", mode="append")
 

@@ -4,6 +4,5 @@ __pycache__
 logs
 *.log
 *.txt
-informatica/PySpark_workflows/extract/*
-informatica/PySpark_workflows/transform_and_load/*
+
 

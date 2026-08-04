@@ -629,11 +629,27 @@ class InfaXMLParser:
                     if src_info:
                         file_sources[source_inst] = src_info
 
+            # Session-level Target Pre/Post SQL — the real logic of carrier
+            # mappings (e.g. DUAL → DUAL) lives in these session attributes,
+            # not in the mapping graph. They nest under the target's
+            # SESSTRANSFORMATIONINST, so iterate ALL descendant ATTRIBUTEs
+            # (multiple targets → concatenate).
+            _session_sqls = {}
+            for _attr in session_elem.iter("ATTRIBUTE"):
+                _an = _attr.get("NAME", "")
+                if _an in ("Pre SQL", "Post SQL"):
+                    _av = _attr.get("VALUE", "")
+                    if _av:
+                        _key = _an.lower().replace(" ", "_")
+                        _session_sqls[_key] = (_session_sqls.get(_key, "") + "\n" + _av).strip()
+
             session = {
                 "name": session_elem.get("NAME", ""),
                 "mapping_name": session_elem.get("MAPPINGNAME", ""),
                 "description": session_elem.get("DESCRIPTION", ""),
                 "is_valid": session_elem.get("ISVALID", "YES") == "YES",
+                "pre_sql": _session_sqls.get("pre_sql", ""),
+                "post_sql": _session_sqls.get("post_sql", ""),
                 "reusable": session_elem.get("REUSABLE", "NO") == "YES",
                 "sort_order": session_elem.get("SORTORDER", "Binary"),
                 "pre_session_components": pre_session,

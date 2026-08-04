@@ -19,8 +19,8 @@ pip3.11 install informatica-sparker
 OUT_ROOT=/var/lib/airflow/dags/adam/informatica/PySpark_workflows
 informatica-sparker convert WF_GMS_DDS_APLY_DLY.XML -o $OUT_ROOT/WF_GMS_DDS_APLY_DLY
 
-./convert_infa-pyspark.sh /var/lib/airflow/dags/adam/informatica/PowerCenter_workflows/dds \
-                          /var/lib/airflow/dags/adam/informatica/PySpark_workflows/dds \
+./convert_infa-pyspark.sh /var/lib/airflow/dags/adam/informatica/PowerCenter_workflows/extract \
+                          /var/lib/airflow/dags/adam/informatica/PySpark_workflows/extract \
                           > convert_infa-pyspark.log
 
 cd /var/lib/airflow/dags/adam/informatica
@@ -68,6 +68,7 @@ Output format:
 
 # 需手动fix的Bug
 - m_dpa_summarize_fact_cms_case_smry.py m_dpa_summarize_fact_cms_case_ostd_smry.py 多个lookup同名字段，需修改sql区分不同字段名字，如`CASE_CATG_KEY`
+  - m_s5_dds_aply_fact_ems_sms_aply_type_txn.py, `RLS_CNTL_DMNS_TYPE_CODE` -> `DDS_RLS_CNTL_DMNS_TYPE_CODE`
 - m_s5_dpa_summarize_fact_ems_sms_flat_prc_txn.py，`1300001and` -> `1300001 and`
 - 数字转字符可能出现科学计数法问题，如rec_rls_ind，要显式定义decimal类型
 - 

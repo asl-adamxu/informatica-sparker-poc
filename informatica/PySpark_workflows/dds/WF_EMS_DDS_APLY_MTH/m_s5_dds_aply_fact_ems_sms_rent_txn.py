@@ -17,7 +17,8 @@ from pyspark.sql.types import *
 # MAPPING LOGIC
 # =============================================================================
 
-def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> bool:
+def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
+                session_sqls=None) -> bool:
     """
     Execute the M_S5_DDS_APLY_FACT_EMS_SMS_RENT_TXN mapping transformations.
 
@@ -28,7 +29,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         ctx: Optional SparkContext for session and DataFrame registry
         metrics: Optional metrics tracker (or NullMetrics if not provided)
         job_params: Optional dict of job parameters loaded by workflow
-    
+        session_sqls: The session's Target Pre/Post SQL dict 
     Returns:
         bool: True if successful
     """
@@ -45,7 +46,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
     metrics.start()
 
     conn_oracle = lib.get_db_config(config, "oracle-defaults")
-    conn_source = lib.get_db_config(config, "DPA")
     conn_target = lib.get_db_config(config, "DPA")
 
     v_REC_RLS_IND = ""
@@ -79,7 +79,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_SQ_SP_DELETE = df_DPA_FACT_EMS_SMS_RENT_TXN
         # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
         _port_cols = ["TIME_DMNS_KEY"]
-        df_SQ_SP_DELETE = df_SQ_SP_DELETE.select([col(c) if c in df_SQ_SP_DELETE.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SP_DELETE = df_SQ_SP_DELETE.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SP_DELETE.columns] else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_SP_DELETE", df_SQ_SP_DELETE)
         
         logger.info("Step: apply_SQ_DPA_FACT_EMS_SMS_RENT_TXN")
@@ -87,7 +87,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_SQ_DPA_FACT_EMS_SMS_RENT_TXN = df_DPA_FACT_EMS_SMS_RENT_TXN
         # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
         _port_cols = ["RENT_IND_DESP_DMNS_KEY", "DESP_DTL_DMNS_KEY", "TIME_DMNS_KEY", "TXN_CNT", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "REC_RLS_IND"]
-        df_SQ_DPA_FACT_EMS_SMS_RENT_TXN = df_SQ_DPA_FACT_EMS_SMS_RENT_TXN.select([col(c) if c in df_SQ_DPA_FACT_EMS_SMS_RENT_TXN.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DPA_FACT_EMS_SMS_RENT_TXN = df_SQ_DPA_FACT_EMS_SMS_RENT_TXN.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DPA_FACT_EMS_SMS_RENT_TXN.columns] else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_DPA_FACT_EMS_SMS_RENT_TXN", df_SQ_DPA_FACT_EMS_SMS_RENT_TXN)
         
         logger.info("Step: apply_EXP_SET_DEL_INFO")
@@ -100,7 +100,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_EXP_SET_DEL_INFO = df_EXP_SET_DEL_INFO.withColumn("RSL_CTL_IND", expr(_expr))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["TIME_DMNS_KEY"]:
-            if _col not in df_EXP_SET_DEL_INFO.columns:
+            if _col.lower() not in [x.lower() for x in df_EXP_SET_DEL_INFO.columns]:
                 df_EXP_SET_DEL_INFO = df_EXP_SET_DEL_INFO.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXP_SET_DEL_INFO", df_EXP_SET_DEL_INFO)
@@ -128,7 +128,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS.withColumn("RLS_CNTL_DMNS_TYPE_CODE", expr("substring(cast(TIME_DMNS_KEY as string),1,1)"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["TIME_DMNS_KEY", "TBL_NAME", "RM_FLG", "RSL_CTL_IND"]:
-            if _col not in df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS.columns:
+            if _col.lower() not in [x.lower() for x in df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS.columns]:
                 df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS", df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS)
@@ -168,7 +168,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_LKPTRANS[c] for c in df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_LKPTRANS.columns if c not in _lkp_input.columns]
+            *[df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_LKPTRANS[c] for c in df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_LKPTRANS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_mplt_lkp_chain_1", df_mplt_lkp_chain_1)        
         logger.info("Step: rename_EXP_SP_DELETE")
@@ -199,7 +199,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE.withColumn("UPDATE_FLAG", expr("CASE WHEN (DDS_RLS_CNTL_FACT_TBL_NAME IS NULL) THEN 'DD_INSERT' ELSE 'DD_UPDATE' END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["FACT_TBL_NAME", "RLS_CNTL_DMNS_TYPE_CODE", "RSL_CTL_IND"]:
-            if _col not in df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE.columns:
+            if _col.lower() not in [x.lower() for x in df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE.columns]:
                 df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE", df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE)
@@ -209,7 +209,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         __fil_input = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE
         df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_FILTRANS = __fil_input.filter(expr("RSL_CTL_IND = '1'"))
         ctx.register_df("df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_FILTRANS", df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_FILTRANS)
-        
+
         logger.info("Step: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD")
         # Expression: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD
         df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_FILTRANS
@@ -226,7 +226,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # column names in batch_update/batch_delete.
         _field_map = {"DESP_DTL_DMNS_KEY": "DESP_DTL_DMNS_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "REC_RLS_IND": "REC_RLS_IND", "RENT_IND_DESP_DMNS_KEY": "RENT_IND_DESP_DMNS_KEY", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TXN_CNT": "TXN_CNT_OUT"}
         for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with
                 # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
                 for _c in list(df_write.columns):
@@ -235,15 +235,15 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['RENT_IND_DESP_DMNS_KEY', 'DESP_DTL_DMNS_KEY', 'TIME_DMNS_KEY', 'TXN_CNT', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
         # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
         lib.write_table(df_write, conn_target, "DDS_FACT_EMS_SMS_RENT_TXN", mode="append")
 
         logger.info("write_DDS_FACT_EMS_SMS_RENT_TXN write completed")
         logger.info("Step: write_UTL_DEV_NULL")
         # Write to Target: write_UTL_DEV_NULL
-        # /dev/null — skip entire write component (no-op target in Informatica)
-        logger.info("Target write_UTL_DEV_NULL is /dev/null, skipping write")
+        # /dev/null / DUAL — skip entire write component 
+        logger.info("Target write_UTL_DEV_NULL is a no-op target (/dev/null or DUAL), skipping write")
 
         logger.info("write_UTL_DEV_NULL write completed")
         logger.info("Step: apply_UPD_RLS_CNTL")
@@ -266,7 +266,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # column names in batch_update/batch_delete.
         _field_map = {"RLS_CNTL_BGN_TIME_DMNS_KEY": "RLS_CNTL_BGN_TIME_DMNS_KEY", "RLS_CNTL_DMNS_TYPE_CODE": "RLS_CNTL_DMNS_TYPE_CODE", "RLS_CNTL_END_TIME_DMNS_KEY": "RLS_CNTL_END_TIME_DMNS_KEY", "RLS_CNTL_FACT_TBL_NAME": "RLS_CNTL_FACT_TBL_NAME"}
         for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with
                 # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
                 for _c in list(df_write.columns):
@@ -287,7 +287,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # UPDATE: batch update via JDBC
         if not _df_upd.rdd.isEmpty():
             _upd_key_cols = ['RLS_CNTL_FACT_TBL_NAME', 'RLS_CNTL_DMNS_TYPE_CODE']
-            _upd_set_cols = [c for c in _df_upd.columns if c not in _upd_key_cols]
+            _upd_set_cols = [c for c in _df_upd.columns if c.lower() not in [k.lower() for k in _upd_key_cols]]
             if _upd_set_cols:
                 _upd_rows = [tuple(r[c] for c in _upd_set_cols + _upd_key_cols) for r in _df_upd.collect()]
                 lib.batch_update(spark, conn_target, "DDS_RLS_CNTL", _upd_set_cols, _upd_key_cols, _upd_rows, 1000)
@@ -295,7 +295,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_write = _df_ins
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['RLS_CNTL_FACT_TBL_NAME', 'RLS_CNTL_DMNS_TYPE_CODE', 'RLS_CNTL_BGN_TIME_DMNS_KEY', 'RLS_CNTL_END_TIME_DMNS_KEY']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
         # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
         lib.write_table(df_write, conn_target, "DDS_RLS_CNTL", mode="append")
 

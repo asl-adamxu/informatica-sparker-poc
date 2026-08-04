@@ -17,7 +17,8 @@ from pyspark.sql.types import *
 # MAPPING LOGIC
 # =============================================================================
 
-def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> bool:
+def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
+                session_sqls=None) -> bool:
     """
     Execute the M_S5_DPA_SUMMARIZE_FACT_EMS_SMS_APLY_TYPE_TXN mapping transformations.
 
@@ -28,7 +29,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         ctx: Optional SparkContext for session and DataFrame registry
         metrics: Optional metrics tracker (or NullMetrics if not provided)
         job_params: Optional dict of job parameters loaded by workflow
-    
+        session_sqls: The session's Target Pre/Post SQL dict 
     Returns:
         bool: True if successful
     """
@@ -44,8 +45,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
     metrics = metrics or lib.NullMetrics()
     metrics.start()
 
-    conn_oracle = lib.get_db_config(config, "oracle-defaults")
-    conn_source = lib.get_db_config(config, "SOR")
     conn_target = lib.get_db_config(config, "DPA")
 
     v_snsh_date = ""
@@ -111,7 +110,7 @@ GROUP BY DESP_DTL_DMNS_KEY, TIME_DMNS_KEY"""
         df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN1 = df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN1.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN1 = df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN1.select([col(c) if c in df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN1.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN1 = df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN1.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN1.columns] else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN1", df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN1)
         
@@ -170,7 +169,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN  cep_sts.BGN_DATE AND  cep_sts.
         df_SQ_SOR_3 = df_SQ_SOR_3.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_SOR_3 = df_SQ_SOR_3.select([col(c) if c in df_SQ_SOR_3.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SOR_3 = df_SQ_SOR_3.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_3.columns] else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_3", df_SQ_SOR_3)
         
@@ -230,7 +229,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN  cep_sts.BGN_DATE AND  cep_sts.
         df_SQ_SOR_2 = df_SQ_SOR_2.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_SOR_2 = df_SQ_SOR_2.select([col(c) if c in df_SQ_SOR_2.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SOR_2 = df_SQ_SOR_2.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_2.columns] else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_2", df_SQ_SOR_2)
         
@@ -291,7 +290,7 @@ and substr(UNIT_CODE_ADDR, 1, 1) in ('E','C','R','L')"""
         df_SQ_SOR_1 = df_SQ_SOR_1.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_SOR_1 = df_SQ_SOR_1.select([col(c) if c in df_SQ_SOR_1.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SOR_1 = df_SQ_SOR_1.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_1.columns] else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_SOR_1", df_SQ_SOR_1)
         
@@ -335,7 +334,7 @@ GROUP BY APLY_TYPE_DMNS_KEY, TIME_DMNS_KEY"""
         df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN = df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN = df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN.select([col(c) if c in df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN = df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN.columns] else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN", df_SQ_DPA_FACT_EMS_SMS_APLY_TYPE_TXN)
         
@@ -370,7 +369,7 @@ GROUP BY DESP_DTL_DMNS_KEY, TIME_DMNS_KEY"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DPA_FACT_EMS_SMS_APLY_TYPE_TXN13[c] for c in df_LKP_DPA_FACT_EMS_SMS_APLY_TYPE_TXN13.columns if c not in _lkp_input.columns]
+            *[df_LKP_DPA_FACT_EMS_SMS_APLY_TYPE_TXN13[c] for c in df_LKP_DPA_FACT_EMS_SMS_APLY_TYPE_TXN13.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: read_LKP_DPA_FACT_EMS_SMS_APLY_TYPE_TXN12")
@@ -404,7 +403,7 @@ GROUP BY DESP_DTL_DMNS_KEY, TIME_DMNS_KEY"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DPA_FACT_EMS_SMS_APLY_TYPE_TXN12[c] for c in df_LKP_DPA_FACT_EMS_SMS_APLY_TYPE_TXN12.columns if c not in _lkp_input.columns]
+            *[df_LKP_DPA_FACT_EMS_SMS_APLY_TYPE_TXN12[c] for c in df_LKP_DPA_FACT_EMS_SMS_APLY_TYPE_TXN12.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_DPA_FACT_EMS_SMS_APLY_TYPE_TXN11")
@@ -438,7 +437,7 @@ GROUP BY DESP_DTL_DMNS_KEY, TIME_DMNS_KEY"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DPA_FACT_EMS_SMS_APLY_TYPE_TXN11[c] for c in df_LKP_DPA_FACT_EMS_SMS_APLY_TYPE_TXN11.columns if c not in _lkp_input.columns]
+            *[df_LKP_DPA_FACT_EMS_SMS_APLY_TYPE_TXN11[c] for c in df_LKP_DPA_FACT_EMS_SMS_APLY_TYPE_TXN11.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_DPA_FACT_EMS_SMS_APLY_TYPE_TXN1")
@@ -472,7 +471,7 @@ GROUP BY DESP_DTL_DMNS_KEY, TIME_DMNS_KEY"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DPA_FACT_EMS_SMS_APLY_TYPE_TXN1[c] for c in df_LKP_DPA_FACT_EMS_SMS_APLY_TYPE_TXN1.columns if c not in _lkp_input.columns]
+            *[df_LKP_DPA_FACT_EMS_SMS_APLY_TYPE_TXN1[c] for c in df_LKP_DPA_FACT_EMS_SMS_APLY_TYPE_TXN1.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: apply_EXPTRANS1")
@@ -481,7 +480,7 @@ GROUP BY DESP_DTL_DMNS_KEY, TIME_DMNS_KEY"""
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("APLY_TYPE_CODE", expr("CASE WHEN UNIT_CODE_ADDR = 'E' THEN 'PRH' WHEN UNIT_CODE_ADDR = 'C' THEN 'COT' WHEN UNIT_CODE_ADDR = 'R' THEN 'HSO' WHEN UNIT_CODE_ADDR = 'L' THEN 'THA' ELSE NULL END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["SCHM_CODE"]:
-            if _col not in df_EXPTRANS1.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS1.columns]:
                 df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
@@ -517,7 +516,7 @@ GROUP BY dpa.DESP_DTL_DMNS_KEY, APLY_TYPE_DMNS_KEY, TIME_DMNS_KEY"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DPA_FACT_EMS_SMS_APLY_TYPE_TXN[c] for c in df_LKP_DPA_FACT_EMS_SMS_APLY_TYPE_TXN.columns if c not in _lkp_input.columns]
+            *[df_LKP_DPA_FACT_EMS_SMS_APLY_TYPE_TXN[c] for c in df_LKP_DPA_FACT_EMS_SMS_APLY_TYPE_TXN.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)        
         logger.info("Step: apply_EXPTRANS3")
@@ -537,7 +536,7 @@ GROUP BY dpa.DESP_DTL_DMNS_KEY, APLY_TYPE_DMNS_KEY, TIME_DMNS_KEY"""
         df_EXPTRANS3 = df_EXPTRANS3.withColumn("SUM", expr("TXN_CNT_V + TXN_CNT1_V +TXN_CNT2_V + TXN_CNT3_V + TXN_CNT4_V"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["TXN_CNT", "DESP_DTL_DMNS_KEY", "TIME_DMNS_KEY", "LAST_REC_TXN_DATE"]:
-            if _col not in df_EXPTRANS3.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS3.columns]:
                 df_EXPTRANS3 = df_EXPTRANS3.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS3", df_EXPTRANS3)
@@ -559,7 +558,7 @@ GROUP BY dpa.DESP_DTL_DMNS_KEY, APLY_TYPE_DMNS_KEY, TIME_DMNS_KEY"""
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup2, allowMissingColumns=True)
         # Select only union output columns (add lit(None) for any missing)
         for _col in ["SCHM_CODE", "APLY_TYPE_CODE"]:
-            if _col not in df_Union_Transformation.columns:
+            if _col.lower() not in [x.lower() for x in df_Union_Transformation.columns]:
                 df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("SCHM_CODE", "APLY_TYPE_CODE")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
@@ -574,7 +573,7 @@ GROUP BY dpa.DESP_DTL_DMNS_KEY, APLY_TYPE_DMNS_KEY, TIME_DMNS_KEY"""
         df_EXPTRANS2 = df_EXPTRANS2.withColumn("TOT_CNT", expr("CNT1_V + CNT2_V"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["DESP_DTL_DMNS_KEY", "APLY_TYPE_DMNS_KEY", "TIME_DMNS_KEY", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "REC_RLS_IND"]:
-            if _col not in df_EXPTRANS2.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS2.columns]:
                 df_EXPTRANS2 = df_EXPTRANS2.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS2", df_EXPTRANS2)
@@ -602,7 +601,7 @@ GROUP BY dpa.DESP_DTL_DMNS_KEY, APLY_TYPE_DMNS_KEY, TIME_DMNS_KEY"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_DMNS_EMS_APLY_TYPE1[c] for c in df_LKP_DDS_DMNS_EMS_APLY_TYPE1.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_DMNS_EMS_APLY_TYPE1[c] for c in df_LKP_DDS_DMNS_EMS_APLY_TYPE1.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_3", df_lkp_merge_3)        
         logger.info("Step: apply_AGGTRANS3")
@@ -640,7 +639,7 @@ GROUP BY dpa.DESP_DTL_DMNS_KEY, APLY_TYPE_DMNS_KEY, TIME_DMNS_KEY"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_DMNS_EMS_DESP_DTL1[c] for c in df_LKP_DDS_DMNS_EMS_DESP_DTL1.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_DMNS_EMS_DESP_DTL1[c] for c in df_LKP_DDS_DMNS_EMS_DESP_DTL1.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_4", df_lkp_merge_4)        
         logger.info("Step: write_DPA_FACT_EMS_SMS_APLY_TYPE_TXN21")
@@ -651,7 +650,7 @@ GROUP BY dpa.DESP_DTL_DMNS_KEY, APLY_TYPE_DMNS_KEY, TIME_DMNS_KEY"""
         # column names in batch_update/batch_delete.
         _field_map = {"APLY_TYPE_DMNS_KEY": "APLY_TYPE_DMNS_KEY", "DESP_DTL_DMNS_KEY": "DESP_DTL_DMNS_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TXN_CNT": "SUM"}
         for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with
                 # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
                 for _c in list(df_write.columns):
@@ -663,7 +662,7 @@ GROUP BY dpa.DESP_DTL_DMNS_KEY, APLY_TYPE_DMNS_KEY, TIME_DMNS_KEY"""
         df_write = df_write.withColumn("REC_RLS_IND", lit(None).cast(StringType()))
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['DESP_DTL_DMNS_KEY', 'APLY_TYPE_DMNS_KEY', 'TIME_DMNS_KEY', 'TXN_CNT', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
         # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
         lib.write_table(df_write, conn_target, "DPA_FACT_EMS_SMS_APLY_TYPE_TXN", mode="append")
 
@@ -681,7 +680,7 @@ GROUP BY dpa.DESP_DTL_DMNS_KEY, APLY_TYPE_DMNS_KEY, TIME_DMNS_KEY"""
         df_EXPTRANS = df_EXPTRANS.withColumn("SMS_SCHM_CODE", expr("'SMS'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["CNT"]:
-            if _col not in df_EXPTRANS.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
@@ -694,7 +693,7 @@ GROUP BY dpa.DESP_DTL_DMNS_KEY, APLY_TYPE_DMNS_KEY, TIME_DMNS_KEY"""
         # column names in batch_update/batch_delete.
         _field_map = {"APLY_TYPE_DMNS_KEY": "APLY_TYPE_DMNS_KEY", "DESP_DTL_DMNS_KEY": "DESP_DTL_DMNS_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "REC_RLS_IND": "REC_RLS_IND", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TXN_CNT": "TOT_CNT"}
         for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with
                 # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
                 for _c in list(df_write.columns):
@@ -703,7 +702,7 @@ GROUP BY dpa.DESP_DTL_DMNS_KEY, APLY_TYPE_DMNS_KEY, TIME_DMNS_KEY"""
                 df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['DESP_DTL_DMNS_KEY', 'APLY_TYPE_DMNS_KEY', 'TIME_DMNS_KEY', 'TXN_CNT', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
         # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
         lib.write_table(df_write, conn_target, "DPA_FACT_EMS_SMS_APLY_TYPE_TXN", mode="append")
 
@@ -729,7 +728,7 @@ GROUP BY dpa.DESP_DTL_DMNS_KEY, APLY_TYPE_DMNS_KEY, TIME_DMNS_KEY"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_DMNS_TIME_1[c] for c in df_LKP_DDS_DMNS_TIME_1.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_DMNS_TIME_1[c] for c in df_LKP_DDS_DMNS_TIME_1.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_5", df_lkp_merge_5)        
         logger.info("Step: read_LKP_DDS_DMNS_EMS_DESP_DTL")
@@ -755,7 +754,7 @@ GROUP BY dpa.DESP_DTL_DMNS_KEY, APLY_TYPE_DMNS_KEY, TIME_DMNS_KEY"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_DMNS_EMS_DESP_DTL[c] for c in df_LKP_DDS_DMNS_EMS_DESP_DTL.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_DMNS_EMS_DESP_DTL[c] for c in df_LKP_DDS_DMNS_EMS_DESP_DTL.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_APLY_TYPE")
@@ -781,7 +780,7 @@ GROUP BY dpa.DESP_DTL_DMNS_KEY, APLY_TYPE_DMNS_KEY, TIME_DMNS_KEY"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DDS_DMNS_EMS_APLY_TYPE[c] for c in df_LKP_DDS_DMNS_EMS_APLY_TYPE.columns if c not in _lkp_input.columns]
+            *[df_LKP_DDS_DMNS_EMS_APLY_TYPE[c] for c in df_LKP_DDS_DMNS_EMS_APLY_TYPE.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: write_DPA_FACT_EMS_SMS_APLY_TYPE_TXN")
@@ -792,7 +791,7 @@ GROUP BY dpa.DESP_DTL_DMNS_KEY, APLY_TYPE_DMNS_KEY, TIME_DMNS_KEY"""
         # column names in batch_update/batch_delete.
         _field_map = {"APLY_TYPE_DMNS_KEY": "APLY_TYPE_DMNS_KEY", "DESP_DTL_DMNS_KEY": "DESP_DTL_DMNS_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TXN_CNT": "CNT"}
         for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with
                 # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
                 for _c in list(df_write.columns):
@@ -804,7 +803,7 @@ GROUP BY dpa.DESP_DTL_DMNS_KEY, APLY_TYPE_DMNS_KEY, TIME_DMNS_KEY"""
         df_write = df_write.withColumn("REC_RLS_IND", lit(None).cast(StringType()))
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['DESP_DTL_DMNS_KEY', 'APLY_TYPE_DMNS_KEY', 'TIME_DMNS_KEY', 'TXN_CNT', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
         # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
         lib.write_table(df_write, conn_target, "DPA_FACT_EMS_SMS_APLY_TYPE_TXN", mode="append")
 

@@ -17,7 +17,8 @@ from pyspark.sql.types import *
 # MAPPING LOGIC
 # =============================================================================
 
-def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> bool:
+def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
+                session_sqls=None) -> bool:
     """
     Execute the M_EMS_DDS_APLY_FACT_MTH_RENT_AND_ARR_SMRY_FOR_UPDATE mapping transformations.
 
@@ -28,7 +29,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         ctx: Optional SparkContext for session and DataFrame registry
         metrics: Optional metrics tracker (or NullMetrics if not provided)
         job_params: Optional dict of job parameters loaded by workflow
-    
+        session_sqls: The session's Target Pre/Post SQL dict 
     Returns:
         bool: True if successful
     """
@@ -44,8 +45,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
     metrics = metrics or lib.NullMetrics()
     metrics.start()
 
-    conn_oracle = lib.get_db_config(config, "oracle-defaults")
-    conn_source = lib.get_db_config(config, "DPA")
     conn_target = lib.get_db_config(config, "DDS")
 
     v_REC_RLS_IND = ""
@@ -92,7 +91,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY1 = df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY1.filter(expr("LTNG_RTN_CMLT_ARR_AMT is NOT null OR LTNG_RTN_MTH_RENT_RCV_AMT is NOT null"))
         # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
         _port_cols = ["TIME_DMNS_KEY", "RENT_RVW_CATG_DMNS_KEY", "COST_CTR_SCD_KEY", "RENT_FCTR_DMNS_KEY", "MGT_MODE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MTH_RCV_RENT_AMT", "FRST_MTH_ARR_AMT", "SCND_MTH_ARR_AMT", "THRD_AND_ABV_MTH_ARR_AMT", "EXTNT_OSTD_DEBT_AMT", "ACTV_TNCY_CNT", "ARR_ACTV_TNCY_CNT", "LTNG_RTN_CMLT_ARR_AMT", "LTNG_RTN_MTH_RENT_RCV_AMT", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "MIN_MTH_RENT_AMT", "MAX_MTH_RENT_AMT", "TOT_MTH_RENT_AMT", "FLAT_TYPE_DMNS_KEY", "PSTV_RENT_ACTV_TNCY_CNT"]
-        df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY1 = df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY1.select([col(c) if c in df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY1.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY1 = df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY1.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY1.columns] else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY1", df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY1)
         
         logger.info("Step: apply_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY")
@@ -101,7 +100,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY = df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY.filter(expr("LTNG_RTN_CMLT_ARR_AMT is NOT null OR LTNG_RTN_MTH_RENT_RCV_AMT is NOT null"))
         # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
         _port_cols = ["TIME_DMNS_KEY", "RENT_RVW_CATG_DMNS_KEY", "COST_CTR_SCD_KEY", "RENT_FCTR_DMNS_KEY", "MGT_MODE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MTH_RCV_RENT_AMT", "FRST_MTH_ARR_AMT", "SCND_MTH_ARR_AMT", "THRD_AND_ABV_MTH_ARR_AMT", "EXTNT_OSTD_DEBT_AMT", "ACTV_TNCY_CNT", "ARR_ACTV_TNCY_CNT", "LTNG_RTN_CMLT_ARR_AMT", "LTNG_RTN_MTH_RENT_RCV_AMT", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "MIN_MTH_RENT_AMT", "MAX_MTH_RENT_AMT", "TOT_MTH_RENT_AMT", "FLAT_TYPE_DMNS_KEY", "PSTV_RENT_ACTV_TNCY_CNT", "LTNG_RTN_FRST_MTH_ARR_AMT", "LTNG_RTN_SCND_MTH_ARR_AMT", "LTNG_RTN_THRD_ABV_MTH_ARR_AMT", "LTNG_RTN_PND_WRTF_AMT"]
-        df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY = df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY.select([col(c) if c in df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY = df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY.columns] else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY", df_SQ_DPA_FACT_MTH_RENT_AND_ARR_SMRY)
         
         logger.info("Step: apply_SQ_DDS_FACT_MTH_RENT_AND_ARR_SMRY")
@@ -109,7 +108,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_SQ_DDS_FACT_MTH_RENT_AND_ARR_SMRY = df_DDS_FACT_MTH_RENT_AND_ARR_SMRY2
         # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
         _port_cols = ["TIME_DMNS_KEY", "RENT_RVW_CATG_DMNS_KEY", "COST_CTR_SCD_KEY", "RENT_FCTR_DMNS_KEY", "MGT_MODE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MTH_RCV_RENT_AMT", "FRST_MTH_ARR_AMT", "SCND_MTH_ARR_AMT", "THRD_AND_ABV_MTH_ARR_AMT", "EXTNT_OSTD_DEBT_AMT", "ACTV_TNCY_CNT", "PSTV_RENT_ACTV_TNCY_CNT", "ARR_ACTV_TNCY_CNT", "LTNG_RTN_CMLT_ARR_AMT", "LTNG_RTN_MTH_RENT_RCV_AMT", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "MIN_MTH_RENT_AMT", "MAX_MTH_RENT_AMT", "TOT_MTH_RENT_AMT", "FLAT_TYPE_DMNS_KEY"]
-        df_SQ_DDS_FACT_MTH_RENT_AND_ARR_SMRY = df_SQ_DDS_FACT_MTH_RENT_AND_ARR_SMRY.select([col(c) if c in df_SQ_DDS_FACT_MTH_RENT_AND_ARR_SMRY.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DDS_FACT_MTH_RENT_AND_ARR_SMRY = df_SQ_DDS_FACT_MTH_RENT_AND_ARR_SMRY.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DDS_FACT_MTH_RENT_AND_ARR_SMRY.columns] else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_DDS_FACT_MTH_RENT_AND_ARR_SMRY", df_SQ_DDS_FACT_MTH_RENT_AND_ARR_SMRY)
         
         logger.info("Step: apply_AGGTRANS1")
@@ -179,7 +178,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # column names in batch_update/batch_delete.
         _field_map = {"COST_CTR_SCD_KEY": "COST_CTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY": "FLAT_TYPE_DMNS_KEY", "HSHLD_AEM_IND": "HSHLD_AEM_IND", "HSHLD_ELDR_IND": "HSHLD_ELDR_IND", "HSHLD_SIZE_DMNS_KEY": "HSHLD_SIZE_DMNS_KEY", "LTNG_RTN_CMLT_ARR_AMT": "LTNG_RTN_CMLT_ARR_AMT", "LTNG_RTN_FRST_MTH_ARR_AMT": "LTNG_RTN_FRST_MTH_ARR_AMT", "LTNG_RTN_MTH_RENT_RCV_AMT": "LTNG_RTN_MTH_RENT_RCV_AMT", "LTNG_RTN_PND_WRTF_AMT": "LTNG_RTN_PND_WRTF_AMT", "LTNG_RTN_SCND_MTH_ARR_AMT": "LTNG_RTN_SCND_MTH_ARR_AMT", "LTNG_RTN_THRD_ABV_MTH_ARR_AMT": "LTNG_RTN_THRD_ABV_MTH_ARR_AMT", "MGT_MODE_DMNS_KEY": "MGT_MODE_DMNS_KEY", "RENT_FCTR_DMNS_KEY": "RENT_FCTR_DMNS_KEY", "RENT_RVW_CATG_DMNS_KEY": "RENT_RVW_CATG_DMNS_KEY", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with
                 # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
                 for _c in list(df_write.columns):
@@ -200,7 +199,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_write = df_write.withColumn("TOT_MTH_RENT_AMT", lit(None).cast(StringType()))
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['TIME_DMNS_KEY', 'RENT_RVW_CATG_DMNS_KEY', 'COST_CTR_SCD_KEY', 'RENT_FCTR_DMNS_KEY', 'MGT_MODE_DMNS_KEY', 'HSHLD_SIZE_DMNS_KEY', 'FLAT_TYPE_DMNS_KEY', 'MTH_RCV_RENT_AMT', 'FRST_MTH_ARR_AMT', 'SCND_MTH_ARR_AMT', 'THRD_AND_ABV_MTH_ARR_AMT', 'EXTNT_OSTD_DEBT_AMT', 'ACTV_TNCY_CNT', 'PSTV_RENT_ACTV_TNCY_CNT', 'ARR_ACTV_TNCY_CNT', 'LTNG_RTN_CMLT_ARR_AMT', 'LTNG_RTN_MTH_RENT_RCV_AMT', 'HSHLD_AEM_IND', 'HSHLD_ELDR_IND', 'MIN_MTH_RENT_AMT', 'MAX_MTH_RENT_AMT', 'TOT_MTH_RENT_AMT', 'LTNG_RTN_FRST_MTH_ARR_AMT', 'LTNG_RTN_SCND_MTH_ARR_AMT', 'LTNG_RTN_THRD_ABV_MTH_ARR_AMT', 'LTNG_RTN_PND_WRTF_AMT']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
         # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
         lib.write_table(df_write, conn_target, "DDS_FACT_MTH_RENT_AND_ARR_SMRY", mode="append")
 
@@ -211,7 +210,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("NULL"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["TIME_DMNS_KEY", "RENT_RVW_CATG_DMNS_KEY", "COST_CTR_SCD_KEY", "RENT_FCTR_DMNS_KEY", "MGT_MODE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "FLAT_TYPE_DMNS_KEY"]:
-            if _col not in df_EXPTRANS.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
@@ -224,7 +223,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         # column names in batch_update/batch_delete.
         _field_map = {"COST_CTR_SCD_KEY": "COST_CTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY": "FLAT_TYPE_DMNS_KEY", "HSHLD_AEM_IND": "HSHLD_AEM_IND", "HSHLD_ELDR_IND": "HSHLD_ELDR_IND", "HSHLD_SIZE_DMNS_KEY": "HSHLD_SIZE_DMNS_KEY", "LTNG_RTN_CMLT_ARR_AMT": "DUMMY", "LTNG_RTN_FRST_MTH_ARR_AMT": "DUMMY", "LTNG_RTN_MTH_RENT_RCV_AMT": "DUMMY", "LTNG_RTN_PND_WRTF_AMT": "DUMMY", "LTNG_RTN_SCND_MTH_ARR_AMT": "DUMMY", "LTNG_RTN_THRD_ABV_MTH_ARR_AMT": "DUMMY", "MGT_MODE_DMNS_KEY": "MGT_MODE_DMNS_KEY", "RENT_FCTR_DMNS_KEY": "RENT_FCTR_DMNS_KEY", "RENT_RVW_CATG_DMNS_KEY": "RENT_RVW_CATG_DMNS_KEY", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with
                 # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
                 for _c in list(df_write.columns):
@@ -245,7 +244,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_write = df_write.withColumn("TOT_MTH_RENT_AMT", lit(None).cast(StringType()))
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['TIME_DMNS_KEY', 'RENT_RVW_CATG_DMNS_KEY', 'COST_CTR_SCD_KEY', 'RENT_FCTR_DMNS_KEY', 'MGT_MODE_DMNS_KEY', 'HSHLD_SIZE_DMNS_KEY', 'FLAT_TYPE_DMNS_KEY', 'MTH_RCV_RENT_AMT', 'FRST_MTH_ARR_AMT', 'SCND_MTH_ARR_AMT', 'THRD_AND_ABV_MTH_ARR_AMT', 'EXTNT_OSTD_DEBT_AMT', 'ACTV_TNCY_CNT', 'PSTV_RENT_ACTV_TNCY_CNT', 'ARR_ACTV_TNCY_CNT', 'LTNG_RTN_CMLT_ARR_AMT', 'LTNG_RTN_MTH_RENT_RCV_AMT', 'HSHLD_AEM_IND', 'HSHLD_ELDR_IND', 'MIN_MTH_RENT_AMT', 'MAX_MTH_RENT_AMT', 'TOT_MTH_RENT_AMT', 'LTNG_RTN_FRST_MTH_ARR_AMT', 'LTNG_RTN_SCND_MTH_ARR_AMT', 'LTNG_RTN_THRD_ABV_MTH_ARR_AMT', 'LTNG_RTN_PND_WRTF_AMT']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
         # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
         lib.write_table(df_write, conn_target, "DDS_FACT_MTH_RENT_AND_ARR_SMRY", mode="append")
 

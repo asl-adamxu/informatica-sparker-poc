@@ -17,7 +17,8 @@ from pyspark.sql.types import *
 # MAPPING LOGIC
 # =============================================================================
 
-def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> bool:
+def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
+                session_sqls=None) -> bool:
     """
     Execute the M_UTL_DPA_TRUNCATE mapping transformations.
 
@@ -28,7 +29,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         ctx: Optional SparkContext for session and DataFrame registry
         metrics: Optional metrics tracker (or NullMetrics if not provided)
         job_params: Optional dict of job parameters loaded by workflow
-    
+        session_sqls: The session's Target Pre/Post SQL dict 
     Returns:
         bool: True if successful
     """
@@ -45,7 +46,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
     metrics.start()
 
     conn_oracle = lib.get_db_config(config, "oracle-defaults")
-    conn_source = lib.get_db_config(config, "UTL")
     conn_target = lib.get_db_config(config, "UTL")
 
     
@@ -95,7 +95,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_SQ_UTL_DPA_TBL_LIST = df_UTL_DPA_TBL_LIST
         # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
         _port_cols = ["TABLE"]
-        df_SQ_UTL_DPA_TBL_LIST = df_SQ_UTL_DPA_TBL_LIST.select([col(c) if c in df_SQ_UTL_DPA_TBL_LIST.columns else lit(None).alias(c) for c in _port_cols])
+        df_SQ_UTL_DPA_TBL_LIST = df_SQ_UTL_DPA_TBL_LIST.select([col(c) if c.lower() in [x.lower() for x in df_SQ_UTL_DPA_TBL_LIST.columns] else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_SQ_UTL_DPA_TBL_LIST", df_SQ_UTL_DPA_TBL_LIST)
         
         logger.info("Step: apply_EXPTRANS2")
@@ -112,15 +112,15 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_EXPTRANS2 = df_EXPTRANS2.withColumn("OUTPUT", lit("SUCCESS"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["TABLE"]:
-            if _col not in df_EXPTRANS2.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS2.columns]:
                 df_EXPTRANS2 = df_EXPTRANS2.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS2", df_EXPTRANS2)
         
         logger.info("Step: write_UTL_DEV_NULL")
         # Write to Target: write_UTL_DEV_NULL
-        # /dev/null — skip entire write component (no-op target in Informatica)
-        logger.info("Target write_UTL_DEV_NULL is /dev/null, skipping write")
+        # /dev/null / DUAL — skip entire write component 
+        logger.info("Target write_UTL_DEV_NULL is a no-op target (/dev/null or DUAL), skipping write")
 
         logger.info("write_UTL_DEV_NULL write completed")
         

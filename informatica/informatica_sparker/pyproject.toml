@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "informatica-sparker"
-version = "v2026.08.03"
+version = "v2026.08.04"
 description = "Framework to convert Informatica PowerCenter XML exports to PySpark code for Databricks. Auto-detects sources (SQL, CSV, Parquet, XML, JSON, text, DAT, files without extensions) and generates complete deployment packages."
 requires-python = ">=3.10"
 license = {text = "MIT"}

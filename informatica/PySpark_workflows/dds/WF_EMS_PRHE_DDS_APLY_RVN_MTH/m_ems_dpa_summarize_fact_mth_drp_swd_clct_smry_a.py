@@ -17,7 +17,8 @@ from pyspark.sql.types import *
 # MAPPING LOGIC
 # =============================================================================
 
-def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> bool:
+def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
+                session_sqls=None) -> bool:
     """
     Execute the M_EMS_DPA_SUMMARIZE_FACT_MTH_DRP_SWD_CLCT_SMRY_A mapping transformations.
 
@@ -28,7 +29,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         ctx: Optional SparkContext for session and DataFrame registry
         metrics: Optional metrics tracker (or NullMetrics if not provided)
         job_params: Optional dict of job parameters loaded by workflow
-    
+        session_sqls: The session's Target Pre/Post SQL dict 
     Returns:
         bool: True if successful
     """
@@ -44,8 +45,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
     metrics = metrics or lib.NullMetrics()
     metrics.start()
 
-    conn_oracle = lib.get_db_config(config, "oracle-defaults")
-    conn_source = lib.get_db_config(config, "SOR")
     conn_target = lib.get_db_config(config, "DPA")
 
     v_snsh_date = ""
@@ -85,7 +84,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_PRLM_DRP = df_PRLM_DRP.filter(expr(_filter_text))
         # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
         _port_cols = ["DRP_TXN_VAL_DATE", "CUST_KEY", "HSE_SRVC_APLY_KEY"]
-        df_PRLM_DRP = df_PRLM_DRP.select([col(c) if c in df_PRLM_DRP.columns else lit(None).alias(c) for c in _port_cols])
+        df_PRLM_DRP = df_PRLM_DRP.select([col(c) if c.lower() in [x.lower() for x in df_PRLM_DRP.columns] else lit(None).alias(c) for c in _port_cols])
         ctx.register_df("df_PRLM_DRP", df_PRLM_DRP)
         
         logger.info("Step: apply_ACTUAL_DRP")
@@ -125,7 +124,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_ACTUAL_DRP = df_ACTUAL_DRP.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
         # Select only SQ output ports (matches Informatica behavior)
         # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_ACTUAL_DRP = df_ACTUAL_DRP.select([col(c) if c in df_ACTUAL_DRP.columns else lit(None).alias(c) for c in _port_cols])
+        df_ACTUAL_DRP = df_ACTUAL_DRP.select([col(c) if c.lower() in [x.lower() for x in df_ACTUAL_DRP.columns] else lit(None).alias(c) for c in _port_cols])
         
         ctx.register_df("df_ACTUAL_DRP", df_ACTUAL_DRP)
         
@@ -139,8 +138,8 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_EXPTRANS = df_EXPTRANS.withColumn("NO_OF_TXN", expr("0"))
         df_EXPTRANS = df_EXPTRANS.withColumn("TNCY_AGRMT_BK", expr("lpad(CUST_KEY,9,'0') || lpad(HSE_SRVC_APLY_KEY,15,'0')"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["CUST_KEY", "HSE_SRVC_APLY_KEY"]:
-            if _col not in df_EXPTRANS.columns:
+        for _col in ["HSE_SRVC_APLY_KEY", "CUST_KEY"]:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
@@ -155,7 +154,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_EXPTRANS2 = df_EXPTRANS2.withColumn("TNCY_AGRMT_BK", expr("lpad(CUST_KEY_V,9,'0') || lpad(PRH_APLY_BK_2_V,15,'0')"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["TXN_NUM", "TXN_MTHD_CODE", "TXN_PYMT_ITEM_AMT", "CUST_KEY", "PRH_APLY_BK_2"]:
-            if _col not in df_EXPTRANS2.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS2.columns]:
                 df_EXPTRANS2 = df_EXPTRANS2.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS2", df_EXPTRANS2)
@@ -198,7 +197,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None) -> 
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_prlm, allowMissingColumns=True)
         # Select only union output columns (add lit(None) for any missing)
         for _col in ["TNCY_AGRMT_BK", "MONTH_DATE", "TYPE", "TXN_MTHD_CODE", "DRP_AMT", "NO_OF_TXN"]:
-            if _col not in df_Union_Transformation.columns:
+            if _col.lower() not in [x.lower() for x in df_Union_Transformation.columns]:
                 df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
         df_Union_Transformation = df_Union_Transformation.select("TNCY_AGRMT_BK", "MONTH_DATE", "TYPE", "TXN_MTHD_CODE", "DRP_AMT", "NO_OF_TXN")
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
@@ -251,7 +250,7 @@ group by LPAD(CUST_KEY,9,'0') || LPAD(HSE_SRVC_APLY_KEY,15,'0')"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_UAO_FEE_ADV_AMT[c] for c in df_LKP_UAO_FEE_ADV_AMT.columns if c not in _lkp_input.columns]
+            *[df_LKP_UAO_FEE_ADV_AMT[c] for c in df_LKP_UAO_FEE_ADV_AMT.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
         logger.info("Step: read_LKP_UAO_FEE_ARR_AMT")
@@ -283,7 +282,7 @@ group by LPAD(CUST_KEY,9,'0') || LPAD(HSE_SRVC_APLY_KEY,15,'0')"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_UAO_FEE_ARR_AMT[c] for c in df_LKP_UAO_FEE_ARR_AMT.columns if c not in _lkp_input.columns]
+            *[df_LKP_UAO_FEE_ARR_AMT[c] for c in df_LKP_UAO_FEE_ARR_AMT.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_MTH_RENT")
@@ -315,7 +314,7 @@ group by LPAD(CUST_KEY,9,'0') || LPAD(HSE_SRVC_APLY_KEY,15,'0')"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_MTH_RENT[c] for c in df_LKP_MTH_RENT.columns if c not in _lkp_input.columns]
+            *[df_LKP_MTH_RENT[c] for c in df_LKP_MTH_RENT.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_SOR_EMS_TAM_TNCY_AGRMT_STS")
@@ -381,7 +380,7 @@ group by
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_SOR_EMS_TAM_TNCY_AGRMT_STS[c] for c in df_LKP_SOR_EMS_TAM_TNCY_AGRMT_STS.columns if c not in _lkp_input.columns]
+            *[df_LKP_SOR_EMS_TAM_TNCY_AGRMT_STS[c] for c in df_LKP_SOR_EMS_TAM_TNCY_AGRMT_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_MSN_PRFT_ARR_AMT")
@@ -413,7 +412,7 @@ group by LPAD(CUST_KEY,9,'0') || LPAD(HSE_SRVC_APLY_KEY,15,'0')"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_MSN_PRFT_ARR_AMT[c] for c in df_LKP_MSN_PRFT_ARR_AMT.columns if c not in _lkp_input.columns]
+            *[df_LKP_MSN_PRFT_ARR_AMT[c] for c in df_LKP_MSN_PRFT_ARR_AMT.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_RENT_ARR_AMT")
@@ -445,7 +444,7 @@ group by LPAD(CUST_KEY,9,'0') || LPAD(HSE_SRVC_APLY_KEY,15,'0')"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_RENT_ARR_AMT[c] for c in df_LKP_RENT_ARR_AMT.columns if c not in _lkp_input.columns]
+            *[df_LKP_RENT_ARR_AMT[c] for c in df_LKP_RENT_ARR_AMT.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_RENT_ADV_AMT")
@@ -477,7 +476,7 @@ group by LPAD(CUST_KEY,9,'0') || LPAD(HSE_SRVC_APLY_KEY,15,'0')"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_RENT_ADV_AMT[c] for c in df_LKP_RENT_ADV_AMT.columns if c not in _lkp_input.columns]
+            *[df_LKP_RENT_ADV_AMT[c] for c in df_LKP_RENT_ADV_AMT.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_MSN_PRFT_ADV_AMT")
@@ -509,7 +508,7 @@ group by LPAD(CUST_KEY,9,'0') || LPAD(HSE_SRVC_APLY_KEY,15,'0')"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_MSN_PRFT_ADV_AMT[c] for c in df_LKP_MSN_PRFT_ADV_AMT.columns if c not in _lkp_input.columns]
+            *[df_LKP_MSN_PRFT_ADV_AMT[c] for c in df_LKP_MSN_PRFT_ADV_AMT.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_RATE_CNCSN")
@@ -545,7 +544,7 @@ AND RATS.END_DATE >= TO_DATE('$$v_snsh_date', 'YYYYMMDD')
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_RATE_CNCSN[c] for c in df_LKP_RATE_CNCSN.columns if c not in _lkp_input.columns]
+            *[df_LKP_RATE_CNCSN[c] for c in df_LKP_RATE_CNCSN.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_RENT_WVE")
@@ -585,7 +584,7 @@ GROUP BY LPAD(CUST_KEY,9,'0') || LPAD(HSE_SRVC_APLY_KEY,15,'0')"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_RENT_WVE[c] for c in df_LKP_RENT_WVE.columns if c not in _lkp_input.columns]
+            *[df_LKP_RENT_WVE[c] for c in df_LKP_RENT_WVE.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_RENT_FREE")
@@ -623,7 +622,7 @@ GROUP BY   LPAD(CUST_KEY,9,'0') || LPAD(HSE_SRVC_APLY_KEY,15,'0')"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_RENT_FREE[c] for c in df_LKP_RENT_FREE.columns if c not in _lkp_input.columns]
+            *[df_LKP_RENT_FREE[c] for c in df_LKP_RENT_FREE.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: apply_EXPTRANS1")
@@ -645,7 +644,7 @@ GROUP BY   LPAD(CUST_KEY,9,'0') || LPAD(HSE_SRVC_APLY_KEY,15,'0')"""
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("UAO_FEE_ADV_AMT1", expr("CASE WHEN (ADV_UAO_FEE_PYMT_CF_AMT IS NULL) THEN 0 ELSE ADV_UAO_FEE_PYMT_CF_AMT END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["MONTH_DATE", "TNCY_AGRMT_BK", "RENT_FCTR_CODE"]:
-            if _col not in df_EXPTRANS1.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS1.columns]:
                 df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
@@ -658,7 +657,7 @@ GROUP BY   LPAD(CUST_KEY,9,'0') || LPAD(HSE_SRVC_APLY_KEY,15,'0')"""
         df_EXPTRANS11 = df_EXPTRANS11.withColumn("DIFF_DRP_RENT", expr("DRP_AMT-(MTH_RENT1-RENT_WVE_AMT1-RATE_CNCSN_AMT1-RENT_FREE_AMT1)"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["MONTH_DATE", "TNCY_AGRMT_BK", "TXN_MTHD_TYPE_CODE", "DRP_AMT", "TYPE", "NO_OF_TXN", "RENT_FCTR_CODE"]:
-            if _col not in df_EXPTRANS11.columns:
+            if _col.lower() not in [x.lower() for x in df_EXPTRANS11.columns]:
                 df_EXPTRANS11 = df_EXPTRANS11.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS11", df_EXPTRANS11)
@@ -696,7 +695,7 @@ and u.unit_key = ta2.unit_key"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_EST_KEY[c] for c in df_LKP_EST_KEY.columns if c not in _lkp_input.columns]
+            *[df_LKP_EST_KEY[c] for c in df_LKP_EST_KEY.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)        
         logger.info("Step: apply_AGGTRANS")
@@ -768,7 +767,7 @@ where ADD_MONTHS(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'), 1)-1 between bgn_date
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_EST_SCD_KEY[c] for c in df_LKP_EST_SCD_KEY.columns if c not in _lkp_input.columns]
+            *[df_LKP_EST_SCD_KEY[c] for c in df_LKP_EST_SCD_KEY.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_lkp_merge_3", df_lkp_merge_3)        
         logger.info("Step: read_LKP_TIME_DMNS_KEY")
@@ -798,7 +797,7 @@ WHERE TRUNC(TIME_DMNS_KEY/100000000) =2"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_TIME_DMNS_KEY[c] for c in df_LKP_TIME_DMNS_KEY.columns if c not in _lkp_input.columns]
+            *[df_LKP_TIME_DMNS_KEY[c] for c in df_LKP_TIME_DMNS_KEY.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_LKP_RVN_TXN_MODE_DMNS_KEY")
@@ -822,7 +821,7 @@ WHERE TRUNC(TIME_DMNS_KEY/100000000) =2"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_RVN_TXN_MODE_DMNS_KEY[c] for c in df_LKP_RVN_TXN_MODE_DMNS_KEY.columns if c not in _lkp_input.columns]
+            *[df_LKP_RVN_TXN_MODE_DMNS_KEY[c] for c in df_LKP_RVN_TXN_MODE_DMNS_KEY.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: apply_EXPTRANS3")
@@ -841,7 +840,7 @@ WHERE TRUNC(TIME_DMNS_KEY/100000000) =2"""
         # column names in batch_update/batch_delete.
         _field_map = {"DRP_ACTL_TXN_CNT": "ACT_TXN_CNT", "DRP_ACTL_TXN_PYMT_ITEM_AMT": "ACT_DRP_AMT", "DRP_ACTL_TXN_TNCY_CNT": "ACT_TNCY_CNT", "DRP_ADV_TNCY_CNT": "ADV_TNCY_CNT", "DRP_CMLT_ARR_AMT": "DRP_ARR_AMT", "DRP_DBL_RENT_TNCY_CNT": "DRP_TNCY_CNT_2", "DRP_EXACT_PAY_ARR_TNCY_CNT": "ARR_TNCY_CNT", "DRP_EXACT_PAY_TNCY_CNT": "DRP_EQUAL_TNCY_CNT", "DRP_EXTRA_RENT_TNCY_CNT": "DPR_TNCY_CNT_15", "DRP_HALF_RENT_TNCY_CNT": "DRP_TNCY_CNT_05", "DRP_MKT_RENT_TNCY_CNT": "DRP_TNCY_CNT_MKT", "DRP_NRML_RENT_TNCY_CNT": "DRP_TNCY_CNT_1", "DRP_OVER_PAY_TNCY_CNT": "DRP_GREATER_TNCY_CNT", "DRP_PRLM_FILE_TNCY_CNT": "DRP_TNCY_CNT", "DRP_THRD_QTR_RENT_TNCY_CNT": "DRP_TNCY_CNT_075", "DRP_TNCY_CMLT_ADV_AMT": "DRP_ADV_AMT", "DRP_UND_PAY_ARR_TNCY_CNT": "DRP_GREATER_ARR_TNCY_CNT", "DRP_UND_PAY_CMLT_ARR_AMT": "DRP_GREATER_ARR_AMT", "DRP_UND_PAY_TNCY_CNT": "DRP_LESS_TNCY_CNT", "EST_SCD_KEY": "EST_SCD_KEY1", "RVN_TXN_MODE_DMNS_KEY": "RVN_TXN_MODE_DMNS_KEY", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
         for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col not in df_write.columns and _src_col in df_write.columns:
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with
                 # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
                 for _c in list(df_write.columns):
@@ -854,7 +853,7 @@ WHERE TRUNC(TIME_DMNS_KEY/100000000) =2"""
         df_write = df_write.withColumn("DRP_REJ_TXN_CNT", lit(None).cast(StringType()))
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['TIME_DMNS_KEY', 'RVN_TXN_MODE_DMNS_KEY', 'EST_SCD_KEY', 'DRP_ACTL_TXN_PYMT_ITEM_AMT', 'DRP_ACTL_TXN_CNT', 'DRP_ACTL_TXN_TNCY_CNT', 'DRP_PRLM_FILE_TNCY_CNT', 'DRP_OVER_PAY_TNCY_CNT', 'DRP_EXACT_PAY_TNCY_CNT', 'DRP_UND_PAY_TNCY_CNT', 'DRP_CMLT_ARR_AMT', 'DRP_UND_PAY_CMLT_ARR_AMT', 'DRP_EXACT_PAY_ARR_TNCY_CNT', 'DRP_UND_PAY_ARR_TNCY_CNT', 'DRP_TNCY_CMLT_ADV_AMT', 'DRP_ADV_TNCY_CNT', 'DRP_HALF_RENT_TNCY_CNT', 'DRP_THRD_QTR_RENT_TNCY_CNT', 'DRP_NRML_RENT_TNCY_CNT', 'DRP_EXTRA_RENT_TNCY_CNT', 'DRP_DBL_RENT_TNCY_CNT', 'DRP_MKT_RENT_TNCY_CNT', 'DRP_CASE_CNT', 'DRP_REJ_TXN_PYMT_ITEM_AMT', 'DRP_REJ_TXN_CNT']
-        df_write = df_write.select(*[col for col in _target_cols if col in df_write.columns])
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
         # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
         lib.write_table(df_write, conn_target, "DPA_FACT_MTH_DRP_SWD_CLCT_SMRY", mode="append")
 
