@@ -379,20 +379,25 @@ FROM
 
         logger.info("Step: join_MPLT_AGMT_NHS_INTVW_SCHD_0")
         # Lookup: join_MPLT_AGMT_NHS_INTVW_SCHD_0
-        # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
-        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
+        # Merge on common columns — drop lookup columns that duplicate non-key input columns. 
+        # Matches are CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
         _cc = list(dict.fromkeys(c for c in df_MPLT_AGMT_NHS_PHASE.columns if c.lower() in [x.lower() for x in df_lkp_merge_7.columns]))
         if _cc:
             __lkp_dup = [c for c in df_lkp_merge_7.columns if c.lower() in [x.lower() for x in df_MPLT_AGMT_NHS_PHASE.columns] and c.lower() not in [x.lower() for x in _cc]]
+            # Break attribute lineage on the merged side: when both inputs are built from the same source plan. 
+            # Re-projecting with aliases gives this side fresh attribute IDs without changing rows or column names.
+            __rhs = df_lkp_merge_7.drop(*__lkp_dup) if __lkp_dup else df_lkp_merge_7
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
             df_MPLT_AGMT_NHS_INTVW_SCHD_merge_14 = df_MPLT_AGMT_NHS_PHASE.join(
-                df_lkp_merge_7.drop(*__lkp_dup) if __lkp_dup else df_lkp_merge_7,
+                __rhs,
                 on=_cc, how="left"
             )
         else:
             logger.warning("No common columns between df_MPLT_AGMT_NHS_PHASE and df_lkp_merge_7 — using synthetic key join")
+            __rhs = df_lkp_merge_7.withColumn("_join_key", lit(1))
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
             df_MPLT_AGMT_NHS_INTVW_SCHD_merge_14 = df_MPLT_AGMT_NHS_PHASE.withColumn("_join_key", lit(1)).join(
-                df_lkp_merge_7.withColumn("_join_key", lit(1)),
+                __rhs,
                 on="_join_key", how="left").drop("_join_key")
         ctx.register_df("df_MPLT_AGMT_NHS_INTVW_SCHD_merge_14", df_MPLT_AGMT_NHS_INTVW_SCHD_merge_14)
         
@@ -550,7 +555,7 @@ FROM
         query = f"""SELECT SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.BGN_DATE as BGN_DATE, SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.END_DATE as END_DATE, SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.INTVW_SCHD_KEY as INTVW_SCHD_KEY, SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.HOS_APLY_NUM as HOS_APLY_NUM, SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.CUR_PRIOR_NUM as CUR_PRIOR_NUM, SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.HOS_APLY_KEY as HOS_APLY_KEY, SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.PHASE_CODE as PHASE_CODE, SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.APLY_1D_BRCD_NUM as APLY_1D_BRCD_NUM, SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.ROW_VER_NUM as ROW_VER_NUM, SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.PRIOR_CATG_GRP_CODE as PRIOR_CATG_GRP_CODE, SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.FLAT_SLCT_ASGN_MODE_IND as FLAT_SLCT_ASGN_MODE_IND, SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.DOC_PRN_LOG_SEQ_NUM as DOC_PRN_LOG_SEQ_NUM, SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.FLAT_SLCT_ASGN_DATE as FLAT_SLCT_ASGN_DATE, SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.FLAT_SLCT_SSN_ASGN_RQS_KEY as FLAT_SLCT_SSN_ASGN_RQS_KEY, SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.EFAS_PRIOR_NUM_SFX_NUM as EFAS_PRIOR_NUM_SFX_NUM, SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.FLAT_SLCT_SSN_ASGN_KEY as FLAT_SLCT_SSN_ASGN_KEY FROM SOR_NHS_FLAT_SLCT_SSN_ASGN_STS
 , (select FLAT_SLCT_SSN_ASGN_KEY, max(bgn_date) max_bgn_date from SOR_NHS_FLAT_SLCT_SSN_ASGN_STS group by FLAT_SLCT_SSN_ASGN_KEY) ss
 where SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.FLAT_SLCT_SSN_ASGN_KEY = ss.FLAT_SLCT_SSN_ASGN_KEY and SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.bgn_date = ss.max_bgn_date
- ORDER BY SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.FLAT_SLCT_SSN_ASGN_KEY --"""
+ ORDER BY SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.FLAT_SLCT_SSN_ASGN_KEY """
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_init_flag", v_init_flag)
         df_DLKP_SOR_STS = lib.read_sql(spark, _conn, query=query)
@@ -735,58 +740,39 @@ where SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.FLAT_SLCT_SSN_ASGN_KEY = ss.FLAT_SLCT_SSN_A
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS_STS", df_EXPTRANS_STS)
         
-        logger.info("Step: join_MPLT_DLKP_CACHE_STATUS_MSTR_0")
-        # Lookup: join_MPLT_DLKP_CACHE_STATUS_MSTR_0
-        # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
-        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
-        _cc = list(dict.fromkeys(c for c in df_lkp_merge_21.columns if c.lower() in [x.lower() for x in df_EXPTRANS_MSTR.columns]))
-        if _cc:
-            __lkp_dup = [c for c in df_EXPTRANS_MSTR.columns if c.lower() in [x.lower() for x in df_lkp_merge_21.columns] and c.lower() not in [x.lower() for x in _cc]]
-            df_MPLT_DLKP_CACHE_STATUS_merge_22 = df_lkp_merge_21.join(
-                df_EXPTRANS_MSTR.drop(*__lkp_dup) if __lkp_dup else df_EXPTRANS_MSTR,
-                on=_cc, how="left"
-            )
-        else:
-            logger.warning("No common columns between df_lkp_merge_21 and df_EXPTRANS_MSTR — using synthetic key join")
-            df_MPLT_DLKP_CACHE_STATUS_merge_22 = df_lkp_merge_21.withColumn("_join_key", lit(1)).join(
-                df_EXPTRANS_MSTR.withColumn("_join_key", lit(1)),
-                on="_join_key", how="left").drop("_join_key")
-        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_merge_22", df_MPLT_DLKP_CACHE_STATUS_merge_22)
-        
         logger.info("Step: nullinput_MPLT_DLKP_CACHE_STATUS_MSTR")
         # Expression: nullinput_MPLT_DLKP_CACHE_STATUS_MSTR
-        df_MPLT_DLKP_CACHE_STATUS_nullinput_23 = df_MPLT_DLKP_CACHE_STATUS_merge_22
-        df_MPLT_DLKP_CACHE_STATUS_nullinput_23 = df_MPLT_DLKP_CACHE_STATUS_nullinput_23.withColumn("IN_SOR_DATE", expr("NULL"))
-        df_MPLT_DLKP_CACHE_STATUS_nullinput_23 = df_MPLT_DLKP_CACHE_STATUS_nullinput_23.withColumn("IN_TABLE_NAME", expr("NULL"))
-        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_nullinput_23", df_MPLT_DLKP_CACHE_STATUS_nullinput_23)
+        df_MPLT_DLKP_CACHE_STATUS_nullinput_22 = df_lkp_merge_21
+        df_MPLT_DLKP_CACHE_STATUS_nullinput_22 = df_MPLT_DLKP_CACHE_STATUS_nullinput_22.withColumn("IN_SOR_DATE", expr("NULL"))
+        df_MPLT_DLKP_CACHE_STATUS_nullinput_22 = df_MPLT_DLKP_CACHE_STATUS_nullinput_22.withColumn("IN_TABLE_NAME", expr("NULL"))
+        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_nullinput_22", df_MPLT_DLKP_CACHE_STATUS_nullinput_22)
         
         logger.info("Step: input_MPLT_DLKP_CACHE_STATUS_MSTR")
         # Expression: input_MPLT_DLKP_CACHE_STATUS_MSTR
-        df_MPLT_DLKP_CACHE_STATUS_input_24 = df_MPLT_DLKP_CACHE_STATUS_nullinput_23
-        df_MPLT_DLKP_CACHE_STATUS_input_24 = df_MPLT_DLKP_CACHE_STATUS_input_24.withColumn("IN_V_DLKP_SOR_CACHE_STATUS", expr("IN_CACHE_STATUS"))
-        df_MPLT_DLKP_CACHE_STATUS_input_24 = df_MPLT_DLKP_CACHE_STATUS_input_24.withColumn("IN_V_DEL_IND", expr("DELETE_IND"))
-        df_MPLT_DLKP_CACHE_STATUS_input_24 = df_MPLT_DLKP_CACHE_STATUS_input_24.withColumn("IN_V_INIT_IND", expr("INIT_FLAG"))
-        df_MPLT_DLKP_CACHE_STATUS_input_24 = df_MPLT_DLKP_CACHE_STATUS_input_24.withColumn("IN_V_LAST_UPDATE_DATE", expr("LST_UPT_DTIME"))
-        df_MPLT_DLKP_CACHE_STATUS_input_24 = df_MPLT_DLKP_CACHE_STATUS_input_24.withColumn("IN_AGMT_IND", expr("AGMT_IND"))
-        df_MPLT_DLKP_CACHE_STATUS_input_24 = df_MPLT_DLKP_CACHE_STATUS_input_24.withColumn("IN_V_SNAPSHOT_DATE", expr("SNAPSHOT_DATE"))
-        df_MPLT_DLKP_CACHE_STATUS_input_24 = df_MPLT_DLKP_CACHE_STATUS_input_24.withColumn("IN_V_DLKP_SSA_CACHE_STATUS", expr("NewLookupRow"))
-        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_input_24", df_MPLT_DLKP_CACHE_STATUS_input_24)
+        df_MPLT_DLKP_CACHE_STATUS_input_23 = df_MPLT_DLKP_CACHE_STATUS_nullinput_22
+        df_MPLT_DLKP_CACHE_STATUS_input_23 = df_MPLT_DLKP_CACHE_STATUS_input_23.withColumn("IN_V_DLKP_SOR_CACHE_STATUS", expr("IN_CACHE_STATUS"))
+        df_MPLT_DLKP_CACHE_STATUS_input_23 = df_MPLT_DLKP_CACHE_STATUS_input_23.withColumn("IN_V_DEL_IND", expr("DELETE_IND"))
+        df_MPLT_DLKP_CACHE_STATUS_input_23 = df_MPLT_DLKP_CACHE_STATUS_input_23.withColumn("IN_V_INIT_IND", expr("INIT_FLAG"))
+        df_MPLT_DLKP_CACHE_STATUS_input_23 = df_MPLT_DLKP_CACHE_STATUS_input_23.withColumn("IN_V_LAST_UPDATE_DATE", expr("LST_UPT_DTIME"))
+        df_MPLT_DLKP_CACHE_STATUS_input_23 = df_MPLT_DLKP_CACHE_STATUS_input_23.withColumn("IN_AGMT_IND", expr("AGMT_IND"))
+        df_MPLT_DLKP_CACHE_STATUS_input_23 = df_MPLT_DLKP_CACHE_STATUS_input_23.withColumn("IN_V_SNAPSHOT_DATE", expr("SNAPSHOT_DATE"))
+        df_MPLT_DLKP_CACHE_STATUS_input_23 = df_MPLT_DLKP_CACHE_STATUS_input_23.withColumn("IN_V_DLKP_SSA_CACHE_STATUS", expr("NewLookupRow"))
+        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_input_23", df_MPLT_DLKP_CACHE_STATUS_input_23)
         
         logger.info("Step: rename_EXP_UPD_STRATEGY")
         # Expression: rename_EXP_UPD_STRATEGY
-        df_MPLT_DLKP_CACHE_STATUS_rename_25 = df_MPLT_DLKP_CACHE_STATUS_input_24
-        df_MPLT_DLKP_CACHE_STATUS_rename_25 = df_MPLT_DLKP_CACHE_STATUS_rename_25.drop("IN_DEL_FLAG").withColumnRenamed("IN_V_DEL_IND", "IN_DEL_FLAG")
-        df_MPLT_DLKP_CACHE_STATUS_rename_25 = df_MPLT_DLKP_CACHE_STATUS_rename_25.drop("IN_DLK_SOR_CACHE_STATUS").withColumnRenamed("IN_V_DLKP_SOR_CACHE_STATUS", "IN_DLK_SOR_CACHE_STATUS")
-        df_MPLT_DLKP_CACHE_STATUS_rename_25 = df_MPLT_DLKP_CACHE_STATUS_rename_25.drop("SNAPSHOT_DATE").withColumnRenamed("IN_V_SNAPSHOT_DATE", "SNAPSHOT_DATE")
-        df_MPLT_DLKP_CACHE_STATUS_rename_25 = df_MPLT_DLKP_CACHE_STATUS_rename_25.drop("AGMT_IND").withColumnRenamed("IN_AGMT_IND", "AGMT_IND")
-        df_MPLT_DLKP_CACHE_STATUS_rename_25 = df_MPLT_DLKP_CACHE_STATUS_rename_25.drop("TABLE_NAME").withColumnRenamed("IN_TABLE_NAME", "TABLE_NAME")
-        df_MPLT_DLKP_CACHE_STATUS_rename_25 = df_MPLT_DLKP_CACHE_STATUS_rename_25.drop("IN_DLKP_SSA_CACHE_STATUS").withColumnRenamed("IN_V_DLKP_SSA_CACHE_STATUS", "IN_DLKP_SSA_CACHE_STATUS")
-        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_rename_25", df_MPLT_DLKP_CACHE_STATUS_rename_25)
+        df_MPLT_DLKP_CACHE_STATUS_rename_24 = df_MPLT_DLKP_CACHE_STATUS_input_23
+        df_MPLT_DLKP_CACHE_STATUS_rename_24 = df_MPLT_DLKP_CACHE_STATUS_rename_24.drop("IN_DEL_FLAG").withColumnRenamed("IN_V_DEL_IND", "IN_DEL_FLAG")
+        df_MPLT_DLKP_CACHE_STATUS_rename_24 = df_MPLT_DLKP_CACHE_STATUS_rename_24.drop("IN_DLK_SOR_CACHE_STATUS").withColumnRenamed("IN_V_DLKP_SOR_CACHE_STATUS", "IN_DLK_SOR_CACHE_STATUS")
+        df_MPLT_DLKP_CACHE_STATUS_rename_24 = df_MPLT_DLKP_CACHE_STATUS_rename_24.drop("SNAPSHOT_DATE").withColumnRenamed("IN_V_SNAPSHOT_DATE", "SNAPSHOT_DATE")
+        df_MPLT_DLKP_CACHE_STATUS_rename_24 = df_MPLT_DLKP_CACHE_STATUS_rename_24.drop("AGMT_IND").withColumnRenamed("IN_AGMT_IND", "AGMT_IND")
+        df_MPLT_DLKP_CACHE_STATUS_rename_24 = df_MPLT_DLKP_CACHE_STATUS_rename_24.drop("TABLE_NAME").withColumnRenamed("IN_TABLE_NAME", "TABLE_NAME")
+        df_MPLT_DLKP_CACHE_STATUS_rename_24 = df_MPLT_DLKP_CACHE_STATUS_rename_24.drop("IN_DLKP_SSA_CACHE_STATUS").withColumnRenamed("IN_V_DLKP_SSA_CACHE_STATUS", "IN_DLKP_SSA_CACHE_STATUS")
+        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_rename_24", df_MPLT_DLKP_CACHE_STATUS_rename_24)
         
         logger.info("Step: apply_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY")
         # Expression: apply_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY
-        df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY = df_MPLT_DLKP_CACHE_STATUS_rename_25
+        df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY = df_MPLT_DLKP_CACHE_STATUS_rename_24
         df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY = df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY.withColumn("UPDATE_STRATEGY_STATUS", expr("CASE WHEN IN_DLK_SOR_CACHE_STATUS = 1 THEN 'DD_INSERT' ELSE CASE WHEN IN_DLKP_SSA_CACHE_STATUS = 1 THEN 'DD_INSERT' ELSE 'DD_UPDATE' END END"))
         df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY = df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY.withColumn("NEW_FLAG", expr("CASE WHEN IN_DLK_SOR_CACHE_STATUS = 1 THEN 1 ELSE 0 END"))
         df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY = df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY.withColumn("CHG_FLAG", expr("CASE WHEN IN_DLK_SOR_CACHE_STATUS = 2 THEN 1 ELSE 0 END"))
@@ -800,15 +786,15 @@ where SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.FLAT_SLCT_SSN_ASGN_KEY = ss.FLAT_SLCT_SSN_A
         
         logger.info("Step: rename_EXP_CDC")
         # Expression: rename_EXP_CDC
-        df_MPLT_DLKP_CACHE_STATUS_rename_26 = df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY
-        df_MPLT_DLKP_CACHE_STATUS_rename_26 = df_MPLT_DLKP_CACHE_STATUS_rename_26.drop("SOR_DATE").withColumnRenamed("IN_SOR_DATE", "SOR_DATE")
-        df_MPLT_DLKP_CACHE_STATUS_rename_26 = df_MPLT_DLKP_CACHE_STATUS_rename_26.drop("INIT_FLAG").withColumnRenamed("IN_V_INIT_IND", "INIT_FLAG")
-        df_MPLT_DLKP_CACHE_STATUS_rename_26 = df_MPLT_DLKP_CACHE_STATUS_rename_26.drop("LAST_UPDATE_DATE").withColumnRenamed("IN_V_LAST_UPDATE_DATE", "LAST_UPDATE_DATE")
-        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_rename_26", df_MPLT_DLKP_CACHE_STATUS_rename_26)
+        df_MPLT_DLKP_CACHE_STATUS_rename_25 = df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY
+        df_MPLT_DLKP_CACHE_STATUS_rename_25 = df_MPLT_DLKP_CACHE_STATUS_rename_25.drop("SOR_DATE").withColumnRenamed("IN_SOR_DATE", "SOR_DATE")
+        df_MPLT_DLKP_CACHE_STATUS_rename_25 = df_MPLT_DLKP_CACHE_STATUS_rename_25.drop("INIT_FLAG").withColumnRenamed("IN_V_INIT_IND", "INIT_FLAG")
+        df_MPLT_DLKP_CACHE_STATUS_rename_25 = df_MPLT_DLKP_CACHE_STATUS_rename_25.drop("LAST_UPDATE_DATE").withColumnRenamed("IN_V_LAST_UPDATE_DATE", "LAST_UPDATE_DATE")
+        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_rename_25", df_MPLT_DLKP_CACHE_STATUS_rename_25)
         
         logger.info("Step: apply_MPLT_DLKP_CACHE_STATUS_EXP_CDC")
         # Expression: apply_MPLT_DLKP_CACHE_STATUS_EXP_CDC
-        df_MPLT_DLKP_CACHE_STATUS_EXP_CDC = df_MPLT_DLKP_CACHE_STATUS_rename_26
+        df_MPLT_DLKP_CACHE_STATUS_EXP_CDC = df_MPLT_DLKP_CACHE_STATUS_rename_25
         df_MPLT_DLKP_CACHE_STATUS_EXP_CDC = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.withColumn("CDC_FLAG", expr("CASE WHEN 1 = NEW_FLAG THEN 1 WHEN 1 = CHG_FLAG THEN 1 WHEN 1 = DEL_FLAG THEN 1 ELSE 0 END"))
         df_MPLT_DLKP_CACHE_STATUS_EXP_CDC = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.withColumn("V_OPR_IND", expr("CASE WHEN NEW_FLAG = 1 THEN 'B' ELSE CASE WHEN CHG_FLAG = 1 THEN 'EB' ELSE CASE WHEN DEL_FLAG = 1 THEN 'E' ELSE NULL END END END"))
         df_MPLT_DLKP_CACHE_STATUS_EXP_CDC = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.withColumn("OPR_IND", expr("V_OPR_IND"))
@@ -826,61 +812,47 @@ where SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.FLAT_SLCT_SSN_ASGN_KEY = ss.FLAT_SLCT_SSN_A
         
         logger.info("Step: rename_EXP_OUTPUT")
         # Expression: rename_EXP_OUTPUT
-        df_MPLT_DLKP_CACHE_STATUS_rename_27 = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC
-        df_MPLT_DLKP_CACHE_STATUS_rename_27 = df_MPLT_DLKP_CACHE_STATUS_rename_27.drop("IN_AGMT_IND").withColumnRenamed("AGMT_IND", "IN_AGMT_IND")
-        df_MPLT_DLKP_CACHE_STATUS_rename_27 = df_MPLT_DLKP_CACHE_STATUS_rename_27.drop("IN_OPR_IND").withColumnRenamed("OPR_IND", "IN_OPR_IND")
-        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_rename_27", df_MPLT_DLKP_CACHE_STATUS_rename_27)
+        df_MPLT_DLKP_CACHE_STATUS_rename_26 = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC
+        df_MPLT_DLKP_CACHE_STATUS_rename_26 = df_MPLT_DLKP_CACHE_STATUS_rename_26.drop("IN_AGMT_IND").withColumnRenamed("AGMT_IND", "IN_AGMT_IND")
+        df_MPLT_DLKP_CACHE_STATUS_rename_26 = df_MPLT_DLKP_CACHE_STATUS_rename_26.drop("IN_OPR_IND").withColumnRenamed("OPR_IND", "IN_OPR_IND")
+        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_rename_26", df_MPLT_DLKP_CACHE_STATUS_rename_26)
         
         logger.info("Step: apply_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT")
         # Expression: apply_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT
-        df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT = df_MPLT_DLKP_CACHE_STATUS_rename_27
+        df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT = df_MPLT_DLKP_CACHE_STATUS_rename_26
         df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT = df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT.withColumn("OUT_V_OPR_IND", expr("CASE WHEN IN_AGMT_IND = 'Y' THEN 'A' ELSE IN_OPR_IND END"))
         df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT = df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT.withColumn("OUT_BGN_DATE", expr("CASE WHEN IN_OPR_IND='B' AND DEL_FLAG = 1 THEN to_date('19000101','yyyyMMdd') ELSE BGN_DATE END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT", df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT)
         
-        logger.info("Step: join_output_MPLT_DLKP_CACHE_STATUS_MSTR_0")
-        # Lookup: join_output_MPLT_DLKP_CACHE_STATUS_MSTR_0
-        # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
-        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
-        _cc = list(dict.fromkeys(c for c in df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY.columns if c.lower() in [x.lower() for x in df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.columns]))
-        if _cc:
-            __lkp_dup = [c for c in df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.columns if c.lower() in [x.lower() for x in df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY.columns] and c.lower() not in [x.lower() for x in _cc]]
-            df_MPLT_DLKP_CACHE_STATUS_merge_28 = df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY.join(
-                df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.drop(*__lkp_dup) if __lkp_dup else df_MPLT_DLKP_CACHE_STATUS_EXP_CDC,
-                on=_cc, how="left"
-            )
-        else:
-            logger.warning("No common columns between df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY and df_MPLT_DLKP_CACHE_STATUS_EXP_CDC — using synthetic key join")
-            df_MPLT_DLKP_CACHE_STATUS_merge_28 = df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY.withColumn("_join_key", lit(1)).join(
-                df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.withColumn("_join_key", lit(1)),
-                on="_join_key", how="left").drop("_join_key")
-        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_merge_28", df_MPLT_DLKP_CACHE_STATUS_merge_28)
-        
         logger.info("Step: join_output_MPLT_DLKP_CACHE_STATUS_MSTR_1")
         # Lookup: join_output_MPLT_DLKP_CACHE_STATUS_MSTR_1
-        # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
-        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
-        _cc = list(dict.fromkeys(c for c in df_MPLT_DLKP_CACHE_STATUS_merge_28.columns if c.lower() in [x.lower() for x in df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT.columns]))
+        # Merge on common columns — drop lookup columns that duplicate non-key input columns. 
+        # Matches are CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
+        _cc = list(dict.fromkeys(c for c in df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.columns if c.lower() in [x.lower() for x in df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT.columns]))
         if _cc:
-            __lkp_dup = [c for c in df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT.columns if c.lower() in [x.lower() for x in df_MPLT_DLKP_CACHE_STATUS_merge_28.columns] and c.lower() not in [x.lower() for x in _cc]]
-            df_MPLT_DLKP_CACHE_STATUS_merge_29 = df_MPLT_DLKP_CACHE_STATUS_merge_28.join(
-                df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT.drop(*__lkp_dup) if __lkp_dup else df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT,
+            __lkp_dup = [c for c in df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT.columns if c.lower() in [x.lower() for x in df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.columns] and c.lower() not in [x.lower() for x in _cc]]
+            # Break attribute lineage on the merged side: when both inputs are built from the same source plan. 
+            # Re-projecting with aliases gives this side fresh attribute IDs without changing rows or column names.
+            __rhs = df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT.drop(*__lkp_dup) if __lkp_dup else df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_MPLT_DLKP_CACHE_STATUS_merge_27 = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.join(
+                __rhs,
                 on=_cc, how="left"
             )
         else:
-            logger.warning("No common columns between df_MPLT_DLKP_CACHE_STATUS_merge_28 and df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT — using synthetic key join")
-            df_MPLT_DLKP_CACHE_STATUS_merge_29 = df_MPLT_DLKP_CACHE_STATUS_merge_28.withColumn("_join_key", lit(1)).join(
-                df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT.withColumn("_join_key", lit(1)),
+            logger.warning("No common columns between df_MPLT_DLKP_CACHE_STATUS_EXP_CDC and df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT — using synthetic key join")
+            __rhs = df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT.withColumn("_join_key", lit(1))
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_MPLT_DLKP_CACHE_STATUS_merge_27 = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.withColumn("_join_key", lit(1)).join(
+                __rhs,
                 on="_join_key", how="left").drop("_join_key")
-        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_merge_29", df_MPLT_DLKP_CACHE_STATUS_merge_29)
+        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_merge_27", df_MPLT_DLKP_CACHE_STATUS_merge_27)
         
         logger.info("Step: apply_MPLT_DLKP_CACHE_STATUS_MSTR")
         # Expression: apply_MPLT_DLKP_CACHE_STATUS_MSTR
-        df_MPLT_DLKP_CACHE_STATUS_MSTR = df_MPLT_DLKP_CACHE_STATUS_merge_29
+        df_MPLT_DLKP_CACHE_STATUS_MSTR = df_MPLT_DLKP_CACHE_STATUS_merge_27
         df_MPLT_DLKP_CACHE_STATUS_MSTR = df_MPLT_DLKP_CACHE_STATUS_MSTR.drop("OUT_AGMT_IND").withColumnRenamed("AGMT_IND", "OUT_AGMT_IND")
         df_MPLT_DLKP_CACHE_STATUS_MSTR = df_MPLT_DLKP_CACHE_STATUS_MSTR.drop("OUT_TABLE_NAME").withColumnRenamed("TABLE_NAME", "OUT_TABLE_NAME")
         df_MPLT_DLKP_CACHE_STATUS_MSTR = df_MPLT_DLKP_CACHE_STATUS_MSTR.drop("OUT_V_UPD_STRATEGY_STATUS").withColumnRenamed("UPDATE_STRATEGY_STATUS", "OUT_V_UPD_STRATEGY_STATUS")
@@ -912,7 +884,7 @@ where SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.FLAT_SLCT_SSN_ASGN_KEY = ss.FLAT_SLCT_SSN_A
         _lkp_input = _lkp_input.withColumn("IN_DUMMY", col("v_NULL"))
         # Join condition: IN_SURROGATE_KEY=SURROGATE_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_30 = _lkp_input.alias("_main").join(
+        df_lkp_merge_28 = _lkp_input.alias("_main").join(
             broadcast(df_DLKP_SSA_STS).alias("_lkp"),
             (col("_main.IN_SURROGATE_KEY") == col("_lkp.SURROGATE_KEY")),
             "left"
@@ -925,84 +897,70 @@ where SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.FLAT_SLCT_SSN_ASGN_KEY = ss.FLAT_SLCT_SSN_A
         # by a same-named main column) — a NULL there means the lookup missed.
         _nlr_lkp_cols = [c for c in df_DLKP_SSA_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         if _nlr_lkp_cols:
-            df_lkp_merge_30 = df_lkp_merge_30.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
+            df_lkp_merge_28 = df_lkp_merge_28.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
         else:
-            df_lkp_merge_30 = df_lkp_merge_30.withColumn("NewLookupRow", lit(1))
-        ctx.register_df("df_lkp_merge_30", df_lkp_merge_30)        
+            df_lkp_merge_28 = df_lkp_merge_28.withColumn("NewLookupRow", lit(1))
+        ctx.register_df("df_lkp_merge_28", df_lkp_merge_28)        
         logger.info("Step: merge_EXP_OPR_IND_0")
         # Lookup: merge_EXP_OPR_IND_0
-        # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
-        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
+        # Merge on common columns — drop lookup columns that duplicate non-key input columns. 
+        # Matches are CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
         _cc = list(dict.fromkeys(c for c in df_MPLT_DLKP_CACHE_STATUS_MSTR.columns if c.lower() in [x.lower() for x in df_lkp_merge_21.columns]))
         if _cc:
             __lkp_dup = [c for c in df_lkp_merge_21.columns if c.lower() in [x.lower() for x in df_MPLT_DLKP_CACHE_STATUS_MSTR.columns] and c.lower() not in [x.lower() for x in _cc]]
-            df_merge_31 = df_MPLT_DLKP_CACHE_STATUS_MSTR.join(
-                df_lkp_merge_21.drop(*__lkp_dup) if __lkp_dup else df_lkp_merge_21,
+            # Break attribute lineage on the merged side: when both inputs are built from the same source plan. 
+            # Re-projecting with aliases gives this side fresh attribute IDs without changing rows or column names.
+            __rhs = df_lkp_merge_21.drop(*__lkp_dup) if __lkp_dup else df_lkp_merge_21
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_merge_29 = df_MPLT_DLKP_CACHE_STATUS_MSTR.join(
+                __rhs,
                 on=_cc, how="left"
             )
         else:
             logger.warning("No common columns between df_MPLT_DLKP_CACHE_STATUS_MSTR and df_lkp_merge_21 — using synthetic key join")
-            df_merge_31 = df_MPLT_DLKP_CACHE_STATUS_MSTR.withColumn("_join_key", lit(1)).join(
-                df_lkp_merge_21.withColumn("_join_key", lit(1)),
+            __rhs = df_lkp_merge_21.withColumn("_join_key", lit(1))
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_merge_29 = df_MPLT_DLKP_CACHE_STATUS_MSTR.withColumn("_join_key", lit(1)).join(
+                __rhs,
                 on="_join_key", how="left").drop("_join_key")
-        ctx.register_df("df_merge_31", df_merge_31)
+        ctx.register_df("df_merge_29", df_merge_29)
         
         logger.info("Step: apply_EXP_OPR_IND")
         # Expression: apply_EXP_OPR_IND
-        df_EXP_OPR_IND = df_merge_31
+        df_EXP_OPR_IND = df_merge_29
         df_EXP_OPR_IND = df_EXP_OPR_IND.withColumn("OUT_OPR_IND", expr("CASE WHEN NewLookupRow = 0 AND LAST_REC_TXN_TYPE_CODE = 'D' THEN 'B' ELSE OUT_V_OPR_IND END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXP_OPR_IND", df_EXP_OPR_IND)
         
-        logger.info("Step: join_MPLT_DLKP_CACHE_STATUS_STS_0")
-        # Lookup: join_MPLT_DLKP_CACHE_STATUS_STS_0
-        # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
-        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
-        _cc = list(dict.fromkeys(c for c in df_EXPTRANS_STS.columns if c.lower() in [x.lower() for x in df_lkp_merge_30.columns]))
-        if _cc:
-            __lkp_dup = [c for c in df_lkp_merge_30.columns if c.lower() in [x.lower() for x in df_EXPTRANS_STS.columns] and c.lower() not in [x.lower() for x in _cc]]
-            df_MPLT_DLKP_CACHE_STATUS_merge_32 = df_EXPTRANS_STS.join(
-                df_lkp_merge_30.drop(*__lkp_dup) if __lkp_dup else df_lkp_merge_30,
-                on=_cc, how="left"
-            )
-        else:
-            logger.warning("No common columns between df_EXPTRANS_STS and df_lkp_merge_30 — using synthetic key join")
-            df_MPLT_DLKP_CACHE_STATUS_merge_32 = df_EXPTRANS_STS.withColumn("_join_key", lit(1)).join(
-                df_lkp_merge_30.withColumn("_join_key", lit(1)),
-                on="_join_key", how="left").drop("_join_key")
-        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_merge_32", df_MPLT_DLKP_CACHE_STATUS_merge_32)
-        
         logger.info("Step: input_MPLT_DLKP_CACHE_STATUS_STS")
         # Expression: input_MPLT_DLKP_CACHE_STATUS_STS
-        df_MPLT_DLKP_CACHE_STATUS_input_33 = df_MPLT_DLKP_CACHE_STATUS_merge_32
-        df_MPLT_DLKP_CACHE_STATUS_input_33 = df_MPLT_DLKP_CACHE_STATUS_input_33.withColumn("IN_SOR_DATE", expr("BGN_DATE"))
-        df_MPLT_DLKP_CACHE_STATUS_input_33 = df_MPLT_DLKP_CACHE_STATUS_input_33.withColumn("IN_V_INIT_IND", expr("INIT_FLAG"))
-        df_MPLT_DLKP_CACHE_STATUS_input_33 = df_MPLT_DLKP_CACHE_STATUS_input_33.withColumn("IN_TABLE_NAME", expr("v_NULL"))
-        df_MPLT_DLKP_CACHE_STATUS_input_33 = df_MPLT_DLKP_CACHE_STATUS_input_33.withColumn("IN_V_LAST_UPDATE_DATE", expr("LAST_REC_TXN_DATE"))
-        df_MPLT_DLKP_CACHE_STATUS_input_33 = df_MPLT_DLKP_CACHE_STATUS_input_33.withColumn("IN_AGMT_IND", expr("AGMT_IND"))
-        df_MPLT_DLKP_CACHE_STATUS_input_33 = df_MPLT_DLKP_CACHE_STATUS_input_33.withColumn("IN_V_SNAPSHOT_DATE", expr("SNAPSHOT_DATE"))
-        df_MPLT_DLKP_CACHE_STATUS_input_33 = df_MPLT_DLKP_CACHE_STATUS_input_33.withColumn("IN_V_DLKP_SOR_CACHE_STATUS", expr("OUT_CACHE_STATUS"))
-        df_MPLT_DLKP_CACHE_STATUS_input_33 = df_MPLT_DLKP_CACHE_STATUS_input_33.withColumn("IN_V_DEL_IND", expr("DELETE_IND"))
-        df_MPLT_DLKP_CACHE_STATUS_input_33 = df_MPLT_DLKP_CACHE_STATUS_input_33.withColumn("IN_V_DLKP_SSA_CACHE_STATUS", expr("NewLookupRow"))
-        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_input_33", df_MPLT_DLKP_CACHE_STATUS_input_33)
+        df_MPLT_DLKP_CACHE_STATUS_input_30 = df_lkp_merge_28
+        df_MPLT_DLKP_CACHE_STATUS_input_30 = df_MPLT_DLKP_CACHE_STATUS_input_30.withColumn("IN_SOR_DATE", expr("BGN_DATE"))
+        df_MPLT_DLKP_CACHE_STATUS_input_30 = df_MPLT_DLKP_CACHE_STATUS_input_30.withColumn("IN_V_INIT_IND", expr("INIT_FLAG"))
+        df_MPLT_DLKP_CACHE_STATUS_input_30 = df_MPLT_DLKP_CACHE_STATUS_input_30.withColumn("IN_TABLE_NAME", expr("v_NULL"))
+        df_MPLT_DLKP_CACHE_STATUS_input_30 = df_MPLT_DLKP_CACHE_STATUS_input_30.withColumn("IN_V_LAST_UPDATE_DATE", expr("LAST_REC_TXN_DATE"))
+        df_MPLT_DLKP_CACHE_STATUS_input_30 = df_MPLT_DLKP_CACHE_STATUS_input_30.withColumn("IN_AGMT_IND", expr("AGMT_IND"))
+        df_MPLT_DLKP_CACHE_STATUS_input_30 = df_MPLT_DLKP_CACHE_STATUS_input_30.withColumn("IN_V_SNAPSHOT_DATE", expr("SNAPSHOT_DATE"))
+        df_MPLT_DLKP_CACHE_STATUS_input_30 = df_MPLT_DLKP_CACHE_STATUS_input_30.withColumn("IN_V_DLKP_SOR_CACHE_STATUS", expr("OUT_CACHE_STATUS"))
+        df_MPLT_DLKP_CACHE_STATUS_input_30 = df_MPLT_DLKP_CACHE_STATUS_input_30.withColumn("IN_V_DEL_IND", expr("DELETE_IND"))
+        df_MPLT_DLKP_CACHE_STATUS_input_30 = df_MPLT_DLKP_CACHE_STATUS_input_30.withColumn("IN_V_DLKP_SSA_CACHE_STATUS", expr("NewLookupRow"))
+        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_input_30", df_MPLT_DLKP_CACHE_STATUS_input_30)
         
         logger.info("Step: rename_EXP_UPD_STRATEGY")
         # Expression: rename_EXP_UPD_STRATEGY
-        df_MPLT_DLKP_CACHE_STATUS_rename_34 = df_MPLT_DLKP_CACHE_STATUS_input_33
-        df_MPLT_DLKP_CACHE_STATUS_rename_34 = df_MPLT_DLKP_CACHE_STATUS_rename_34.drop("IN_DEL_FLAG").withColumnRenamed("IN_V_DEL_IND", "IN_DEL_FLAG")
-        df_MPLT_DLKP_CACHE_STATUS_rename_34 = df_MPLT_DLKP_CACHE_STATUS_rename_34.drop("IN_DLK_SOR_CACHE_STATUS").withColumnRenamed("IN_V_DLKP_SOR_CACHE_STATUS", "IN_DLK_SOR_CACHE_STATUS")
-        df_MPLT_DLKP_CACHE_STATUS_rename_34 = df_MPLT_DLKP_CACHE_STATUS_rename_34.drop("SNAPSHOT_DATE").withColumnRenamed("IN_V_SNAPSHOT_DATE", "SNAPSHOT_DATE")
-        df_MPLT_DLKP_CACHE_STATUS_rename_34 = df_MPLT_DLKP_CACHE_STATUS_rename_34.drop("AGMT_IND").withColumnRenamed("IN_AGMT_IND", "AGMT_IND")
-        df_MPLT_DLKP_CACHE_STATUS_rename_34 = df_MPLT_DLKP_CACHE_STATUS_rename_34.drop("TABLE_NAME").withColumnRenamed("IN_TABLE_NAME", "TABLE_NAME")
-        df_MPLT_DLKP_CACHE_STATUS_rename_34 = df_MPLT_DLKP_CACHE_STATUS_rename_34.drop("IN_DLKP_SSA_CACHE_STATUS").withColumnRenamed("IN_V_DLKP_SSA_CACHE_STATUS", "IN_DLKP_SSA_CACHE_STATUS")
-        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_rename_34", df_MPLT_DLKP_CACHE_STATUS_rename_34)
+        df_MPLT_DLKP_CACHE_STATUS_rename_31 = df_MPLT_DLKP_CACHE_STATUS_input_30
+        df_MPLT_DLKP_CACHE_STATUS_rename_31 = df_MPLT_DLKP_CACHE_STATUS_rename_31.drop("IN_DEL_FLAG").withColumnRenamed("IN_V_DEL_IND", "IN_DEL_FLAG")
+        df_MPLT_DLKP_CACHE_STATUS_rename_31 = df_MPLT_DLKP_CACHE_STATUS_rename_31.drop("IN_DLK_SOR_CACHE_STATUS").withColumnRenamed("IN_V_DLKP_SOR_CACHE_STATUS", "IN_DLK_SOR_CACHE_STATUS")
+        df_MPLT_DLKP_CACHE_STATUS_rename_31 = df_MPLT_DLKP_CACHE_STATUS_rename_31.drop("SNAPSHOT_DATE").withColumnRenamed("IN_V_SNAPSHOT_DATE", "SNAPSHOT_DATE")
+        df_MPLT_DLKP_CACHE_STATUS_rename_31 = df_MPLT_DLKP_CACHE_STATUS_rename_31.drop("AGMT_IND").withColumnRenamed("IN_AGMT_IND", "AGMT_IND")
+        df_MPLT_DLKP_CACHE_STATUS_rename_31 = df_MPLT_DLKP_CACHE_STATUS_rename_31.drop("TABLE_NAME").withColumnRenamed("IN_TABLE_NAME", "TABLE_NAME")
+        df_MPLT_DLKP_CACHE_STATUS_rename_31 = df_MPLT_DLKP_CACHE_STATUS_rename_31.drop("IN_DLKP_SSA_CACHE_STATUS").withColumnRenamed("IN_V_DLKP_SSA_CACHE_STATUS", "IN_DLKP_SSA_CACHE_STATUS")
+        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_rename_31", df_MPLT_DLKP_CACHE_STATUS_rename_31)
         
         logger.info("Step: apply_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY")
         # Expression: apply_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY
-        df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY = df_MPLT_DLKP_CACHE_STATUS_rename_34
+        df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY = df_MPLT_DLKP_CACHE_STATUS_rename_31
         df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY = df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY.withColumn("UPDATE_STRATEGY_STATUS", expr("CASE WHEN IN_DLK_SOR_CACHE_STATUS = 1 THEN 'DD_INSERT' ELSE CASE WHEN IN_DLKP_SSA_CACHE_STATUS = 1 THEN 'DD_INSERT' ELSE 'DD_UPDATE' END END"))
         df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY = df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY.withColumn("NEW_FLAG", expr("CASE WHEN IN_DLK_SOR_CACHE_STATUS = 1 THEN 1 ELSE 0 END"))
         df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY = df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY.withColumn("CHG_FLAG", expr("CASE WHEN IN_DLK_SOR_CACHE_STATUS = 2 THEN 1 ELSE 0 END"))
@@ -1016,15 +974,15 @@ where SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.FLAT_SLCT_SSN_ASGN_KEY = ss.FLAT_SLCT_SSN_A
         
         logger.info("Step: rename_EXP_CDC")
         # Expression: rename_EXP_CDC
-        df_MPLT_DLKP_CACHE_STATUS_rename_35 = df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY
-        df_MPLT_DLKP_CACHE_STATUS_rename_35 = df_MPLT_DLKP_CACHE_STATUS_rename_35.drop("SOR_DATE").withColumnRenamed("IN_SOR_DATE", "SOR_DATE")
-        df_MPLT_DLKP_CACHE_STATUS_rename_35 = df_MPLT_DLKP_CACHE_STATUS_rename_35.drop("INIT_FLAG").withColumnRenamed("IN_V_INIT_IND", "INIT_FLAG")
-        df_MPLT_DLKP_CACHE_STATUS_rename_35 = df_MPLT_DLKP_CACHE_STATUS_rename_35.drop("LAST_UPDATE_DATE").withColumnRenamed("IN_V_LAST_UPDATE_DATE", "LAST_UPDATE_DATE")
-        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_rename_35", df_MPLT_DLKP_CACHE_STATUS_rename_35)
+        df_MPLT_DLKP_CACHE_STATUS_rename_32 = df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY
+        df_MPLT_DLKP_CACHE_STATUS_rename_32 = df_MPLT_DLKP_CACHE_STATUS_rename_32.drop("SOR_DATE").withColumnRenamed("IN_SOR_DATE", "SOR_DATE")
+        df_MPLT_DLKP_CACHE_STATUS_rename_32 = df_MPLT_DLKP_CACHE_STATUS_rename_32.drop("INIT_FLAG").withColumnRenamed("IN_V_INIT_IND", "INIT_FLAG")
+        df_MPLT_DLKP_CACHE_STATUS_rename_32 = df_MPLT_DLKP_CACHE_STATUS_rename_32.drop("LAST_UPDATE_DATE").withColumnRenamed("IN_V_LAST_UPDATE_DATE", "LAST_UPDATE_DATE")
+        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_rename_32", df_MPLT_DLKP_CACHE_STATUS_rename_32)
         
         logger.info("Step: apply_MPLT_DLKP_CACHE_STATUS_EXP_CDC")
         # Expression: apply_MPLT_DLKP_CACHE_STATUS_EXP_CDC
-        df_MPLT_DLKP_CACHE_STATUS_EXP_CDC = df_MPLT_DLKP_CACHE_STATUS_rename_35
+        df_MPLT_DLKP_CACHE_STATUS_EXP_CDC = df_MPLT_DLKP_CACHE_STATUS_rename_32
         df_MPLT_DLKP_CACHE_STATUS_EXP_CDC = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.withColumn("CDC_FLAG", expr("CASE WHEN 1 = NEW_FLAG THEN 1 WHEN 1 = CHG_FLAG THEN 1 WHEN 1 = DEL_FLAG THEN 1 ELSE 0 END"))
         df_MPLT_DLKP_CACHE_STATUS_EXP_CDC = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.withColumn("V_OPR_IND", expr("CASE WHEN NEW_FLAG = 1 THEN 'B' ELSE CASE WHEN CHG_FLAG = 1 THEN 'EB' ELSE CASE WHEN DEL_FLAG = 1 THEN 'E' ELSE NULL END END END"))
         df_MPLT_DLKP_CACHE_STATUS_EXP_CDC = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.withColumn("OPR_IND", expr("V_OPR_IND"))
@@ -1042,61 +1000,47 @@ where SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.FLAT_SLCT_SSN_ASGN_KEY = ss.FLAT_SLCT_SSN_A
         
         logger.info("Step: rename_EXP_OUTPUT")
         # Expression: rename_EXP_OUTPUT
-        df_MPLT_DLKP_CACHE_STATUS_rename_36 = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC
-        df_MPLT_DLKP_CACHE_STATUS_rename_36 = df_MPLT_DLKP_CACHE_STATUS_rename_36.drop("IN_AGMT_IND").withColumnRenamed("AGMT_IND", "IN_AGMT_IND")
-        df_MPLT_DLKP_CACHE_STATUS_rename_36 = df_MPLT_DLKP_CACHE_STATUS_rename_36.drop("IN_OPR_IND").withColumnRenamed("OPR_IND", "IN_OPR_IND")
-        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_rename_36", df_MPLT_DLKP_CACHE_STATUS_rename_36)
+        df_MPLT_DLKP_CACHE_STATUS_rename_33 = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC
+        df_MPLT_DLKP_CACHE_STATUS_rename_33 = df_MPLT_DLKP_CACHE_STATUS_rename_33.drop("IN_AGMT_IND").withColumnRenamed("AGMT_IND", "IN_AGMT_IND")
+        df_MPLT_DLKP_CACHE_STATUS_rename_33 = df_MPLT_DLKP_CACHE_STATUS_rename_33.drop("IN_OPR_IND").withColumnRenamed("OPR_IND", "IN_OPR_IND")
+        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_rename_33", df_MPLT_DLKP_CACHE_STATUS_rename_33)
         
         logger.info("Step: apply_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT")
         # Expression: apply_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT
-        df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT = df_MPLT_DLKP_CACHE_STATUS_rename_36
+        df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT = df_MPLT_DLKP_CACHE_STATUS_rename_33
         df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT = df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT.withColumn("OUT_V_OPR_IND", expr("CASE WHEN IN_AGMT_IND = 'Y' THEN 'A' ELSE IN_OPR_IND END"))
         df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT = df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT.withColumn("OUT_BGN_DATE", expr("CASE WHEN IN_OPR_IND='B' AND DEL_FLAG = 1 THEN to_date('19000101','yyyyMMdd') ELSE BGN_DATE END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT", df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT)
         
-        logger.info("Step: join_output_MPLT_DLKP_CACHE_STATUS_STS_0")
-        # Lookup: join_output_MPLT_DLKP_CACHE_STATUS_STS_0
-        # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
-        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
-        _cc = list(dict.fromkeys(c for c in df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY.columns if c.lower() in [x.lower() for x in df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.columns]))
-        if _cc:
-            __lkp_dup = [c for c in df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.columns if c.lower() in [x.lower() for x in df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY.columns] and c.lower() not in [x.lower() for x in _cc]]
-            df_MPLT_DLKP_CACHE_STATUS_merge_37 = df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY.join(
-                df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.drop(*__lkp_dup) if __lkp_dup else df_MPLT_DLKP_CACHE_STATUS_EXP_CDC,
-                on=_cc, how="left"
-            )
-        else:
-            logger.warning("No common columns between df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY and df_MPLT_DLKP_CACHE_STATUS_EXP_CDC — using synthetic key join")
-            df_MPLT_DLKP_CACHE_STATUS_merge_37 = df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY.withColumn("_join_key", lit(1)).join(
-                df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.withColumn("_join_key", lit(1)),
-                on="_join_key", how="left").drop("_join_key")
-        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_merge_37", df_MPLT_DLKP_CACHE_STATUS_merge_37)
-        
         logger.info("Step: join_output_MPLT_DLKP_CACHE_STATUS_STS_1")
         # Lookup: join_output_MPLT_DLKP_CACHE_STATUS_STS_1
-        # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
-        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
-        _cc = list(dict.fromkeys(c for c in df_MPLT_DLKP_CACHE_STATUS_merge_37.columns if c.lower() in [x.lower() for x in df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT.columns]))
+        # Merge on common columns — drop lookup columns that duplicate non-key input columns. 
+        # Matches are CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
+        _cc = list(dict.fromkeys(c for c in df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.columns if c.lower() in [x.lower() for x in df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT.columns]))
         if _cc:
-            __lkp_dup = [c for c in df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT.columns if c.lower() in [x.lower() for x in df_MPLT_DLKP_CACHE_STATUS_merge_37.columns] and c.lower() not in [x.lower() for x in _cc]]
-            df_MPLT_DLKP_CACHE_STATUS_merge_38 = df_MPLT_DLKP_CACHE_STATUS_merge_37.join(
-                df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT.drop(*__lkp_dup) if __lkp_dup else df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT,
+            __lkp_dup = [c for c in df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT.columns if c.lower() in [x.lower() for x in df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.columns] and c.lower() not in [x.lower() for x in _cc]]
+            # Break attribute lineage on the merged side: when both inputs are built from the same source plan. 
+            # Re-projecting with aliases gives this side fresh attribute IDs without changing rows or column names.
+            __rhs = df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT.drop(*__lkp_dup) if __lkp_dup else df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_MPLT_DLKP_CACHE_STATUS_merge_34 = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.join(
+                __rhs,
                 on=_cc, how="left"
             )
         else:
-            logger.warning("No common columns between df_MPLT_DLKP_CACHE_STATUS_merge_37 and df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT — using synthetic key join")
-            df_MPLT_DLKP_CACHE_STATUS_merge_38 = df_MPLT_DLKP_CACHE_STATUS_merge_37.withColumn("_join_key", lit(1)).join(
-                df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT.withColumn("_join_key", lit(1)),
+            logger.warning("No common columns between df_MPLT_DLKP_CACHE_STATUS_EXP_CDC and df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT — using synthetic key join")
+            __rhs = df_MPLT_DLKP_CACHE_STATUS_EXP_OUTPUT.withColumn("_join_key", lit(1))
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_MPLT_DLKP_CACHE_STATUS_merge_34 = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.withColumn("_join_key", lit(1)).join(
+                __rhs,
                 on="_join_key", how="left").drop("_join_key")
-        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_merge_38", df_MPLT_DLKP_CACHE_STATUS_merge_38)
+        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_merge_34", df_MPLT_DLKP_CACHE_STATUS_merge_34)
         
         logger.info("Step: apply_MPLT_DLKP_CACHE_STATUS_STS")
         # Expression: apply_MPLT_DLKP_CACHE_STATUS_STS
-        df_MPLT_DLKP_CACHE_STATUS_STS = df_MPLT_DLKP_CACHE_STATUS_merge_38
+        df_MPLT_DLKP_CACHE_STATUS_STS = df_MPLT_DLKP_CACHE_STATUS_merge_34
         df_MPLT_DLKP_CACHE_STATUS_STS = df_MPLT_DLKP_CACHE_STATUS_STS.drop("OUT_AGMT_IND").withColumnRenamed("AGMT_IND", "OUT_AGMT_IND")
         df_MPLT_DLKP_CACHE_STATUS_STS = df_MPLT_DLKP_CACHE_STATUS_STS.drop("OUT_TABLE_NAME").withColumnRenamed("TABLE_NAME", "OUT_TABLE_NAME")
         df_MPLT_DLKP_CACHE_STATUS_STS = df_MPLT_DLKP_CACHE_STATUS_STS.drop("OUT_V_UPD_STRATEGY_STATUS").withColumnRenamed("UPDATE_STRATEGY_STATUS", "OUT_V_UPD_STRATEGY_STATUS")

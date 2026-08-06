@@ -195,3 +195,205 @@ def test_dlpk_cache_status_exp_cdc_rename_is_internal_only():
         assert ("IN_V_INIT_IND", "INIT_FLAG") in pairs
         assert ("IN_V_LAST_UPDATE_DATE", "LAST_UPDATE_DATE") in pairs
         assert ("IN_SOR_DATE", "SOR_DATE") in pairs
+
+
+def _df_parent_map(plan):
+    """Map each generated df name to its primary lineage input (expression,
+    rename, lookup merge and common-columns merge steps)."""
+    parent = {}
+    for step in plan.steps:
+        if step.df_input and step.df_output and step.df_input != step.df_output:
+            parent[step.df_output] = step.df_input
+    return parent
+
+
+def _is_descendant(parent, df, ancestor):
+    seen = set()
+    cur = df
+    while cur and cur in parent:
+        if cur in seen:
+            return False
+        seen.add(cur)
+        cur = parent[cur]
+        if cur == ancestor:
+            return True
+    return False
+
+
+def _path_breaks_preservation(parent, step_map, descendant, ancestor):
+    """True when the primary lineage from `ancestor` to `descendant` contains
+    a rename step or a step type that does not preserve every column name.
+    Those are the reasons a parent-child common-columns merge is kept: the
+    descendant no longer provably carries a needed column (withColumnRenamed
+    is a silent no-op when its source is missing, so removing the merge would
+    lose data without an error).
+    """
+    cur = descendant
+    while cur and cur != ancestor:
+        st = step_map.get(cur)
+        if st is None:
+            return True
+        if not isinstance(st, (ApplyExpressionStep, ApplyFilterStep, ApplyLookupStep)):
+            return True
+        if st.params.get("rename_columns"):
+            return True
+        cur = parent.get(cur)
+    return cur != ancestor
+
+
+def test_parent_child_common_column_joins_kept_only_when_needed():
+    """A common-columns merge may join a df with its own descendant ONLY when
+    the descendant no longer provably carries a needed column (a rename or a
+    non-column-preserving step lies on the lineage path). Purely redundant
+    parent-child merges (e.g. df_EXPTRANS_STS ⋈ df_lkp_merge_11,
+    EXP_UPD_STRATEGY ⋈ EXP_CDC) are removed — joining them made the Spark
+    analyzer loop with "Max iterations (100) reached for batch Resolution"
+    (M_NHS_SSAL2_TRAN_NHS_HOS_APLY, join_..._STS_0).
+    """
+    mappings = _load_nhs_mappings()
+    checked = 0
+    kept = 0
+    for mapping in mappings:
+        handlers = TransformHandlers(mapping, UserConfig())
+        plan = handlers.build_ir_plan()
+        parent = _df_parent_map(plan)
+        step_map = {s.df_output: s for s in plan.steps}
+        for step in plan.steps:
+            if not (
+                isinstance(step, ApplyLookupStep)
+                and step.params.get("join_expr") == "__common_cols__"
+            ):
+                continue
+            left = step.df_input
+            right = step.params.get("lookup_df")
+            checked += 1
+            if _is_descendant(parent, right, left):
+                descendant, ancestor = right, left
+            elif _is_descendant(parent, left, right):
+                descendant, ancestor = left, right
+            else:
+                continue
+            kept += 1
+            assert _path_breaks_preservation(
+                parent, step_map, descendant, ancestor
+            ), (
+                f"{mapping.name}: kept parent-child merge {step.step_name} "
+                f"joins {left} with descendant {right} but the descendant "
+                "preserves every column name — the merge is redundant"
+            )
+    assert checked > 0
+    assert kept > 0, "EXP_OPR_IND-style needed merges must be kept"
+
+
+def test_hos_aply_sts_cache_input_uses_lookup_merge_directly():
+    """The failing step in the reported log must no longer exist at all: the
+    STS cache-status mapplet input should consume the SSA_STS lookup merge df
+    directly, with no redundant join or pass-through step in between."""
+    mappings = _load_nhs_mappings()
+    mapping = next(
+        m for m in mappings if m.name == "M_NHS_SSAL2_TRAN_NHS_HOS_APLY"
+    )
+    handlers = TransformHandlers(mapping, UserConfig())
+    plan = handlers.build_ir_plan()
+    by_name = {step.step_name: step for step in plan.steps}
+    assert "join_MPLT_DLKP_CACHE_STATUS_STS_0" not in by_name, (
+        "redundant STS cache-status input merge step must be removed"
+    )
+    assert "join_output_MPLT_DLKP_CACHE_STATUS_STS_0" not in by_name, (
+        "redundant STS cache-status output merge step must be removed"
+    )
+    input_step = by_name["input_MPLT_DLKP_CACHE_STATUS_STS"]
+    assert isinstance(input_step, ApplyExpressionStep)
+    assert input_step.df_input == by_name["apply_DLKP_SSA_STS"].df_output
+    output_step = by_name["apply_MPLT_DLKP_CACHE_STATUS_STS"]
+    assert isinstance(output_step, ApplyExpressionStep)
+    output_join = by_name["join_output_MPLT_DLKP_CACHE_STATUS_STS_1"]
+    assert isinstance(output_join, ApplyLookupStep)
+    assert output_step.df_input == output_join.df_output
+
+
+def test_hos_aply_exp_opr_ind_merge_restored():
+    """EXP_OPR_IND reads three upstream groups: LAST_REC_TXN_TYPE_CODE from
+    FILTRANS_MSTR, NewLookupRow from DLKP_SSA_MSTR and OUT_V_OPR_IND from the
+    cache-status mapplet. The mapplet output renames LAST_REC_TXN_TYPE_CODE →
+    OUT_V_LAST_REC_TXN_TYPE_CODE, so the original column is only available on
+    df_lkp_merge_2 — the merge must be generated, otherwise the expression
+    fails with [UNRESOLVED_COLUMN] LAST_REC_TXN_TYPE_CODE.
+    """
+    mappings = _load_nhs_mappings()
+    mapping = next(
+        m for m in mappings if m.name == "M_NHS_SSAL2_TRAN_NHS_HOS_APLY"
+    )
+    handlers = TransformHandlers(mapping, UserConfig())
+    plan = handlers.build_ir_plan()
+    by_name = {step.step_name: step for step in plan.steps}
+
+    merge_step = by_name["merge_EXP_OPR_IND_0"]
+    assert isinstance(merge_step, ApplyLookupStep)
+    assert merge_step.params.get("join_expr") == "__common_cols__"
+    assert merge_step.df_input == by_name[
+        "apply_MPLT_DLKP_CACHE_STATUS_MSTR"
+    ].df_output
+    assert merge_step.params.get("lookup_df") == by_name[
+        "apply_DLKP_SSA_MSTR"
+    ].df_output
+    assert by_name["apply_EXP_OPR_IND"].df_input == merge_step.df_output
+
+
+def test_hos_aply_cache_status_output_merge_keeps_rename_sources():
+    """The cache-status mapplet OUTPUT is fed by EXP_UPD_STRATEGY, EXP_CDC and
+    EXP_OUTPUT. EXP_OUTPUT renames AGMT_IND → IN_AGMT_IND internally, so using
+    it alone would make the output rename AGMT_IND → OUT_AGMT_IND a silent
+    no-op (data loss). The final stage must therefore merge EXP_CDC with
+    EXP_OUTPUT so AGMT_IND (from EXP_CDC) survives for the output renames.
+    """
+    mappings = _load_nhs_mappings()
+    mapping = next(
+        m for m in mappings if m.name == "M_NHS_SSAL2_TRAN_NHS_HOS_APLY"
+    )
+    handlers = TransformHandlers(mapping, UserConfig())
+    plan = handlers.build_ir_plan()
+    by_name = {step.step_name: step for step in plan.steps}
+
+    for suffix in ("MSTR", "STS"):
+        join_name = f"join_output_MPLT_DLKP_CACHE_STATUS_{suffix}_1"
+        join_step = by_name[join_name]
+        assert isinstance(join_step, ApplyLookupStep)
+        assert join_step.params.get("join_expr") == "__common_cols__"
+        assert join_step.df_input.endswith("EXP_CDC")
+        assert join_step.params.get("lookup_df", "").endswith("EXP_OUTPUT")
+        output_step = by_name[f"apply_MPLT_DLKP_CACHE_STATUS_{suffix}"]
+        assert output_step.df_input == join_step.df_output
+
+
+def test_independent_branch_merges_are_preserved():
+    """Merges between independent branches must NOT be removed: when the
+    already-merged df does not contain another input branch's fields, the
+    common-columns merge is required."""
+    mappings = _load_nhs_mappings()
+    expected = {
+        "M_NHS_SSAL2_TRAN_NHS_REF_CODE": "merge_EXP_OPR_IND_0",
+        "M_NHS_SSAL2_TRAN_NHS_FLAT_SLCT_SSN_ASGN": "join_MPLT_AGMT_NHS_INTVW_SCHD_0",
+    }
+    for mapping in mappings:
+        if mapping.name not in expected:
+            continue
+        handlers = TransformHandlers(mapping, UserConfig())
+        plan = handlers.build_ir_plan()
+        step = next(
+            (s for s in plan.steps if s.step_name == expected[mapping.name]),
+            None,
+        )
+        assert step is not None, (
+            f"{mapping.name}: independent-branch merge "
+            f"{expected[mapping.name]} must be preserved"
+        )
+        assert isinstance(step, ApplyLookupStep)
+        assert step.params.get("join_expr") == "__common_cols__"
+        parent = _df_parent_map(plan)
+        left = step.df_input
+        right = step.params.get("lookup_df")
+        assert not (
+            _is_descendant(parent, left, right)
+            or _is_descendant(parent, right, left)
+        ), f"{mapping.name}: {step.step_name} should be independent branches"

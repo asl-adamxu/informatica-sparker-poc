@@ -1389,7 +1389,21 @@ class TransformHandlers:
         #  and separate lookups like LKP_UAO_FEE_ADV_AMT).
         if _multistep and extra_inputs:
             _cur_df = input_df
+            _df_parent = self._build_df_parent_map(plan.steps)
+            _step_map = {s.df_output: s for s in plan.steps if s.df_output}
+            _needed = set()
+            for _c in self.mapping.connectors:
+                if _c.to_instance == instance.name and _c.from_instance in self.current_df_map:
+                    _needed.add(_c.from_field)
             for _i, _extra_df in enumerate(extra_inputs):
+                _redundant_to = self._redundant_merge_df(
+                    _df_parent, _step_map, _cur_df, _extra_df, _needed)
+                if _redundant_to is not None:
+                    # Lookup-merge descendant of the current df (or vice versa):
+                    # joining them is redundant and can make the analyzer loop;
+                    # the descendant already has all columns — use it directly.
+                    _cur_df = _redundant_to
+                    continue
                 _merge_df = self._get_df_name("df_merge")
                 _merge_step = ApplyLookupStep(
                     step_name=f"merge_{instance.name}_{_i}",
@@ -1402,6 +1416,8 @@ class TransformHandlers:
                     lookup_type="left",
                 )
                 plan.add_step(_merge_step)
+                _df_parent[_merge_df] = _cur_df
+                _step_map[_merge_df] = _merge_step
                 _cur_df = _merge_df
                 self.logger.log_transformation(instance.name, "Expression",
                     f"Merge extra df {_extra_df} into {_cur_df} via common columns",
@@ -1879,7 +1895,21 @@ class TransformHandlers:
         _pre_steps: List[IRStep] = []
         if extra_inputs and input_df != "df_input":
             _cur_df = input_df
+            _df_parent = self._build_df_parent_map(plan.steps)
+            _step_map = {s.df_output: s for s in plan.steps if s.df_output}
+            _needed = set()
+            for _c in self.mapping.connectors:
+                if _c.to_instance == instance.name and _c.from_instance in self.current_df_map:
+                    _needed.add(_c.from_field)
             for _i, _extra_df in enumerate(extra_inputs):
+                _redundant_to = self._redundant_merge_df(
+                    _df_parent, _step_map, _cur_df, _extra_df, _needed)
+                if _redundant_to is not None:
+                    # Lookup-merge descendant of the current df (or vice versa):
+                    # joining them is redundant and can make the analyzer loop;
+                    # the descendant already has all columns — use it directly.
+                    _cur_df = _redundant_to
+                    continue
                 _merge_df = self._get_df_name("df_merge")
                 _pre_steps.append(ApplyLookupStep(
                     step_name=f"merge_{instance.name}_{_i}",
@@ -1891,6 +1921,8 @@ class TransformHandlers:
                     output_columns=[],
                     lookup_type="left",
                 ))
+                _df_parent[_merge_df] = _cur_df
+                _step_map[_merge_df] = _pre_steps[-1]
                 _cur_df = _merge_df
             input_df = _cur_df
 
@@ -2979,6 +3011,96 @@ class TransformHandlers:
                         inputs.append(df)
         return inputs
 
+    @staticmethod
+    def _build_df_parent_map(steps: List[Any]) -> Dict[str, str]:
+        """Map each generated df name to its primary lineage input.
+
+        Expression/rename/pass-through steps and lookup/merge steps keep all
+        input columns, so walking this map from a df gives its ancestors (the
+        descendant carries every ancestor column). The map deliberately tracks
+        only the PRIMARY input: a common-columns/lookup merge does NOT carry
+        every column of its secondary side (colliding names are dropped), so
+        the secondary side must never be treated as an ancestor.
+        Iterating the steps in order makes the map reflect the latest variable
+        binding.
+        """
+        parent: Dict[str, str] = {}
+        for _s in steps:
+            _out = getattr(_s, "df_output", None)
+            _in = getattr(_s, "df_input", None)
+            if _out and _in and _out != _in:
+                parent[_out] = _in
+        return parent
+
+    @staticmethod
+    def _is_df_descendant(parent: Dict[str, str], df: str, ancestor: str) -> bool:
+        """True when `df` is (transitively) built from `ancestor`."""
+        _seen = set()
+        _cur = df
+        while _cur and _cur in parent:
+            if _cur in _seen:
+                return False
+            _seen.add(_cur)
+            _cur = parent[_cur]
+            if _cur == ancestor:
+                return True
+        return False
+
+    @staticmethod
+    def _lineage_preserves_columns(parent: Dict[str, str],
+                                   step_map: Dict[str, Any],
+                                   descendant: str, ancestor: str,
+                                   needed: Set[str]) -> bool:
+        """True when every needed column name survives (case-insensitive) on
+        the primary lineage from `ancestor` to `descendant`.
+
+        Expression/filter/lookup-merge steps keep all input column names, so
+        the only way a needed name disappears is a rename step
+        (drop(target).withColumnRenamed(source, target)) whose source is a
+        needed column, or a step type that does not preserve columns (e.g.
+        aggregator/joiner/union). Non-preserving steps make the check fail
+        conservatively so a real merge is never skipped on a wrong assumption.
+        """
+        if not needed:
+            return True
+        _low_needed = {n.lower() for n in needed}
+        _cur = descendant
+        while _cur and _cur != ancestor:
+            _st = step_map.get(_cur)
+            if _st is None:
+                return False
+            if not isinstance(_st, (ApplyExpressionStep, ApplyFilterStep, ApplyLookupStep)):
+                return False
+            for _from, _to in (_st.params.get("rename_columns") or []):
+                if _from.lower() in _low_needed:
+                    return False
+            _cur = parent.get(_cur)
+        return _cur == ancestor
+
+    def _redundant_merge_df(self, parent: Dict[str, str],
+                            step_map: Dict[str, Any],
+                            cur_df: str, extra_df: str,
+                            needed: Set[str]) -> Optional[str]:
+        """Return the df to use when one df is a primary-lineage descendant of
+        the other AND the descendant provably still carries every column the
+        downstream target needs.
+
+        A common-columns merge of such a pair is redundant; the descendant can
+        replace both inputs directly. This is deliberately stricter than plain
+        lineage: a mapplet output rename (e.g. AGMT_IND → OUT_AGMT_IND) can
+        remove a needed name, and `withColumnRenamed` is a silent no-op when
+        the source is missing — skipping in that case would lose a column
+        without any error. Returns None when a real merge is required (two
+        independent branches, or the descendant no longer carries a needed
+        column).
+        """
+        if self._is_df_descendant(parent, extra_df, cur_df):
+            if self._lineage_preserves_columns(parent, step_map, extra_df, cur_df, needed):
+                return extra_df
+        if self._is_df_descendant(parent, cur_df, extra_df):
+            if self._lineage_preserves_columns(parent, step_map, cur_df, extra_df, needed):
+                return cur_df
+        return None
     def _handle_mapplet(self, instance: Instance, plan: IRPlan) -> List[IRStep]:
         """Fully inline a mapplet by building a mini-DAG from its instances/connectors
         and dispatching each internal instance to the appropriate handler (Lookup,
@@ -3010,7 +3132,28 @@ class TransformHandlers:
         extra_inputs = [df for df in all_inputs if df != input_df]
         if extra_inputs and input_df != "df_input":
             _cur_df = input_df
+            _all_steps = list(plan.steps) + steps
+            _df_parent = self._build_df_parent_map(_all_steps)
+            _step_map = {s.df_output: s for s in _all_steps if s.df_output}
+            _needed = set()
+            for _c in self.mapping.connectors:
+                if _c.to_instance == instance.name and _c.from_instance in self.current_df_map:
+                    _needed.add(_c.from_field)
             for _i, _extra_df in enumerate(extra_inputs):
+                _redundant_to = self._redundant_merge_df(
+                    _df_parent, _step_map, _cur_df, _extra_df, _needed)
+                if _redundant_to is not None:
+                    # One df is a lookup-merge descendant of the other, so the
+                    # common-columns join would be redundant (and can make the
+                    # Spark analyzer loop). The descendant already carries all
+                    # needed columns — use it directly, no join or pass-through
+                    # step required.
+                    self.logger.log_transformation(
+                        instance.name, "Mapplet",
+                        f"Redundant input merge skipped: using {_redundant_to} directly",
+                        LogLevel.INFO)
+                    _cur_df = _redundant_to
+                    continue
                 _join_df = self._get_df_name(f"{_mplt_prefix}_merge")
                 steps.append(ApplyLookupStep(
                     step_name=f"join_{instance.name}_{_i}",
@@ -3022,6 +3165,8 @@ class TransformHandlers:
                     output_columns=[],
                     lookup_type="left",
                 ))
+                _df_parent[_join_df] = _cur_df
+                _step_map[_join_df] = steps[-1]
                 _cur_df = _join_df
             input_df = _cur_df
         mapplet_def = self.mapping.mapplets.get(mapplet_name) if hasattr(self.mapping, 'mapplets') else None
@@ -3575,7 +3720,27 @@ class TransformHandlers:
                 output_input_df = input_df
 
             # When OUTPUT has multiple upstream internal DataFrames, merge them
+            _all_out_steps = list(plan.steps) + steps
+            _df_parent = self._build_df_parent_map(_all_out_steps)
+            _step_map = {s.df_output: s for s in _all_out_steps if s.df_output}
+            _needed = set()
+            for _c in mpl_connectors:
+                if _c.to_instance == output_inst.name:
+                    _needed.add(_c.from_field)
             for _i, _extra_df in enumerate(output_extra_dfs):
+                _redundant_to = self._redundant_merge_df(
+                    _df_parent, _step_map, output_input_df, _extra_df, _needed)
+                if _redundant_to is not None:
+                    # The extra df is a descendant of the current df (or vice
+                    # versa) — it already carries all needed columns, so a
+                    # common-columns join is redundant and can make the Spark
+                    # analyzer loop (e.g. EXP_UPD_STRATEGY vs EXP_CDC).
+                    self.logger.log_transformation(
+                        instance.name, "Mapplet",
+                        f"Redundant output merge skipped: using {_redundant_to} directly",
+                        LogLevel.INFO)
+                    output_input_df = _redundant_to
+                    continue
                 _join_df = self._get_df_name(f"{_mplt_prefix}_merge")
                 steps.append(ApplyLookupStep(
                     step_name=f"join_output_{instance.name}_{_i}",
@@ -3587,6 +3752,8 @@ class TransformHandlers:
                     output_columns=[],
                     lookup_type="left",
                 ))
+                _df_parent[_join_df] = output_input_df
+                _step_map[_join_df] = steps[-1]
                 output_input_df = _join_df
 
             # Collect output port names from the Mapplet-type wrapper transformation

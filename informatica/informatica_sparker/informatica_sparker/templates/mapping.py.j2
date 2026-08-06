@@ -407,20 +407,25 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         {% set join_predicates = step.params.get('join_predicates', []) %}
         {% set join_expr = step.params.get('join_expr') %}
         {% if join_expr == '__common_cols__' %}
-        # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
-        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
+        # Merge on common columns — drop lookup columns that duplicate non-key input columns. 
+        # Matches are CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
         _cc = list(dict.fromkeys(c for c in {{ step.df_input }}.columns if c.lower() in [x.lower() for x in {{ lookup_df_name }}.columns]))
         if _cc:
             __lkp_dup = [c for c in {{ lookup_df_name }}.columns if c.lower() in [x.lower() for x in {{ step.df_input }}.columns] and c.lower() not in [x.lower() for x in _cc]]
+            # Break attribute lineage on the merged side: when both inputs are built from the same source plan. 
+            # Re-projecting with aliases gives this side fresh attribute IDs without changing rows or column names.
+            __rhs = {{ lookup_df_name }}.drop(*__lkp_dup) if __lkp_dup else {{ lookup_df_name }}
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
             {{ step.df_output }} = {{ step.df_input }}.join(
-                {{ lookup_df_name }}.drop(*__lkp_dup) if __lkp_dup else {{ lookup_df_name }},
+                __rhs,
                 on=_cc, how="left"
             )
         else:
             logger.warning("No common columns between {{ step.df_input }} and {{ lookup_df_name }} — using synthetic key join")
+            __rhs = {{ lookup_df_name }}.withColumn("_join_key", lit(1))
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
             {{ step.df_output }} = {{ step.df_input }}.withColumn("_join_key", lit(1)).join(
-                {{ lookup_df_name }}.withColumn("_join_key", lit(1)),
+                __rhs,
                 on="_join_key", how="left").drop("_join_key")
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
         {% elif join_predicates %}
