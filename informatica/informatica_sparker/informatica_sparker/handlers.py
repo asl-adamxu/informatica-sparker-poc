@@ -3357,9 +3357,30 @@ class TransformHandlers:
                 # Rename upstream columns to match Expression port names using
                 # connector mappings (e.g. TBL_NAME → FACT_TABL_NAME) so that
                 # expression port references resolve to the actual DataFrame columns.
-                _expr_renames = [(actual_col, mpl_port) for mpl_port, actual_col in inst_field_remap.items()
-                                 if mpl_port != actual_col]
-                if _expr_renames:
+                # When the mapplet has an Input Transformation, the external
+                # input_field_map renames were already applied once at the
+                # mapplet entry (input_<mapplet> step). Re-applying them on
+                # every internal expression renames columns that no longer
+                # exist (e.g. INIT_FLAG was already renamed to IN_V_INIT_IND),
+                # producing unresolved columns downstream. In that case apply
+                # only the internal connector renames.
+                if input_inst is not None:
+                    _expr_renames = [(actual_col, mpl_port)
+                                     for mpl_port, actual_col in _internal_remap.items()
+                                     if mpl_port != actual_col]
+                    # Keep the rename step (and its generated df name) even when
+                    # only external renames were removed, so the shared df
+                    # counter and all downstream variable names stay stable.
+                    _keep_rename_step = bool(_expr_renames) or any(
+                        mpl_port != actual_col
+                        for mpl_port, actual_col in inst_field_remap.items()
+                    )
+                else:
+                    _expr_renames = [(actual_col, mpl_port)
+                                     for mpl_port, actual_col in inst_field_remap.items()
+                                     if mpl_port != actual_col]
+                    _keep_rename_step = bool(_expr_renames)
+                if _expr_renames or _keep_rename_step:
                     # Rename upstream columns to match expression port names via
                     # a single withColumnRenamed chain (efficient, no column copy).
                     _rename_df = self._get_df_name(f"{_mplt_prefix}_rename")

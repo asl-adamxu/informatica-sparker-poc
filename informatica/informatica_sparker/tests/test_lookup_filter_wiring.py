@@ -11,7 +11,7 @@ The source of truth is WF_NHS_TL.XML only; EMS TL is intentionally not used.
 
 from pathlib import Path
 
-from informatica_sparker.ir import ApplyFilterStep, ApplyLookupStep
+from informatica_sparker.ir import ApplyExpressionStep, ApplyFilterStep, ApplyLookupStep
 from informatica_sparker.handlers import TransformHandlers
 from informatica_sparker.models import UserConfig
 from informatica_sparker.parser import InfaXMLParser
@@ -127,3 +127,71 @@ def test_filtrans_sts_and_mstr_use_their_own_lookup_merge():
         checked += 1
 
     assert checked == len(mappings)
+
+
+def _rename_steps(plan):
+    return [
+        step
+        for step in plan.steps
+        if isinstance(step, ApplyExpressionStep)
+        and step.step_name.startswith("rename_")
+        and step.params.get("rename_columns")
+    ]
+
+
+def test_mapplet_internal_rename_pairs_are_not_repeated():
+    """External input-port renames are applied once at the mapplet entry.
+    Internal expression rename steps must not repeat them (e.g. renaming
+    INIT_FLAG to IN_V_INIT_IND again after it was already renamed), which
+    produced unresolved columns downstream (see EXP_CDC INIT_FLAG failure).
+    """
+    mappings = _load_nhs_mappings()
+    checked = 0
+    for mapping in mappings:
+        handlers = TransformHandlers(mapping, UserConfig())
+        plan = handlers.build_ir_plan()
+        seen = {}
+        for step in _rename_steps(plan):
+            for pair in step.params["rename_columns"]:
+                key = tuple(pair)
+                if key in seen:
+                    # A reusable mapplet instantiated twice (MSTR/STS) produces
+                    # identical internal rename steps; that is fine. Repeating
+                    # a pair across DIFFERENT rename steps is the bug (e.g.
+                    # INIT_FLAG → IN_V_INIT_IND in EXP_UPD_STRATEGY, EXP_CDC
+                    # and EXP_OUTPUT).
+                    assert seen[key] == step.step_name, (
+                        f"{mapping.name}: rename pair {key} repeated in "
+                        f"{seen[key]} and {step.step_name}"
+                    )
+                else:
+                    seen[key] = step.step_name
+                checked += 1
+    assert checked > 0
+
+
+def test_dlpk_cache_status_exp_cdc_rename_is_internal_only():
+    """EXP_CDC consumes the mapplet input ports directly (IN_V_INIT_IND,
+    IN_V_LAST_UPDATE_DATE, IN_SOR_DATE); it must NOT re-apply the external
+    forward renames that were already done at the mapplet entry.
+    """
+    mappings = _load_nhs_mappings()
+    phase_asp = next(
+        m for m in mappings if m.name == "M_NHS_SSAL2_TRAN_NHS_PHASE_ASP"
+    )
+    handlers = TransformHandlers(phase_asp, UserConfig())
+    plan = handlers.build_ir_plan()
+    cdc_steps = [
+        step
+        for step in _rename_steps(plan)
+        if step.step_name == "rename_EXP_CDC"
+    ]
+    assert cdc_steps, "rename_EXP_CDC steps not found"
+    for step in cdc_steps:
+        pairs = {tuple(p) for p in step.params["rename_columns"]}
+        assert ("INIT_FLAG", "IN_V_INIT_IND") not in pairs, (
+            "external forward rename repeated inside rename_EXP_CDC"
+        )
+        assert ("IN_V_INIT_IND", "INIT_FLAG") in pairs
+        assert ("IN_V_LAST_UPDATE_DATE", "LAST_UPDATE_DATE") in pairs
+        assert ("IN_SOR_DATE", "SOR_DATE") in pairs

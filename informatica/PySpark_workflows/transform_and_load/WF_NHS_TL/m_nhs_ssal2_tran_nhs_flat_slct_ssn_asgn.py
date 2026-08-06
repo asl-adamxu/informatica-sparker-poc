@@ -134,7 +134,6 @@ FROM
         logger.info("Step: rename_EXP_NULL_BKEY")
         # Expression: rename_EXP_NULL_BKEY
         df_MPLT_AGMT_NHS_PHASE_rename_2 = df_MPLT_AGMT_NHS_PHASE_input_1
-        df_MPLT_AGMT_NHS_PHASE_rename_2 = df_MPLT_AGMT_NHS_PHASE_rename_2.drop("IN_NHS_PHASE_CODE").withColumnRenamed("PHASE_CODE", "IN_NHS_PHASE_CODE")
         ctx.register_df("df_MPLT_AGMT_NHS_PHASE_rename_2", df_MPLT_AGMT_NHS_PHASE_rename_2)
         
         logger.info("Step: apply_MPLT_AGMT_NHS_PHASE_EXP_NULL_BKEY")
@@ -169,7 +168,6 @@ FROM
         logger.info("Step: rename_EXP_DUMMY")
         # Expression: rename_EXP_DUMMY
         df_MPLT_AGMT_NHS_PHASE_rename_4 = df_mplt_lkp_chain_3
-        df_MPLT_AGMT_NHS_PHASE_rename_4 = df_MPLT_AGMT_NHS_PHASE_rename_4.drop("IN_NHS_PHASE_CODE").withColumnRenamed("PHASE_CODE", "IN_NHS_PHASE_CODE")
         ctx.register_df("df_MPLT_AGMT_NHS_PHASE_rename_4", df_MPLT_AGMT_NHS_PHASE_rename_4)
         
         logger.info("Step: apply_MPLT_AGMT_NHS_PHASE_EXP_DUMMY")
@@ -210,7 +208,6 @@ FROM
         logger.info("Step: rename_EXP_OUTPUT")
         # Expression: rename_EXP_OUTPUT
         df_MPLT_AGMT_NHS_PHASE_rename_6 = df_mplt_lkp_chain_5
-        df_MPLT_AGMT_NHS_PHASE_rename_6 = df_MPLT_AGMT_NHS_PHASE_rename_6.drop("IN_NHS_PHASE_CODE").withColumnRenamed("PHASE_CODE", "IN_NHS_PHASE_CODE")
         df_MPLT_AGMT_NHS_PHASE_rename_6 = df_MPLT_AGMT_NHS_PHASE_rename_6.drop("SOR_CACHE_STATUS").withColumnRenamed("NewLookupRow", "SOR_CACHE_STATUS")
         df_MPLT_AGMT_NHS_PHASE_rename_6 = df_MPLT_AGMT_NHS_PHASE_rename_6.drop("SSA_CACHE_STATUS").withColumnRenamed("NewLookupRow", "SSA_CACHE_STATUS")
         ctx.register_df("df_MPLT_AGMT_NHS_PHASE_rename_6", df_MPLT_AGMT_NHS_PHASE_rename_6)
@@ -277,7 +274,6 @@ FROM
         logger.info("Step: rename_EXP_NULL_BKEY")
         # Expression: rename_EXP_NULL_BKEY
         df_MPLT_AGMT_NHS_HOS_APLY_rename_9 = df_MPLT_AGMT_NHS_HOS_APLY_input_8
-        df_MPLT_AGMT_NHS_HOS_APLY_rename_9 = df_MPLT_AGMT_NHS_HOS_APLY_rename_9.drop("IN_NHS_HOS_APLY_KEY").withColumnRenamed("HOS_APLY_KEY", "IN_NHS_HOS_APLY_KEY")
         ctx.register_df("df_MPLT_AGMT_NHS_HOS_APLY_rename_9", df_MPLT_AGMT_NHS_HOS_APLY_rename_9)
         
         logger.info("Step: apply_MPLT_AGMT_NHS_HOS_APLY_EXP_NULL_BKEY")
@@ -312,7 +308,6 @@ FROM
         logger.info("Step: rename_EXP_DUMMY")
         # Expression: rename_EXP_DUMMY
         df_MPLT_AGMT_NHS_HOS_APLY_rename_11 = df_mplt_lkp_chain_10
-        df_MPLT_AGMT_NHS_HOS_APLY_rename_11 = df_MPLT_AGMT_NHS_HOS_APLY_rename_11.drop("IN_NHS_HOS_APLY_KEY").withColumnRenamed("HOS_APLY_KEY", "IN_NHS_HOS_APLY_KEY")
         ctx.register_df("df_MPLT_AGMT_NHS_HOS_APLY_rename_11", df_MPLT_AGMT_NHS_HOS_APLY_rename_11)
         
         logger.info("Step: apply_MPLT_AGMT_NHS_HOS_APLY_EXP_DUMMY")
@@ -353,7 +348,6 @@ FROM
         logger.info("Step: rename_EXP_OUTPUT")
         # Expression: rename_EXP_OUTPUT
         df_MPLT_AGMT_NHS_HOS_APLY_rename_13 = df_mplt_lkp_chain_12
-        df_MPLT_AGMT_NHS_HOS_APLY_rename_13 = df_MPLT_AGMT_NHS_HOS_APLY_rename_13.drop("IN_NHS_HOS_APLY_KEY").withColumnRenamed("HOS_APLY_KEY", "IN_NHS_HOS_APLY_KEY")
         df_MPLT_AGMT_NHS_HOS_APLY_rename_13 = df_MPLT_AGMT_NHS_HOS_APLY_rename_13.drop("SOR_CACHE_STATUS").withColumnRenamed("NewLookupRow", "SOR_CACHE_STATUS")
         df_MPLT_AGMT_NHS_HOS_APLY_rename_13 = df_MPLT_AGMT_NHS_HOS_APLY_rename_13.drop("SSA_CACHE_STATUS").withColumnRenamed("NewLookupRow", "SSA_CACHE_STATUS")
         ctx.register_df("df_MPLT_AGMT_NHS_HOS_APLY_rename_13", df_MPLT_AGMT_NHS_HOS_APLY_rename_13)
@@ -413,9 +407,6 @@ FROM
         logger.info("Step: rename_EXP_NULL_BKEY")
         # Expression: rename_EXP_NULL_BKEY
         df_MPLT_AGMT_NHS_INTVW_SCHD_rename_16 = df_MPLT_AGMT_NHS_INTVW_SCHD_input_15
-        df_MPLT_AGMT_NHS_INTVW_SCHD_rename_16 = df_MPLT_AGMT_NHS_INTVW_SCHD_rename_16.drop("IN_PHASE_KEY").withColumnRenamed("PHASE_KEY", "IN_PHASE_KEY")
-        df_MPLT_AGMT_NHS_INTVW_SCHD_rename_16 = df_MPLT_AGMT_NHS_INTVW_SCHD_rename_16.drop("IN_NHS_INTVW_SCHD_DATE").withColumnRenamed("INTVW_SCHD_DATE", "IN_NHS_INTVW_SCHD_DATE")
-        df_MPLT_AGMT_NHS_INTVW_SCHD_rename_16 = df_MPLT_AGMT_NHS_INTVW_SCHD_rename_16.drop("IN_NHS_INTVW_SCHD_BGN_TIME").withColumnRenamed("INTVW_SCHD_BGN_TIME", "IN_NHS_INTVW_SCHD_BGN_TIME")
         ctx.register_df("df_MPLT_AGMT_NHS_INTVW_SCHD_rename_16", df_MPLT_AGMT_NHS_INTVW_SCHD_rename_16)
         
         logger.info("Step: apply_MPLT_AGMT_NHS_INTVW_SCHD_EXP_NULL_BKEY")
@@ -454,9 +445,6 @@ FROM
         logger.info("Step: rename_EXP_DUMMY")
         # Expression: rename_EXP_DUMMY
         df_MPLT_AGMT_NHS_INTVW_SCHD_rename_18 = df_mplt_lkp_chain_17
-        df_MPLT_AGMT_NHS_INTVW_SCHD_rename_18 = df_MPLT_AGMT_NHS_INTVW_SCHD_rename_18.drop("IN_PHASE_KEY").withColumnRenamed("PHASE_KEY", "IN_PHASE_KEY")
-        df_MPLT_AGMT_NHS_INTVW_SCHD_rename_18 = df_MPLT_AGMT_NHS_INTVW_SCHD_rename_18.drop("IN_NHS_INTVW_SCHD_DATE").withColumnRenamed("INTVW_SCHD_DATE", "IN_NHS_INTVW_SCHD_DATE")
-        df_MPLT_AGMT_NHS_INTVW_SCHD_rename_18 = df_MPLT_AGMT_NHS_INTVW_SCHD_rename_18.drop("IN_NHS_INTVW_SCHD_BGN_TIME").withColumnRenamed("INTVW_SCHD_BGN_TIME", "IN_NHS_INTVW_SCHD_BGN_TIME")
         ctx.register_df("df_MPLT_AGMT_NHS_INTVW_SCHD_rename_18", df_MPLT_AGMT_NHS_INTVW_SCHD_rename_18)
         
         logger.info("Step: apply_MPLT_AGMT_NHS_INTVW_SCHD_EXP_DUMMY")
@@ -497,9 +485,6 @@ FROM
         logger.info("Step: rename_EXP_OUTPUT")
         # Expression: rename_EXP_OUTPUT
         df_MPLT_AGMT_NHS_INTVW_SCHD_rename_20 = df_mplt_lkp_chain_19
-        df_MPLT_AGMT_NHS_INTVW_SCHD_rename_20 = df_MPLT_AGMT_NHS_INTVW_SCHD_rename_20.drop("IN_PHASE_KEY").withColumnRenamed("PHASE_KEY", "IN_PHASE_KEY")
-        df_MPLT_AGMT_NHS_INTVW_SCHD_rename_20 = df_MPLT_AGMT_NHS_INTVW_SCHD_rename_20.drop("IN_NHS_INTVW_SCHD_DATE").withColumnRenamed("INTVW_SCHD_DATE", "IN_NHS_INTVW_SCHD_DATE")
-        df_MPLT_AGMT_NHS_INTVW_SCHD_rename_20 = df_MPLT_AGMT_NHS_INTVW_SCHD_rename_20.drop("IN_NHS_INTVW_SCHD_BGN_TIME").withColumnRenamed("INTVW_SCHD_BGN_TIME", "IN_NHS_INTVW_SCHD_BGN_TIME")
         df_MPLT_AGMT_NHS_INTVW_SCHD_rename_20 = df_MPLT_AGMT_NHS_INTVW_SCHD_rename_20.drop("SOR_CACHE_STATUS").withColumnRenamed("NewLookupRow", "SOR_CACHE_STATUS")
         df_MPLT_AGMT_NHS_INTVW_SCHD_rename_20 = df_MPLT_AGMT_NHS_INTVW_SCHD_rename_20.drop("SSA_CACHE_STATUS").withColumnRenamed("NewLookupRow", "SSA_CACHE_STATUS")
         ctx.register_df("df_MPLT_AGMT_NHS_INTVW_SCHD_rename_20", df_MPLT_AGMT_NHS_INTVW_SCHD_rename_20)
@@ -791,13 +776,6 @@ where SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.FLAT_SLCT_SSN_ASGN_KEY = ss.FLAT_SLCT_SSN_A
         logger.info("Step: rename_EXP_UPD_STRATEGY")
         # Expression: rename_EXP_UPD_STRATEGY
         df_MPLT_DLKP_CACHE_STATUS_rename_25 = df_MPLT_DLKP_CACHE_STATUS_input_24
-        df_MPLT_DLKP_CACHE_STATUS_rename_25 = df_MPLT_DLKP_CACHE_STATUS_rename_25.drop("IN_V_DLKP_SOR_CACHE_STATUS").withColumnRenamed("IN_CACHE_STATUS", "IN_V_DLKP_SOR_CACHE_STATUS")
-        df_MPLT_DLKP_CACHE_STATUS_rename_25 = df_MPLT_DLKP_CACHE_STATUS_rename_25.drop("IN_V_DEL_IND").withColumnRenamed("DELETE_IND", "IN_V_DEL_IND")
-        df_MPLT_DLKP_CACHE_STATUS_rename_25 = df_MPLT_DLKP_CACHE_STATUS_rename_25.drop("IN_V_INIT_IND").withColumnRenamed("INIT_FLAG", "IN_V_INIT_IND")
-        df_MPLT_DLKP_CACHE_STATUS_rename_25 = df_MPLT_DLKP_CACHE_STATUS_rename_25.drop("IN_V_LAST_UPDATE_DATE").withColumnRenamed("LST_UPT_DTIME", "IN_V_LAST_UPDATE_DATE")
-        df_MPLT_DLKP_CACHE_STATUS_rename_25 = df_MPLT_DLKP_CACHE_STATUS_rename_25.drop("IN_AGMT_IND").withColumnRenamed("AGMT_IND", "IN_AGMT_IND")
-        df_MPLT_DLKP_CACHE_STATUS_rename_25 = df_MPLT_DLKP_CACHE_STATUS_rename_25.drop("IN_V_SNAPSHOT_DATE").withColumnRenamed("SNAPSHOT_DATE", "IN_V_SNAPSHOT_DATE")
-        df_MPLT_DLKP_CACHE_STATUS_rename_25 = df_MPLT_DLKP_CACHE_STATUS_rename_25.drop("IN_V_DLKP_SSA_CACHE_STATUS").withColumnRenamed("NewLookupRow", "IN_V_DLKP_SSA_CACHE_STATUS")
         df_MPLT_DLKP_CACHE_STATUS_rename_25 = df_MPLT_DLKP_CACHE_STATUS_rename_25.drop("IN_DEL_FLAG").withColumnRenamed("IN_V_DEL_IND", "IN_DEL_FLAG")
         df_MPLT_DLKP_CACHE_STATUS_rename_25 = df_MPLT_DLKP_CACHE_STATUS_rename_25.drop("IN_DLK_SOR_CACHE_STATUS").withColumnRenamed("IN_V_DLKP_SOR_CACHE_STATUS", "IN_DLK_SOR_CACHE_STATUS")
         df_MPLT_DLKP_CACHE_STATUS_rename_25 = df_MPLT_DLKP_CACHE_STATUS_rename_25.drop("SNAPSHOT_DATE").withColumnRenamed("IN_V_SNAPSHOT_DATE", "SNAPSHOT_DATE")
@@ -823,13 +801,6 @@ where SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.FLAT_SLCT_SSN_ASGN_KEY = ss.FLAT_SLCT_SSN_A
         logger.info("Step: rename_EXP_CDC")
         # Expression: rename_EXP_CDC
         df_MPLT_DLKP_CACHE_STATUS_rename_26 = df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY
-        df_MPLT_DLKP_CACHE_STATUS_rename_26 = df_MPLT_DLKP_CACHE_STATUS_rename_26.drop("IN_V_DLKP_SOR_CACHE_STATUS").withColumnRenamed("IN_CACHE_STATUS", "IN_V_DLKP_SOR_CACHE_STATUS")
-        df_MPLT_DLKP_CACHE_STATUS_rename_26 = df_MPLT_DLKP_CACHE_STATUS_rename_26.drop("IN_V_DEL_IND").withColumnRenamed("DELETE_IND", "IN_V_DEL_IND")
-        df_MPLT_DLKP_CACHE_STATUS_rename_26 = df_MPLT_DLKP_CACHE_STATUS_rename_26.drop("IN_V_INIT_IND").withColumnRenamed("INIT_FLAG", "IN_V_INIT_IND")
-        df_MPLT_DLKP_CACHE_STATUS_rename_26 = df_MPLT_DLKP_CACHE_STATUS_rename_26.drop("IN_V_LAST_UPDATE_DATE").withColumnRenamed("LST_UPT_DTIME", "IN_V_LAST_UPDATE_DATE")
-        df_MPLT_DLKP_CACHE_STATUS_rename_26 = df_MPLT_DLKP_CACHE_STATUS_rename_26.drop("IN_AGMT_IND").withColumnRenamed("AGMT_IND", "IN_AGMT_IND")
-        df_MPLT_DLKP_CACHE_STATUS_rename_26 = df_MPLT_DLKP_CACHE_STATUS_rename_26.drop("IN_V_SNAPSHOT_DATE").withColumnRenamed("SNAPSHOT_DATE", "IN_V_SNAPSHOT_DATE")
-        df_MPLT_DLKP_CACHE_STATUS_rename_26 = df_MPLT_DLKP_CACHE_STATUS_rename_26.drop("IN_V_DLKP_SSA_CACHE_STATUS").withColumnRenamed("NewLookupRow", "IN_V_DLKP_SSA_CACHE_STATUS")
         df_MPLT_DLKP_CACHE_STATUS_rename_26 = df_MPLT_DLKP_CACHE_STATUS_rename_26.drop("SOR_DATE").withColumnRenamed("IN_SOR_DATE", "SOR_DATE")
         df_MPLT_DLKP_CACHE_STATUS_rename_26 = df_MPLT_DLKP_CACHE_STATUS_rename_26.drop("INIT_FLAG").withColumnRenamed("IN_V_INIT_IND", "INIT_FLAG")
         df_MPLT_DLKP_CACHE_STATUS_rename_26 = df_MPLT_DLKP_CACHE_STATUS_rename_26.drop("LAST_UPDATE_DATE").withColumnRenamed("IN_V_LAST_UPDATE_DATE", "LAST_UPDATE_DATE")
@@ -856,13 +827,7 @@ where SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.FLAT_SLCT_SSN_ASGN_KEY = ss.FLAT_SLCT_SSN_A
         logger.info("Step: rename_EXP_OUTPUT")
         # Expression: rename_EXP_OUTPUT
         df_MPLT_DLKP_CACHE_STATUS_rename_27 = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC
-        df_MPLT_DLKP_CACHE_STATUS_rename_27 = df_MPLT_DLKP_CACHE_STATUS_rename_27.drop("IN_V_DLKP_SOR_CACHE_STATUS").withColumnRenamed("IN_CACHE_STATUS", "IN_V_DLKP_SOR_CACHE_STATUS")
-        df_MPLT_DLKP_CACHE_STATUS_rename_27 = df_MPLT_DLKP_CACHE_STATUS_rename_27.drop("IN_V_DEL_IND").withColumnRenamed("DELETE_IND", "IN_V_DEL_IND")
-        df_MPLT_DLKP_CACHE_STATUS_rename_27 = df_MPLT_DLKP_CACHE_STATUS_rename_27.drop("IN_V_INIT_IND").withColumnRenamed("INIT_FLAG", "IN_V_INIT_IND")
-        df_MPLT_DLKP_CACHE_STATUS_rename_27 = df_MPLT_DLKP_CACHE_STATUS_rename_27.drop("IN_V_LAST_UPDATE_DATE").withColumnRenamed("LST_UPT_DTIME", "IN_V_LAST_UPDATE_DATE")
         df_MPLT_DLKP_CACHE_STATUS_rename_27 = df_MPLT_DLKP_CACHE_STATUS_rename_27.drop("IN_AGMT_IND").withColumnRenamed("AGMT_IND", "IN_AGMT_IND")
-        df_MPLT_DLKP_CACHE_STATUS_rename_27 = df_MPLT_DLKP_CACHE_STATUS_rename_27.drop("IN_V_SNAPSHOT_DATE").withColumnRenamed("SNAPSHOT_DATE", "IN_V_SNAPSHOT_DATE")
-        df_MPLT_DLKP_CACHE_STATUS_rename_27 = df_MPLT_DLKP_CACHE_STATUS_rename_27.drop("IN_V_DLKP_SSA_CACHE_STATUS").withColumnRenamed("NewLookupRow", "IN_V_DLKP_SSA_CACHE_STATUS")
         df_MPLT_DLKP_CACHE_STATUS_rename_27 = df_MPLT_DLKP_CACHE_STATUS_rename_27.drop("IN_OPR_IND").withColumnRenamed("OPR_IND", "IN_OPR_IND")
         ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_rename_27", df_MPLT_DLKP_CACHE_STATUS_rename_27)
         
@@ -1027,15 +992,6 @@ where SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.FLAT_SLCT_SSN_ASGN_KEY = ss.FLAT_SLCT_SSN_A
         logger.info("Step: rename_EXP_UPD_STRATEGY")
         # Expression: rename_EXP_UPD_STRATEGY
         df_MPLT_DLKP_CACHE_STATUS_rename_34 = df_MPLT_DLKP_CACHE_STATUS_input_33
-        df_MPLT_DLKP_CACHE_STATUS_rename_34 = df_MPLT_DLKP_CACHE_STATUS_rename_34.drop("IN_SOR_DATE").withColumnRenamed("BGN_DATE", "IN_SOR_DATE")
-        df_MPLT_DLKP_CACHE_STATUS_rename_34 = df_MPLT_DLKP_CACHE_STATUS_rename_34.drop("IN_V_INIT_IND").withColumnRenamed("INIT_FLAG", "IN_V_INIT_IND")
-        df_MPLT_DLKP_CACHE_STATUS_rename_34 = df_MPLT_DLKP_CACHE_STATUS_rename_34.drop("IN_TABLE_NAME").withColumnRenamed("v_NULL", "IN_TABLE_NAME")
-        df_MPLT_DLKP_CACHE_STATUS_rename_34 = df_MPLT_DLKP_CACHE_STATUS_rename_34.drop("IN_V_LAST_UPDATE_DATE").withColumnRenamed("LAST_REC_TXN_DATE", "IN_V_LAST_UPDATE_DATE")
-        df_MPLT_DLKP_CACHE_STATUS_rename_34 = df_MPLT_DLKP_CACHE_STATUS_rename_34.drop("IN_AGMT_IND").withColumnRenamed("AGMT_IND", "IN_AGMT_IND")
-        df_MPLT_DLKP_CACHE_STATUS_rename_34 = df_MPLT_DLKP_CACHE_STATUS_rename_34.drop("IN_V_SNAPSHOT_DATE").withColumnRenamed("SNAPSHOT_DATE", "IN_V_SNAPSHOT_DATE")
-        df_MPLT_DLKP_CACHE_STATUS_rename_34 = df_MPLT_DLKP_CACHE_STATUS_rename_34.drop("IN_V_DLKP_SOR_CACHE_STATUS").withColumnRenamed("OUT_CACHE_STATUS", "IN_V_DLKP_SOR_CACHE_STATUS")
-        df_MPLT_DLKP_CACHE_STATUS_rename_34 = df_MPLT_DLKP_CACHE_STATUS_rename_34.drop("IN_V_DEL_IND").withColumnRenamed("DELETE_IND", "IN_V_DEL_IND")
-        df_MPLT_DLKP_CACHE_STATUS_rename_34 = df_MPLT_DLKP_CACHE_STATUS_rename_34.drop("IN_V_DLKP_SSA_CACHE_STATUS").withColumnRenamed("NewLookupRow", "IN_V_DLKP_SSA_CACHE_STATUS")
         df_MPLT_DLKP_CACHE_STATUS_rename_34 = df_MPLT_DLKP_CACHE_STATUS_rename_34.drop("IN_DEL_FLAG").withColumnRenamed("IN_V_DEL_IND", "IN_DEL_FLAG")
         df_MPLT_DLKP_CACHE_STATUS_rename_34 = df_MPLT_DLKP_CACHE_STATUS_rename_34.drop("IN_DLK_SOR_CACHE_STATUS").withColumnRenamed("IN_V_DLKP_SOR_CACHE_STATUS", "IN_DLK_SOR_CACHE_STATUS")
         df_MPLT_DLKP_CACHE_STATUS_rename_34 = df_MPLT_DLKP_CACHE_STATUS_rename_34.drop("SNAPSHOT_DATE").withColumnRenamed("IN_V_SNAPSHOT_DATE", "SNAPSHOT_DATE")
@@ -1061,15 +1017,6 @@ where SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.FLAT_SLCT_SSN_ASGN_KEY = ss.FLAT_SLCT_SSN_A
         logger.info("Step: rename_EXP_CDC")
         # Expression: rename_EXP_CDC
         df_MPLT_DLKP_CACHE_STATUS_rename_35 = df_MPLT_DLKP_CACHE_STATUS_EXP_UPD_STRATEGY
-        df_MPLT_DLKP_CACHE_STATUS_rename_35 = df_MPLT_DLKP_CACHE_STATUS_rename_35.drop("IN_SOR_DATE").withColumnRenamed("BGN_DATE", "IN_SOR_DATE")
-        df_MPLT_DLKP_CACHE_STATUS_rename_35 = df_MPLT_DLKP_CACHE_STATUS_rename_35.drop("IN_V_INIT_IND").withColumnRenamed("INIT_FLAG", "IN_V_INIT_IND")
-        df_MPLT_DLKP_CACHE_STATUS_rename_35 = df_MPLT_DLKP_CACHE_STATUS_rename_35.drop("IN_TABLE_NAME").withColumnRenamed("v_NULL", "IN_TABLE_NAME")
-        df_MPLT_DLKP_CACHE_STATUS_rename_35 = df_MPLT_DLKP_CACHE_STATUS_rename_35.drop("IN_V_LAST_UPDATE_DATE").withColumnRenamed("LAST_REC_TXN_DATE", "IN_V_LAST_UPDATE_DATE")
-        df_MPLT_DLKP_CACHE_STATUS_rename_35 = df_MPLT_DLKP_CACHE_STATUS_rename_35.drop("IN_AGMT_IND").withColumnRenamed("AGMT_IND", "IN_AGMT_IND")
-        df_MPLT_DLKP_CACHE_STATUS_rename_35 = df_MPLT_DLKP_CACHE_STATUS_rename_35.drop("IN_V_SNAPSHOT_DATE").withColumnRenamed("SNAPSHOT_DATE", "IN_V_SNAPSHOT_DATE")
-        df_MPLT_DLKP_CACHE_STATUS_rename_35 = df_MPLT_DLKP_CACHE_STATUS_rename_35.drop("IN_V_DLKP_SOR_CACHE_STATUS").withColumnRenamed("OUT_CACHE_STATUS", "IN_V_DLKP_SOR_CACHE_STATUS")
-        df_MPLT_DLKP_CACHE_STATUS_rename_35 = df_MPLT_DLKP_CACHE_STATUS_rename_35.drop("IN_V_DEL_IND").withColumnRenamed("DELETE_IND", "IN_V_DEL_IND")
-        df_MPLT_DLKP_CACHE_STATUS_rename_35 = df_MPLT_DLKP_CACHE_STATUS_rename_35.drop("IN_V_DLKP_SSA_CACHE_STATUS").withColumnRenamed("NewLookupRow", "IN_V_DLKP_SSA_CACHE_STATUS")
         df_MPLT_DLKP_CACHE_STATUS_rename_35 = df_MPLT_DLKP_CACHE_STATUS_rename_35.drop("SOR_DATE").withColumnRenamed("IN_SOR_DATE", "SOR_DATE")
         df_MPLT_DLKP_CACHE_STATUS_rename_35 = df_MPLT_DLKP_CACHE_STATUS_rename_35.drop("INIT_FLAG").withColumnRenamed("IN_V_INIT_IND", "INIT_FLAG")
         df_MPLT_DLKP_CACHE_STATUS_rename_35 = df_MPLT_DLKP_CACHE_STATUS_rename_35.drop("LAST_UPDATE_DATE").withColumnRenamed("IN_V_LAST_UPDATE_DATE", "LAST_UPDATE_DATE")
@@ -1096,15 +1043,7 @@ where SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.FLAT_SLCT_SSN_ASGN_KEY = ss.FLAT_SLCT_SSN_A
         logger.info("Step: rename_EXP_OUTPUT")
         # Expression: rename_EXP_OUTPUT
         df_MPLT_DLKP_CACHE_STATUS_rename_36 = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC
-        df_MPLT_DLKP_CACHE_STATUS_rename_36 = df_MPLT_DLKP_CACHE_STATUS_rename_36.drop("IN_SOR_DATE").withColumnRenamed("BGN_DATE", "IN_SOR_DATE")
-        df_MPLT_DLKP_CACHE_STATUS_rename_36 = df_MPLT_DLKP_CACHE_STATUS_rename_36.drop("IN_V_INIT_IND").withColumnRenamed("INIT_FLAG", "IN_V_INIT_IND")
-        df_MPLT_DLKP_CACHE_STATUS_rename_36 = df_MPLT_DLKP_CACHE_STATUS_rename_36.drop("IN_TABLE_NAME").withColumnRenamed("v_NULL", "IN_TABLE_NAME")
-        df_MPLT_DLKP_CACHE_STATUS_rename_36 = df_MPLT_DLKP_CACHE_STATUS_rename_36.drop("IN_V_LAST_UPDATE_DATE").withColumnRenamed("LAST_REC_TXN_DATE", "IN_V_LAST_UPDATE_DATE")
         df_MPLT_DLKP_CACHE_STATUS_rename_36 = df_MPLT_DLKP_CACHE_STATUS_rename_36.drop("IN_AGMT_IND").withColumnRenamed("AGMT_IND", "IN_AGMT_IND")
-        df_MPLT_DLKP_CACHE_STATUS_rename_36 = df_MPLT_DLKP_CACHE_STATUS_rename_36.drop("IN_V_SNAPSHOT_DATE").withColumnRenamed("SNAPSHOT_DATE", "IN_V_SNAPSHOT_DATE")
-        df_MPLT_DLKP_CACHE_STATUS_rename_36 = df_MPLT_DLKP_CACHE_STATUS_rename_36.drop("IN_V_DLKP_SOR_CACHE_STATUS").withColumnRenamed("OUT_CACHE_STATUS", "IN_V_DLKP_SOR_CACHE_STATUS")
-        df_MPLT_DLKP_CACHE_STATUS_rename_36 = df_MPLT_DLKP_CACHE_STATUS_rename_36.drop("IN_V_DEL_IND").withColumnRenamed("DELETE_IND", "IN_V_DEL_IND")
-        df_MPLT_DLKP_CACHE_STATUS_rename_36 = df_MPLT_DLKP_CACHE_STATUS_rename_36.drop("IN_V_DLKP_SSA_CACHE_STATUS").withColumnRenamed("NewLookupRow", "IN_V_DLKP_SSA_CACHE_STATUS")
         df_MPLT_DLKP_CACHE_STATUS_rename_36 = df_MPLT_DLKP_CACHE_STATUS_rename_36.drop("IN_OPR_IND").withColumnRenamed("OPR_IND", "IN_OPR_IND")
         ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_rename_36", df_MPLT_DLKP_CACHE_STATUS_rename_36)
         
