@@ -370,7 +370,7 @@ ORDER BY SOR_NHS_HOS_APLY_BLT_STS.HOS_APLY_BLT_KEY --"""
         logger.info("write_SSA_NHS_HOS_APLY write completed")
         logger.info("Step: apply_FILTRANS_STS")
         # Filter: apply_FILTRANS_STS
-        __fil_input = df_FILTRANS_MSTR
+        __fil_input = df_lkp_merge_7
         df_FILTRANS_STS = __fil_input.filter(expr("NewLookupRow > 0 OR ( LAST_REC_TXN_TYPE_CODE = 'D' AND END_DATE = to_date('99991231', 'yyyyMMdd') ) OR ( LAST_REC_TXN_TYPE_CODE != 'D' AND END_DATE != to_date('99991231', 'yyyyMMdd') )"))
         ctx.register_df("df_FILTRANS_STS", df_FILTRANS_STS)
 

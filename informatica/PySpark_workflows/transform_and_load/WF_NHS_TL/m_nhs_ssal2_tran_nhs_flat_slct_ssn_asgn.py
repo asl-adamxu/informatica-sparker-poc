@@ -525,7 +525,7 @@ FROM
         
         logger.info("Step: apply_FILTRANS_MSTR")
         # Filter: apply_FILTRANS_MSTR
-        __fil_input = df_MPLT_AGMT_NHS_HOS_APLY_input_8
+        __fil_input = df_lkp_merge_7
         df_FILTRANS_MSTR = __fil_input.filter(expr("NewLookupRow > 0"))
         ctx.register_df("df_FILTRANS_MSTR", df_FILTRANS_MSTR)
 
@@ -663,7 +663,7 @@ where SOR_NHS_FLAT_SLCT_SSN_ASGN_STS.FLAT_SLCT_SSN_ASGN_KEY = ss.FLAT_SLCT_SSN_A
         logger.info("write_SSA_NHS_HOS_APLY write completed")
         logger.info("Step: apply_FILTRANS_STS")
         # Filter: apply_FILTRANS_STS
-        __fil_input = df_MPLT_AGMT_NHS_HOS_APLY_input_8
+        __fil_input = df_lkp_merge_7
         df_FILTRANS_STS = __fil_input.filter(expr("NewLookupRow > 0 OR ( LAST_REC_TXN_TYPE_CODE = 'D' AND END_DATE = to_date('99991231', 'yyyyMMdd') ) OR ( LAST_REC_TXN_TYPE_CODE != 'D' AND END_DATE != to_date('99991231', 'yyyyMMdd') )"))
         ctx.register_df("df_FILTRANS_STS", df_FILTRANS_STS)
 

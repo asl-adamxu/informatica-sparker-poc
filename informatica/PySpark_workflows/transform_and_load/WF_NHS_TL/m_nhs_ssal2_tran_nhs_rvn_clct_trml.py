@@ -270,7 +270,7 @@ FROM NHS_RVN_CLCT_TRML"""
         
         logger.info("Step: apply_FILTRANS_MSTR")
         # Filter: apply_FILTRANS_MSTR
-        __fil_input = df_MPLT_AGMT_NHS_RVN_CLCT_OFFC_input_2
+        __fil_input = df_lkp_merge_1
         df_FILTRANS_MSTR = __fil_input.filter(expr("NewLookupRow > 0"))
         ctx.register_df("df_FILTRANS_MSTR", df_FILTRANS_MSTR)
 
@@ -282,7 +282,7 @@ FROM NHS_RVN_CLCT_TRML"""
 
 FROM SOR_NHS_RVN_CLCT_TRML_STS, (select RVN_CLCT_TRML_KEY, max(bgn_date) max_bgn_date from SOR_NHS_RVN_CLCT_TRML_STS group by RVN_CLCT_TRML_KEY) ss
 where SOR_NHS_RVN_CLCT_TRML_STS.RVN_CLCT_TRML_KEY = ss.RVN_CLCT_TRML_KEY and SOR_NHS_RVN_CLCT_TRML_STS.bgn_date = ss.max_bgn_date
- ORDER BY SOR_NHS_RVN_CLCT_TRML_STS.RVN_CLCT_TRML_KEY -- """
+ ORDER BY SOR_NHS_RVN_CLCT_TRML_STS.RVN_CLCT_TRML_KEY  """
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_init_flag", v_init_flag)
         df_DLKP_SOR_STS = lib.read_sql(spark, _conn, query=query)

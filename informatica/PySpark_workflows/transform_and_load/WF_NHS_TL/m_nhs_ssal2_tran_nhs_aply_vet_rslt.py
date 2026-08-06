@@ -291,7 +291,7 @@ FROM NHS_APLY_VET_RSLT"""
 
 FROM SOR_NHS_APLY_VET_RSLT_STS, (select APLY_VET_RSLT_KEY, max(bgn_date) max_bgn_date from SOR_NHS_APLY_VET_RSLT_STS group by APLY_VET_RSLT_KEY) ss
 where SOR_NHS_APLY_VET_RSLT_STS.APLY_VET_RSLT_KEY = ss.APLY_VET_RSLT_KEY and SOR_NHS_APLY_VET_RSLT_STS.bgn_date = ss.max_bgn_date
- ORDER BY SOR_NHS_APLY_VET_RSLT_STS.APLY_VET_RSLT_KEY -- """
+ ORDER BY SOR_NHS_APLY_VET_RSLT_STS.APLY_VET_RSLT_KEY  """
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_init_flag", v_init_flag)
         df_DLKP_SOR_STS = lib.read_sql(spark, _conn, query=query)
@@ -397,7 +397,7 @@ where SOR_NHS_APLY_VET_RSLT_STS.APLY_VET_RSLT_KEY = ss.APLY_VET_RSLT_KEY and SOR
         
         logger.info("Step: apply_FILTRANS_STS")
         # Filter: apply_FILTRANS_STS
-        __fil_input = df_FILTRANS_MSTR
+        __fil_input = df_lkp_merge_7
         df_FILTRANS_STS = __fil_input.filter(expr("NewLookupRow > 0 OR ( LAST_REC_TXN_TYPE_CODE = 'D' AND END_DATE = to_date('99991231', 'yyyyMMdd') ) OR ( LAST_REC_TXN_TYPE_CODE != 'D' AND END_DATE != to_date('99991231', 'yyyyMMdd') )"))
         ctx.register_df("df_FILTRANS_STS", df_FILTRANS_STS)
 

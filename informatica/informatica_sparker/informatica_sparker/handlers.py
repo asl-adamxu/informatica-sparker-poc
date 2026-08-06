@@ -44,6 +44,10 @@ class TransformHandlers:
         # sequentially instead of branching in parallel (prevents column loss
         # when a downstream lookup starts from a stale intermediate result).
         self._last_chain_output: Optional[str] = None
+        # Order in which lookup instances registered their chain/merge output.
+        # Used by _get_input_df to prefer the correct lookup when a component
+        # is fed by one or more lookup procedures.
+        self._lookup_order: List[str] = []
         # Connected sequence generators (no upstream) attach their NEXTVAL
         # column to the downstream consumer's step. Maps consumer instance
         # name → list of {"col": ..., "start": ...} attachments.
@@ -640,6 +644,21 @@ class TransformHandlers:
         # This avoids picking up unrelated steps from other pipelines.
         for _sp in plan.steps:
             if isinstance(_sp, ApplyFilterStep) and _sp.df_input and _sp.df_input.startswith(('df_lkp_merge', 'df_merge', 'df_sq_')):
+                # Filters fed by a Lookup Procedure must consume the lookup's
+                # chain/merge output (e.g. FILTRANS_STS ← DLKP_SOR_STS needs
+                # END_DATE/NewLookupRow). Rewriting them to an earlier non-chain
+                # consumer of the same chain df breaks column resolution, so
+                # skip the upgrade for lookup-fed filters.
+                _fil_inst = _sp.step_name[6:] if _sp.step_name.startswith('apply_') else _sp.step_name
+                _fed_by_lookup = False
+                for _c in self.mapping.connectors:
+                    if _c.to_instance == _fil_inst:
+                        _up_inst = self.instance_map.get(_c.from_instance)
+                        if _up_inst is not None and self._resolve_transformation_type(_up_inst) == "Lookup Procedure":
+                            _fed_by_lookup = True
+                            break
+                if _fed_by_lookup:
+                    continue
                 _chain = _sp.df_input
                 _sp_idx = plan.steps.index(_sp)
                 for _p in reversed(plan.steps[:_sp_idx]):
@@ -1290,7 +1309,11 @@ class TransformHandlers:
         # references column B, B must be computed first (topological order).
         if len(computed_columns) > 1:
             _dep_graph = nx.DiGraph()
-            _all_names = {c.name for c in computed_columns}
+            # Iterate dependency names deterministically: a plain set makes the
+            # topological order (and therefore generated column order) depend
+            # on the process hash seed, so the same mapping can produce
+            # different output files between runs.
+            _all_names = sorted({c.name for c in computed_columns})
             for _cc in computed_columns:
                 _dep_graph.add_node(_cc.name)
                 for _dep_name in _all_names:
@@ -1533,6 +1556,7 @@ class TransformHandlers:
                 self._last_chain_output = df_output
             # Register lookup instance → chain df
             self._register_df(instance, df_output)
+            self._lookup_order.append(instance.name)
             # Walk upstream from this lookup's connector chain and register the
             # chain df for every instance in the same pipeline segment. This
             # ensures that downstream components (e.g. EXPTRANS4 connected to
@@ -1540,6 +1564,10 @@ class TransformHandlers:
             # NOTE: Skip Router instances — they have multiple output groups
             # registered under suffixed keys (RTRTRANS_VALID_TYPE, etc.) and
             # overwriting their map entry would break downstream lookup.
+            # Also skip Lookup Procedure instances: a later lookup chained onto
+            # the same pipeline must not clobber an earlier lookup's registered
+            # merge output (FILTRANS_MSTR/STS resolve their input from the
+            # lookup instance that actually feeds them).
             _visited = set()
             _queue = [_upstream_name] if _upstream_name else []
             while _queue:
@@ -1547,11 +1575,13 @@ class TransformHandlers:
                 if _inst in _visited:
                     continue
                 _visited.add(_inst)
-                # Skip Router instances (they have multiple output groups)
                 _skip = False
                 _ii = self.instance_map.get(_inst)
-                if _ii and _ii.transformation_type == 'Router':
-                    _skip = True
+                if _ii:
+                    if _ii.transformation_type == 'Router':
+                        _skip = True
+                    elif self._resolve_transformation_type(_ii) == "Lookup Procedure":
+                        _skip = True
                 if not _skip:
                     self.current_df_map[_inst] = df_output
                 # Find what feeds this instance (walk upstream regardless)
@@ -2849,6 +2879,25 @@ class TransformHandlers:
                     _first_match = _v
                 _matched_df = _v
         if _matched_df:
+            # When a FILTER's connector upstream is a Lookup Procedure, its
+            # registered df IS the chain/merge output (upstream columns +
+            # lookup columns). Prefer that over raw SQ/expression DFs or an
+            # arbitrary first match, otherwise filters like FILTRANS_STS (fed
+            # by DLKP_SOR_STS + EXP_BK) lose END_DATE/NewLookupRow. With
+            # multiple lookup upstreams, the last-processed lookup carries all
+            # previous merges. This preference is deliberately scoped to
+            # filters: applying it to expressions/mapplet inputs would reorder
+            # which df is primary in multi-input merge pre-steps and change
+            # left-join semantics.
+            _target_inst = self.instance_map.get(instance_name)
+            if _target_inst is not None and self._resolve_transformation_type(_target_inst) == "Filter":
+                _lookup_ups = []
+                for _u in dict.fromkeys(upstream_instances):
+                    if _u in self._lookup_order and _u in self.current_df_map:
+                        _lookup_ups.append(_u)
+                if _lookup_ups:
+                    _last_lkp = max(_lookup_ups, key=self._lookup_order.index)
+                    return self.current_df_map[_last_lkp]
             if len(_matched_values) > 1:
                 for _v in _matched_values:
                     if _v.startswith('df_lkp_result') or _v.startswith('df_jnr_result'):
