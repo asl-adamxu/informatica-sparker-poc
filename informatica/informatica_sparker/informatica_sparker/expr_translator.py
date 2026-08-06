@@ -766,6 +766,11 @@ class ExpressionTranslator:
                     # is correct (e.g. TRUE = x > 10 would parse wrongly).
                     if test_expr.strip().upper() == 'TRUE':
                         when_clauses.append(f"WHEN {search_val} THEN {result_val}")
+                    elif search_val.strip().upper() == 'NULL':
+                        # Informatica DECODE matches NULL as a search value
+                        # (DECODE(x, NULL, a, b)); in Spark, NULL comparison
+                        # must use IS NULL — `= NULL` is always NULL/false.
+                        when_clauses.append(f"WHEN {test_expr} IS NULL THEN {result_val}")
                     else:
                         when_clauses.append(f"WHEN {test_expr} = {search_val} THEN {result_val}")
                     i += 2

@@ -57,6 +57,11 @@ class TransformHandlers:
         # missing-side / lit(None)-filled columns as NullType, which JDBC
         # cannot map to Oracle: "Can't get JDBC type for void").
         self._union_output_dfs: set = set()
+        # Mapplet external input/output df names, used to keep the source row
+        # stream as the base of downstream lookup chains (mapplet outputs may
+        # overwrite source columns such as LAST_REC_TXN_TYPE_CODE with NULL).
+        self._mapplet_input_df: Dict[str, str] = {}
+        self._mapplet_output_df: Dict[str, str] = {}
 
         self._build_maps()
 
@@ -1435,6 +1440,18 @@ class TransformHandlers:
         steps = []
 
         input_df = self._get_input_df(instance.name)
+        # Capture the upstream df set BEFORE chain registration overwrites
+        # current_df_map entries with the accumulating chain output name;
+        # otherwise a multi-upstream merge would see the lookup's own output
+        # (e.g. df_lkp_merge_13) as an "extra" input and self-reference it.
+        _lookup_upstream_dfs = self._get_all_input_dfs(instance.name)
+        # Fields each upstream branch provides to this lookup (used to decide
+        # whether an ancestor extra can be skipped safely).
+        _lookup_needed_by_df: Dict[str, Set[str]] = {}
+        for _c in self.mapping.connectors:
+            if _c.to_instance == instance.name and _c.from_instance in self.current_df_map:
+                _lookup_needed_by_df.setdefault(
+                    self.current_df_map[_c.from_instance], set()).add(_c.from_field)
 
         transform = self.transform_map.get(instance.transformation_name or instance.name)
         if not transform:
@@ -1632,6 +1649,85 @@ class TransformHandlers:
                 for _port, _col in _lkp_field_remap.items():
                     if _port != _col:
                         join_expr = re.sub(r'\b' + re.escape(_port) + r'\b', _col, join_expr)
+
+            # Multi-upstream lookups: the lookup's input ports may come from
+            # several independent branches (e.g. DLKP_SOR_STS.IN_RVN_CLCT_TRML_KEY
+            # comes from MPLT_AGMT_NHS_RVN_CLCT_TRML while its other ports come
+            # from the EXP_BK / DLKP_SOR_MSTR chain). Merge the extra upstream
+            # dfs into the chain input so every remapped source column exists
+            # on the df that feeds the lookup join.
+            _extra_lookup_inputs = [
+                _d for _d in _lookup_upstream_dfs
+                if _d != _chain_input
+                and not str(_chain_input).startswith("df_input")
+            ]
+            # When the lookup chain input is a mapplet's output, base the
+            # chain on the mapplet's external input stream instead — the
+            # mapplet may have overwritten source columns (e.g.
+            # LAST_REC_TXN_TYPE_CODE = NULL) that downstream filters and
+            # expressions still need (FILTRANS_MSTR/STS, EXPTRANS_*, EXP_OPR_IND).
+            _mpl_base = None
+            for _c in self.mapping.connectors:
+                if _c.to_instance == instance.name:
+                    _up = _c.from_instance
+                    if (_up in self._mapplet_output_df
+                            and _chain_input == self._mapplet_output_df[_up]):
+                        # Walk nested mapplets up to the ultimate external
+                        # input (e.g. PYMT mapplet ← TXN mapplet ← EXP_BK).
+                        _walk = _up
+                        _visited = set()
+                        while _walk in self._mapplet_input_df and _walk not in _visited:
+                            _visited.add(_walk)
+                            _in_df = self._mapplet_input_df[_walk]
+                            if _in_df and _in_df != _chain_input:
+                                _mpl_base = _in_df
+                            _next = next(
+                                (k for k, v in self._mapplet_output_df.items()
+                                 if v == _in_df and k not in _visited),
+                                None)
+                            if _next is None:
+                                break
+                            _walk = _next
+                        break
+            if _extra_lookup_inputs or _mpl_base is not None:
+                _df_parent = self._build_df_parent_map(plan.steps)
+                _step_map = {s.df_output: s for s in plan.steps if s.df_output}
+                # Prefer the most ancestral upstream df as the base so the
+                # source stream's column values survive name collisions with
+                # mapplet outputs that overwrote them. Lookup chain outputs are
+                # consumed by downstream filters/expressions, so a descendant
+                # branch must never silently replace base columns.
+                _cur_lookup_df = _mpl_base if _mpl_base is not None else _chain_input
+                _base_df = _cur_lookup_df
+                for _i, _extra_df in enumerate(
+                        [d for d in _lookup_upstream_dfs if d != _base_df]):
+                    # Only an extra that is a pure ancestor of the current base
+                    # may be skipped (the base already carries every column the
+                    # ancestor provides). A descendant extra may have overwritten
+                    # source columns (e.g. a mapplet output sets
+                    # LAST_REC_TXN_TYPE_CODE = NULL) and must always be merged
+                    # so the base's source values survive name collisions.
+                    if (self._is_df_descendant(_df_parent, _cur_lookup_df, _extra_df)
+                            and self._lineage_preserves_columns(
+                                _df_parent, _step_map, _cur_lookup_df, _extra_df,
+                                _lookup_needed_by_df.get(_extra_df, set()))):
+                        continue
+                    _merge_df = self._get_df_name("df_merge")
+                    _merge_step = ApplyLookupStep(
+                        step_name=f"merge_{instance.name}_{_i}",
+                        df_input=_cur_lookup_df,
+                        df_output=_merge_df,
+                        lookup_df=_extra_df,
+                        join_predicates=[],
+                        join_expr="__common_cols__",
+                        output_columns=[],
+                        lookup_type="left",
+                    )
+                    steps.append(_merge_step)
+                    _df_parent[_merge_df] = _cur_lookup_df
+                    _step_map[_merge_df] = _merge_step
+                    _cur_lookup_df = _merge_df
+                _chain_input = _cur_lookup_df
 
             steps.append(ApplyLookupStep(
                 step_name=f"apply_{instance.name}",
@@ -3169,6 +3265,8 @@ class TransformHandlers:
                 _step_map[_join_df] = steps[-1]
                 _cur_df = _join_df
             input_df = _cur_df
+        if input_df and input_df != "df_input":
+            self._mapplet_input_df[instance.name] = input_df
         mapplet_def = self.mapping.mapplets.get(mapplet_name) if hasattr(self.mapping, 'mapplets') else None
         if not mapplet_def:
             self.logger.log_mapplet(instance.name, f"Mapplet definition not found: {mapplet_name}", LogLevel.WARNING)
@@ -3310,6 +3408,12 @@ class TransformHandlers:
         mpl_df_map: Dict[str, str] = {}
         if input_inst:
             mpl_df_map[input_inst.name] = input_df
+        # Unique per-instance output column for Dynamic Lookup NewLookupRow
+        # (0/1 hit indicator). Multiple dynamic lookups in one mapplet (e.g.
+        # LKP_DYN_SOR + LKP_DYN_SSA) each emit NewLookupRow; a unique name
+        # prevents the second lookup from clobbering the first before the
+        # downstream rename steps map them to SOR/SSA_CACHE_STATUS.
+        mpl_nlr_cols: Dict[str, str] = {}
 
         # --- 7. Process internal instances in topological order ------------------------
         for mpl_inst_name in mpl_order:
@@ -3329,9 +3433,14 @@ class TransformHandlers:
             # already uses the mapplet INPUT port names (e.g. IN_CASE_TYPE_KEY).
             _internal_remap: Dict[str, str] = {}
             for conn in mpl_connectors:
-                if conn.to_instance == mpl_inst_name and conn.from_field != conn.to_field:
-                    inst_field_remap[conn.to_field] = conn.from_field
-                    _internal_remap[conn.to_field] = conn.from_field
+                if conn.to_instance == mpl_inst_name:
+                    _actual = conn.from_field
+                    if (conn.from_instance in mpl_nlr_cols
+                            and conn.from_field.upper() == "NEWLOOKUPROW"):
+                        _actual = mpl_nlr_cols[conn.from_instance]
+                    if _actual != conn.to_field:
+                        inst_field_remap[conn.to_field] = _actual
+                        _internal_remap[conn.to_field] = _actual
 
             if "Input Transformation" in mpl_inst_type:
                 # Input is already mapped to input_df
@@ -3461,6 +3570,18 @@ class TransformHandlers:
                         output_columns=output_cols,
                         lookup_type="left",
                     ))
+                    # Dynamic Lookup: compute NewLookupRow (0 = no match,
+                    # 1 = match) with a per-instance unique column name so
+                    # multiple dynamic lookups in the same mapplet keep their
+                    # own hit indicator for the downstream renames.
+                    if lookup_transform and join_predicates:
+                        for _f in lookup_transform.fields:
+                            if _f.name.upper() == 'NEWLOOKUPROW' and 'DYNLOOKUP' in (_f.port_type or '').upper():
+                                _nlr_col = f"NewLookupRow_{re.sub(r'[^a-zA-Z0-9_]', '_', mpl_inst_name)}"
+                                mpl_nlr_cols[mpl_inst_name] = _nlr_col
+                                steps[-1].params["new_lookup_row_key"] = join_predicates[0].get("lookup_col", "")
+                                steps[-1].params["new_lookup_row_col"] = _nlr_col
+                                break
                 elif lookup_df_name:
                     # Standalone lookup read (no join) — still register in mpl_df_map
                     # so downstream expressions can reference its columns.
@@ -3726,7 +3847,11 @@ class TransformHandlers:
             _needed = set()
             for _c in mpl_connectors:
                 if _c.to_instance == output_inst.name:
-                    _needed.add(_c.from_field)
+                    _actual = _c.from_field
+                    if (_c.from_instance in mpl_nlr_cols
+                            and _c.from_field.upper() == "NEWLOOKUPROW"):
+                        _actual = mpl_nlr_cols[_c.from_instance]
+                    _needed.add(_actual)
             for _i, _extra_df in enumerate(output_extra_dfs):
                 _redundant_to = self._redundant_merge_df(
                     _df_parent, _step_map, output_input_df, _extra_df, _needed)
@@ -3767,12 +3892,17 @@ class TransformHandlers:
 
             df_output = self._get_df_name(_mplt_prefix, instance)
             self._register_df(instance, df_output)
+            self._mapplet_output_df[instance.name] = df_output
 
             # Build output field remap: internal column → OUTPUT port name
             _output_renames = []
             for conn in mpl_connectors:
                 if conn.to_instance == output_inst.name and conn.from_field != conn.to_field:
-                    _output_renames.append([conn.from_field, conn.to_field])
+                    _actual = conn.from_field
+                    if (conn.from_instance in mpl_nlr_cols
+                            and conn.from_field.upper() == "NEWLOOKUPROW"):
+                        _actual = mpl_nlr_cols[conn.from_instance]
+                    _output_renames.append([_actual, conn.to_field])
             if steps:
                 # There are real transformation steps — the final step's df_output
                 # is the mapplet result; register it under the mapplet instance name

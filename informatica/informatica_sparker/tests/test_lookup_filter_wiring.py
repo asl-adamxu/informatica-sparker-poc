@@ -237,6 +237,12 @@ def _path_breaks_preservation(parent, step_map, descendant, ancestor):
             return True
         if st.params.get("rename_columns"):
             return True
+        if isinstance(st, ApplyExpressionStep) and st.params.get("computed_columns"):
+            # A computed column can overwrite a source column with a new value
+            # (e.g. mapplet EXP_OUTPUT sets LAST_REC_TXN_TYPE_CODE = NULL),
+            # so the descendant no longer provably carries the ancestor's
+            # value even though the column name survives.
+            return True
         cur = parent.get(cur)
     return cur != ancestor
 
@@ -364,6 +370,192 @@ def test_hos_aply_cache_status_output_merge_keeps_rename_sources():
         assert join_step.params.get("lookup_df", "").endswith("EXP_OUTPUT")
         output_step = by_name[f"apply_MPLT_DLKP_CACHE_STATUS_{suffix}"]
         assert output_step.df_input == join_step.df_output
+
+
+def test_mapplet_dynamic_lookups_compute_unique_newlookuprow():
+    """Mapplet-internal Dynamic Lookups (e.g. LKP_DYN_SOR / LKP_DYN_SSA in
+    MPLT_AGMT_*) must compute their own NewLookupRow 0/1 hit indicator with a
+    per-instance unique column name. Without it, the second lookup's
+    NewLookupRow clobbers the first before the renames map them to
+    SOR_CACHE_STATUS / SSA_CACHE_STATUS, leaving one NULL and never writing
+    the target (or crashing with UNRESOLVED_COLUMN SOR_CACHE_STATUS).
+    """
+    mappings = _load_nhs_mappings()
+    checked = 0
+    for mapping in mappings:
+        handlers = TransformHandlers(mapping, UserConfig())
+        plan = handlers.build_ir_plan()
+        used_cols = {}
+        for step in plan.steps:
+            if not (
+                isinstance(step, ApplyLookupStep)
+                and step.step_name.startswith("apply_MPLT_")
+                and "_LKP_DYN_" in step.step_name
+            ):
+                continue
+            assert step.params.get("new_lookup_row_key"), (
+                f"{mapping.name}: {step.step_name} has no NewLookupRow judge key"
+            )
+            nlr_col = step.params.get("new_lookup_row_col")
+            assert nlr_col and nlr_col.startswith("NewLookupRow_"), (
+                f"{mapping.name}: {step.step_name} NewLookupRow column "
+                f"not unique: {nlr_col}"
+            )
+            assert nlr_col not in used_cols, (
+                f"{mapping.name}: {step.step_name} reuses NewLookupRow "
+                f"column {nlr_col} of {used_cols.get(nlr_col)}"
+            )
+            used_cols[nlr_col] = step.step_name
+            checked += 1
+    assert checked >= 80, f"expected many mapplet dynamic lookups, got {checked}"
+
+
+def test_mapplet_sor_ssa_cache_status_renames_have_distinct_sources():
+    """MPLT_AGMT_* EXP_OUTPUT rename steps map the SOR lookup's NewLookupRow
+    to SOR_CACHE_STATUS and the SSA lookup's NewLookupRow to SSA_CACHE_STATUS.
+    Both renames must use distinct source columns — renaming the same
+    NewLookupRow twice is a silent no-op for the second (withColumnRenamed
+    ignores missing columns) and leaves SSA_CACHE_STATUS NULL.
+    """
+    mappings = _load_nhs_mappings()
+    checked = 0
+    for mapping in mappings:
+        handlers = TransformHandlers(mapping, UserConfig())
+        plan = handlers.build_ir_plan()
+        for step in plan.steps:
+            if not (
+                isinstance(step, ApplyExpressionStep)
+                and step.step_name == "rename_EXP_OUTPUT"
+            ):
+                continue
+            pairs = {tuple(p) for p in step.params.get("rename_columns", [])}
+            sor = [src for src, tgt in pairs if tgt == "SOR_CACHE_STATUS"]
+            ssa = [src for src, tgt in pairs if tgt == "SSA_CACHE_STATUS"]
+            if not sor or not ssa:
+                continue
+            assert sor[0] != ssa[0], (
+                f"{mapping.name}: SOR_CACHE_STATUS and SSA_CACHE_STATUS both "
+                f"rename from {sor[0]}"
+            )
+            checked += 1
+    assert checked >= 40, f"expected many SOR/SSA rename steps, got {checked}"
+
+
+def test_lookup_with_mapplet_upstream_merges_extra_branch():
+    """DLKP_SOR_STS in M_NHS_SSAL2_TRAN_NHS_EST_BANK_ITEM is fed by the
+    EXP_BK / DLKP_SOR_MSTR main chain AND by MPLT_AGMT_NHS_RVN_CLCT_TRML,
+    which provides IN_RVN_CLCT_TRML_KEY. The mapplet output must be merged
+    into the lookup input before the join, otherwise the generated code fails
+    with UNRESOLVED_COLUMN RVN_CLCT_TRML_KEY.
+    """
+    mappings = _load_nhs_mappings()
+    mapping = next(
+        m for m in mappings if m.name == "M_NHS_SSAL2_TRAN_NHS_EST_BANK_ITEM"
+    )
+    handlers = TransformHandlers(mapping, UserConfig())
+    plan = handlers.build_ir_plan()
+    by_name = {step.step_name: step for step in plan.steps}
+
+    merge_step = by_name["merge_DLKP_SOR_STS_0"]
+    assert isinstance(merge_step, ApplyLookupStep)
+    assert merge_step.params.get("join_expr") == "__common_cols__"
+    assert merge_step.df_input == by_name["apply_DLKP_SOR_MSTR"].df_output
+    assert merge_step.params.get("lookup_df") == by_name[
+        "apply_MPLT_AGMT_NHS_RVN_CLCT_TRML"
+    ].df_output
+
+    lookup_step = by_name["apply_DLKP_SOR_STS"]
+    assert isinstance(lookup_step, ApplyLookupStep)
+    assert lookup_step.df_input == merge_step.df_output
+    assert lookup_step.df_output == by_name["apply_DLKP_SOR_MSTR"].df_output
+
+
+def test_lookup_input_merges_never_self_reference_chain_output():
+    """A lookup-input merge must never join against the lookup's own
+    accumulating chain output (e.g. df_lkp_merge_13), which would create a
+    self-referential plan and crash codegen/runtime."""
+    mappings = _load_nhs_mappings()
+    checked = 0
+    for mapping in mappings:
+        handlers = TransformHandlers(mapping, UserConfig())
+        plan = handlers.build_ir_plan()
+        by_name = {step.step_name: step for step in plan.steps}
+        for step in plan.steps:
+            if not (
+                isinstance(step, ApplyLookupStep)
+                and step.step_name.startswith("merge_")
+            ):
+                continue
+            target = step.step_name[len("merge_"):].rsplit("_", 1)[0]
+            apply_step = by_name.get(f"apply_{target}")
+            if not isinstance(apply_step, ApplyLookupStep):
+                continue
+            chain_out = apply_step.df_output
+            merge_idx = plan.steps.index(step)
+            prior_chain = any(
+                s.df_output == chain_out and plan.steps.index(s) < merge_idx
+                for s in plan.steps
+            )
+            for side in (step.df_input, step.params.get("lookup_df")):
+                if side != chain_out:
+                    continue
+                # Chained lookups legitimately re-read the accumulating chain
+                # df (produced by an earlier lookup). Referencing the chain
+                # output before any step created it is the self-reference bug
+                # (the merge would read a variable that only exists after this
+                # lookup's own apply step runs).
+                assert prior_chain, (
+                    f"{mapping.name}: {step.step_name} references its own "
+                    f"chain output {chain_out} before any step produced it"
+                )
+            checked += 1
+    assert checked > 0
+
+
+def test_lookup_chain_base_prefers_mapplet_external_input():
+    """When a lookup's chain input is a mapplet output, the chain must be
+    based on the mapplet's external input stream (df_EXP_BK) so source
+    columns like LAST_REC_TXN_TYPE_CODE survive — the mapplet output sets
+    them to NULL, which would silently disable all delete handling
+    (DELETE_IND/DEL_FLAG/EXP_OPR_IND never see the source 'D' value).
+    """
+    mappings = _load_nhs_mappings()
+    mapping = next(
+        m for m in mappings if m.name == "M_NHS_SSAL2_TRAN_NHS_FLAT_SLCT_STMT"
+    )
+    handlers = TransformHandlers(mapping, UserConfig())
+    plan = handlers.build_ir_plan()
+    by_name = {step.step_name: step for step in plan.steps}
+
+    merge_step = by_name["merge_DLKP_SOR_MSTR_0"]
+    assert isinstance(merge_step, ApplyLookupStep)
+    assert merge_step.params.get("join_expr") == "__common_cols__"
+    assert merge_step.df_input == "df_EXP_BK"
+    assert merge_step.params.get("lookup_df") == by_name[
+        "apply_MPLT_AGMT_NHS_FLAT_SLCT"
+    ].df_output
+
+    lookup_step = by_name["apply_DLKP_SOR_MSTR"]
+    assert lookup_step.df_input == merge_step.df_output
+    filter_step = by_name["apply_FILTRANS_MSTR"]
+    assert filter_step.df_input == lookup_step.df_output
+
+
+def test_decode_null_search_translates_to_is_null():
+    """Informatica DECODE(x, NULL, a, b) matches NULL rows; Spark needs
+    `IS NULL`, not `= NULL` (which is always NULL/false and silently takes
+    the ELSE branch, e.g. END_DATE in EXP_CDC)."""
+    from informatica_sparker.expr_translator import ExpressionTranslator
+
+    translator = ExpressionTranslator(mapping_name="test")
+    out = translator.translate(
+        "DECODE(LAST_UPDATE_DATE, NULL, "
+        "ADD_TO_DATE(SNAPSHOT_DATE,'D',-1), LAST_UPDATE_DATE)",
+        "column",
+        "END_DATE",
+    )
+    assert "IS NULL" in out
+    assert "= NULL" not in out
 
 
 def test_independent_branch_merges_are_preserved():

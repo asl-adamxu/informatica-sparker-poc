@@ -148,12 +148,16 @@ FROM NHS_PHASE_BLT"""
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_DLKP_SOR_MSTR[c] for c in df_DLKP_SOR_MSTR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
+            *[df_DLKP_SOR_MSTR[c] for c in df_DLKP_SOR_MSTR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
         )
         # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select (not shadowed
-        # by a same-named main column) — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_DLKP_SOR_MSTR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
+        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
+        _nlr_lkp_cols = [c for c in df_DLKP_SOR_MSTR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        _nlr_key = "PHASE_CODE"
+        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
+                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
+            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
+            _nlr_lkp_cols.insert(0, _nlr_key)
         if _nlr_lkp_cols:
             df_lkp_merge_1 = df_lkp_merge_1.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
         else:
@@ -207,12 +211,16 @@ ORDER BY SOR_NHS_PHASE_BLT_STS.PHASE_BLT_KEY """
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_DLKP_SOR_STS[c] for c in df_DLKP_SOR_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
+            *[df_DLKP_SOR_STS[c] for c in df_DLKP_SOR_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
         )
         # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select (not shadowed
-        # by a same-named main column) — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_DLKP_SOR_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
+        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
+        _nlr_lkp_cols = [c for c in df_DLKP_SOR_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        _nlr_key = "PHASE_BLT_KEY"
+        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
+                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
+            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
+            _nlr_lkp_cols.insert(0, _nlr_key)
         if _nlr_lkp_cols:
             df_lkp_merge_1 = df_lkp_merge_1.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
         else:
@@ -272,12 +280,16 @@ ORDER BY SOR_NHS_PHASE_BLT_STS.PHASE_BLT_KEY """
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_DLKP_SSA_MSTR[c] for c in df_DLKP_SSA_MSTR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
+            *[df_DLKP_SSA_MSTR[c] for c in df_DLKP_SSA_MSTR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
         )
         # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select (not shadowed
-        # by a same-named main column) — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_DLKP_SSA_MSTR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
+        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
+        _nlr_lkp_cols = [c for c in df_DLKP_SSA_MSTR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        _nlr_key = "SURROGATE_KEY"
+        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
+                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
+            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
+            _nlr_lkp_cols.insert(0, _nlr_key)
         if _nlr_lkp_cols:
             df_lkp_merge_2 = df_lkp_merge_2.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
         else:
@@ -365,7 +377,7 @@ ORDER BY SOR_NHS_PHASE_BLT_STS.PHASE_BLT_KEY """
         df_MPLT_DLKP_CACHE_STATUS_EXP_CDC = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.withColumn("OPR_IND", expr("V_OPR_IND"))
         df_MPLT_DLKP_CACHE_STATUS_EXP_CDC = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.withColumn("AGMT_IND", expr("'N'"))
         df_MPLT_DLKP_CACHE_STATUS_EXP_CDC = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.withColumn("BGN_DATE", expr("CASE WHEN V_OPR_IND='B' AND INIT_FLAG = 'Y' THEN to_date('19000101','yyyyMMdd') ELSE SNAPSHOT_DATE END"))
-        df_MPLT_DLKP_CACHE_STATUS_EXP_CDC = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.withColumn("END_DATE", expr("CASE WHEN DEL_FLAG = 1 THEN CASE WHEN INIT_FLAG = 'Y' THEN CASE WHEN LAST_UPDATE_DATE = NULL THEN date_add(SNAPSHOT_DATE, CAST(-1 AS INT)) ELSE LAST_UPDATE_DATE END ELSE date_add(SNAPSHOT_DATE, CAST(-1 AS INT)) END ELSE CASE WHEN NEW_FLAG = 1 THEN to_date('99991231','yyyyMMdd') ELSE CASE WHEN CHG_FLAG = 1 THEN date_add(SNAPSHOT_DATE, CAST(-1 AS INT)) ELSE NULL END END END"))
+        df_MPLT_DLKP_CACHE_STATUS_EXP_CDC = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.withColumn("END_DATE", expr("CASE WHEN DEL_FLAG = 1 THEN CASE WHEN INIT_FLAG = 'Y' THEN CASE WHEN LAST_UPDATE_DATE IS NULL THEN date_add(SNAPSHOT_DATE, CAST(-1 AS INT)) ELSE LAST_UPDATE_DATE END ELSE date_add(SNAPSHOT_DATE, CAST(-1 AS INT)) END ELSE CASE WHEN NEW_FLAG = 1 THEN to_date('99991231','yyyyMMdd') ELSE CASE WHEN CHG_FLAG = 1 THEN date_add(SNAPSHOT_DATE, CAST(-1 AS INT)) ELSE NULL END END END"))
         df_MPLT_DLKP_CACHE_STATUS_EXP_CDC = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.withColumn("LAST_REC_TXN_DATE", expr("current_timestamp()"))
         df_MPLT_DLKP_CACHE_STATUS_EXP_CDC = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.withColumn("LAST_REC_TXN_TYPE_CODE", expr("CASE WHEN DEL_FLAG = 1 THEN 'D' ELSE NULL END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
@@ -455,12 +467,16 @@ ORDER BY SOR_NHS_PHASE_BLT_STS.PHASE_BLT_KEY """
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_DLKP_SSA_STS[c] for c in df_DLKP_SSA_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
+            *[df_DLKP_SSA_STS[c] for c in df_DLKP_SSA_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
         )
         # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select (not shadowed
-        # by a same-named main column) — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_DLKP_SSA_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
+        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
+        _nlr_lkp_cols = [c for c in df_DLKP_SSA_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        _nlr_key = "SURROGATE_KEY"
+        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
+                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
+            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
+            _nlr_lkp_cols.insert(0, _nlr_key)
         if _nlr_lkp_cols:
             df_lkp_merge_9 = df_lkp_merge_9.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
         else:
@@ -553,7 +569,7 @@ ORDER BY SOR_NHS_PHASE_BLT_STS.PHASE_BLT_KEY """
         df_MPLT_DLKP_CACHE_STATUS_EXP_CDC = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.withColumn("OPR_IND", expr("V_OPR_IND"))
         df_MPLT_DLKP_CACHE_STATUS_EXP_CDC = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.withColumn("AGMT_IND", expr("'N'"))
         df_MPLT_DLKP_CACHE_STATUS_EXP_CDC = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.withColumn("BGN_DATE", expr("CASE WHEN V_OPR_IND='B' AND INIT_FLAG = 'Y' THEN to_date('19000101','yyyyMMdd') ELSE SNAPSHOT_DATE END"))
-        df_MPLT_DLKP_CACHE_STATUS_EXP_CDC = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.withColumn("END_DATE", expr("CASE WHEN DEL_FLAG = 1 THEN CASE WHEN INIT_FLAG = 'Y' THEN CASE WHEN LAST_UPDATE_DATE = NULL THEN date_add(SNAPSHOT_DATE, CAST(-1 AS INT)) ELSE LAST_UPDATE_DATE END ELSE date_add(SNAPSHOT_DATE, CAST(-1 AS INT)) END ELSE CASE WHEN NEW_FLAG = 1 THEN to_date('99991231','yyyyMMdd') ELSE CASE WHEN CHG_FLAG = 1 THEN date_add(SNAPSHOT_DATE, CAST(-1 AS INT)) ELSE NULL END END END"))
+        df_MPLT_DLKP_CACHE_STATUS_EXP_CDC = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.withColumn("END_DATE", expr("CASE WHEN DEL_FLAG = 1 THEN CASE WHEN INIT_FLAG = 'Y' THEN CASE WHEN LAST_UPDATE_DATE IS NULL THEN date_add(SNAPSHOT_DATE, CAST(-1 AS INT)) ELSE LAST_UPDATE_DATE END ELSE date_add(SNAPSHOT_DATE, CAST(-1 AS INT)) END ELSE CASE WHEN NEW_FLAG = 1 THEN to_date('99991231','yyyyMMdd') ELSE CASE WHEN CHG_FLAG = 1 THEN date_add(SNAPSHOT_DATE, CAST(-1 AS INT)) ELSE NULL END END END"))
         df_MPLT_DLKP_CACHE_STATUS_EXP_CDC = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.withColumn("LAST_REC_TXN_DATE", expr("current_timestamp()"))
         df_MPLT_DLKP_CACHE_STATUS_EXP_CDC = df_MPLT_DLKP_CACHE_STATUS_EXP_CDC.withColumn("LAST_REC_TXN_TYPE_CODE", expr("CASE WHEN DEL_FLAG = 1 THEN 'D' ELSE NULL END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
