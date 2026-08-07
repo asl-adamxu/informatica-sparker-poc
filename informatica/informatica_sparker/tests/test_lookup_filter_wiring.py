@@ -9,6 +9,7 @@ chain/merge output (not a stale pre-lookup DataFrame), e.g.:
 The source of truth is WF_NHS_TL.XML only; EMS TL is intentionally not used.
 """
 
+import re
 from pathlib import Path
 
 from informatica_sparker.ir import ApplyExpressionStep, ApplyFilterStep, ApplyLookupStep
@@ -558,6 +559,120 @@ def test_decode_null_search_translates_to_is_null():
     assert "= NULL" not in out
 
 
+def test_mapplet_no_empty_rename_steps():
+    """Mapplet internal expressions must not emit a rename step when there is
+    nothing to rename (e.g. df_MPLT_AGMT_NHS_HOS_APLY_rename_2 was a pure
+    alias of its input with no withColumnRenamed calls)."""
+    mappings = _load_nhs_mappings()
+    for mapping in mappings:
+        handlers = TransformHandlers(mapping, UserConfig())
+        plan = handlers.build_ir_plan()
+        for step in plan.steps:
+            if not (
+                isinstance(step, ApplyExpressionStep)
+                and step.step_name.startswith("rename_")
+            ):
+                continue
+            assert step.params.get("rename_columns"), (
+                f"{mapping.name}: empty rename step {step.step_name}"
+            )
+
+
+def test_mapplet_lookup_report_error_policy_converted():
+    """Mapplet-internal lookups with 'Lookup policy on multiple match' =
+    'Report Error' must generate the duplicate-key check (groupBy join keys,
+    raise RuntimeError), same as main-mapping lookups."""
+    parser = InfaXMLParser(NHS_TL_XML.read_bytes())
+    assert parser.parse()
+    mapplets = parser.get_mapplets()
+    mappings = _load_nhs_mappings()
+    checked = 0
+    for mapping in mappings:
+        handlers = TransformHandlers(mapping, UserConfig())
+        plan = handlers.build_ir_plan()
+        for step in plan.steps:
+            if not (
+                isinstance(step, ApplyLookupStep)
+                and step.step_name.startswith("apply_MPLT_")
+            ):
+                continue
+            body = step.step_name[len("apply_"):]
+            for mpl_name, mpl_def in mapplets.items():
+                if not body.startswith(mpl_name + "_"):
+                    continue
+                lkp_name = body[len(mpl_name) + 1:]
+                if lkp_name not in {i.name for i in mpl_def.get("instances", [])}:
+                    continue
+                transforms = {t.name: t for t in mpl_def.get("transformations", [])}
+                tr = transforms.get(lkp_name)
+                if tr is None or getattr(tr, "type", "") != "Lookup Procedure":
+                    break
+                policy = tr.table_attributes.get("Lookup policy on multiple match", "")
+                if policy.upper() != "REPORT ERROR":
+                    break
+                assert step.params.get("dedup_lookup_error") is True, (
+                    f"{mapping.name}: mapplet lookup {lkp_name} lost its "
+                    "Report Error duplicate-key check"
+                )
+                assert step.params.get("dedup_lookup_keys"), (
+                    f"{mapping.name}: mapplet lookup {lkp_name} has no "
+                    "dedup keys for Report Error"
+                )
+                checked += 1
+                break
+    assert checked >= 40, f"expected many mapplet Report Error lookups, got {checked}"
+
+
+def test_stable_semantic_df_names():
+    """Generated df names must be derived from instance+role semantics, not a
+    global counter, so adding/removing an unrelated step does not renumber
+    every DataFrame. Mapplet-internal names are scoped to the mapplet INSTANCE
+    (MSTR vs STS) and therefore unique and stable."""
+    mappings = _load_nhs_mappings()
+    old_counter_pattern = re.compile(
+        r"(?:^df_(?:lkp_)?merge_\d+$|^df_mplt_lkp_chain_\d+$|"
+        r"^df_(?:nrm|rank|tc)_\d+$|^df_rtr_.*_\d+$|"
+        r"_(?:rename|nullinput)_\d+$|(?<!_merge)_input_\d+$|_merge_\d+$)"
+    )
+    for mapping in mappings:
+        handlers = TransformHandlers(mapping, UserConfig())
+        plan = handlers.build_ir_plan()
+        for step in plan.steps:
+            out = step.df_output or ""
+            assert not old_counter_pattern.search(out), (
+                f"{mapping.name}: counter-based df name {out} in "
+                f"{step.step_name}"
+            )
+
+    blt = next(
+        m for m in mappings if m.name == "M_NHS_SSAL2_TRAN_NHS_HOS_APLY_BLT"
+    )
+    handlers = TransformHandlers(blt, UserConfig())
+    plan = handlers.build_ir_plan()
+    by_name = {step.step_name: step for step in plan.steps}
+    assert by_name["input_MPLT_AGMT_NHS_HOS_APLY"].df_output == (
+        "df_MPLT_AGMT_NHS_HOS_APLY_input"
+    )
+    assert by_name[
+        "apply_MPLT_AGMT_NHS_HOS_APLY_LKP_DYN_SOR_NHS_HOS_APLY"
+    ].df_output == "df_mplt_lkp_chain_MPLT_AGMT_NHS_HOS_APLY_EXP_NULL_BKEY"
+
+    item = next(
+        m for m in mappings if m.name == "M_NHS_SSAL2_TRAN_NHS_EST_BANK_ITEM"
+    )
+    handlers = TransformHandlers(item, UserConfig())
+    plan = handlers.build_ir_plan()
+    cdc_steps = [
+        s for s in plan.steps
+        if s.step_name == "apply_MPLT_DLKP_CACHE_STATUS_EXP_CDC"
+    ]
+    assert len(cdc_steps) == 2
+    cdc_outputs = {s.df_output for s in cdc_steps}
+    assert len(cdc_outputs) == 2
+    assert any("_MSTR_" in o for o in cdc_outputs)
+    assert any("_STS_" in o for o in cdc_outputs)
+
+
 def test_independent_branch_merges_are_preserved():
     """Merges between independent branches must NOT be removed: when the
     already-merged df does not contain another input branch's fields, the
@@ -565,6 +680,9 @@ def test_independent_branch_merges_are_preserved():
     mappings = _load_nhs_mappings()
     expected = {
         "M_NHS_SSAL2_TRAN_NHS_REF_CODE": "merge_EXP_OPR_IND_0",
+        "M_NHS_SSAL2_TRAN_NHS_FLAT_SLCT_SSN_ASGN": "join_MPLT_AGMT_NHS_INTVW_SCHD_0",
+    }
+    independent_only = {
         "M_NHS_SSAL2_TRAN_NHS_FLAT_SLCT_SSN_ASGN": "join_MPLT_AGMT_NHS_INTVW_SCHD_0",
     }
     for mapping in mappings:
@@ -582,6 +700,8 @@ def test_independent_branch_merges_are_preserved():
         )
         assert isinstance(step, ApplyLookupStep)
         assert step.params.get("join_expr") == "__common_cols__"
+        if mapping.name not in independent_only:
+            continue
         parent = _df_parent_map(plan)
         left = step.df_input
         right = step.params.get("lookup_df")

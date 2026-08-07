@@ -202,6 +202,22 @@ class TransformHandlers:
         self.df_counter += 1
         return f"{prefix}_{self.df_counter}"
 
+    @staticmethod
+    def _df_name(*parts: str) -> str:
+        """Build a stable, readable df variable name from semantic parts
+        instead of a global counter (e.g. _df_name("merge", "DLKP_SOR_STS", 0)
+        -> df_merge_DLKP_SOR_STS_0). Adding/removing an unrelated step no
+        longer renumbers every downstream DataFrame."""
+        _clean = []
+        for _p in parts:
+            _s = str(_p)
+            if _s.startswith("df_"):
+                _s = _s[3:]
+            _s = re.sub(r'[^a-zA-Z0-9_]', '_', _s)
+            if _s:
+                _clean.append(_s)
+        return "df_" + "_".join(_clean)
+
     def _register_df(self, instance: Instance, df_name: str):
         self.current_df_map[instance.name] = df_name
         if instance.transformation_name and instance.transformation_name != instance.name:
@@ -1409,7 +1425,7 @@ class TransformHandlers:
                     # the descendant already has all columns — use it directly.
                     _cur_df = _redundant_to
                     continue
-                _merge_df = self._get_df_name("df_merge")
+                _merge_df = self._df_name("df_merge", instance.name, _i)
                 _merge_step = ApplyLookupStep(
                     step_name=f"merge_{instance.name}_{_i}",
                     df_input=_cur_df,
@@ -1579,7 +1595,7 @@ class TransformHandlers:
                 # fed by a downstream transformation (e.g. EXPTRANS after an
                 # Aggregator), that DF already carries all columns — use it
                 # directly instead of a stale merge.
-                df_output = self._get_df_name("df_lkp_merge")
+                df_output = self._df_name("df_lkp_merge", _upstream_name)
                 if _upstream_name:
                     self._chain_df_map[_upstream_name] = df_output
                 if not input_df or input_df.startswith(('df_lkp_merge', 'df_merge', 'df_sq_')):
@@ -1712,7 +1728,7 @@ class TransformHandlers:
                                 _df_parent, _step_map, _cur_lookup_df, _extra_df,
                                 _lookup_needed_by_df.get(_extra_df, set()))):
                         continue
-                    _merge_df = self._get_df_name("df_merge")
+                    _merge_df = self._df_name("df_merge", instance.name, _i)
                     _merge_step = ApplyLookupStep(
                         step_name=f"merge_{instance.name}_{_i}",
                         df_input=_cur_lookup_df,
@@ -2006,7 +2022,7 @@ class TransformHandlers:
                     # the descendant already has all columns — use it directly.
                     _cur_df = _redundant_to
                     continue
-                _merge_df = self._get_df_name("df_merge")
+                _merge_df = self._df_name("df_merge", instance.name, _i)
                 _pre_steps.append(ApplyLookupStep(
                     step_name=f"merge_{instance.name}_{_i}",
                     df_input=_cur_df,
@@ -2467,7 +2483,7 @@ class TransformHandlers:
         all_conditions = []
 
         for group_name, condition in group_conditions.items():
-            df_output = self._get_df_name(f"df_rtr_{group_name.lower()}")
+            df_output = self._df_name("df_rtr", instance.name, group_name)
 
             self.current_df_map[f"{instance.name}_{group_name}"] = df_output
             self.current_df_map[f"{trans_name}_{group_name}"] = df_output
@@ -2530,7 +2546,7 @@ class TransformHandlers:
         if not input_df:
             input_df = "df_input"
 
-        df_output = self._get_df_name("df_nrm")
+        df_output = self._get_df_name("df_nrm", instance)
         self._register_df(instance, df_output)
 
         transform = self.transform_map.get(instance.transformation_name or instance.name)
@@ -2593,7 +2609,7 @@ class TransformHandlers:
         if not input_df:
             input_df = "df_input"
 
-        df_output = self._get_df_name("df_rank")
+        df_output = self._get_df_name("df_rank", instance)
         self._register_df(instance, df_output)
 
         transform = self.transform_map.get(instance.transformation_name or instance.name)
@@ -2760,7 +2776,7 @@ class TransformHandlers:
         if not input_df:
             input_df = "df_input"
 
-        df_output = self._get_df_name("df_tc")
+        df_output = self._get_df_name("df_tc", instance)
         self._register_df(instance, df_output)
 
         transform = self.transform_map.get(instance.transformation_name or instance.name)
@@ -3219,6 +3235,10 @@ class TransformHandlers:
         mapplet_name = instance.transformation_name or instance.name
         _mplt_prefix = "df_" + re.sub(r'[^a-zA-Z0-9_]', '_', mapplet_name)
         _mplt_step_prefix = _mplt_prefix[3:]  # safe name without df_ prefix, for step/hash keys
+        # Instance-scoped df prefix: internal step df names stay stable and
+        # unique per mapplet INSTANCE (e.g. MSTR vs STS), instead of a global
+        # counter that renumbers every DataFrame on unrelated changes.
+        _mpl_df_prefix = f"df_{instance.name}"
 
         # When a mapplet has multiple upstream DataFrames (e.g.
         # MPLT_GET_CMS_BLK_SCD_KEY receives columns from both
@@ -3250,7 +3270,7 @@ class TransformHandlers:
                         LogLevel.INFO)
                     _cur_df = _redundant_to
                     continue
-                _join_df = self._get_df_name(f"{_mplt_prefix}_merge")
+                _join_df = self._df_name(_mpl_df_prefix, "merge_input", _i)
                 steps.append(ApplyLookupStep(
                     step_name=f"join_{instance.name}_{_i}",
                     df_input=_cur_df,
@@ -3367,7 +3387,7 @@ class TransformHandlers:
                 if _c not in input_df:
                     _null_cols.append({"name": _c, "expression": "NULL"})
             if _null_cols:
-                _null_input_df = self._get_df_name(f"{_mplt_prefix}_nullinput")
+                _null_input_df = self._df_name(_mpl_df_prefix, "nullinput")
                 steps.append(ApplyExpressionStep(
                     step_name=f"nullinput_{instance.name}",
                     df_input=input_df,
@@ -3395,7 +3415,7 @@ class TransformHandlers:
                         expression=from_field,
                         datatype="string",
                     ))
-                remap_input_df = self._get_df_name(f"{_mplt_prefix}_input")
+                remap_input_df = self._df_name(_mpl_df_prefix, "input")
                 steps.append(ApplyExpressionStep(
                     step_name=f"input_{instance.name}",
                     df_input=input_df,
@@ -3484,7 +3504,7 @@ class TransformHandlers:
                 # Create lookup read step when we have SQL or table.
                 # Use the lookup instance name (e.g. df_mplt_LKP_RENT_ADV_AMT)
                 # instead of a numeric counter for readability.
-                lookup_df_name = f"{_mplt_prefix}_" + re.sub(r'[^a-zA-Z0-9_]', '_', mpl_inst.name)
+                lookup_df_name = self._df_name(_mpl_df_prefix, mpl_inst.name)
                 if lookup_sql:
                     lookup_conn = self._resolve_connection_alias(lookup_table or mpl_inst.name)
                     steps.append(ReadSQLStep(
@@ -3531,7 +3551,11 @@ class TransformHandlers:
                         join_result_df = self._chain_df_map[_mpl_chain_key]
                         mpl_chain_input = join_result_df
                     else:
-                        join_result_df = self._get_df_name("df_mplt_lkp_chain")
+                        _chain_in_name = mpl_input_df
+                        if _chain_in_name.startswith(f"df_{instance.name}_"):
+                            _chain_in_name = _chain_in_name[len(f"df_{instance.name}_"):]
+                        join_result_df = self._df_name(
+                            "mplt_lkp_chain", instance.name, _chain_in_name)
                         self._chain_df_map[_mpl_chain_key] = join_result_df
                         mpl_chain_input = mpl_input_df
                     mpl_df_map[mpl_inst_name] = join_result_df
@@ -3582,6 +3606,27 @@ class TransformHandlers:
                                 steps[-1].params["new_lookup_row_key"] = join_predicates[0].get("lookup_col", "")
                                 steps[-1].params["new_lookup_row_col"] = _nlr_col
                                 break
+                    # Handle "Lookup policy on multiple match" — same semantics
+                    # as main-mapping lookups: Report Error raises on duplicate
+                    # join keys, Use First/Any/Last dedup the lookup DataFrame.
+                    if join_predicates:
+                        try:
+                            _lkp_policy = lookup_transform.table_attributes.get(
+                                "Lookup policy on multiple match", "")
+                        except (AttributeError, TypeError):
+                            _lkp_policy = ""
+                        _dedup_keys = [jp.get("lookup_col", "") for jp in join_predicates]
+                        if _lkp_policy.upper() in ("USE FIRST VALUE", "USE ANY VALUE", ""):
+                            steps[-1].params["dedup_lookup"] = True
+                            steps[-1].params["dedup_lookup_keys"] = _dedup_keys
+                        elif _lkp_policy.upper() == "USE LAST VALUE":
+                            steps[-1].params["dedup_lookup"] = True
+                            steps[-1].params["dedup_lookup_keys"] = _dedup_keys
+                            steps[-1].params["dedup_lookup_last"] = True
+                        elif _lkp_policy.upper() == "REPORT ERROR":
+                            steps[-1].params["dedup_lookup"] = True
+                            steps[-1].params["dedup_lookup_error"] = True
+                            steps[-1].params["dedup_lookup_keys"] = _dedup_keys
                 elif lookup_df_name:
                     # Standalone lookup read (no join) — still register in mpl_df_map
                     # so downstream expressions can reference its columns.
@@ -3634,22 +3679,14 @@ class TransformHandlers:
                     _expr_renames = [(actual_col, mpl_port)
                                      for mpl_port, actual_col in _internal_remap.items()
                                      if mpl_port != actual_col]
-                    # Keep the rename step (and its generated df name) even when
-                    # only external renames were removed, so the shared df
-                    # counter and all downstream variable names stay stable.
-                    _keep_rename_step = bool(_expr_renames) or any(
-                        mpl_port != actual_col
-                        for mpl_port, actual_col in inst_field_remap.items()
-                    )
                 else:
                     _expr_renames = [(actual_col, mpl_port)
                                      for mpl_port, actual_col in inst_field_remap.items()
                                      if mpl_port != actual_col]
-                    _keep_rename_step = bool(_expr_renames)
-                if _expr_renames or _keep_rename_step:
+                if _expr_renames:
                     # Rename upstream columns to match expression port names via
                     # a single withColumnRenamed chain (efficient, no column copy).
-                    _rename_df = self._get_df_name(f"{_mplt_prefix}_rename")
+                    _rename_df = self._df_name(_mpl_df_prefix, "rename", mpl_inst.name)
                     _rename_step = ApplyExpressionStep(
                         step_name=f"rename_{mpl_inst_name}",
                         df_input=mpl_input_df,
@@ -3683,7 +3720,7 @@ class TransformHandlers:
                         ))
 
                 if computed_cols:
-                    expr_df_name = f"{_mplt_prefix}_" + re.sub(r'[^a-zA-Z0-9_]', '_', mpl_inst_name)
+                    expr_df_name = self._df_name(_mpl_df_prefix, mpl_inst_name)
                     mpl_df_map[mpl_inst_name] = expr_df_name
                     _expr_step = ApplyExpressionStep(
                         step_name=f"apply_{_mplt_step_prefix}_{mpl_inst.name}",
@@ -3723,7 +3760,7 @@ class TransformHandlers:
                                 _filter_expr = re.sub(r'\b' + re.escape(_mpl_port) + r'\b', _actual_col, _filter_expr)
                         # Translate the filter condition (handles Informatica SQL syntax)
                         _filter_expr = self.expr_translator.translate_for_filter(_filter_expr)
-                        _mpl_filt_df = f"{_mplt_prefix}_" + re.sub(r'[^a-zA-Z0-9_]', '_', mpl_inst_name)
+                        _mpl_filt_df = self._df_name(_mpl_df_prefix, mpl_inst_name)
                         mpl_df_map[mpl_inst_name] = _mpl_filt_df
                         steps.append(ApplyFilterStep(
                             step_name=f"apply_{_mplt_step_prefix}_{mpl_inst.name}",
@@ -3866,7 +3903,7 @@ class TransformHandlers:
                         LogLevel.INFO)
                     output_input_df = _redundant_to
                     continue
-                _join_df = self._get_df_name(f"{_mplt_prefix}_merge")
+                _join_df = self._df_name(_mpl_df_prefix, "merge_output", _i)
                 steps.append(ApplyLookupStep(
                     step_name=f"join_output_{instance.name}_{_i}",
                     df_input=output_input_df,

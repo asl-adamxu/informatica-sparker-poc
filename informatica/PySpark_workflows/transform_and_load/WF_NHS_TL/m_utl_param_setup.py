@@ -123,7 +123,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _lkp_input = df_EXPTRANS
         # Join condition: PROPERTY=PRPTY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS = _lkp_input.alias("_main").join(
             broadcast(df_LKPTRANS).alias("_lkp"),
             (col("_main.PROPERTY") == col("_lkp.PRPTY")),
             "left"
@@ -131,10 +131,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKPTRANS[c] for c in df_LKPTRANS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
+        ctx.register_df("df_lkp_merge_EXPTRANS", df_lkp_merge_EXPTRANS)        
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
-        df_EXPTRANS1 = df_lkp_merge_1
+        df_EXPTRANS1 = df_lkp_merge_EXPTRANS
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("LINE", expr("concat(PARAMETER,CASE WHEN (VAL IS NULL) THEN '' ELSE VAL END)"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         # Keep all upstream columns + computed columns (no select filtering)
