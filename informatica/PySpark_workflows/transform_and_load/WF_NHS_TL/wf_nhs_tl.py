@@ -311,819 +311,819 @@ EXECUTION_PLAN = [
       }
     ]
   },
-  {
-    "type": "worklet",
-    "name": "WL_NHS_SOR_LOAD_FOR_UPD_END",
-    "plan": [
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_RVN_CLCT_OFFC_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_RVN_CLCT_OFFC_UPD_END"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_PHASE_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_PHASE_UPD_END"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_APLY_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_UPD_END"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_REF_CODE_TYPE_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_REF_CODE_TYPE_UPD_END"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HSE_RGN_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_HSE_RGN_UPD_END"
-          }
-        ]
-      },
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_RVN_CLCT_TRML_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_RVN_CLCT_TRML_UPD_END"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_APLY_PRIOR_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_PRIOR_UPD_END"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_REF_CODE_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_REF_CODE_UPD_END"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_PHASE_BLT_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_PHASE_BLT_UPD_END"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HSE_DSTR_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_HSE_DSTR_UPD_END"
-          }
-        ]
-      },
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_APLY_MBR_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_MBR_UPD_END"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_EST_BANK_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_EST_BANK_UPD_END"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_PRIOR_CATG_GRP_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_PRIOR_CATG_GRP_UPD_END"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_CRT_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_CRT_UPD_END"
-          }
-        ]
-      },
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_EST_BANK_ITEM_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_EST_BANK_ITEM_UPD_END"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_APLY_REJ_RSN_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_REJ_RSN_UPD_END"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_BLK_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_BLK_UPD_END"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_PHASE_CRT_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_PHASE_CRT_UPD_END"
-          }
-        ]
-      },
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_APLY_VET_RSLT_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_APLY_VET_RSLT_UPD_END"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_FLAT_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_FLAT_UPD_END"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_PHASE_FLAT_ORNT_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_PHASE_FLAT_ORNT_UPD_END"
-          }
-        ]
-      },
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_DUP_CHK_RSLT_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_DUP_CHK_RSLT_UPD_END"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_PHASE_FLAT_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_PHASE_FLAT_UPD_END"
-          }
-        ]
-      },
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_APLY_BLT_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_BLT_UPD_END"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_RSRV_FLAT_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_RSRV_FLAT_UPD_END"
-          }
-        ]
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_INTVW_SCHD_UPD_END",
-        "mapping_name": "M_SOR_LOAD_NHS_INTVW_SCHD_UPD_END"
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_FLAT_SLCT_SSN_UPD_END",
-        "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_SSN_UPD_END"
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_FLAT_SLCT_SSN_ASGN_UPD_END",
-        "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_SSN_ASGN_UPD_END"
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_FLAT_SLCT_QUE_UPD_END",
-        "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_QUE_UPD_END"
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_FLAT_SLCT_UPD_END",
-        "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_UPD_END"
-      },
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_FLAT_SLCT_STMT_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_STMT_UPD_END"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_OWN_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_OWN_UPD_END"
-          }
-        ]
-      },
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_OWN_MBR_PTCL_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_OWN_MBR_PTCL_UPD_END"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_PHASE_ASP_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_PHASE_ASP_UPD_END"
-          }
-        ]
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_PCHS_STL_UPD_END",
-        "mapping_name": "M_SOR_LOAD_NHS_PCHS_STL_UPD_END"
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_PCHS_STL_PYMT_SCHD_UPD_END",
-        "mapping_name": "M_SOR_LOAD_NHS_PCHS_STL_PYMT_SCHD_UPD_END"
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_PCHS_STL_WVE_UPD_END",
-        "mapping_name": "M_SOR_LOAD_NHS_PCHS_STL_WVE_UPD_END"
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_RSCN_PCHS_STL_UPD_END",
-        "mapping_name": "M_SOR_LOAD_NHS_RSCN_PCHS_STL_UPD_END"
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_RVN_TXN_UPD_END",
-        "mapping_name": "M_SOR_LOAD_NHS_RVN_TXN_UPD_END"
-      },
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_RVN_TXN_PYMT_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_RVN_TXN_PYMT_UPD_END"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_RVN_ITEM_TYPE_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_RVN_ITEM_TYPE_UPD_END"
-          }
-        ]
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_RVN_TXN_ITEM_UPD_END",
-        "mapping_name": "M_SOR_LOAD_NHS_RVN_TXN_ITEM_UPD_END"
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_ADTN_APLY_INFO_UPD_END",
-        "mapping_name": "M_SOR_LOAD_NHS_ADTN_APLY_INFO_UPD_END"
-      }
-    ]
-  },
-  {
-    "type": "worklet",
-    "name": "WL_NHS_SOR_LOAD_FOR_INS",
-    "plan": [
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_PHASE_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_PHASE_INS"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_REF_CODE_TYPE_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_REF_CODE_TYPE_INS"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_APLY_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_INS"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HSE_RGN_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_HSE_RGN_INS"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_RVN_CLCT_OFFC_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_RVN_CLCT_OFFC_INS"
-          }
-        ]
-      },
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_RVN_CLCT_TRML_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_RVN_CLCT_TRML_INS"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HSE_DSTR_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_HSE_DSTR_INS"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_APLY_PRIOR_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_PRIOR_INS"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_REF_CODE_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_REF_CODE_INS"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_PHASE_BLT_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_PHASE_BLT_INS"
-          }
-        ]
-      },
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_EST_BANK_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_EST_BANK_INS"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_PRIOR_CATG_GRP_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_PRIOR_CATG_GRP_INS"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_APLY_MBR_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_MBR_INS"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_CRT_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_CRT_INS"
-          }
-        ]
-      },
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_EST_BANK_ITEM_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_EST_BANK_ITEM_INS"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_APLY_REJ_RSN_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_REJ_RSN_INS"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_PHASE_CRT_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_PHASE_CRT_INS"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_BLK_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_BLK_INS"
-          }
-        ]
-      },
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_APLY_VET_RSLT_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_APLY_VET_RSLT_INS"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_PHASE_FLAT_ORNT_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_PHASE_FLAT_ORNT_INS"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_FLAT_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_FLAT_INS"
-          }
-        ]
-      },
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_DUP_CHK_RSLT_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_DUP_CHK_RSLT_INS"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_PHASE_FLAT_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_PHASE_FLAT_INS"
-          }
-        ]
-      },
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_RSRV_FLAT_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_RSRV_FLAT_INS"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_APLY_BLT_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_BLT_INS"
-          }
-        ]
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_INTVW_SCHD_INS",
-        "mapping_name": "M_SOR_LOAD_NHS_INTVW_SCHD_INS"
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_FLAT_SLCT_SSN_INS",
-        "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_SSN_INS"
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_FLAT_SLCT_SSN_ASGN_INS",
-        "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_SSN_ASGN_INS"
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_FLAT_SLCT_QUE_INS",
-        "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_QUE_INS"
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_FLAT_SLCT_INS",
-        "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_INS"
-      },
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_FLAT_SLCT_STMT_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_STMT_INS"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_OWN_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_OWN_INS"
-          }
-        ]
-      },
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_OWN_MBR_PTCL_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_OWN_MBR_PTCL_INS"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_PHASE_ASP_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_PHASE_ASP_INS"
-          }
-        ]
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_PCHS_STL_INS",
-        "mapping_name": "M_SOR_LOAD_NHS_PCHS_STL_INS"
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_PCHS_STL_PYMT_SCHD_INS",
-        "mapping_name": "M_SOR_LOAD_NHS_PCHS_STL_PYMT_SCHD_INS"
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_PCHS_STL_WVE_INS",
-        "mapping_name": "M_SOR_LOAD_NHS_PCHS_STL_WVE_INS"
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_RSCN_PCHS_STL_INS",
-        "mapping_name": "M_SOR_LOAD_NHS_RSCN_PCHS_STL_INS"
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_RVN_TXN_INS",
-        "mapping_name": "M_SOR_LOAD_NHS_RVN_TXN_INS"
-      },
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_RVN_ITEM_TYPE_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_RVN_ITEM_TYPE_INS"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_RVN_TXN_PYMT_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_RVN_TXN_PYMT_INS"
-          }
-        ]
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_RVN_TXN_ITEM_INS",
-        "mapping_name": "M_SOR_LOAD_NHS_RVN_TXN_ITEM_INS"
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_ADTN_APLY_INFO_INS",
-        "mapping_name": "M_SOR_LOAD_NHS_ADTN_APLY_INFO_INS"
-      }
-    ]
-  },
-  {
-    "type": "worklet",
-    "name": "WL_NHS_SOR_LOAD_FOR_UPD",
-    "plan": [
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_RVN_CLCT_OFFC_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_RVN_CLCT_OFFC_UPD"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_PHASE_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_PHASE_UPD"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_APLY_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_UPD"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_REF_CODE_TYPE_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_REF_CODE_TYPE_UPD"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HSE_RGN_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_HSE_RGN_UPD"
-          }
-        ]
-      },
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_RVN_CLCT_TRML_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_RVN_CLCT_TRML_UPD"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HSE_DSTR_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_HSE_DSTR_UPD"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_REF_CODE_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_REF_CODE_UPD"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_APLY_PRIOR_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_PRIOR_UPD"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_PHASE_BLT_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_PHASE_BLT_UPD"
-          }
-        ]
-      },
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_CRT_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_CRT_UPD"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_PRIOR_CATG_GRP_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_PRIOR_CATG_GRP_UPD"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_EST_BANK_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_EST_BANK_UPD"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_APLY_MBR_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_MBR_UPD"
-          }
-        ]
-      },
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_BLK_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_BLK_UPD"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_PHASE_CRT_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_PHASE_CRT_UPD"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_EST_BANK_ITEM_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_EST_BANK_ITEM_UPD"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_APLY_REJ_RSN_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_REJ_RSN_UPD"
-          }
-        ]
-      },
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_FLAT_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_FLAT_UPD"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_PHASE_FLAT_ORNT_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_PHASE_FLAT_ORNT_UPD"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_APLY_VET_RSLT_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_APLY_VET_RSLT_UPD"
-          }
-        ]
-      },
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_PHASE_FLAT_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_PHASE_FLAT_UPD"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_DUP_CHK_RSLT_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_DUP_CHK_RSLT_UPD"
-          }
-        ]
-      },
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_RSRV_FLAT_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_RSRV_FLAT_UPD"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_APLY_BLT_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_BLT_UPD"
-          }
-        ]
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_INTVW_SCHD_UPD",
-        "mapping_name": "M_SOR_LOAD_NHS_INTVW_SCHD_UPD"
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_FLAT_SLCT_SSN_UPD",
-        "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_SSN_UPD"
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_FLAT_SLCT_SSN_ASGN_UPD",
-        "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_SSN_ASGN_UPD"
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_FLAT_SLCT_QUE_UPD",
-        "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_QUE_UPD"
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_FLAT_SLCT_UPD",
-        "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_UPD"
-      },
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_FLAT_SLCT_STMT_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_STMT_UPD"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_OWN_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_OWN_UPD"
-          }
-        ]
-      },
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_OWN_MBR_PTCL_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_OWN_MBR_PTCL_UPD"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_PHASE_ASP_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_PHASE_ASP_UPD"
-          }
-        ]
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_PCHS_STL_UPD",
-        "mapping_name": "M_SOR_LOAD_NHS_PCHS_STL_UPD"
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_PCHS_STL_PYMT_SCHD_UPD",
-        "mapping_name": "M_SOR_LOAD_NHS_PCHS_STL_PYMT_SCHD_UPD"
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_PCHS_STL_WVE_UPD",
-        "mapping_name": "M_SOR_LOAD_NHS_PCHS_STL_WVE_UPD"
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_RSCN_PCHS_STL_UPD",
-        "mapping_name": "M_SOR_LOAD_NHS_RSCN_PCHS_STL_UPD"
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_RVN_TXN_UPD",
-        "mapping_name": "M_SOR_LOAD_NHS_RVN_TXN_UPD"
-      },
-      {
-        "type": "parallel_group",
-        "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_RVN_TXN_PYMT_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_RVN_TXN_PYMT_UPD"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_RVN_ITEM_TYPE_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_RVN_ITEM_TYPE_UPD"
-          }
-        ]
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_RVN_TXN_ITEM_UPD",
-        "mapping_name": "M_SOR_LOAD_NHS_RVN_TXN_ITEM_UPD"
-      },
-      {
-        "type": "session",
-        "name": "S_SOR_LOAD_NHS_ADTN_APLY_INFO_UPD",
-        "mapping_name": "M_SOR_LOAD_NHS_ADTN_APLY_INFO_UPD"
-      }
-    ]
-  },
+#   {
+#     "type": "worklet",
+#     "name": "WL_NHS_SOR_LOAD_FOR_UPD_END",
+#     "plan": [
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_RVN_CLCT_OFFC_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_RVN_CLCT_OFFC_UPD_END"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_PHASE_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_PHASE_UPD_END"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_APLY_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_UPD_END"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_REF_CODE_TYPE_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_REF_CODE_TYPE_UPD_END"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HSE_RGN_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_HSE_RGN_UPD_END"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_RVN_CLCT_TRML_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_RVN_CLCT_TRML_UPD_END"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_APLY_PRIOR_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_PRIOR_UPD_END"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_REF_CODE_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_REF_CODE_UPD_END"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_PHASE_BLT_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_PHASE_BLT_UPD_END"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HSE_DSTR_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_HSE_DSTR_UPD_END"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_APLY_MBR_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_MBR_UPD_END"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_EST_BANK_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_EST_BANK_UPD_END"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_PRIOR_CATG_GRP_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_PRIOR_CATG_GRP_UPD_END"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_CRT_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_CRT_UPD_END"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_EST_BANK_ITEM_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_EST_BANK_ITEM_UPD_END"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_APLY_REJ_RSN_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_REJ_RSN_UPD_END"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_BLK_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_BLK_UPD_END"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_PHASE_CRT_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_PHASE_CRT_UPD_END"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_APLY_VET_RSLT_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_APLY_VET_RSLT_UPD_END"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_FLAT_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_FLAT_UPD_END"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_PHASE_FLAT_ORNT_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_PHASE_FLAT_ORNT_UPD_END"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_DUP_CHK_RSLT_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_DUP_CHK_RSLT_UPD_END"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_PHASE_FLAT_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_PHASE_FLAT_UPD_END"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_APLY_BLT_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_BLT_UPD_END"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_RSRV_FLAT_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_RSRV_FLAT_UPD_END"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_INTVW_SCHD_UPD_END",
+#         "mapping_name": "M_SOR_LOAD_NHS_INTVW_SCHD_UPD_END"
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_FLAT_SLCT_SSN_UPD_END",
+#         "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_SSN_UPD_END"
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_FLAT_SLCT_SSN_ASGN_UPD_END",
+#         "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_SSN_ASGN_UPD_END"
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_FLAT_SLCT_QUE_UPD_END",
+#         "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_QUE_UPD_END"
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_FLAT_SLCT_UPD_END",
+#         "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_UPD_END"
+#       },
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_FLAT_SLCT_STMT_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_STMT_UPD_END"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_OWN_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_OWN_UPD_END"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_OWN_MBR_PTCL_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_OWN_MBR_PTCL_UPD_END"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_PHASE_ASP_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_PHASE_ASP_UPD_END"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_PCHS_STL_UPD_END",
+#         "mapping_name": "M_SOR_LOAD_NHS_PCHS_STL_UPD_END"
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_PCHS_STL_PYMT_SCHD_UPD_END",
+#         "mapping_name": "M_SOR_LOAD_NHS_PCHS_STL_PYMT_SCHD_UPD_END"
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_PCHS_STL_WVE_UPD_END",
+#         "mapping_name": "M_SOR_LOAD_NHS_PCHS_STL_WVE_UPD_END"
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_RSCN_PCHS_STL_UPD_END",
+#         "mapping_name": "M_SOR_LOAD_NHS_RSCN_PCHS_STL_UPD_END"
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_RVN_TXN_UPD_END",
+#         "mapping_name": "M_SOR_LOAD_NHS_RVN_TXN_UPD_END"
+#       },
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_RVN_TXN_PYMT_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_RVN_TXN_PYMT_UPD_END"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_RVN_ITEM_TYPE_UPD_END",
+#             "mapping_name": "M_SOR_LOAD_NHS_RVN_ITEM_TYPE_UPD_END"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_RVN_TXN_ITEM_UPD_END",
+#         "mapping_name": "M_SOR_LOAD_NHS_RVN_TXN_ITEM_UPD_END"
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_ADTN_APLY_INFO_UPD_END",
+#         "mapping_name": "M_SOR_LOAD_NHS_ADTN_APLY_INFO_UPD_END"
+#       }
+#     ]
+#   },
+#   {
+#     "type": "worklet",
+#     "name": "WL_NHS_SOR_LOAD_FOR_INS",
+#     "plan": [
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_PHASE_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_PHASE_INS"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_REF_CODE_TYPE_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_REF_CODE_TYPE_INS"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_APLY_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_INS"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HSE_RGN_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_HSE_RGN_INS"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_RVN_CLCT_OFFC_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_RVN_CLCT_OFFC_INS"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_RVN_CLCT_TRML_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_RVN_CLCT_TRML_INS"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HSE_DSTR_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_HSE_DSTR_INS"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_APLY_PRIOR_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_PRIOR_INS"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_REF_CODE_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_REF_CODE_INS"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_PHASE_BLT_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_PHASE_BLT_INS"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_EST_BANK_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_EST_BANK_INS"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_PRIOR_CATG_GRP_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_PRIOR_CATG_GRP_INS"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_APLY_MBR_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_MBR_INS"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_CRT_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_CRT_INS"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_EST_BANK_ITEM_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_EST_BANK_ITEM_INS"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_APLY_REJ_RSN_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_REJ_RSN_INS"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_PHASE_CRT_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_PHASE_CRT_INS"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_BLK_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_BLK_INS"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_APLY_VET_RSLT_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_APLY_VET_RSLT_INS"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_PHASE_FLAT_ORNT_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_PHASE_FLAT_ORNT_INS"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_FLAT_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_FLAT_INS"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_DUP_CHK_RSLT_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_DUP_CHK_RSLT_INS"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_PHASE_FLAT_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_PHASE_FLAT_INS"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_RSRV_FLAT_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_RSRV_FLAT_INS"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_APLY_BLT_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_BLT_INS"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_INTVW_SCHD_INS",
+#         "mapping_name": "M_SOR_LOAD_NHS_INTVW_SCHD_INS"
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_FLAT_SLCT_SSN_INS",
+#         "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_SSN_INS"
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_FLAT_SLCT_SSN_ASGN_INS",
+#         "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_SSN_ASGN_INS"
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_FLAT_SLCT_QUE_INS",
+#         "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_QUE_INS"
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_FLAT_SLCT_INS",
+#         "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_INS"
+#       },
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_FLAT_SLCT_STMT_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_STMT_INS"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_OWN_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_OWN_INS"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_OWN_MBR_PTCL_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_OWN_MBR_PTCL_INS"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_PHASE_ASP_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_PHASE_ASP_INS"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_PCHS_STL_INS",
+#         "mapping_name": "M_SOR_LOAD_NHS_PCHS_STL_INS"
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_PCHS_STL_PYMT_SCHD_INS",
+#         "mapping_name": "M_SOR_LOAD_NHS_PCHS_STL_PYMT_SCHD_INS"
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_PCHS_STL_WVE_INS",
+#         "mapping_name": "M_SOR_LOAD_NHS_PCHS_STL_WVE_INS"
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_RSCN_PCHS_STL_INS",
+#         "mapping_name": "M_SOR_LOAD_NHS_RSCN_PCHS_STL_INS"
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_RVN_TXN_INS",
+#         "mapping_name": "M_SOR_LOAD_NHS_RVN_TXN_INS"
+#       },
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_RVN_ITEM_TYPE_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_RVN_ITEM_TYPE_INS"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_RVN_TXN_PYMT_INS",
+#             "mapping_name": "M_SOR_LOAD_NHS_RVN_TXN_PYMT_INS"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_RVN_TXN_ITEM_INS",
+#         "mapping_name": "M_SOR_LOAD_NHS_RVN_TXN_ITEM_INS"
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_ADTN_APLY_INFO_INS",
+#         "mapping_name": "M_SOR_LOAD_NHS_ADTN_APLY_INFO_INS"
+#       }
+#     ]
+#   },
+#   {
+#     "type": "worklet",
+#     "name": "WL_NHS_SOR_LOAD_FOR_UPD",
+#     "plan": [
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_RVN_CLCT_OFFC_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_RVN_CLCT_OFFC_UPD"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_PHASE_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_PHASE_UPD"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_APLY_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_UPD"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_REF_CODE_TYPE_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_REF_CODE_TYPE_UPD"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HSE_RGN_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_HSE_RGN_UPD"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_RVN_CLCT_TRML_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_RVN_CLCT_TRML_UPD"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HSE_DSTR_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_HSE_DSTR_UPD"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_REF_CODE_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_REF_CODE_UPD"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_APLY_PRIOR_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_PRIOR_UPD"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_PHASE_BLT_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_PHASE_BLT_UPD"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_CRT_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_CRT_UPD"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_PRIOR_CATG_GRP_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_PRIOR_CATG_GRP_UPD"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_EST_BANK_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_EST_BANK_UPD"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_APLY_MBR_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_MBR_UPD"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_BLK_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_BLK_UPD"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_PHASE_CRT_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_PHASE_CRT_UPD"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_EST_BANK_ITEM_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_EST_BANK_ITEM_UPD"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_APLY_REJ_RSN_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_REJ_RSN_UPD"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_FLAT_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_FLAT_UPD"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_PHASE_FLAT_ORNT_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_PHASE_FLAT_ORNT_UPD"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_APLY_VET_RSLT_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_APLY_VET_RSLT_UPD"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_PHASE_FLAT_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_PHASE_FLAT_UPD"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_DUP_CHK_RSLT_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_DUP_CHK_RSLT_UPD"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_RSRV_FLAT_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_RSRV_FLAT_UPD"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_APLY_BLT_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_BLT_UPD"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_INTVW_SCHD_UPD",
+#         "mapping_name": "M_SOR_LOAD_NHS_INTVW_SCHD_UPD"
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_FLAT_SLCT_SSN_UPD",
+#         "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_SSN_UPD"
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_FLAT_SLCT_SSN_ASGN_UPD",
+#         "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_SSN_ASGN_UPD"
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_FLAT_SLCT_QUE_UPD",
+#         "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_QUE_UPD"
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_FLAT_SLCT_UPD",
+#         "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_UPD"
+#       },
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_FLAT_SLCT_STMT_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_FLAT_SLCT_STMT_UPD"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_OWN_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_OWN_UPD"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_HOS_OWN_MBR_PTCL_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_HOS_OWN_MBR_PTCL_UPD"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_PHASE_ASP_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_PHASE_ASP_UPD"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_PCHS_STL_UPD",
+#         "mapping_name": "M_SOR_LOAD_NHS_PCHS_STL_UPD"
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_PCHS_STL_PYMT_SCHD_UPD",
+#         "mapping_name": "M_SOR_LOAD_NHS_PCHS_STL_PYMT_SCHD_UPD"
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_PCHS_STL_WVE_UPD",
+#         "mapping_name": "M_SOR_LOAD_NHS_PCHS_STL_WVE_UPD"
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_RSCN_PCHS_STL_UPD",
+#         "mapping_name": "M_SOR_LOAD_NHS_RSCN_PCHS_STL_UPD"
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_RVN_TXN_UPD",
+#         "mapping_name": "M_SOR_LOAD_NHS_RVN_TXN_UPD"
+#       },
+#       {
+#         "type": "parallel_group",
+#         "steps": [
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_RVN_TXN_PYMT_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_RVN_TXN_PYMT_UPD"
+#           },
+#           {
+#             "type": "session",
+#             "name": "S_SOR_LOAD_NHS_RVN_ITEM_TYPE_UPD",
+#             "mapping_name": "M_SOR_LOAD_NHS_RVN_ITEM_TYPE_UPD"
+#           }
+#         ]
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_RVN_TXN_ITEM_UPD",
+#         "mapping_name": "M_SOR_LOAD_NHS_RVN_TXN_ITEM_UPD"
+#       },
+#       {
+#         "type": "session",
+#         "name": "S_SOR_LOAD_NHS_ADTN_APLY_INFO_UPD",
+#         "mapping_name": "M_SOR_LOAD_NHS_ADTN_APLY_INFO_UPD"
+#       }
+#     ]
+#   },
   {
     "type": "task",
     "name": "T_MAIL_SUCCESS"

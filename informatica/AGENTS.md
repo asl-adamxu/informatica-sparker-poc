@@ -494,16 +494,16 @@ Requires: cwd = workflow dir (import env.runtime_lib), `spark.home` configured, 
 
 ## Conversion Progress
 
-As of **2026-08-07** (version **v2026.08.07**), **9 of 10 workflows (549 mappings)** have converted output present in the current workspace (`PySpark_workflows/`); every completed conversion run reports **0 warnings / 0 errors**. WF_NHS_TL (174 mappings) has been runtime-verified. WF_EMS_TL (581 mappings) is the only workflow without converted output in the current workspace.
+As of **2026-08-07** (version **v2026.08.07**), **9 of 10 workflows (549 mappings)** have converted output present in the current workspace (`PySpark_workflows/`); every completed conversion run reports **0 warnings / 0 errors**. WF_NHS_TL (174 mappings) has been runtime-verified. WF_EMS_TL (581 mappings) is the only workflow without converted output in the current workspace. Feature Coverage rows that reference `WF_EMS_TL` reflect earlier-round testing (v2026.07.20-era output) and must be re-validated once WF_EMS_TL is reconverted.
 
 ### ✅ Runtime Verified
 | Workflow | Mappings | XML Size | Status |
 |----------|----------|----------|--------|
 | WF_GMS_DDS_APLY_DLY | 8 | 340K | **Data-validated**, zero warnings |
-| WF_CMS_DDS_APLY_MTH | 10 | 1.2M | **3/3 mappings SUCCESS**, 16 mapplets inlined |
+| WF_CMS_DDS_APLY_MTH | 10 | 1.2M | **Data-validated**, 16 mapplets inlined |
 | WF_HOMES_DDS_APLY_DMNS | 67 | 2.4M | **Round complete (v2026.08.04)** — case-insensitive columns, Sequence Generator, NullType cast, session Pre/Post SQL (SESSION_SQLS in workflow layer), DUAL no-op, conditional connections, local file read |
-| WF_EMS_PRHE_DDS_APLY_RVN_MTH | 25 | 3.1M | **Zero warnings** (fixed 8) |
-| WF_EMS_PRHE_DDS_APLY_HSE_STCK_MTH | 28 | 3.9M | **Data-validated** (fixed 15+) |
+| WF_EMS_PRHE_DDS_APLY_RVN_MTH | 25 | 3.1M | **Round complete** (fixed 8) |
+| WF_EMS_PRHE_DDS_APLY_HSE_STCK_MTH | 28 | 3.9M | **Round complete** (fixed 15+) |
 | WF_EMS_DDS_APLY_MTH | 49 | 4.0M | **Round complete (v2026.08.03)** — schema `{_schema}` ireplace, SP signature probing (`call_stored_procedure` + OUT binding), YARN-safe local file reads, interpreter lockstep, Update Strategy |
 | WF_EMS_EX | 142 | 9.6M | **Round complete (v2026.08.04)** — Oracle date format (`hh24/mi` → Spark patterns), py4j log suppression, Timer task wait, unconnected input port → NULL, Decision task barrier |
 | WF_NHS_EX | 46 | 2.2M | **Round complete (v2026.08.04)** — Oracle date format (`hh24/mi` → Spark patterns), py4j log suppression |
@@ -512,7 +512,7 @@ As of **2026-08-07** (version **v2026.08.07**), **9 of 10 workflows (549 mapping
 ### ❌ Not Converted (current workspace)
 | Workflow | Mappings | XML Size | Notes |
 |----------|----------|----------|-------|
-| WF_EMS_TL | 581 | 36M | Transform & load (largest). **No output directory in the current workspace.** TODO: rerun conversion, then runtime-validate |
+| WF_EMS_TL | 581 | 36M | Transform & load (largest). **No output directory in the current workspace.** Conversion attempt logged 2026-08-04 18:18 (`convert_infa-pyspark.log`) did not complete; the earlier v2026.07.20-era output was removed (git commit 239eb18). TODO: rerun conversion, then runtime-validate |
 
 ### Layer Architecture
 - **`dds/`** — Data Delivery Service (subject-area marts). Current testing focus.
@@ -558,6 +558,19 @@ As of **2026-08-07** (version **v2026.08.07**), **9 of 10 workflows (549 mapping
 | TO_CHAR → date_format | WF_EMS_PRHE_DDS_APLY_HSE_STCK_MTH | ✅ |
 | TO_DATE numeric cast | WF_EMS_PRHE_DDS_APLY_HSE_STCK_MTH | ✅ |
 | Normalizer | — | ⏳ Pending |
+| Dynamic Lookup / dynamic components (full semantics) | — | ⏳ Pending — 动态组件的转换待修复；当前仅生成 `NewLookupRow` 0/1 |
+
+## Known Manual-Fix Bugs (Deferred)
+
+The following bugs are **not fixable in the current round** — they live in already-generated mapping code or need fixes the converter cannot yet automate. They are recorded here so they are not lost, and each item must be revisited (ideally fixed at the generator level) in a future round.
+
+Source of record: `convert_informatica_pyspark.md` (# 需手动fix的Bug). The `Workspace check` column records whether the pattern still appears in the current generated output as of 2026-08-07.
+
+| # | Affected generated file(s) | Problem | Required manual fix | Workspace check (2026-08-07) |
+|---|---------------------------|---------|---------------------|------------------------------|
+| 1 | `m_dpa_summarize_fact_cms_case_smry.py`, `m_dpa_summarize_fact_cms_case_ostd_smry.py` | Multiple lookups expose same-named fields (e.g. `CASE_CATG_KEY`) | Modify SQL to distinguish the field names (e.g. alias `CASE_CATG_KEY` per lookup) | Pattern still present in current output — **open** |
+| 2 | `m_s5_dds_aply_fact_ems_sms_aply_type_txn.py` | `RLS_CNTL_DMNS_TYPE_CODE` collides with other columns | Rename to `DDS_RLS_CNTL_DMNS_TYPE_CODE` | Rename already present in current output — verify at runtime |
+| 3 | Numeric → string columns (e.g. `rec_rls_ind`) | Scientific notation in output | Explicit decimal type before string cast | No `rec_rls_ind` match in current output; framework "Decimal → String casting" rule applies — verify at runtime |
 
 ## Known Pending Items (待修复)
 

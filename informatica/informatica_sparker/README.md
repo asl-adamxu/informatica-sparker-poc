@@ -1,8 +1,8 @@
 # informatica-sparker
 
-**Version v2026.08.04** — A Python framework that converts Informatica PowerCenter workflow/mapping XML exports into PySpark code deployable to Databricks or YARN Spark clusters. **Tested against Informatica output — data results match.**
+**Version v2026.08.07** — A Python framework that converts Informatica PowerCenter workflow/mapping XML exports into PySpark code deployable to Databricks or YARN Spark clusters. **Tested against Informatica output — data results match.**
 
-**v2026.08.04 highlights (extract workflows WF_EMS_EX / WF_NHS_EX)**: Oracle date-format literals (`hh24:mi:ss` etc.) converted to Spark patterns; py4j gateway chatter ("Closing down clientserver connection") suppressed from logs; Informatica **Timer** tasks (START_RELATIVE_TO_PREVIOUSTASK + RECURRING) converted to interval waits; **unconnected Expression input ports** evaluate as NULL (Informatica semantics); **Decision** tasks kept as batch barriers with clean pass-through logging.
+**v2026.08.07 highlights (transform & load workflow WF_NHS_TL)**: all 174 mappings runtime-verified; lookup-fed FILTRANS / multi-upstream lookup wiring corrected; mapplet rename and Dynamic Lookup `NewLookupRow` handling; mapplet lookup multiple-match policy (Report Error / dedup); `DECODE(x, NULL, ...)` NULL semantics; stable semantic DataFrame naming with empty mapplet rename steps removed.
 
 Conversion pipeline: **XML → Models → IR Plan → Jinja2 Templates → Generated Python Files**
 
@@ -325,6 +325,10 @@ Code generation uses Jinja2 templates in `informatica_sparker/templates/`:
 - `Development Status :: 5 - Production/Stable`
 - `Topic :: Software Development :: Code Generators`
 - `Topic :: Database`
+
+## Known Issues
+
+- **动态组件的转换待修复 (dynamic component conversion pending)**: full semantics of Informatica dynamic components (e.g. Dynamic Lookup cache/update behavior, dynamic update-strategy flows) are not yet converted. Current support covers partial aspects such as `NewLookupRow` 0/1 indicators; the complete dynamic cache/update semantics must be implemented at the converter level in a future round. In the current WF_NHS_TL output, the `WL_NHS_SOR_LOAD_FOR_UPD_END` worklet is temporarily commented out and should be restored after this is fixed.
 
 ## License
 
