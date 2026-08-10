@@ -715,7 +715,7 @@ FROM SSA_EMS_PHA_PRH_APLY_QPS_STS"""
         # Update Strategy: apply_UPDTRANS
         # Strategy: OUT_V_UPD_STRATEGY_STATUS
         # Dynamic strategy from field — split rows by _update_flag
-        df_UPDTRANS = df_lkp_merge_FILTRANS.withColumn("_update_flag",
+        df_UPDTRANS = df_MPLT_DLKP_CACHE_STATUS.withColumn("_update_flag",
             when(col("OUT_V_UPD_STRATEGY_STATUS") == "DD_INSERT", lit("I"))
             .when(col("OUT_V_UPD_STRATEGY_STATUS") == "DD_UPDATE", lit("U"))
             .when(col("OUT_V_UPD_STRATEGY_STATUS") == "DD_DELETE", lit("D"))

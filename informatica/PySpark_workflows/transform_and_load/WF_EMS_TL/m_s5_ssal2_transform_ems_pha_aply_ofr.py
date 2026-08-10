@@ -1102,11 +1102,35 @@ WHERE SOR_EMS_PHA_APLY_OFR_STS.END_DATE = TO_DATE ('99991231', 'YYYYMMDD')"""
         df_MPLT_DLKP_CACHE_STATUS1 = df_MPLT_DLKP_CACHE_STATUS1.drop("OUT_V_UPD_STRATEGY_STATUS").withColumnRenamed("UPDATE_STRATEGY_STATUS", "OUT_V_UPD_STRATEGY_STATUS")
         ctx.register_df("df_MPLT_DLKP_CACHE_STATUS1", df_MPLT_DLKP_CACHE_STATUS1)
         
+        logger.info("Step: merge_UPD_SSAL2_MSTR1_0")
+        # Lookup: merge_UPD_SSAL2_MSTR1_0
+        # Merge on common columns — drop lookup columns that duplicate non-key input columns. 
+        # Matches are CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
+        _cc = list(dict.fromkeys(c for c in df_MPLT_DLKP_CACHE_STATUS1.columns if c.lower() in [x.lower() for x in df_lkp_merge_EXPTRANS1.columns]))
+        if _cc:
+            __lkp_dup = [c for c in df_lkp_merge_EXPTRANS1.columns if c.lower() in [x.lower() for x in df_MPLT_DLKP_CACHE_STATUS1.columns] and c.lower() not in [x.lower() for x in _cc]]
+            # Break attribute lineage on the merged side: when both inputs are built from the same source plan. 
+            # Re-projecting with aliases gives this side fresh attribute IDs without changing rows or column names.
+            __rhs = df_lkp_merge_EXPTRANS1.drop(*__lkp_dup) if __lkp_dup else df_lkp_merge_EXPTRANS1
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_merge_UPD_SSAL2_MSTR1_0 = df_MPLT_DLKP_CACHE_STATUS1.join(
+                __rhs,
+                on=_cc, how="left"
+            )
+        else:
+            logger.warning("No common columns between df_MPLT_DLKP_CACHE_STATUS1 and df_lkp_merge_EXPTRANS1 — using synthetic key join")
+            __rhs = df_lkp_merge_EXPTRANS1.withColumn("_join_key", lit(1))
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_merge_UPD_SSAL2_MSTR1_0 = df_MPLT_DLKP_CACHE_STATUS1.withColumn("_join_key", lit(1)).join(
+                __rhs,
+                on="_join_key", how="left").drop("_join_key")
+        ctx.register_df("df_merge_UPD_SSAL2_MSTR1_0", df_merge_UPD_SSAL2_MSTR1_0)
+        
         logger.info("Step: apply_UPD_SSAL2_MSTR1")
         # Update Strategy: apply_UPD_SSAL2_MSTR1
         # Strategy: OUT_V_UPD_STRATEGY_STATUS
         # Dynamic strategy from field — split rows by _update_flag
-        df_UPD_SSAL2_MSTR1 = df_MPLT_DLKP_CACHE_STATUS1.withColumn("_update_flag",
+        df_UPD_SSAL2_MSTR1 = df_merge_UPD_SSAL2_MSTR1_0.withColumn("_update_flag",
             when(col("OUT_V_UPD_STRATEGY_STATUS") == "DD_INSERT", lit("I"))
             .when(col("OUT_V_UPD_STRATEGY_STATUS") == "DD_UPDATE", lit("U"))
             .when(col("OUT_V_UPD_STRATEGY_STATUS") == "DD_DELETE", lit("D"))

@@ -9,7 +9,18 @@ lookup registered over it.
 """
 
 from informatica_sparker.handlers import TransformHandlers
-from informatica_sparker.models import Connector, Instance, MappingDefinition, UserConfig
+from informatica_sparker.ir import (
+    ApplyLookupStep,
+    ApplyUpdateStrategyStep,
+    IRPlan,
+)
+from informatica_sparker.models import (
+    Connector,
+    Instance,
+    MappingDefinition,
+    Transformation,
+    UserConfig,
+)
 
 
 def _handler():
@@ -81,3 +92,52 @@ def test_router_waits_until_all_upstreams_are_available():
     h.current_df_map["LKP"] = "df_lkp_merge_LKP"
     h._direct_df_map["LKP"] = "df_lkp_merge_LKP"
     assert h._all_upstreams_available("RTR") is True
+
+
+def test_update_strategy_merges_mapplet_output_with_data_stream():
+    mapping = MappingDefinition(
+        name="m_upd_merge",
+        instances=[
+            Instance(name="FILTRANS1", type="TRANSFORMATION",
+                     transformation_type="Filter"),
+            Instance(name="MPLT_DLKP_CACHE_STATUS1", type="MAPPLET",
+                     transformation_type="Mapplet"),
+            Instance(name="UPD_SSAL2_MSTR11", type="TRANSFORMATION",
+                     transformation_type="Update Strategy"),
+        ],
+        transformations=[
+            Transformation(
+                name="UPD_SSAL2_MSTR11",
+                type="Update Strategy",
+                table_attributes={
+                    "Update Strategy Expression": "OUT_V_UPD_STRATEGY_STATUS",
+                },
+            )
+        ],
+        connectors=[
+            Connector(from_instance="FILTRANS1", from_field="CUST_KEY",
+                      to_instance="UPD_SSAL2_MSTR11", to_field="CUST_KEY"),
+            Connector(from_instance="MPLT_DLKP_CACHE_STATUS1",
+                      from_field="OUT_V_UPD_STRATEGY_STATUS",
+                      to_instance="UPD_SSAL2_MSTR11",
+                      to_field="OUT_V_UPD_STRATEGY_STATUS"),
+        ],
+    )
+    h = TransformHandlers(mapping, UserConfig())
+    h.current_df_map = {
+        "FILTRANS1": "df_FILTRANS1",
+        "MPLT_DLKP_CACHE_STATUS1": "df_MPLT_DLKP_CACHE_STATUS1",
+    }
+    h._direct_df_map = dict(h.current_df_map)
+
+    plan = IRPlan(mapping_name="m_upd_merge")
+    upd = next(i for i in mapping.instances
+               if i.name == "UPD_SSAL2_MSTR11")
+    steps = h._handle_update_strategy(upd, plan)
+
+    assert len(steps) == 2
+    assert isinstance(steps[0], ApplyLookupStep)
+    assert steps[0].df_input == "df_FILTRANS1"
+    assert steps[0].params.get("lookup_df") == "df_MPLT_DLKP_CACHE_STATUS1"
+    assert isinstance(steps[1], ApplyUpdateStrategyStep)
+    assert steps[1].df_input == steps[0].df_output

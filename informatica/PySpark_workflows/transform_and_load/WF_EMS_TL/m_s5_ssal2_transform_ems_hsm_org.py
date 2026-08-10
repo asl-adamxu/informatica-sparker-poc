@@ -467,7 +467,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Update Strategy: apply_UPD_SSAL2_MSTR1
         # Strategy: OUT_V_UPD_STRATEGY_STATUS
         # Dynamic strategy from field — split rows by _update_flag
-        df_UPD_SSAL2_MSTR1 = df_lkp_merge_FILTRANS.withColumn("_update_flag",
+        df_UPD_SSAL2_MSTR1 = df_MPLT_DLKP_CACHE_STATUS.withColumn("_update_flag",
             when(col("OUT_V_UPD_STRATEGY_STATUS") == "DD_INSERT", lit("I"))
             .when(col("OUT_V_UPD_STRATEGY_STATUS") == "DD_UPDATE", lit("U"))
             .when(col("OUT_V_UPD_STRATEGY_STATUS") == "DD_DELETE", lit("D"))

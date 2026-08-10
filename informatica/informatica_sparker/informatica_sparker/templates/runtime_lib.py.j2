@@ -330,6 +330,14 @@ def read_sql(spark: SparkSession, conn_config: Dict[str, Any],
         .option("driver", driver) \
         .option("isolationLevel", "READ_COMMITTED")
 
+    # Oracle rejects boolean literals (TRUE/FALSE) in WHERE clauses. Spark's
+    # JDBC predicate pushdown emits them when a pushed filter contains a
+    # non-table column (e.g. computed NewLookupRow / _update_flag), which fails
+    # with ORA-00920. Keep predicate pushdown disabled for Oracle so those
+    # filters are evaluated by Spark after the read.
+    if str(conn_config.get("type", "oracle")).lower() == "oracle":
+        reader = reader.option("pushDownPredicate", "false")
+
     if query:
         reader = reader.option("query", query)
     elif table:

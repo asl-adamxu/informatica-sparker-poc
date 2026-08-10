@@ -443,10 +443,10 @@ class TransformHandlers:
             if _d_type == "Update Strategy":
                 self.logger.log_transformation(instance.name, "UpdateStrategy",
                     "Processing update strategy (deferred)", LogLevel.INFO)
-                _step = self._handle_update_strategy(instance, plan)
-                if _step:
-                    plan.add_step(_step)
-                return bool(_step)
+                _steps = self._handle_update_strategy(instance, plan)
+                for _s in _steps:
+                    plan.add_step(_s)
+                return bool(_steps)
 
             if _d_type == "Transaction Control":
                 self.logger.log_transformation(instance.name, "TransactionControl",
@@ -673,8 +673,8 @@ class TransformHandlers:
 
             elif inst_type == "Update Strategy":
                 self.logger.log_transformation(inst_name, "UpdateStrategy", "Processing update strategy", LogLevel.INFO)
-                step = self._handle_update_strategy(instance, plan)
-                if step:
+                steps = self._handle_update_strategy(instance, plan)
+                for step in steps:
                     plan.add_step(step)
                     self.logger.log_transformation(inst_name, "UpdateStrategy", "Update strategy converted", LogLevel.SUCCESS)
 
@@ -2848,10 +2848,49 @@ class TransformHandlers:
             start_value=start_value
         )
 
-    def _handle_update_strategy(self, instance: Instance, plan: IRPlan) -> Optional[IRStep]:
+    def _handle_update_strategy(self, instance: Instance, plan: IRPlan) -> List[IRStep]:
         input_df = self._get_input_df(instance.name)
         if not input_df:
             input_df = "df_input"
+
+        # Update Strategy can be fed by a data stream (e.g. FILTRANS1) AND a
+        # mapplet output that supplies the strategy field (e.g. MPLT_DLKP_CACHE_STATUS
+        # with OUT_V_UPD_STRATEGY_STATUS). Joining all upstreams is required;
+        # otherwise the generated _update_flag references a column the primary
+        # input does not carry (UNRESOLVED_COLUMN).
+        all_inputs = self._get_all_input_dfs(instance.name)
+        extra_inputs = [df for df in all_inputs if df != input_df]
+        pre_steps: List[IRStep] = []
+        if extra_inputs and input_df != "df_input":
+            _cur_df = input_df
+            _df_parent = self._build_df_parent_map(list(plan.steps))
+            _step_map = {s.df_output: s for s in plan.steps if s.df_output}
+            _needed = set()
+            for _c in self.mapping.connectors:
+                if _c.to_instance == instance.name and _c.from_instance in self.current_df_map:
+                    _needed.add(_c.from_field)
+            for _i, _extra_df in enumerate(extra_inputs):
+                _redundant_to = self._redundant_merge_df(
+                    _df_parent, _step_map, _cur_df, _extra_df, _needed)
+                if _redundant_to is not None:
+                    _cur_df = _redundant_to
+                    continue
+                _merge_df = self._df_name("df_merge", instance.name, _i)
+                _merge_step = ApplyLookupStep(
+                    step_name=f"merge_{instance.name}_{_i}",
+                    df_input=_cur_df,
+                    df_output=_merge_df,
+                    lookup_df=_extra_df,
+                    join_predicates=[],
+                    join_expr="__common_cols__",
+                    output_columns=[],
+                    lookup_type="left",
+                )
+                pre_steps.append(_merge_step)
+                _df_parent[_merge_df] = _cur_df
+                _step_map[_merge_df] = _merge_step
+                _cur_df = _merge_df
+            input_df = _cur_df
 
         df_output = self._get_df_name("df_upd", instance)
         self._register_df(instance, df_output)
@@ -2901,7 +2940,7 @@ class TransformHandlers:
             step.params["static_dd"] = "DD_INSERT"
             step.comments.append("DD_INSERT: all rows appended directly")
 
-        return step
+        return pre_steps + [step]
 
     def _handle_transaction_control(self, instance: Instance, plan: IRPlan) -> Optional[IRStep]:
         input_df = self._get_input_df(instance.name)
