@@ -132,36 +132,19 @@ FROM NHS_HOS_APLY"""
         
         logger.info("Step: apply_DLKP_SOR_MSTR")
         # Lookup: apply_DLKP_SOR_MSTR
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_DLKP_SOR_MSTR.groupBy(col("NHS_HOS_APLY_KEY")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_DLKP_SOR_MSTR: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_EXP_BK
         _lkp_input = _lkp_input.withColumn("IN_NHS_HOS_APLY_KEY", col("HOS_APLY_KEY"))
-        # Join condition: IN_NHS_HOS_APLY_KEY=NHS_HOS_APLY_KEY
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_EXP_BK = _lkp_input.alias("_main").join(
-            broadcast(df_DLKP_SOR_MSTR).alias("_lkp"),
-            (col("_main.IN_NHS_HOS_APLY_KEY") == col("_lkp.NHS_HOS_APLY_KEY")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_DLKP_SOR_MSTR[c] for c in df_DLKP_SOR_MSTR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_lkp_merge_EXP_BK = lib.dynamic_lookup(
+            spark,
+            _lkp_input,
+            df_DLKP_SOR_MSTR,
+            {'name': 'DLKP_SOR_MSTR', 'join_predicates': [{'source_col': 'IN_NHS_HOS_APLY_KEY', 'lookup_col': 'NHS_HOS_APLY_KEY'}], 'output_columns': ['HOS_APLY_KEY', 'NHS_HOS_APLY_KEY'], 'lookup_output_fields': [{'name': 'HOS_APLY_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'NHS_HOS_APLY_KEY', 'ref_field': 'HOS_APLY_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'decimal'}], 'new_lookup_row_col': 'NewLookupRow', 'sequence_config': {'output_col': 'HOS_APLY_KEY'}, 'insert_else_update': True, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_DLKP_SOR_MSTR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "NHS_HOS_APLY_KEY"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_lkp_merge_EXP_BK = df_lkp_merge_EXP_BK.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_lkp_merge_EXP_BK = df_lkp_merge_EXP_BK.withColumn("NewLookupRow", lit(1))
-        ctx.register_df("df_lkp_merge_EXP_BK", df_lkp_merge_EXP_BK)        
+        ctx.register_df("df_lkp_merge_EXP_BK", df_lkp_merge_EXP_BK)
+        
         logger.info("Step: apply_FILTRANS_MSTR")
         # Filter: apply_FILTRANS_MSTR
         __fil_input = df_lkp_merge_EXP_BK
@@ -183,11 +166,8 @@ where SOR_NHS_HOS_APLY_STS.HOS_APLY_KEY = ss.HOS_APLY_KEY and SOR_NHS_HOS_APLY_S
         
         logger.info("Step: apply_DLKP_SOR_STS")
         # Lookup: apply_DLKP_SOR_STS
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_DLKP_SOR_STS.groupBy(col("HOS_APLY_KEY")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_DLKP_SOR_STS: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_lkp_merge_EXP_BK
         _lkp_input = _lkp_input.withColumn("IN_PRH_URSN_WTHDRW_CNT", col("PRH_URSN_WTHDRW_CNT"))
         _lkp_input = _lkp_input.withColumn("IN_NB_SCHM_JOIN_IND", col("NB_SCHM_JOIN_IND"))
@@ -305,28 +285,14 @@ where SOR_NHS_HOS_APLY_STS.HOS_APLY_KEY = ss.HOS_APLY_KEY and SOR_NHS_HOS_APLY_S
         _lkp_input = _lkp_input.withColumn("IN_PRH_APLY_STS_CODE", col("PRH_APLY_STS_CODE"))
         _lkp_input = _lkp_input.withColumn("IN_PRH_APLY_STS_UPD_DATE", col("PRH_APLY_STS_UPD_DATE"))
         _lkp_input = _lkp_input.withColumn("IN_HOS_APLY_KEY", col("HOS_APLY_KEY"))
-        # Join condition: IN_HOS_APLY_KEY=HOS_APLY_KEY
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_EXP_BK = _lkp_input.alias("_main").join(
-            broadcast(df_DLKP_SOR_STS).alias("_lkp"),
-            (col("_main.IN_HOS_APLY_KEY") == col("_lkp.HOS_APLY_KEY")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_DLKP_SOR_STS[c] for c in df_DLKP_SOR_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_lkp_merge_EXP_BK = lib.dynamic_lookup(
+            spark,
+            _lkp_input,
+            df_DLKP_SOR_STS,
+            {'name': 'DLKP_SOR_STS', 'join_predicates': [{'source_col': 'IN_HOS_APLY_KEY', 'lookup_col': 'HOS_APLY_KEY'}], 'output_columns': ['HOS_APLY_KEY', 'BGN_DATE', 'END_DATE', 'PHASE_CODE', 'HOS_APLY_NUM', 'BTCH_ID', 'FORM_COLR_CODE', 'APLY_HOME_PHONE_NUM', 'APLY_MBL_PHONE_NUM', 'APLY_CRSP_ENG_ADDR_1', 'APLY_CRSP_ENG_ADDR_2', 'APLY_CRSP_ENG_ADDR_3', 'APLY_CRSP_ENG_ADDR_4', 'APLY_CRSP_ENG_ADDR_5', 'POST_BOX_ENG_ADDR', 'APLY_CRSP_CHI_ADDR_1', 'APLY_CRSP_CHI_ADDR_2', 'APLY_CRSP_CHI_ADDR_3', 'APLY_CRSP_CHI_ADDR_4', 'APLY_CRSP_CHI_ADDR_5', 'POST_BOX_CHI_ADDR', 'CRSP_ADDR_IMG_PATH_TEXT', 'APLY_RSDN_ENG_ADDR_1', 'APLY_RSDN_ENG_ADDR_2', 'APLY_RSDN_ENG_ADDR_3', 'APLY_RSDN_ENG_ADDR_4', 'APLY_RSDN_ENG_ADDR_5', 'APLY_RSDN_CHI_ADDR_1', 'APLY_RSDN_CHI_ADDR_2', 'APLY_RSDN_CHI_ADDR_3', 'APLY_RSDN_CHI_ADDR_4', 'APLY_RSDN_CHI_ADDR_5', 'RSDN_ADDR_IMG_PATH_TEXT', 'HOS_OFCR_RMK_TEXT', 'APLY_FMLY_TOT_INCM_AMT', 'APLY_FMLY_TOT_AST_AMT', 'ELDR_MBR_PRIOR_SCM_JOIN_IND', 'GPRNT_GCHILD_NCLR_FMLY_IND', 'APLY_TPS_OWNR_IND', 'CODE_ADDR_EST_CODE', 'CODE_ADDR_BLK_CODE', 'CODE_ADDR_FLAT_NUM', 'CODE_ADDR_SFX_CODE', 'FMLY_CPST_CODE', 'UNIT_SPLT_IND', 'LTR_ASRN_IND', 'APLY_PRPTY_OWN_IND', 'GFC_NO', 'APLY_STS_CODE', 'APLY_CRE_DATE', 'BANK_CODE', 'BANK_BRCH_CODE', 'APLY_FEE_CHQ_NUM', 'FEE_CHQ_NUM_IMG_PATH_TEXT', 'EFAS_JOIN_IND', 'CRP_JOIN_IND', 'FEP_JOIN_IND', 'AMND_IN_PGS_IND', 'APLY_LANG_PREF_CODE', 'APLY_1D_BRCD_NUM', 'APLY_OFFC_PHONE_NUM', 'APLY_VET_STS_CODE', 'ASGN_HO_USER_ID', 'APLY_SIGN_DATE', 'TOP_PRIOR_IND', 'SRA_IND', 'RENT_LVL_CODE', 'CODE_ADDR_EST_TYPE_CODE', 'USER_INPT_PRPTY_OWN_IND', 'USER_INPT_UNIT_SPLT_IND', 'USER_INPT_RMK_IND', 'EFAS_EXCP_VRFY_IND', 'ASGN_AHM_USER_ID', 'ROW_VER_NUM', 'APRV_ACT_DATE', 'APRV_ACT_USER_ID', 'APLY_EMAIL_ADDR', 'EAS_APLY_SBMT_REF_NUM', 'EAS_PYMT_MTHD_CODE', 'EAS_APLY_SBMT_DATE', 'EAS_EGIS_PSDR_GNRT_TS', 'EAS_PYMT_RCPT_ACK_TS', 'EAS_BKGND_RCVR_IND', 'EAS_MLTP_SCHM_IND', 'APLY_HSE_TYPE_TEXT', 'APLY_LVNG_DSTR_TEXT', 'MIN_TOT_INCM_AMT', 'MAX_TOT_INCM_AMT', 'MIN_TOT_AST_AMT', 'MAX_TOT_AST_AMT', 'EGIS_FIN_INSTT_LINK_KEY', 'EAS_DIR_IMPRT_IND', 'ORIG_HOS_APLY_KEY', 'APLY_COPY_GSH_IND', 'IH_IND', 'BANK_CODE_2', 'BANK_BRCH_CODE_2', 'APLY_FEE_CHQ_NUM_2', 'BANK_CODE_3', 'BANK_BRCH_CODE_3', 'APLY_FEE_CHQ_NUM_3', 'FMLY_MBR_ADD_IND', 'EFAS_OPT_IND', 'GSH_ELGBL_IND', 'PRH_APLY_STG_CODE', 'PRH_APLY_STS_CODE', 'PRH_APLY_STS_UPD_DATE', 'PRH_APLY_RSN_CODE_LIST', 'EFAS_APLY_STS_CODE', 'EFAS_APLY_RSN_CODE_LIST', 'EFAS_FLAT_SLCT_DATE', 'DOUBT_CASE_CODE', 'PRH_OFR_CNT', 'PRH_URSN_WTHDRW_CNT', 'NB_SCHM_JOIN_IND', 'NB_JOIN_IND', 'NOTE_EMAIL_RCV_IND', 'YOUTH_SCHM_JOIN_IND'], 'lookup_output_fields': [{'name': 'HOS_APLY_KEY', 'ref_field': 'HOS_APLY_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'BGN_DATE', 'ref_field': 'DUMMY_DATE', 'ignore_in_compare': True, 'ignore_null_inputs': True, 'datatype': 'date/time'}, {'name': 'END_DATE', 'ref_field': 'DUMMY_DATE', 'ignore_in_compare': True, 'ignore_null_inputs': True, 'datatype': 'date/time'}, {'name': 'PHASE_CODE', 'ref_field': 'PHASE_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'HOS_APLY_NUM', 'ref_field': 'HOS_APLY_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'BTCH_ID', 'ref_field': 'BTCH_ID', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'FORM_COLR_CODE', 'ref_field': 'FORM_COLR_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_HOME_PHONE_NUM', 'ref_field': 'APLY_HOME_PHONE_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_MBL_PHONE_NUM', 'ref_field': 'APLY_MBL_PHONE_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_CRSP_ENG_ADDR_1', 'ref_field': 'APLY_CRSP_ENG_ADDR_1', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_CRSP_ENG_ADDR_2', 'ref_field': 'APLY_CRSP_ENG_ADDR_2', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_CRSP_ENG_ADDR_3', 'ref_field': 'APLY_CRSP_ENG_ADDR_3', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_CRSP_ENG_ADDR_4', 'ref_field': 'APLY_CRSP_ENG_ADDR_4', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_CRSP_ENG_ADDR_5', 'ref_field': 'APLY_CRSP_ENG_ADDR_5', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'POST_BOX_ENG_ADDR', 'ref_field': 'POST_BOX_ENG_ADDR', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_CRSP_CHI_ADDR_1', 'ref_field': 'APLY_CRSP_CHI_ADDR_1', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_CRSP_CHI_ADDR_2', 'ref_field': 'APLY_CRSP_CHI_ADDR_2', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_CRSP_CHI_ADDR_3', 'ref_field': 'APLY_CRSP_CHI_ADDR_3', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_CRSP_CHI_ADDR_4', 'ref_field': 'APLY_CRSP_CHI_ADDR_4', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_CRSP_CHI_ADDR_5', 'ref_field': 'APLY_CRSP_CHI_ADDR_5', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'POST_BOX_CHI_ADDR', 'ref_field': 'POST_BOX_CHI_ADDR', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'CRSP_ADDR_IMG_PATH_TEXT', 'ref_field': 'CRSP_ADDR_IMG_PATH_TEXT', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_RSDN_ENG_ADDR_1', 'ref_field': 'APLY_RSDN_ENG_ADDR_1', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_RSDN_ENG_ADDR_2', 'ref_field': 'APLY_RSDN_ENG_ADDR_2', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_RSDN_ENG_ADDR_3', 'ref_field': 'APLY_RSDN_ENG_ADDR_3', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_RSDN_ENG_ADDR_4', 'ref_field': 'APLY_RSDN_ENG_ADDR_4', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_RSDN_ENG_ADDR_5', 'ref_field': 'APLY_RSDN_ENG_ADDR_5', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_RSDN_CHI_ADDR_1', 'ref_field': 'APLY_RSDN_CHI_ADDR_1', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_RSDN_CHI_ADDR_2', 'ref_field': 'APLY_RSDN_CHI_ADDR_2', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_RSDN_CHI_ADDR_3', 'ref_field': 'APLY_RSDN_CHI_ADDR_3', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_RSDN_CHI_ADDR_4', 'ref_field': 'APLY_RSDN_CHI_ADDR_4', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_RSDN_CHI_ADDR_5', 'ref_field': 'APLY_RSDN_CHI_ADDR_5', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'RSDN_ADDR_IMG_PATH_TEXT', 'ref_field': 'RSDN_ADDR_IMG_PATH_TEXT', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'HOS_OFCR_RMK_TEXT', 'ref_field': 'HOS_OFCR_RMK_TEXT', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_FMLY_TOT_INCM_AMT', 'ref_field': 'APLY_FMLY_TOT_INCM_AMT', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'}, {'name': 'APLY_FMLY_TOT_AST_AMT', 'ref_field': 'APLY_FMLY_TOT_AST_AMT', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'}, {'name': 'ELDR_MBR_PRIOR_SCM_JOIN_IND', 'ref_field': 'ELDR_MBR_PRIOR_SCM_JOIN_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'GPRNT_GCHILD_NCLR_FMLY_IND', 'ref_field': 'GPRNT_GCHILD_NCLR_FMLY_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_TPS_OWNR_IND', 'ref_field': 'APLY_TPS_OWNR_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'CODE_ADDR_EST_CODE', 'ref_field': 'CODE_ADDR_EST_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'CODE_ADDR_BLK_CODE', 'ref_field': 'CODE_ADDR_BLK_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'CODE_ADDR_FLAT_NUM', 'ref_field': 'CODE_ADDR_FLAT_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'CODE_ADDR_SFX_CODE', 'ref_field': 'CODE_ADDR_SFX_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'FMLY_CPST_CODE', 'ref_field': 'FMLY_CPST_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'UNIT_SPLT_IND', 'ref_field': 'UNIT_SPLT_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'LTR_ASRN_IND', 'ref_field': 'LTR_ASRN_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_PRPTY_OWN_IND', 'ref_field': 'APLY_PRPTY_OWN_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'GFC_NO', 'ref_field': 'GFC_NO', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_STS_CODE', 'ref_field': 'APLY_STS_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_CRE_DATE', 'ref_field': 'APLY_CRE_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'}, {'name': 'BANK_CODE', 'ref_field': 'BANK_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'BANK_BRCH_CODE', 'ref_field': 'BANK_BRCH_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_FEE_CHQ_NUM', 'ref_field': 'APLY_FEE_CHQ_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'FEE_CHQ_NUM_IMG_PATH_TEXT', 'ref_field': 'FEE_CHQ_NUM_IMG_PATH_TEXT', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'EFAS_JOIN_IND', 'ref_field': 'EFAS_JOIN_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'CRP_JOIN_IND', 'ref_field': 'CRP_JOIN_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'FEP_JOIN_IND', 'ref_field': 'FEP_JOIN_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'AMND_IN_PGS_IND', 'ref_field': 'AMND_IN_PGS_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_LANG_PREF_CODE', 'ref_field': 'APLY_LANG_PREF_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_1D_BRCD_NUM', 'ref_field': 'APLY_1D_BRCD_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'}, {'name': 'APLY_OFFC_PHONE_NUM', 'ref_field': 'APLY_OFFC_PHONE_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_VET_STS_CODE', 'ref_field': 'APLY_VET_STS_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'ASGN_HO_USER_ID', 'ref_field': 'ASGN_HO_USER_ID', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_SIGN_DATE', 'ref_field': 'APLY_SIGN_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'}, {'name': 'TOP_PRIOR_IND', 'ref_field': 'TOP_PRIOR_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'SRA_IND', 'ref_field': 'SRA_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'RENT_LVL_CODE', 'ref_field': 'RENT_LVL_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'CODE_ADDR_EST_TYPE_CODE', 'ref_field': 'CODE_ADDR_EST_TYPE_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'USER_INPT_PRPTY_OWN_IND', 'ref_field': 'USER_INPT_PRPTY_OWN_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'USER_INPT_UNIT_SPLT_IND', 'ref_field': 'USER_INPT_UNIT_SPLT_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'USER_INPT_RMK_IND', 'ref_field': 'USER_INPT_RMK_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'EFAS_EXCP_VRFY_IND', 'ref_field': 'EFAS_EXCP_VRFY_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'ASGN_AHM_USER_ID', 'ref_field': 'ASGN_AHM_USER_ID', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'ROW_VER_NUM', 'ref_field': 'ROW_VER_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'}, {'name': 'APRV_ACT_DATE', 'ref_field': 'APRV_ACT_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'}, {'name': 'APRV_ACT_USER_ID', 'ref_field': 'APRV_ACT_USER_ID', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_EMAIL_ADDR', 'ref_field': 'APLY_EMAIL_ADDR', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'EAS_APLY_SBMT_REF_NUM', 'ref_field': 'EAS_APLY_SBMT_REF_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'EAS_PYMT_MTHD_CODE', 'ref_field': 'EAS_PYMT_MTHD_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'EAS_APLY_SBMT_DATE', 'ref_field': 'EAS_APLY_SBMT_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'}, {'name': 'EAS_EGIS_PSDR_GNRT_TS', 'ref_field': 'EAS_EGIS_PSDR_GNRT_TS', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'}, {'name': 'EAS_PYMT_RCPT_ACK_TS', 'ref_field': 'EAS_PYMT_RCPT_ACK_TS', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'}, {'name': 'EAS_BKGND_RCVR_IND', 'ref_field': 'EAS_BKGND_RCVR_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'EAS_MLTP_SCHM_IND', 'ref_field': 'EAS_MLTP_SCHM_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_HSE_TYPE_TEXT', 'ref_field': 'APLY_HSE_TYPE_TEXT', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_LVNG_DSTR_TEXT', 'ref_field': 'APLY_LVNG_DSTR_TEXT', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'MIN_TOT_INCM_AMT', 'ref_field': 'MIN_TOT_INCM_AMT', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'}, {'name': 'MAX_TOT_INCM_AMT', 'ref_field': 'MAX_TOT_INCM_AMT', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'}, {'name': 'MIN_TOT_AST_AMT', 'ref_field': 'MIN_TOT_AST_AMT', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'}, {'name': 'MAX_TOT_AST_AMT', 'ref_field': 'MAX_TOT_AST_AMT', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'}, {'name': 'EGIS_FIN_INSTT_LINK_KEY', 'ref_field': 'EGIS_FIN_INSTT_LINK_KEY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'EAS_DIR_IMPRT_IND', 'ref_field': 'EAS_DIR_IMPRT_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'ORIG_HOS_APLY_KEY', 'ref_field': 'ORIG_HOS_APLY_KEY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'}, {'name': 'APLY_COPY_GSH_IND', 'ref_field': 'APLY_COPY_GSH_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'IH_IND', 'ref_field': 'IH_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'BANK_CODE_2', 'ref_field': 'BANK_CODE_2', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'BANK_BRCH_CODE_2', 'ref_field': 'BANK_BRCH_CODE_2', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_FEE_CHQ_NUM_2', 'ref_field': 'APLY_FEE_CHQ_NUM_2', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'BANK_CODE_3', 'ref_field': 'BANK_CODE_3', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'BANK_BRCH_CODE_3', 'ref_field': 'BANK_BRCH_CODE_3', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_FEE_CHQ_NUM_3', 'ref_field': 'APLY_FEE_CHQ_NUM_3', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'FMLY_MBR_ADD_IND', 'ref_field': 'FMLY_MBR_ADD_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'EFAS_OPT_IND', 'ref_field': 'EFAS_OPT_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'GSH_ELGBL_IND', 'ref_field': 'GSH_ELGBL_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'PRH_APLY_STG_CODE', 'ref_field': 'PRH_APLY_STG_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'PRH_APLY_STS_CODE', 'ref_field': 'PRH_APLY_STS_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'PRH_APLY_STS_UPD_DATE', 'ref_field': 'PRH_APLY_STS_UPD_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'}, {'name': 'PRH_APLY_RSN_CODE_LIST', 'ref_field': 'PRH_APLY_RSN_CODE_LIST', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'EFAS_APLY_STS_CODE', 'ref_field': 'EFAS_APLY_STS_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'EFAS_APLY_RSN_CODE_LIST', 'ref_field': 'EFAS_APLY_RSN_CODE_LIST', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'EFAS_FLAT_SLCT_DATE', 'ref_field': 'EFAS_FLAT_SLCT_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'}, {'name': 'DOUBT_CASE_CODE', 'ref_field': 'DOUBT_CASE_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'PRH_OFR_CNT', 'ref_field': 'PRH_OFR_CNT', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'}, {'name': 'PRH_URSN_WTHDRW_CNT', 'ref_field': 'PRH_URSN_WTHDRW_CNT', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'}, {'name': 'NB_SCHM_JOIN_IND', 'ref_field': 'NB_SCHM_JOIN_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'NB_JOIN_IND', 'ref_field': 'NB_JOIN_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'NOTE_EMAIL_RCV_IND', 'ref_field': 'NOTE_EMAIL_RCV_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'YOUTH_SCHM_JOIN_IND', 'ref_field': 'YOUTH_SCHM_JOIN_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow', 'sequence_config': None, 'insert_else_update': True, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_DLKP_SOR_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "HOS_APLY_KEY"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_lkp_merge_EXP_BK = df_lkp_merge_EXP_BK.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_lkp_merge_EXP_BK = df_lkp_merge_EXP_BK.withColumn("NewLookupRow", lit(1))
+        ctx.register_df("df_lkp_merge_EXP_BK", df_lkp_merge_EXP_BK)
         
         logger.info("Step: apply_EXPTRANS_MSTR")
         # Expression: apply_EXPTRANS_MSTR
@@ -366,37 +332,20 @@ where SOR_NHS_HOS_APLY_STS.HOS_APLY_KEY = ss.HOS_APLY_KEY and SOR_NHS_HOS_APLY_S
         
         logger.info("Step: apply_DLKP_SSA_MSTR")
         # Lookup: apply_DLKP_SSA_MSTR
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_DLKP_SSA_MSTR.groupBy(col("SURROGATE_KEY")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_DLKP_SSA_MSTR: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_EXPTRANS_MSTR
         _lkp_input = _lkp_input.withColumn("IN_SURROGATE_KEY", col("HOS_APLY_KEY"))
         _lkp_input = _lkp_input.withColumn("IN_DUMMY", col("v_NULL"))
-        # Join condition: IN_SURROGATE_KEY=SURROGATE_KEY
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_FILTRANS_MSTR = _lkp_input.alias("_main").join(
-            broadcast(df_DLKP_SSA_MSTR).alias("_lkp"),
-            (col("_main.IN_SURROGATE_KEY") == col("_lkp.SURROGATE_KEY")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_DLKP_SSA_MSTR[c] for c in df_DLKP_SSA_MSTR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_lkp_merge_FILTRANS_MSTR = lib.dynamic_lookup(
+            spark,
+            _lkp_input,
+            df_DLKP_SSA_MSTR,
+            {'name': 'DLKP_SSA_MSTR', 'join_predicates': [{'source_col': 'IN_SURROGATE_KEY', 'lookup_col': 'SURROGATE_KEY'}], 'output_columns': ['SURROGATE_KEY', 'DUMMY'], 'lookup_output_fields': [{'name': 'SURROGATE_KEY', 'ref_field': 'HOS_APLY_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'DUMMY', 'ref_field': 'v_NULL', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow', 'sequence_config': None, 'insert_else_update': False, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_DLKP_SSA_MSTR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "SURROGATE_KEY"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_lkp_merge_FILTRANS_MSTR = df_lkp_merge_FILTRANS_MSTR.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_lkp_merge_FILTRANS_MSTR = df_lkp_merge_FILTRANS_MSTR.withColumn("NewLookupRow", lit(1))
-        ctx.register_df("df_lkp_merge_FILTRANS_MSTR", df_lkp_merge_FILTRANS_MSTR)        
+        ctx.register_df("df_lkp_merge_FILTRANS_MSTR", df_lkp_merge_FILTRANS_MSTR)
+        
         logger.info("Step: apply_EXPTRANS_STS")
         # Expression: apply_EXPTRANS_STS
         df_EXPTRANS_STS = df_FILTRANS_STS
@@ -553,37 +502,20 @@ where SOR_NHS_HOS_APLY_STS.HOS_APLY_KEY = ss.HOS_APLY_KEY and SOR_NHS_HOS_APLY_S
         
         logger.info("Step: apply_DLKP_SSA_STS")
         # Lookup: apply_DLKP_SSA_STS
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_DLKP_SSA_STS.groupBy(col("SURROGATE_KEY")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_DLKP_SSA_STS: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_EXPTRANS_STS
         _lkp_input = _lkp_input.withColumn("IN_SURROGATE_KEY", col("HOS_APLY_KEY"))
         _lkp_input = _lkp_input.withColumn("IN_DUMMY", col("v_NULL"))
-        # Join condition: IN_SURROGATE_KEY=SURROGATE_KEY
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_FILTRANS_STS = _lkp_input.alias("_main").join(
-            broadcast(df_DLKP_SSA_STS).alias("_lkp"),
-            (col("_main.IN_SURROGATE_KEY") == col("_lkp.SURROGATE_KEY")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_DLKP_SSA_STS[c] for c in df_DLKP_SSA_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_lkp_merge_FILTRANS_STS = lib.dynamic_lookup(
+            spark,
+            _lkp_input,
+            df_DLKP_SSA_STS,
+            {'name': 'DLKP_SSA_STS', 'join_predicates': [{'source_col': 'IN_SURROGATE_KEY', 'lookup_col': 'SURROGATE_KEY'}], 'output_columns': ['SURROGATE_KEY', 'DUMMY'], 'lookup_output_fields': [{'name': 'SURROGATE_KEY', 'ref_field': 'HOS_APLY_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'DUMMY', 'ref_field': 'v_NULL', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow', 'sequence_config': None, 'insert_else_update': False, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_DLKP_SSA_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "SURROGATE_KEY"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_lkp_merge_FILTRANS_STS = df_lkp_merge_FILTRANS_STS.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_lkp_merge_FILTRANS_STS = df_lkp_merge_FILTRANS_STS.withColumn("NewLookupRow", lit(1))
-        ctx.register_df("df_lkp_merge_FILTRANS_STS", df_lkp_merge_FILTRANS_STS)        
+        ctx.register_df("df_lkp_merge_FILTRANS_STS", df_lkp_merge_FILTRANS_STS)
+        
         logger.info("Step: merge_EXP_OPR_IND_0")
         # Lookup: merge_EXP_OPR_IND_0
         # Merge on common columns — drop lookup columns that duplicate non-key input columns. 

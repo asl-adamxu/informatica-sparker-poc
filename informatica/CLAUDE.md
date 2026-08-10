@@ -395,6 +395,15 @@ use default python to run pyspark workflow or mapping
 - **Semantics (confirmed with user)**: `NewLookupRow` = **0 when no match, >0 when a match was found** — `NewLookupRow > 0` keeps MATCHED rows (UPSERT update path). (Informatica docs sometimes state the opposite; this project follows the user's verified behavior.)
 - **Probe column**: chosen at runtime as the first lookup column that **survived the merge select** (`c not in _lkp_input.columns`) — same-named columns are shadowed by main-table values (never NULL), so join keys like `CODE_ADDR` cannot be used. Falls back to `lit(0)` if no lookup column survives.
 
+### Dynamic Lookup Exact Conversion (v2026.08.10)
+- **Replaces the v2026.07.31 CASE-WHEN approximation** with a row-by-row cache state machine (`runtime_lib.py.j2` `dynamic_lookup()`). `NewLookupRow` is now 1 = insert, 2 = update, 0 = no change, matching Informatica dynamic-cache semantics.
+- **Base cache**: duplicate condition keys in the lookup source raise `RuntimeError` (Report Error / CMN_1650). Input rows are left-joined to the base cache; miss/hit is no longer inferred from a NULL lookup column.
+- **Grouping**: join keys are stringified into a same-typed struct; NULL keys get a unique `__dyn_seq`-derived value (SQL `=` never matches NULL), so each null-key row is its own miss. Non-null rows with the same key share one group and see prior rows' inserted/updated cache state.
+- **Sequence-Id**: surrogate keys are pre-allocated globally before the UDF (`max(base seq) + row_number` over first-miss rows), never generated inside `applyInPandas`.
+- **Executor**: `applyInPandas` when pyarrow meets the Spark minimum; automatic RDD `groupByKey` fallback otherwise (`config.yml` `dynamic_lookup.executor`).
+- **Config**: `TransformField` parses `IGNORE_IN_COMPARE` / `IGNORE_NULL_INPUTS`; both main-mapping and mapplet lookup paths attach full `dynamic_lookup` params (insert/update flags, update condition, output-old-value, case sensitivity, sequence config, `lookup_policy="Report Error"`).
+- **Scope**: WF_NHS_TL regenerated; WF_EMS_TL deferred (its `Use First Value` and `Output Old Value On Update=YES` variants are next).
+
 ### SQL Column Name-Match-First Rename (v2026.07.31)
 - **Problem**: Pure positional SQL→port renaming misaligns when the SQL returns fewer columns than `_port_cols` and the gap is NOT at the end. E.g. SQL returns 11 cols but 13 ports with `TNCY_AGRMT_TRMT_DATE`/`REC_RLS_IND` missing in the middle — `EST_DMNS_KEY` position receives `LAST_REC_TXN_DATE`'s TIMESTAMP value → `[DATATYPE_MISMATCH.BINARY_OP_DIFF_TYPES] "TIMESTAMP" and "DECIMAL(10,0)"` in join conditions.
 - **Fix** (template `mapping.py.j2`): Two-pass rename map — ① case-insensitive **name match first** (SQL column → same-named port), ② **positional fallback** only for remaining SQL columns (unaliased expressions like `DEL_STS.A||DEL_STS.B`). Missing ports stay absent and get `lit(None)` in the final select.
@@ -494,7 +503,7 @@ Requires: cwd = workflow dir (import env.runtime_lib), `spark.home` configured, 
 
 ## Conversion Progress
 
-As of **2026-08-07** (version **v2026.08.07**), **9 of 10 workflows (549 mappings)** have converted output present in the current workspace (`PySpark_workflows/`); every completed conversion run reports **0 warnings / 0 errors**. WF_NHS_TL (174 mappings) has been runtime-verified. WF_EMS_TL (581 mappings) is the only workflow without converted output in the current workspace.
+As of **2026-08-10** (version **v2026.08.10**), all workflows have converted output present in the current workspace (`PySpark_workflows/`); every completed conversion run reports **0 warnings / 0 errors**. WF_NHS_TL (174 mappings) has been runtime-verified and regenerated with the exact Dynamic Lookup conversion. WF_EMS_TL (581 mappings) has earlier-round output but is the next re-validation round.
 
 ### ✅ Runtime Verified
 | Workflow | Mappings | XML Size | Status |
@@ -507,7 +516,7 @@ As of **2026-08-07** (version **v2026.08.07**), **9 of 10 workflows (549 mapping
 | WF_EMS_DDS_APLY_MTH | 49 | 4.0M | **Round complete (v2026.08.03)** — schema `{_schema}` ireplace, SP signature probing (`call_stored_procedure` + OUT binding), YARN-safe local file reads, interpreter lockstep, Update Strategy |
 | WF_EMS_EX | 142 | 9.6M | **Round complete (v2026.08.04)** — Oracle date format (`hh24/mi` → Spark patterns), py4j log suppression, Timer task wait, unconnected input port → NULL, Decision task barrier |
 | WF_NHS_EX | 46 | 2.2M | **Round complete (v2026.08.04)** — Oracle date format (`hh24/mi` → Spark patterns), py4j log suppression |
-| WF_NHS_TL | 174 | 11M | **Round complete (v2026.08.07)** — all mappings runtime verified; lookup/FILTRANS wiring, mapplet rename/dynamic lookup, DECODE NULL semantics, stable df naming |
+| WF_NHS_TL | 174 | 11M | **Round complete (v2026.08.10)** — all mappings runtime verified; exact Dynamic Lookup via applyInPandas (0/1/2 + Sequence-Id pre-allocation + RDD fallback), lookup/FILTRANS wiring, mapplet rename, DECODE NULL semantics, stable df naming |
 
 ### ❌ Not Converted (current workspace)
 | Workflow | Mappings | XML Size | Notes |
@@ -557,9 +566,10 @@ As of **2026-08-07** (version **v2026.08.07**), **9 of 10 workflows (549 mapping
 | SQL duplicate column alias (ORA-00918) | WF_EMS_PRHE_DDS_APLY_HSE_STCK_MTH | ✅ |
 | TO_CHAR → date_format | WF_EMS_PRHE_DDS_APLY_HSE_STCK_MTH | ✅ |
 | TO_DATE numeric cast | WF_EMS_PRHE_DDS_APLY_HSE_STCK_MTH | ✅ |
+| Dynamic Lookup (applyInPandas cache state machine, 0/1/2, Sequence-Id pre-allocation, RDD fallback) | WF_NHS_TL | ✅ |
 | Normalizer | — | ⏳ Pending |
 
 ## Known Pending Items (待修复)
 
-- **动态组件的转换待修复**: full semantics of Informatica dynamic components (e.g. Dynamic Lookup cache/update behavior, dynamic update-strategy flows) are not yet converted. Current generated code covers only partial aspects (e.g. `NewLookupRow` 0/1 indicators). This must be revisited at the converter level in a future round.
-- **WF_NHS_TL 临时注释**: the generated `WF_NHS_TL/wf_nhs_tl.py` currently has the `WL_NHS_SOR_LOAD_FOR_UPD_END` worklet block commented out (temporary disable) while dynamic component conversion is pending; it should be restored once the converter handles the full dynamic semantics.
+- **Dynamic Lookup 剩余变体**: WF_NHS_TL 的 Dynamic Lookup 已精确转换（Report Error 强制语义）。WF_EMS_TL 下一轮需覆盖 `Lookup policy on multiple match = Use First Value`（动态缓存）与 `Output Old Value On Update=YES`；`Synchronize Dynamic Cache=YES`、跨会话 persistent cache、`Update Else Insert=YES`/非 insert 行类型仍为已知限制。
+- **pyarrow 运行时依赖**: `applyInPandas` 需要 driver/executor 同一 Python 环境安装 pandas + pyarrow（Spark 最低版本）；缺少时自动降级为等价 RDD 实现。

@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: informatica-sparker
-Version: 2026.8.7
+Version: 2026.8.10
 Summary: Framework to convert Informatica PowerCenter XML exports to PySpark code for Databricks. Auto-detects sources (SQL, CSV, Parquet, XML, JSON, text, DAT, files without extensions) and generates complete deployment packages.
 License: MIT
 Project-URL: Homepage, https://pypi.org/project/informatica-sparker/

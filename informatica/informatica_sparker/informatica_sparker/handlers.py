@@ -1582,6 +1582,113 @@ class TransformHandlers:
 
         return step
 
+    def _build_dynamic_lookup_params(
+        self,
+        transform: Transformation,
+        join_predicates: List[Dict[str, str]],
+        instance_name: str,
+        new_lookup_row_col: str = "NewLookupRow",
+        plan: Optional[IRPlan] = None,
+        ref_field_remap: Optional[Dict[str, str]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Build the full dynamic-lookup configuration carried on an
+        ApplyLookupStep.
+
+        Dynamic Lookup Cache=YES is the trigger. Informatica restricts the
+        multiple-match policy for dynamic caches to Report Error; the
+        converter refuses any other policy instead of silently deduplicating
+        the lookup source.
+        """
+        if not transform or not join_predicates:
+            return None
+        attrs = transform.table_attributes or {}
+        if str(attrs.get("Dynamic Lookup Cache", "NO")).upper() != "YES":
+            return None
+
+        policy = str(attrs.get("Lookup policy on multiple match", "")).strip()
+        if policy.upper() != "REPORT ERROR":
+            msg = (
+                f"Dynamic lookup {instance_name}: policy '{policy or 'empty'}' "
+                "is not supported — dynamic cache requires Report Error"
+            )
+            if plan is not None:
+                plan.add_error(msg)
+            else:
+                self.logger.log_transformation(
+                    instance_name, "Lookup", msg, LogLevel.ERROR)
+            return None
+
+        output_fields = []
+        sequence_config = None
+        for field in transform.fields:
+            port_type = (field.port_type or "").upper()
+            if ("DYNLOOKUP" in port_type
+                    or "LOOKUP/OUTPUT" not in port_type
+                    or "RETURN" in port_type):
+                continue
+            ref_field = (field.ref_field or "").strip()
+            if ref_field_remap and ref_field in ref_field_remap:
+                ref_field = ref_field_remap[ref_field]
+            output_fields.append({
+                "name": field.name,
+                "ref_field": ref_field,
+                "ignore_in_compare": str(field.ignore_in_compare or "NO").upper() == "YES",
+                "ignore_null_inputs": str(field.ignore_null_inputs or "NO").upper() == "YES",
+                "datatype": field.datatype or "string",
+            })
+            if ref_field.upper() == "SEQUENCE-ID" and sequence_config is None:
+                sequence_config = {"output_col": field.name}
+
+        if not output_fields:
+            plan.add_warning(
+                f"Dynamic lookup {instance_name}: no LOOKUP/OUTPUT ports found; "
+                "only NewLookupRow will be emitted"
+            )
+
+        params = {
+            "name": instance_name,
+            "join_predicates": [
+                {
+                    "source_col": jp.get("source_col", ""),
+                    "lookup_col": jp.get("lookup_col", ""),
+                }
+                for jp in join_predicates
+                if isinstance(jp, dict)
+            ],
+            "output_columns": [f["name"] for f in output_fields],
+            "lookup_output_fields": output_fields,
+            "new_lookup_row_col": new_lookup_row_col,
+            "sequence_config": sequence_config,
+            "insert_else_update": str(attrs.get("Insert Else Update", "NO")).upper() == "YES",
+            "update_else_insert": str(attrs.get("Update Else Insert", "NO")).upper() == "YES",
+            "update_condition": str(attrs.get("Update Dynamic Cache Condition", "TRUE") or "TRUE"),
+            "output_old_value_on_update": str(
+                attrs.get("Output Old Value On Update", "NO")).upper() == "YES",
+            "case_sensitive_string_comparison": str(
+                attrs.get("Case Sensitive String Comparison", "NO")).upper() == "YES",
+            "lookup_policy": "Report Error",
+            "order_by_columns": [],
+        }
+
+        if str(attrs.get("Synchronize Dynamic Cache", "NO")).upper() == "YES":
+            plan.add_warning(
+                f"Dynamic lookup {instance_name}: Synchronize Dynamic Cache=YES "
+                "is not emulated; each lookup keeps an independent cache"
+            )
+        if params["update_else_insert"]:
+            plan.add_warning(
+                f"Dynamic lookup {instance_name}: Update Else Insert=YES is "
+                "not supported for this converter; insert-row semantics are used"
+            )
+        if str(attrs.get("Lookup cache initialize", "NO")).upper() == "NO" and str(
+                attrs.get("Lookup cache persistent", "YES")).upper() == "YES":
+            self.logger.log_transformation(
+                instance_name, "Lookup",
+                "Persistent dynamic cache is seeded from the lookup source on "
+                "every run (no cross-session reuse)",
+                LogLevel.INFO)
+        return params
+
     def _handle_lookup(self, instance: Instance, plan: IRPlan) -> List[IRStep]:
         steps = []
 
@@ -1887,19 +1994,28 @@ class TransformHandlers:
             ))
             if _lkp_field_remap:
                 steps[-1].params["lkp_field_remap"] = _lkp_field_remap
-            # Dynamic Lookup: NewLookupRow output port (1 = no match, 0 = match).
-            # Generate the column from the left join — a NULL join key means no match.
-            if transform and join_predicates:
-                for _f in transform.fields:
-                    if _f.name.upper() == 'NEWLOOKUPROW' and 'DYNLOOKUP' in (_f.port_type or '').upper():
-                        _nlr_key = join_predicates[0].get("lookup_col", "") if isinstance(join_predicates[0], dict) else getattr(join_predicates[0], "lookup_col", "")
-                        if _nlr_key:
-                            steps[-1].params["new_lookup_row_key"] = _nlr_key
-                        break
+            # Dynamic Lookup: carry the full dynamic-cache configuration so
+            # the template emits the precise applyInPandas state machine
+            # (NewLookupRow 0 = hit/no change, 1 = insert, 2 = update).
+            _dyn_lkp_params = self._build_dynamic_lookup_params(
+                transform, join_predicates, instance.name,
+                new_lookup_row_col="NewLookupRow", plan=plan,
+                ref_field_remap=_lkp_field_remap)
+            if _dyn_lkp_params is not None:
+                steps[-1].params["dynamic_lookup"] = _dyn_lkp_params
+                # Keep the legacy params for IR consumers/tests; the template's
+                # dynamic_lookup branch ignores them and uses the full config.
+                steps[-1].params["new_lookup_row_key"] = join_predicates[0].get(
+                    "lookup_col", "")
+                steps[-1].params["dedup_lookup"] = True
+                steps[-1].params["dedup_lookup_error"] = True
+                steps[-1].params["dedup_lookup_keys"] = [
+                    jp.get("lookup_col", "") for jp in join_predicates
+                ]
             # Handle "Lookup policy on multiple match" — dedup the lookup
             # DataFrame by join keys when there could be multiple matches.
             # Options: Use First Value, Use Last Value, Use Any Value, Report Error.
-            if join_predicates:
+            if _dyn_lkp_params is None and join_predicates:
                 try:
                     _lkp_policy = transform.table_attributes.get(
                         "Lookup policy on multiple match", "")
@@ -3805,22 +3921,33 @@ class TransformHandlers:
                         output_columns=output_cols,
                         lookup_type="left",
                     ))
-                    # Dynamic Lookup: compute NewLookupRow (0 = no match,
-                    # 1 = match) with a per-instance unique column name so
-                    # multiple dynamic lookups in the same mapplet keep their
-                    # own hit indicator for the downstream renames.
-                    if lookup_transform and join_predicates:
-                        for _f in lookup_transform.fields:
-                            if _f.name.upper() == 'NEWLOOKUPROW' and 'DYNLOOKUP' in (_f.port_type or '').upper():
-                                _nlr_col = f"NewLookupRow_{re.sub(r'[^a-zA-Z0-9_]', '_', mpl_inst_name)}"
-                                mpl_nlr_cols[mpl_inst_name] = _nlr_col
-                                steps[-1].params["new_lookup_row_key"] = join_predicates[0].get("lookup_col", "")
-                                steps[-1].params["new_lookup_row_col"] = _nlr_col
-                                break
+                    # Dynamic Lookup: carry the full dynamic-cache config and
+                    # use a per-instance unique NewLookupRow column so multiple
+                    # dynamic lookups in one mapplet (SOR + SSA) keep their own
+                    # hit indicator until the downstream renames map them to
+                    # SOR_CACHE_STATUS / SSA_CACHE_STATUS.
+                    _dyn_lkp_params = self._build_dynamic_lookup_params(
+                        lookup_transform, join_predicates,
+                        f"{_mplt_step_prefix}_{mpl_inst.name}",
+                        new_lookup_row_col="NewLookupRow", plan=plan,
+                        ref_field_remap=_internal_remap)
+                    if _dyn_lkp_params is not None:
+                        _nlr_col = f"NewLookupRow_{re.sub(r'[^a-zA-Z0-9_]', '_', mpl_inst_name)}"
+                        mpl_nlr_cols[mpl_inst_name] = _nlr_col
+                        _dyn_lkp_params["new_lookup_row_col"] = _nlr_col
+                        steps[-1].params["dynamic_lookup"] = _dyn_lkp_params
+                        steps[-1].params["new_lookup_row_key"] = join_predicates[0].get(
+                            "lookup_col", "")
+                        steps[-1].params["new_lookup_row_col"] = _nlr_col
+                        steps[-1].params["dedup_lookup"] = True
+                        steps[-1].params["dedup_lookup_error"] = True
+                        steps[-1].params["dedup_lookup_keys"] = [
+                            jp.get("lookup_col", "") for jp in join_predicates
+                        ]
                     # Handle "Lookup policy on multiple match" — same semantics
                     # as main-mapping lookups: Report Error raises on duplicate
                     # join keys, Use First/Any/Last dedup the lookup DataFrame.
-                    if join_predicates:
+                    if _dyn_lkp_params is None and join_predicates:
                         try:
                             _lkp_policy = lookup_transform.table_attributes.get(
                                 "Lookup policy on multiple match", "")

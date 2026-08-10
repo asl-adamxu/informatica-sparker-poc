@@ -190,35 +190,18 @@ SELECT NHS_EST_BANK.EST_BANK_TXN_CNCL_TRML_ID FROM NHS_EST_BANK"""
         
         logger.info("Step: apply_MPLT_AGMT_NHS_RVN_CLCT_TRML_LKP_DYN_SOR_NHS_RVN_CLCT_TRML")
         # Lookup: apply_MPLT_AGMT_NHS_RVN_CLCT_TRML_LKP_DYN_SOR_NHS_RVN_CLCT_TRML
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_MPLT_AGMT_NHS_RVN_CLCT_TRML_LKP_DYN_SOR_NHS_RVN_CLCT_TRML.groupBy(col("NHS_RVN_CLCT_TRML_ID")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_MPLT_AGMT_NHS_RVN_CLCT_TRML_LKP_DYN_SOR_NHS_RVN_CLCT_TRML: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_NULL_BKEY
-        # Join condition: OUT_NHS_RVN_CLCT_TRML_ID=NHS_RVN_CLCT_TRML_ID
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_NULL_BKEY = _lkp_input.alias("_main").join(
-            broadcast(df_MPLT_AGMT_NHS_RVN_CLCT_TRML_LKP_DYN_SOR_NHS_RVN_CLCT_TRML).alias("_lkp"),
-            (col("_main.OUT_NHS_RVN_CLCT_TRML_ID") == col("_lkp.NHS_RVN_CLCT_TRML_ID")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_MPLT_AGMT_NHS_RVN_CLCT_TRML_LKP_DYN_SOR_NHS_RVN_CLCT_TRML[c] for c in df_MPLT_AGMT_NHS_RVN_CLCT_TRML_LKP_DYN_SOR_NHS_RVN_CLCT_TRML.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_NULL_BKEY = lib.dynamic_lookup(
+            spark,
+            _lkp_input,
+            df_MPLT_AGMT_NHS_RVN_CLCT_TRML_LKP_DYN_SOR_NHS_RVN_CLCT_TRML,
+            {'name': 'MPLT_AGMT_NHS_RVN_CLCT_TRML_LKP_DYN_SOR_NHS_RVN_CLCT_TRML', 'join_predicates': [{'source_col': 'OUT_NHS_RVN_CLCT_TRML_ID', 'lookup_col': 'NHS_RVN_CLCT_TRML_ID'}], 'output_columns': ['RVN_CLCT_TRML_KEY', 'NHS_RVN_CLCT_TRML_ID'], 'lookup_output_fields': [{'name': 'RVN_CLCT_TRML_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'NHS_RVN_CLCT_TRML_ID', 'ref_field': 'OUT_NHS_RVN_CLCT_TRML_ID', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow_LKP_DYN_SOR_NHS_RVN_CLCT_TRML', 'sequence_config': {'output_col': 'RVN_CLCT_TRML_KEY'}, 'insert_else_update': True, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_MPLT_AGMT_NHS_RVN_CLCT_TRML_LKP_DYN_SOR_NHS_RVN_CLCT_TRML.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "NHS_RVN_CLCT_TRML_ID"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_NULL_BKEY = df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_NULL_BKEY.withColumn("NewLookupRow_LKP_DYN_SOR_NHS_RVN_CLCT_TRML", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_NULL_BKEY = df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_NULL_BKEY.withColumn("NewLookupRow_LKP_DYN_SOR_NHS_RVN_CLCT_TRML", lit(1))
-        ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_NULL_BKEY", df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_NULL_BKEY)        
+        ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_NULL_BKEY", df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_NULL_BKEY)
+        
         logger.info("Step: rename_EXP_DUMMY")
         # Expression: rename_EXP_DUMMY
         df_MPLT_AGMT_NHS_RVN_CLCT_TRML_rename_EXP_DUMMY = df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_NULL_BKEY
@@ -247,35 +230,18 @@ SELECT NHS_EST_BANK.EST_BANK_TXN_CNCL_TRML_ID FROM NHS_EST_BANK"""
         
         logger.info("Step: apply_MPLT_AGMT_NHS_RVN_CLCT_TRML_LKP_DYN_SSA_NHS_RVN_CLCT_TRML")
         # Lookup: apply_MPLT_AGMT_NHS_RVN_CLCT_TRML_LKP_DYN_SSA_NHS_RVN_CLCT_TRML
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_MPLT_AGMT_NHS_RVN_CLCT_TRML_LKP_DYN_SSA_NHS_RVN_CLCT_TRML.groupBy(col("SURROGATE_KEY")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_MPLT_AGMT_NHS_RVN_CLCT_TRML_LKP_DYN_SSA_NHS_RVN_CLCT_TRML: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_DUMMY
-        # Join condition: RVN_CLCT_TRML_KEY=SURROGATE_KEY
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_DUMMY = _lkp_input.alias("_main").join(
-            broadcast(df_MPLT_AGMT_NHS_RVN_CLCT_TRML_LKP_DYN_SSA_NHS_RVN_CLCT_TRML).alias("_lkp"),
-            (col("_main.RVN_CLCT_TRML_KEY") == col("_lkp.SURROGATE_KEY")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_MPLT_AGMT_NHS_RVN_CLCT_TRML_LKP_DYN_SSA_NHS_RVN_CLCT_TRML[c] for c in df_MPLT_AGMT_NHS_RVN_CLCT_TRML_LKP_DYN_SSA_NHS_RVN_CLCT_TRML.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_DUMMY = lib.dynamic_lookup(
+            spark,
+            _lkp_input,
+            df_MPLT_AGMT_NHS_RVN_CLCT_TRML_LKP_DYN_SSA_NHS_RVN_CLCT_TRML,
+            {'name': 'MPLT_AGMT_NHS_RVN_CLCT_TRML_LKP_DYN_SSA_NHS_RVN_CLCT_TRML', 'join_predicates': [{'source_col': 'RVN_CLCT_TRML_KEY', 'lookup_col': 'SURROGATE_KEY'}], 'output_columns': ['SURROGATE_KEY', 'DUMMY'], 'lookup_output_fields': [{'name': 'SURROGATE_KEY', 'ref_field': 'RVN_CLCT_TRML_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'DUMMY', 'ref_field': 'DUMMY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow_LKP_DYN_SSA_NHS_RVN_CLCT_TRML', 'sequence_config': None, 'insert_else_update': False, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_MPLT_AGMT_NHS_RVN_CLCT_TRML_LKP_DYN_SSA_NHS_RVN_CLCT_TRML.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "SURROGATE_KEY"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_DUMMY = df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_DUMMY.withColumn("NewLookupRow_LKP_DYN_SSA_NHS_RVN_CLCT_TRML", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_DUMMY = df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_DUMMY.withColumn("NewLookupRow_LKP_DYN_SSA_NHS_RVN_CLCT_TRML", lit(1))
-        ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_DUMMY", df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_DUMMY)        
+        ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_DUMMY", df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_DUMMY)
+        
         logger.info("Step: rename_EXP_OUTPUT")
         # Expression: rename_EXP_OUTPUT
         df_MPLT_AGMT_NHS_RVN_CLCT_TRML_rename_EXP_OUTPUT = df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_DUMMY
@@ -310,36 +276,19 @@ SELECT NHS_EST_BANK.EST_BANK_TXN_CNCL_TRML_ID FROM NHS_EST_BANK"""
         
         logger.info("Step: apply_DLKP_SOR_MSTR")
         # Lookup: apply_DLKP_SOR_MSTR
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_DLKP_SOR_MSTR.groupBy(col("NHS_EST_BANK_TXN_NUM")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_DLKP_SOR_MSTR: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_EXP_BK
         _lkp_input = _lkp_input.withColumn("IN_NHS_EST_BANK_TXN_NUM", col("EST_BANK_TXN_NUM"))
-        # Join condition: IN_NHS_EST_BANK_TXN_NUM=NHS_EST_BANK_TXN_NUM
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_EXP_BK = _lkp_input.alias("_main").join(
-            broadcast(df_DLKP_SOR_MSTR).alias("_lkp"),
-            (col("_main.IN_NHS_EST_BANK_TXN_NUM") == col("_lkp.NHS_EST_BANK_TXN_NUM")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_DLKP_SOR_MSTR[c] for c in df_DLKP_SOR_MSTR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_lkp_merge_EXP_BK = lib.dynamic_lookup(
+            spark,
+            _lkp_input,
+            df_DLKP_SOR_MSTR,
+            {'name': 'DLKP_SOR_MSTR', 'join_predicates': [{'source_col': 'IN_NHS_EST_BANK_TXN_NUM', 'lookup_col': 'NHS_EST_BANK_TXN_NUM'}], 'output_columns': ['EST_BANK_KEY', 'NHS_EST_BANK_TXN_NUM'], 'lookup_output_fields': [{'name': 'EST_BANK_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'NHS_EST_BANK_TXN_NUM', 'ref_field': 'EST_BANK_TXN_NUM', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow', 'sequence_config': {'output_col': 'EST_BANK_KEY'}, 'insert_else_update': True, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_DLKP_SOR_MSTR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "NHS_EST_BANK_TXN_NUM"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_lkp_merge_EXP_BK = df_lkp_merge_EXP_BK.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_lkp_merge_EXP_BK = df_lkp_merge_EXP_BK.withColumn("NewLookupRow", lit(1))
-        ctx.register_df("df_lkp_merge_EXP_BK", df_lkp_merge_EXP_BK)        
+        ctx.register_df("df_lkp_merge_EXP_BK", df_lkp_merge_EXP_BK)
+        
         logger.info("Step: input_MPLT_AGMT_NHS_RVN_CLCT_OFFC")
         # Expression: input_MPLT_AGMT_NHS_RVN_CLCT_OFFC
         df_MPLT_AGMT_NHS_RVN_CLCT_OFFC_input = df_lkp_merge_EXP_BK
@@ -362,35 +311,18 @@ SELECT NHS_EST_BANK.EST_BANK_TXN_CNCL_TRML_ID FROM NHS_EST_BANK"""
         
         logger.info("Step: apply_MPLT_AGMT_NHS_RVN_CLCT_OFFC_LKP_DYN_SOR_NHS_RVN_CLCT_OFFC")
         # Lookup: apply_MPLT_AGMT_NHS_RVN_CLCT_OFFC_LKP_DYN_SOR_NHS_RVN_CLCT_OFFC
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_MPLT_AGMT_NHS_RVN_CLCT_OFFC_LKP_DYN_SOR_NHS_RVN_CLCT_OFFC.groupBy(col("NHS_RVN_CLCT_OFFC_KEY")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_MPLT_AGMT_NHS_RVN_CLCT_OFFC_LKP_DYN_SOR_NHS_RVN_CLCT_OFFC: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_MPLT_AGMT_NHS_RVN_CLCT_OFFC_EXP_NULL_BKEY
-        # Join condition: OUT_NHS_RVN_CLCT_OFFC_KEY=NHS_RVN_CLCT_OFFC_KEY
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_OFFC_EXP_NULL_BKEY = _lkp_input.alias("_main").join(
-            broadcast(df_MPLT_AGMT_NHS_RVN_CLCT_OFFC_LKP_DYN_SOR_NHS_RVN_CLCT_OFFC).alias("_lkp"),
-            (col("_main.OUT_NHS_RVN_CLCT_OFFC_KEY") == col("_lkp.NHS_RVN_CLCT_OFFC_KEY")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_MPLT_AGMT_NHS_RVN_CLCT_OFFC_LKP_DYN_SOR_NHS_RVN_CLCT_OFFC[c] for c in df_MPLT_AGMT_NHS_RVN_CLCT_OFFC_LKP_DYN_SOR_NHS_RVN_CLCT_OFFC.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_OFFC_EXP_NULL_BKEY = lib.dynamic_lookup(
+            spark,
+            _lkp_input,
+            df_MPLT_AGMT_NHS_RVN_CLCT_OFFC_LKP_DYN_SOR_NHS_RVN_CLCT_OFFC,
+            {'name': 'MPLT_AGMT_NHS_RVN_CLCT_OFFC_LKP_DYN_SOR_NHS_RVN_CLCT_OFFC', 'join_predicates': [{'source_col': 'OUT_NHS_RVN_CLCT_OFFC_KEY', 'lookup_col': 'NHS_RVN_CLCT_OFFC_KEY'}], 'output_columns': ['RVN_CLCT_OFFC_KEY', 'NHS_RVN_CLCT_OFFC_KEY'], 'lookup_output_fields': [{'name': 'RVN_CLCT_OFFC_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'NHS_RVN_CLCT_OFFC_KEY', 'ref_field': 'OUT_NHS_RVN_CLCT_OFFC_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow_LKP_DYN_SOR_NHS_RVN_CLCT_OFFC', 'sequence_config': {'output_col': 'RVN_CLCT_OFFC_KEY'}, 'insert_else_update': True, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_MPLT_AGMT_NHS_RVN_CLCT_OFFC_LKP_DYN_SOR_NHS_RVN_CLCT_OFFC.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "NHS_RVN_CLCT_OFFC_KEY"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_OFFC_EXP_NULL_BKEY = df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_OFFC_EXP_NULL_BKEY.withColumn("NewLookupRow_LKP_DYN_SOR_NHS_RVN_CLCT_OFFC", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_OFFC_EXP_NULL_BKEY = df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_OFFC_EXP_NULL_BKEY.withColumn("NewLookupRow_LKP_DYN_SOR_NHS_RVN_CLCT_OFFC", lit(1))
-        ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_OFFC_EXP_NULL_BKEY", df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_OFFC_EXP_NULL_BKEY)        
+        ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_OFFC_EXP_NULL_BKEY", df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_OFFC_EXP_NULL_BKEY)
+        
         logger.info("Step: rename_EXP_DUMMY")
         # Expression: rename_EXP_DUMMY
         df_MPLT_AGMT_NHS_RVN_CLCT_OFFC_rename_EXP_DUMMY = df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_OFFC_EXP_NULL_BKEY
@@ -419,35 +351,18 @@ SELECT NHS_EST_BANK.EST_BANK_TXN_CNCL_TRML_ID FROM NHS_EST_BANK"""
         
         logger.info("Step: apply_MPLT_AGMT_NHS_RVN_CLCT_OFFC_LKP_DYN_SSA_NHS_RVN_CLCT_OFFC")
         # Lookup: apply_MPLT_AGMT_NHS_RVN_CLCT_OFFC_LKP_DYN_SSA_NHS_RVN_CLCT_OFFC
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_MPLT_AGMT_NHS_RVN_CLCT_OFFC_LKP_DYN_SSA_NHS_RVN_CLCT_OFFC.groupBy(col("SURROGATE_KEY")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_MPLT_AGMT_NHS_RVN_CLCT_OFFC_LKP_DYN_SSA_NHS_RVN_CLCT_OFFC: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_MPLT_AGMT_NHS_RVN_CLCT_OFFC_EXP_DUMMY
-        # Join condition: RVN_CLCT_OFFC_KEY=SURROGATE_KEY
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_OFFC_EXP_DUMMY = _lkp_input.alias("_main").join(
-            broadcast(df_MPLT_AGMT_NHS_RVN_CLCT_OFFC_LKP_DYN_SSA_NHS_RVN_CLCT_OFFC).alias("_lkp"),
-            (col("_main.RVN_CLCT_OFFC_KEY") == col("_lkp.SURROGATE_KEY")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_MPLT_AGMT_NHS_RVN_CLCT_OFFC_LKP_DYN_SSA_NHS_RVN_CLCT_OFFC[c] for c in df_MPLT_AGMT_NHS_RVN_CLCT_OFFC_LKP_DYN_SSA_NHS_RVN_CLCT_OFFC.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_OFFC_EXP_DUMMY = lib.dynamic_lookup(
+            spark,
+            _lkp_input,
+            df_MPLT_AGMT_NHS_RVN_CLCT_OFFC_LKP_DYN_SSA_NHS_RVN_CLCT_OFFC,
+            {'name': 'MPLT_AGMT_NHS_RVN_CLCT_OFFC_LKP_DYN_SSA_NHS_RVN_CLCT_OFFC', 'join_predicates': [{'source_col': 'RVN_CLCT_OFFC_KEY', 'lookup_col': 'SURROGATE_KEY'}], 'output_columns': ['SURROGATE_KEY', 'DUMMY'], 'lookup_output_fields': [{'name': 'SURROGATE_KEY', 'ref_field': 'RVN_CLCT_OFFC_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'DUMMY', 'ref_field': 'DUMMY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow_LKP_DYN_SSA_NHS_RVN_CLCT_OFFC', 'sequence_config': None, 'insert_else_update': False, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_MPLT_AGMT_NHS_RVN_CLCT_OFFC_LKP_DYN_SSA_NHS_RVN_CLCT_OFFC.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "SURROGATE_KEY"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_OFFC_EXP_DUMMY = df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_OFFC_EXP_DUMMY.withColumn("NewLookupRow_LKP_DYN_SSA_NHS_RVN_CLCT_OFFC", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_OFFC_EXP_DUMMY = df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_OFFC_EXP_DUMMY.withColumn("NewLookupRow_LKP_DYN_SSA_NHS_RVN_CLCT_OFFC", lit(1))
-        ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_OFFC_EXP_DUMMY", df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_OFFC_EXP_DUMMY)        
+        ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_OFFC_EXP_DUMMY", df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_OFFC_EXP_DUMMY)
+        
         logger.info("Step: rename_EXP_OUTPUT")
         # Expression: rename_EXP_OUTPUT
         df_MPLT_AGMT_NHS_RVN_CLCT_OFFC_rename_EXP_OUTPUT = df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_OFFC_EXP_DUMMY
@@ -583,11 +498,8 @@ where SOR_NHS_EST_BANK_STS.EST_BANK_KEY = ss.EST_BANK_KEY and SOR_NHS_EST_BANK_S
         
         logger.info("Step: apply_DLKP_SOR_STS")
         # Lookup: apply_DLKP_SOR_STS
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_DLKP_SOR_STS.groupBy(col("EST_BANK_KEY")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_DLKP_SOR_STS: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_merge_DLKP_SOR_STS_0
         _lkp_input = _lkp_input.withColumn("IN_EST_BANK_TXN_DATE", col("EST_BANK_TXN_DATE"))
         _lkp_input = _lkp_input.withColumn("IN_EST_BANK_TXN_SEQ_NUM", col("EST_BANK_TXN_SEQ_NUM"))
@@ -602,29 +514,15 @@ where SOR_NHS_EST_BANK_STS.EST_BANK_KEY = ss.EST_BANK_KEY and SOR_NHS_EST_BANK_S
         _lkp_input = _lkp_input.withColumn("IN_EST_BANK_TXN_INPT_TRML_KEY", col("RVN_CLCT_TRML_KEY"))
         _lkp_input = _lkp_input.withColumn("IN_EST_BANK_TXN_CNCL_TRML_KEY", col("RVN_CLCT_TRML_KEY"))
         _lkp_input = _lkp_input.withColumn("IN_EST_BANK_TXN_RVN_CLCT_OFFC_KEY", col("RVN_CLCT_OFFC_KEY"))
-        # Join condition: IN_EST_BANK_KEY=EST_BANK_KEY
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_EXP_BK = _lkp_input.alias("_main").join(
-            broadcast(df_DLKP_SOR_STS).alias("_lkp"),
-            (col("_main.IN_EST_BANK_KEY") == col("_lkp.EST_BANK_KEY")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_DLKP_SOR_STS[c] for c in df_DLKP_SOR_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_lkp_merge_EXP_BK = lib.dynamic_lookup(
+            spark,
+            _lkp_input,
+            df_DLKP_SOR_STS,
+            {'name': 'DLKP_SOR_STS', 'join_predicates': [{'source_col': 'IN_EST_BANK_KEY', 'lookup_col': 'EST_BANK_KEY'}], 'output_columns': ['EST_BANK_KEY', 'BGN_DATE', 'END_DATE', 'EST_BANK_TXN_DATE', 'EST_BANK_TXN_SEQ_NUM', 'EST_BANK_TXN_INPT_SYS_DATE', 'EST_BANK_TXN_INPT_BSNS_DATE', 'EST_BANK_TXN_INPT_USER_ID', 'EST_BANK_TXN_INPT_TRML_KEY', 'EST_BANK_TXN_CNCL_BSNS_DATE', 'EST_BANK_TXN_CNCL_INPT_USER_ID', 'EST_BANK_TXN_CNCL_TRML_KEY', 'EST_BANK_TXN_STS_CODE', 'EST_BANK_TXN_RVN_CLCT_OFFC_KEY', 'ROW_VER_NUM'], 'lookup_output_fields': [{'name': 'EST_BANK_KEY', 'ref_field': 'EST_BANK_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'BGN_DATE', 'ref_field': 'DUMMY_DATE', 'ignore_in_compare': True, 'ignore_null_inputs': True, 'datatype': 'date/time'}, {'name': 'END_DATE', 'ref_field': 'DUMMY_DATE', 'ignore_in_compare': True, 'ignore_null_inputs': True, 'datatype': 'date/time'}, {'name': 'EST_BANK_TXN_DATE', 'ref_field': 'EST_BANK_TXN_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'}, {'name': 'EST_BANK_TXN_SEQ_NUM', 'ref_field': 'EST_BANK_TXN_SEQ_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'}, {'name': 'EST_BANK_TXN_INPT_SYS_DATE', 'ref_field': 'EST_BANK_TXN_INPT_SYS_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'}, {'name': 'EST_BANK_TXN_INPT_BSNS_DATE', 'ref_field': 'EST_BANK_TXN_INPT_BSNS_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'}, {'name': 'EST_BANK_TXN_INPT_USER_ID', 'ref_field': 'EST_BANK_TXN_INPT_USER_ID', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'EST_BANK_TXN_INPT_TRML_KEY', 'ref_field': 'RVN_CLCT_TRML_KEY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'}, {'name': 'EST_BANK_TXN_CNCL_BSNS_DATE', 'ref_field': 'EST_BANK_TXN_CNCL_BSNS_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'}, {'name': 'EST_BANK_TXN_CNCL_INPT_USER_ID', 'ref_field': 'EST_BANK_TXN_CNCL_INPT_USER_ID', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'EST_BANK_TXN_CNCL_TRML_KEY', 'ref_field': 'RVN_CLCT_TRML_KEY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'}, {'name': 'EST_BANK_TXN_STS_CODE', 'ref_field': 'EST_BANK_TXN_STS_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'EST_BANK_TXN_RVN_CLCT_OFFC_KEY', 'ref_field': 'RVN_CLCT_OFFC_KEY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'}, {'name': 'ROW_VER_NUM', 'ref_field': 'ROW_VER_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'}], 'new_lookup_row_col': 'NewLookupRow', 'sequence_config': None, 'insert_else_update': True, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_DLKP_SOR_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "EST_BANK_KEY"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_lkp_merge_EXP_BK = df_lkp_merge_EXP_BK.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_lkp_merge_EXP_BK = df_lkp_merge_EXP_BK.withColumn("NewLookupRow", lit(1))
-        ctx.register_df("df_lkp_merge_EXP_BK", df_lkp_merge_EXP_BK)        
+        ctx.register_df("df_lkp_merge_EXP_BK", df_lkp_merge_EXP_BK)
+        
         logger.info("Step: write_SSA_NHS_RVN_CLCT_TRML")
         # Write to Target: write_SSA_NHS_RVN_CLCT_TRML
         df_write = df_FILTRANS_NHS_RVN_CLCT_TRML
@@ -709,37 +607,20 @@ where SOR_NHS_EST_BANK_STS.EST_BANK_KEY = ss.EST_BANK_KEY and SOR_NHS_EST_BANK_S
         
         logger.info("Step: apply_DLKP_SSA_MSTR")
         # Lookup: apply_DLKP_SSA_MSTR
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_DLKP_SSA_MSTR.groupBy(col("SURROGATE_KEY")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_DLKP_SSA_MSTR: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_EXPTRANS_MSTR
         _lkp_input = _lkp_input.withColumn("IN_SURROGATE_KEY", col("EST_BANK_KEY"))
         _lkp_input = _lkp_input.withColumn("IN_DUMMY", col("v_NULL"))
-        # Join condition: IN_SURROGATE_KEY=SURROGATE_KEY
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_FILTRANS_MSTR = _lkp_input.alias("_main").join(
-            broadcast(df_DLKP_SSA_MSTR).alias("_lkp"),
-            (col("_main.IN_SURROGATE_KEY") == col("_lkp.SURROGATE_KEY")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_DLKP_SSA_MSTR[c] for c in df_DLKP_SSA_MSTR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_lkp_merge_FILTRANS_MSTR = lib.dynamic_lookup(
+            spark,
+            _lkp_input,
+            df_DLKP_SSA_MSTR,
+            {'name': 'DLKP_SSA_MSTR', 'join_predicates': [{'source_col': 'IN_SURROGATE_KEY', 'lookup_col': 'SURROGATE_KEY'}], 'output_columns': ['SURROGATE_KEY', 'DUMMY'], 'lookup_output_fields': [{'name': 'SURROGATE_KEY', 'ref_field': 'EST_BANK_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'DUMMY', 'ref_field': 'v_NULL', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow', 'sequence_config': None, 'insert_else_update': False, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_DLKP_SSA_MSTR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "SURROGATE_KEY"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_lkp_merge_FILTRANS_MSTR = df_lkp_merge_FILTRANS_MSTR.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_lkp_merge_FILTRANS_MSTR = df_lkp_merge_FILTRANS_MSTR.withColumn("NewLookupRow", lit(1))
-        ctx.register_df("df_lkp_merge_FILTRANS_MSTR", df_lkp_merge_FILTRANS_MSTR)        
+        ctx.register_df("df_lkp_merge_FILTRANS_MSTR", df_lkp_merge_FILTRANS_MSTR)
+        
         logger.info("Step: apply_EXPTRANS_STS")
         # Expression: apply_EXPTRANS_STS
         df_EXPTRANS_STS = df_FILTRANS_STS
@@ -896,37 +777,20 @@ where SOR_NHS_EST_BANK_STS.EST_BANK_KEY = ss.EST_BANK_KEY and SOR_NHS_EST_BANK_S
         
         logger.info("Step: apply_DLKP_SSA_STS")
         # Lookup: apply_DLKP_SSA_STS
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_DLKP_SSA_STS.groupBy(col("SURROGATE_KEY")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_DLKP_SSA_STS: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_EXPTRANS_STS
         _lkp_input = _lkp_input.withColumn("IN_SURROGATE_KEY", col("EST_BANK_KEY"))
         _lkp_input = _lkp_input.withColumn("IN_DUMMY", col("v_NULL"))
-        # Join condition: IN_SURROGATE_KEY=SURROGATE_KEY
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_FILTRANS_STS = _lkp_input.alias("_main").join(
-            broadcast(df_DLKP_SSA_STS).alias("_lkp"),
-            (col("_main.IN_SURROGATE_KEY") == col("_lkp.SURROGATE_KEY")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_DLKP_SSA_STS[c] for c in df_DLKP_SSA_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_lkp_merge_FILTRANS_STS = lib.dynamic_lookup(
+            spark,
+            _lkp_input,
+            df_DLKP_SSA_STS,
+            {'name': 'DLKP_SSA_STS', 'join_predicates': [{'source_col': 'IN_SURROGATE_KEY', 'lookup_col': 'SURROGATE_KEY'}], 'output_columns': ['SURROGATE_KEY', 'DUMMY'], 'lookup_output_fields': [{'name': 'SURROGATE_KEY', 'ref_field': 'EST_BANK_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'DUMMY', 'ref_field': 'v_NULL', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow', 'sequence_config': None, 'insert_else_update': False, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_DLKP_SSA_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "SURROGATE_KEY"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_lkp_merge_FILTRANS_STS = df_lkp_merge_FILTRANS_STS.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_lkp_merge_FILTRANS_STS = df_lkp_merge_FILTRANS_STS.withColumn("NewLookupRow", lit(1))
-        ctx.register_df("df_lkp_merge_FILTRANS_STS", df_lkp_merge_FILTRANS_STS)        
+        ctx.register_df("df_lkp_merge_FILTRANS_STS", df_lkp_merge_FILTRANS_STS)
+        
         logger.info("Step: merge_EXP_OPR_IND_0")
         # Lookup: merge_EXP_OPR_IND_0
         # Merge on common columns — drop lookup columns that duplicate non-key input columns. 

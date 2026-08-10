@@ -22,21 +22,21 @@ EXECUTION_PLAN = [
     "steps": [
       {
         "type": "session",
-        "name": "S_NHS_ETL_SSA_TRUNCATE",
-        "mapping_name": "M_UTL_SSA_TRUNCATE"
-      },
-      {
-        "type": "session",
         "name": "S_NHS_ETL_PARAM_SETUP",
         "mapping_name": "M_UTL_PARAM_SETUP"
       },
       {
         "type": "task",
-        "name": "T_RM_NHS_CACHE_SSA"
+        "name": "T_RM_NHS_CACHE_SOR"
+      },
+      {
+        "type": "session",
+        "name": "S_NHS_ETL_SSA_TRUNCATE",
+        "mapping_name": "M_UTL_SSA_TRUNCATE"
       },
       {
         "type": "task",
-        "name": "T_RM_NHS_CACHE_SOR"
+        "name": "T_RM_NHS_CACHE_SSA"
       }
     ]
   },
@@ -49,13 +49,13 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_NHS_SSAL2_TRAN_NHS_REF_CODE_TYPE",
-            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_REF_CODE_TYPE"
+            "name": "S_NHS_SSAL2_TRAN_NHS_HSE_RGN",
+            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_HSE_RGN"
           },
           {
             "type": "session",
-            "name": "S_NHS_SSAL2_TRAN_NHS_HSE_RGN",
-            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_HSE_RGN"
+            "name": "S_NHS_SSAL2_TRAN_NHS_HOS_APLY",
+            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_HOS_APLY"
           },
           {
             "type": "session",
@@ -64,8 +64,8 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_NHS_SSAL2_TRAN_NHS_HOS_APLY",
-            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_HOS_APLY"
+            "name": "S_NHS_SSAL2_TRAN_NHS_REF_CODE_TYPE",
+            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_REF_CODE_TYPE"
           },
           {
             "type": "session",
@@ -79,8 +79,8 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_NHS_SSAL2_TRAN_NHS_PHASE_BLT",
-            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_PHASE_BLT"
+            "name": "S_NHS_SSAL2_TRAN_NHS_RVN_CLCT_TRML",
+            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_RVN_CLCT_TRML"
           },
           {
             "type": "session",
@@ -89,29 +89,24 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_NHS_SSAL2_TRAN_NHS_REF_CODE",
-            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_REF_CODE"
-          },
-          {
-            "type": "session",
             "name": "S_NHS_SSAL2_TRAN_NHS_HOS_APLY_PRIOR",
             "mapping_name": "M_NHS_SSAL2_TRAN_NHS_HOS_APLY_PRIOR"
           },
           {
             "type": "session",
-            "name": "S_NHS_SSAL2_TRAN_NHS_RVN_CLCT_TRML",
-            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_RVN_CLCT_TRML"
+            "name": "S_NHS_SSAL2_TRAN_NHS_REF_CODE",
+            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_REF_CODE"
+          },
+          {
+            "type": "session",
+            "name": "S_NHS_SSAL2_TRAN_NHS_PHASE_BLT",
+            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_PHASE_BLT"
           }
         ]
       },
       {
         "type": "parallel_group",
         "steps": [
-          {
-            "type": "session",
-            "name": "S_NHS_SSAL2_TRAN_NHS_HOS_CRT",
-            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_HOS_CRT"
-          },
           {
             "type": "session",
             "name": "S_NHS_SSAL2_TRAN_NHS_HOS_APLY_MBR",
@@ -121,6 +116,11 @@ EXECUTION_PLAN = [
             "type": "session",
             "name": "S_NHS_SSAL2_TRAN_NHS_EST_BANK",
             "mapping_name": "M_NHS_SSAL2_TRAN_NHS_EST_BANK"
+          },
+          {
+            "type": "session",
+            "name": "S_NHS_SSAL2_TRAN_NHS_HOS_CRT",
+            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_HOS_CRT"
           },
           {
             "type": "session",
@@ -134,13 +134,13 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_NHS_SSAL2_TRAN_NHS_HOS_BLK",
-            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_HOS_BLK"
+            "name": "S_NHS_SSAL2_TRAN_NHS_EST_BANK_ITEM",
+            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_EST_BANK_ITEM"
           },
           {
             "type": "session",
-            "name": "S_NHS_SSAL2_TRAN_NHS_EST_BANK_ITEM",
-            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_EST_BANK_ITEM"
+            "name": "S_NHS_SSAL2_TRAN_NHS_HOS_BLK",
+            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_HOS_BLK"
           },
           {
             "type": "session",
@@ -154,28 +154,28 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_NHS_SSAL2_TRAN_NHS_HOS_FLAT",
-            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_HOS_FLAT"
+            "name": "S_NHS_SSAL2_TRAN_NHS_APLY_VET_RSLT",
+            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_APLY_VET_RSLT"
           },
           {
             "type": "session",
-            "name": "S_NHS_SSAL2_TRAN_NHS_APLY_VET_RSLT",
-            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_APLY_VET_RSLT"
+            "name": "S_NHS_SSAL2_TRAN_NHS_HOS_FLAT",
+            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_HOS_FLAT"
           }
         ]
       },
       {
         "type": "parallel_group",
         "steps": [
-          {
-            "type": "session",
-            "name": "S_NHS_SSAL2_TRAN_NHS_PHASE_CRT",
-            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_PHASE_CRT"
-          },
           {
             "type": "session",
             "name": "S_NHS_SSAL2_TRAN_NHS_DUP_CHK_RSLT",
             "mapping_name": "M_NHS_SSAL2_TRAN_NHS_DUP_CHK_RSLT"
+          },
+          {
+            "type": "session",
+            "name": "S_NHS_SSAL2_TRAN_NHS_PHASE_CRT",
+            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_PHASE_CRT"
           }
         ]
       },
@@ -184,13 +184,13 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_NHS_SSAL2_TRAN_NHS_PHASE_FLAT_ORNT",
-            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_PHASE_FLAT_ORNT"
+            "name": "S_NHS_SSAL2_TRAN_NHS_HOS_APLY_BLT",
+            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_HOS_APLY_BLT"
           },
           {
             "type": "session",
-            "name": "S_NHS_SSAL2_TRAN_NHS_HOS_APLY_BLT",
-            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_HOS_APLY_BLT"
+            "name": "S_NHS_SSAL2_TRAN_NHS_PHASE_FLAT_ORNT",
+            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_PHASE_FLAT_ORNT"
           }
         ]
       },
@@ -234,13 +234,13 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_NHS_SSAL2_TRAN_NHS_FLAT_SLCT_STMT",
-            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_FLAT_SLCT_STMT"
+            "name": "S_NHS_SSAL2_TRAN_NHS_HOS_OWN",
+            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_HOS_OWN"
           },
           {
             "type": "session",
-            "name": "S_NHS_SSAL2_TRAN_NHS_HOS_OWN",
-            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_HOS_OWN"
+            "name": "S_NHS_SSAL2_TRAN_NHS_FLAT_SLCT_STMT",
+            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_FLAT_SLCT_STMT"
           }
         ]
       },
@@ -289,13 +289,13 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_NHS_SSAL2_TRAN_NHS_RVN_TXN_PYMT",
-            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_RVN_TXN_PYMT"
+            "name": "S_NHS_SSAL2_TRAN_NHS_RVN_ITEM_TYPE",
+            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_RVN_ITEM_TYPE"
           },
           {
             "type": "session",
-            "name": "S_NHS_SSAL2_TRAN_NHS_RVN_ITEM_TYPE",
-            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_RVN_ITEM_TYPE"
+            "name": "S_NHS_SSAL2_TRAN_NHS_RVN_TXN_PYMT",
+            "mapping_name": "M_NHS_SSAL2_TRAN_NHS_RVN_TXN_PYMT"
           }
         ]
       },
@@ -325,13 +325,8 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_RVN_CLCT_OFFC_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_RVN_CLCT_OFFC_UPD_END"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_PHASE_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_PHASE_UPD_END"
+            "name": "S_SOR_LOAD_NHS_REF_CODE_TYPE_UPD_END",
+            "mapping_name": "M_SOR_LOAD_NHS_REF_CODE_TYPE_UPD_END"
           },
           {
             "type": "session",
@@ -340,8 +335,13 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_REF_CODE_TYPE_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_REF_CODE_TYPE_UPD_END"
+            "name": "S_SOR_LOAD_NHS_PHASE_UPD_END",
+            "mapping_name": "M_SOR_LOAD_NHS_PHASE_UPD_END"
+          },
+          {
+            "type": "session",
+            "name": "S_SOR_LOAD_NHS_RVN_CLCT_OFFC_UPD_END",
+            "mapping_name": "M_SOR_LOAD_NHS_RVN_CLCT_OFFC_UPD_END"
           }
         ]
       },
@@ -350,13 +350,13 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_APLY_PRIOR_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_PRIOR_UPD_END"
+            "name": "S_SOR_LOAD_NHS_RVN_CLCT_TRML_UPD_END",
+            "mapping_name": "M_SOR_LOAD_NHS_RVN_CLCT_TRML_UPD_END"
           },
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_RVN_CLCT_TRML_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_RVN_CLCT_TRML_UPD_END"
+            "name": "S_SOR_LOAD_NHS_HOS_APLY_PRIOR_UPD_END",
+            "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_PRIOR_UPD_END"
           },
           {
             "type": "session",
@@ -365,13 +365,13 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_PHASE_BLT_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_PHASE_BLT_UPD_END"
+            "name": "S_SOR_LOAD_NHS_REF_CODE_UPD_END",
+            "mapping_name": "M_SOR_LOAD_NHS_REF_CODE_UPD_END"
           },
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_REF_CODE_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_REF_CODE_UPD_END"
+            "name": "S_SOR_LOAD_NHS_PHASE_BLT_UPD_END",
+            "mapping_name": "M_SOR_LOAD_NHS_PHASE_BLT_UPD_END"
           }
         ]
       },
@@ -380,23 +380,23 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_EST_BANK_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_EST_BANK_UPD_END"
-          },
-          {
-            "type": "session",
             "name": "S_SOR_LOAD_NHS_HOS_APLY_MBR_UPD_END",
             "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_MBR_UPD_END"
           },
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_CRT_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_CRT_UPD_END"
+            "name": "S_SOR_LOAD_NHS_EST_BANK_UPD_END",
+            "mapping_name": "M_SOR_LOAD_NHS_EST_BANK_UPD_END"
           },
           {
             "type": "session",
             "name": "S_SOR_LOAD_NHS_PRIOR_CATG_GRP_UPD_END",
             "mapping_name": "M_SOR_LOAD_NHS_PRIOR_CATG_GRP_UPD_END"
+          },
+          {
+            "type": "session",
+            "name": "S_SOR_LOAD_NHS_HOS_CRT_UPD_END",
+            "mapping_name": "M_SOR_LOAD_NHS_HOS_CRT_UPD_END"
           }
         ]
       },
@@ -415,13 +415,13 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_BLK_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_BLK_UPD_END"
+            "name": "S_SOR_LOAD_NHS_PHASE_CRT_UPD_END",
+            "mapping_name": "M_SOR_LOAD_NHS_PHASE_CRT_UPD_END"
           },
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_PHASE_CRT_UPD_END",
-            "mapping_name": "M_SOR_LOAD_NHS_PHASE_CRT_UPD_END"
+            "name": "S_SOR_LOAD_NHS_HOS_BLK_UPD_END",
+            "mapping_name": "M_SOR_LOAD_NHS_HOS_BLK_UPD_END"
           }
         ]
       },
@@ -591,8 +591,8 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_PHASE_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_PHASE_INS"
+            "name": "S_SOR_LOAD_NHS_HOS_APLY_INS",
+            "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_INS"
           },
           {
             "type": "session",
@@ -601,18 +601,18 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_APLY_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_INS"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_REF_CODE_TYPE_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_REF_CODE_TYPE_INS"
+            "name": "S_SOR_LOAD_NHS_PHASE_INS",
+            "mapping_name": "M_SOR_LOAD_NHS_PHASE_INS"
           },
           {
             "type": "session",
             "name": "S_SOR_LOAD_NHS_HSE_RGN_INS",
             "mapping_name": "M_SOR_LOAD_NHS_HSE_RGN_INS"
+          },
+          {
+            "type": "session",
+            "name": "S_SOR_LOAD_NHS_REF_CODE_TYPE_INS",
+            "mapping_name": "M_SOR_LOAD_NHS_REF_CODE_TYPE_INS"
           }
         ]
       },
@@ -621,13 +621,8 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_PHASE_BLT_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_PHASE_BLT_INS"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_APLY_PRIOR_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_PRIOR_INS"
+            "name": "S_SOR_LOAD_NHS_REF_CODE_INS",
+            "mapping_name": "M_SOR_LOAD_NHS_REF_CODE_INS"
           },
           {
             "type": "session",
@@ -641,8 +636,13 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_REF_CODE_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_REF_CODE_INS"
+            "name": "S_SOR_LOAD_NHS_PHASE_BLT_INS",
+            "mapping_name": "M_SOR_LOAD_NHS_PHASE_BLT_INS"
+          },
+          {
+            "type": "session",
+            "name": "S_SOR_LOAD_NHS_HOS_APLY_PRIOR_INS",
+            "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_PRIOR_INS"
           }
         ]
       },
@@ -651,8 +651,8 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_APLY_MBR_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_MBR_INS"
+            "name": "S_SOR_LOAD_NHS_PRIOR_CATG_GRP_INS",
+            "mapping_name": "M_SOR_LOAD_NHS_PRIOR_CATG_GRP_INS"
           },
           {
             "type": "session",
@@ -661,13 +661,13 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_PRIOR_CATG_GRP_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_PRIOR_CATG_GRP_INS"
+            "name": "S_SOR_LOAD_NHS_EST_BANK_INS",
+            "mapping_name": "M_SOR_LOAD_NHS_EST_BANK_INS"
           },
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_EST_BANK_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_EST_BANK_INS"
+            "name": "S_SOR_LOAD_NHS_HOS_APLY_MBR_INS",
+            "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_MBR_INS"
           }
         ]
       },
@@ -681,11 +681,6 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_PHASE_CRT_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_PHASE_CRT_INS"
-          },
-          {
-            "type": "session",
             "name": "S_SOR_LOAD_NHS_HOS_BLK_INS",
             "mapping_name": "M_SOR_LOAD_NHS_HOS_BLK_INS"
           },
@@ -693,6 +688,11 @@ EXECUTION_PLAN = [
             "type": "session",
             "name": "S_SOR_LOAD_NHS_EST_BANK_ITEM_INS",
             "mapping_name": "M_SOR_LOAD_NHS_EST_BANK_ITEM_INS"
+          },
+          {
+            "type": "session",
+            "name": "S_SOR_LOAD_NHS_PHASE_CRT_INS",
+            "mapping_name": "M_SOR_LOAD_NHS_PHASE_CRT_INS"
           }
         ]
       },
@@ -706,13 +706,13 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_FLAT_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_FLAT_INS"
+            "name": "S_SOR_LOAD_NHS_PHASE_FLAT_ORNT_INS",
+            "mapping_name": "M_SOR_LOAD_NHS_PHASE_FLAT_ORNT_INS"
           },
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_PHASE_FLAT_ORNT_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_PHASE_FLAT_ORNT_INS"
+            "name": "S_SOR_LOAD_NHS_HOS_FLAT_INS",
+            "mapping_name": "M_SOR_LOAD_NHS_HOS_FLAT_INS"
           }
         ]
       },
@@ -831,13 +831,13 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_RVN_ITEM_TYPE_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_RVN_ITEM_TYPE_INS"
+            "name": "S_SOR_LOAD_NHS_RVN_TXN_PYMT_INS",
+            "mapping_name": "M_SOR_LOAD_NHS_RVN_TXN_PYMT_INS"
           },
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_RVN_TXN_PYMT_INS",
-            "mapping_name": "M_SOR_LOAD_NHS_RVN_TXN_PYMT_INS"
+            "name": "S_SOR_LOAD_NHS_RVN_ITEM_TYPE_INS",
+            "mapping_name": "M_SOR_LOAD_NHS_RVN_ITEM_TYPE_INS"
           }
         ]
       },
@@ -862,13 +862,8 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_APLY_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_UPD"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_REF_CODE_TYPE_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_REF_CODE_TYPE_UPD"
+            "name": "S_SOR_LOAD_NHS_HSE_RGN_UPD",
+            "mapping_name": "M_SOR_LOAD_NHS_HSE_RGN_UPD"
           },
           {
             "type": "session",
@@ -877,8 +872,13 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_HSE_RGN_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_HSE_RGN_UPD"
+            "name": "S_SOR_LOAD_NHS_HOS_APLY_UPD",
+            "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_UPD"
+          },
+          {
+            "type": "session",
+            "name": "S_SOR_LOAD_NHS_REF_CODE_TYPE_UPD",
+            "mapping_name": "M_SOR_LOAD_NHS_REF_CODE_TYPE_UPD"
           },
           {
             "type": "session",
@@ -890,16 +890,6 @@ EXECUTION_PLAN = [
       {
         "type": "parallel_group",
         "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_REF_CODE_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_REF_CODE_UPD"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_RVN_CLCT_TRML_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_RVN_CLCT_TRML_UPD"
-          },
           {
             "type": "session",
             "name": "S_SOR_LOAD_NHS_PHASE_BLT_UPD",
@@ -914,22 +904,22 @@ EXECUTION_PLAN = [
             "type": "session",
             "name": "S_SOR_LOAD_NHS_HOS_APLY_PRIOR_UPD",
             "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_PRIOR_UPD"
+          },
+          {
+            "type": "session",
+            "name": "S_SOR_LOAD_NHS_RVN_CLCT_TRML_UPD",
+            "mapping_name": "M_SOR_LOAD_NHS_RVN_CLCT_TRML_UPD"
+          },
+          {
+            "type": "session",
+            "name": "S_SOR_LOAD_NHS_REF_CODE_UPD",
+            "mapping_name": "M_SOR_LOAD_NHS_REF_CODE_UPD"
           }
         ]
       },
       {
         "type": "parallel_group",
         "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_PRIOR_CATG_GRP_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_PRIOR_CATG_GRP_UPD"
-          },
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_EST_BANK_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_EST_BANK_UPD"
-          },
           {
             "type": "session",
             "name": "S_SOR_LOAD_NHS_HOS_CRT_UPD",
@@ -939,6 +929,16 @@ EXECUTION_PLAN = [
             "type": "session",
             "name": "S_SOR_LOAD_NHS_HOS_APLY_MBR_UPD",
             "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_MBR_UPD"
+          },
+          {
+            "type": "session",
+            "name": "S_SOR_LOAD_NHS_PRIOR_CATG_GRP_UPD",
+            "mapping_name": "M_SOR_LOAD_NHS_PRIOR_CATG_GRP_UPD"
+          },
+          {
+            "type": "session",
+            "name": "S_SOR_LOAD_NHS_EST_BANK_UPD",
+            "mapping_name": "M_SOR_LOAD_NHS_EST_BANK_UPD"
           }
         ]
       },
@@ -952,11 +952,6 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_EST_BANK_ITEM_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_EST_BANK_ITEM_UPD"
-          },
-          {
-            "type": "session",
             "name": "S_SOR_LOAD_NHS_HOS_BLK_UPD",
             "mapping_name": "M_SOR_LOAD_NHS_HOS_BLK_UPD"
           },
@@ -964,6 +959,11 @@ EXECUTION_PLAN = [
             "type": "session",
             "name": "S_SOR_LOAD_NHS_HOS_APLY_REJ_RSN_UPD",
             "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_REJ_RSN_UPD"
+          },
+          {
+            "type": "session",
+            "name": "S_SOR_LOAD_NHS_EST_BANK_ITEM_UPD",
+            "mapping_name": "M_SOR_LOAD_NHS_EST_BANK_ITEM_UPD"
           }
         ]
       },
@@ -972,8 +972,8 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_APLY_VET_RSLT_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_APLY_VET_RSLT_UPD"
+            "name": "S_SOR_LOAD_NHS_HOS_FLAT_UPD",
+            "mapping_name": "M_SOR_LOAD_NHS_HOS_FLAT_UPD"
           },
           {
             "type": "session",
@@ -982,23 +982,23 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_FLAT_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_FLAT_UPD"
+            "name": "S_SOR_LOAD_NHS_APLY_VET_RSLT_UPD",
+            "mapping_name": "M_SOR_LOAD_NHS_APLY_VET_RSLT_UPD"
           }
         ]
       },
       {
         "type": "parallel_group",
         "steps": [
-          {
-            "type": "session",
-            "name": "S_SOR_LOAD_NHS_DUP_CHK_RSLT_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_DUP_CHK_RSLT_UPD"
-          },
           {
             "type": "session",
             "name": "S_SOR_LOAD_NHS_PHASE_FLAT_UPD",
             "mapping_name": "M_SOR_LOAD_NHS_PHASE_FLAT_UPD"
+          },
+          {
+            "type": "session",
+            "name": "S_SOR_LOAD_NHS_DUP_CHK_RSLT_UPD",
+            "mapping_name": "M_SOR_LOAD_NHS_DUP_CHK_RSLT_UPD"
           }
         ]
       },
@@ -1007,13 +1007,13 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_HOS_APLY_BLT_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_BLT_UPD"
+            "name": "S_SOR_LOAD_NHS_RSRV_FLAT_UPD",
+            "mapping_name": "M_SOR_LOAD_NHS_RSRV_FLAT_UPD"
           },
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_RSRV_FLAT_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_RSRV_FLAT_UPD"
+            "name": "S_SOR_LOAD_NHS_HOS_APLY_BLT_UPD",
+            "mapping_name": "M_SOR_LOAD_NHS_HOS_APLY_BLT_UPD"
           }
         ]
       },
@@ -1102,13 +1102,13 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_RVN_ITEM_TYPE_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_RVN_ITEM_TYPE_UPD"
+            "name": "S_SOR_LOAD_NHS_RVN_TXN_PYMT_UPD",
+            "mapping_name": "M_SOR_LOAD_NHS_RVN_TXN_PYMT_UPD"
           },
           {
             "type": "session",
-            "name": "S_SOR_LOAD_NHS_RVN_TXN_PYMT_UPD",
-            "mapping_name": "M_SOR_LOAD_NHS_RVN_TXN_PYMT_UPD"
+            "name": "S_SOR_LOAD_NHS_RVN_ITEM_TYPE_UPD",
+            "mapping_name": "M_SOR_LOAD_NHS_RVN_ITEM_TYPE_UPD"
           }
         ]
       },

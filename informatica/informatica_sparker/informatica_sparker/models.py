@@ -192,6 +192,8 @@ class TransformField(BaseModel):
     is_group_by: bool = False
     is_sort_key: bool = False
     sort_direction: str = "ASC"
+    ignore_in_compare: str = "NO"
+    ignore_null_inputs: str = "NO"
 
 
 class Transformation(BaseModel):

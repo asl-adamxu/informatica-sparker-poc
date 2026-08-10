@@ -428,6 +428,26 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
                 __rhs,
                 on="_join_key", how="left").drop("_join_key")
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
+        {% elif step.params.get('dynamic_lookup') %}
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
+        {% set _lkp_remap = step.params.get('lkp_field_remap', {}) %}
+        {% if _lkp_remap %}
+        _lkp_input = {{ step.df_input }}
+        {% for _port, _col in _lkp_remap.items() %}
+        _lkp_input = _lkp_input.withColumn("{{ _port }}", col("{{ _col }}"))
+        {% endfor %}
+        {% else %}
+        _lkp_input = {{ step.df_input }}
+        {% endif %}
+        {{ step.df_output }} = lib.dynamic_lookup(
+            spark,
+            _lkp_input,
+            {{ lookup_df_name }},
+            {{ step.params.get('dynamic_lookup') }},
+            config=config,
+        )
+        ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
         {% elif join_predicates %}
         {% if step.params.get('dedup_lookup') %}
         {% set dedup_keys = step.params.get('dedup_lookup_keys', []) %}

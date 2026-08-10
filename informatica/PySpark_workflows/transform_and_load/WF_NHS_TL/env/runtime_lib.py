@@ -330,6 +330,14 @@ def read_sql(spark: SparkSession, conn_config: Dict[str, Any],
         .option("driver", driver) \
         .option("isolationLevel", "READ_COMMITTED")
 
+    # Oracle rejects boolean literals (TRUE/FALSE) in WHERE clauses. Spark's
+    # JDBC predicate pushdown emits them when a pushed filter contains a
+    # non-table column (e.g. computed NewLookupRow / _update_flag), which fails
+    # with ORA-00920. Keep predicate pushdown disabled for Oracle so those
+    # filters are evaluated by Spark after the read.
+    if str(conn_config.get("type", "oracle")).lower() == "oracle":
+        reader = reader.option("pushDownPredicate", "false")
+
     if query:
         reader = reader.option("query", query)
     elif table:
@@ -338,6 +346,394 @@ def read_sql(spark: SparkSession, conn_config: Dict[str, Any],
         raise ValueError("Either table or query must be provided")
     
     return reader.load()
+
+
+def _dynamic_lookup_is_null(value):
+    if value is None:
+        return True
+    try:
+        return bool(value != value)
+    except Exception:
+        return False
+
+
+def _dynamic_lookup_normalize(value):
+    if _dynamic_lookup_is_null(value):
+        return None
+    if isinstance(value, bytes):
+        try:
+            return value.decode("utf-8")
+        except Exception:
+            return value
+    return value
+
+
+def _dynamic_lookup_equal(a, b, case_sensitive=False):
+    a = _dynamic_lookup_normalize(a)
+    b = _dynamic_lookup_normalize(b)
+    if a is None or b is None:
+        return a is None and b is None
+    if isinstance(a, str) or isinstance(b, str):
+        if not case_sensitive:
+            return str(a).lower() == str(b).lower()
+        return str(a) == str(b)
+    try:
+        return bool(a == b)
+    except Exception:
+        return str(a) == str(b)
+
+
+def _dynamic_lookup_candidate(row, out_field, cfg):
+    ref = out_field.get("ref_field") or ""
+    if ref.upper() == "SEQUENCE-ID":
+        return row.get("__dyn_seq_key")
+    if ref and ref in row:
+        return _dynamic_lookup_normalize(row.get(ref))
+    if out_field.get("name") in row:
+        return _dynamic_lookup_normalize(row.get(out_field["name"]))
+    return None
+
+
+def _dynamic_lookup_condition_holds(row, cache_state, cfg):
+    expr = str(cfg.get("update_condition") or "TRUE").strip()
+    if not expr or expr.upper() == "TRUE":
+        return True
+    if expr.upper() == "FALSE":
+        return False
+    # Minimal evaluator for the simple boolean expressions Informatica stores
+    # in "Update Dynamic Cache Condition". Current NHS/EMS mappings all use
+    # TRUE; anything more complex is evaluated best-effort and falls back to
+    # TRUE with a warning.
+    try:
+        _e = _re.sub(r"\bIS\s+NOT\s+NULL\b", " is not None ", expr, flags=_re.IGNORECASE)
+        _e = _re.sub(r"\bIS\s+NULL\b", " is None ", _e, flags=_re.IGNORECASE)
+        _e = _re.sub(r"(?<![=!<>])=(?!=)", "==", _e)
+        _e = _e.replace("'", '"')
+        def _sub(m):
+            _name = m.group(1)
+            _val = cache_state.get(_name, row.get(_name))
+            if _val is None:
+                return "None"
+            if isinstance(_val, str):
+                return '"' + _val.replace('"', '\\"') + '"'
+            return repr(_val)
+        _e = _re.sub(r"\b([A-Za-z_][A-Za-z0-9_]*)\b", _sub, _e)
+        return bool(eval(_e, {"__builtins__": {}}, {}))
+    except Exception as _exc:
+        logging.warning(
+            "Update Dynamic Cache Condition '%s' could not be evaluated (%s); "
+            "treating as TRUE", expr, _exc)
+        return True
+
+
+def _process_dynamic_lookup_rows(rows, cfg):
+    """Run the dynamic-cache state machine over one join-key group.
+
+    rows are dicts carrying the input columns, prefixed base columns
+    (__lkp_<output>), __base_exists, __dyn_seq and __dyn_seq_key. The same
+    key's rows are processed in __dyn_seq order, so each row sees the cache
+    state left by the previous row (Informatica row-by-row semantics).
+    """
+    input_columns = list(cfg.get("_input_columns") or [])
+    out_fields = cfg.get("lookup_output_fields") or []
+    new_lookup_row_col = cfg.get("new_lookup_row_col") or "NewLookupRow"
+    insert_else_update = bool(cfg.get("insert_else_update"))
+    output_old_value = bool(cfg.get("output_old_value_on_update"))
+    case_sensitive = bool(cfg.get("case_sensitive_string_comparison"))
+
+    normalized = [
+        {k: _dynamic_lookup_normalize(v) for k, v in row.items()}
+        for row in rows
+    ]
+    normalized.sort(key=lambda r: (r.get("__dyn_seq") is None, r.get("__dyn_seq")))
+
+    results = []
+    cache_state = None
+    cache_present = False
+    for row in normalized:
+        if not cache_present:
+            cache_state = {}
+            if row.get("__base_exists"):
+                for f in out_fields:
+                    cache_state[f["name"]] = row.get("__lkp_" + f["name"])
+                new_lookup_row = 0
+            else:
+                for f in out_fields:
+                    ref = f.get("ref_field") or ""
+                    if ref.upper() == "SEQUENCE-ID":
+                        cache_state[f["name"]] = row.get("__dyn_seq_key")
+                    else:
+                        cache_state[f["name"]] = _dynamic_lookup_candidate(row, f, cfg)
+                new_lookup_row = 1
+            cache_present = True
+            output_vals = dict(cache_state)
+        else:
+            candidates = {}
+            changed = False
+            for f in out_fields:
+                ref = f.get("ref_field") or ""
+                if ref.upper() == "SEQUENCE-ID":
+                    # Sequence-Id surrogate keys are immutable once inserted:
+                    # a hit always keeps the cache value and never triggers an
+                    # update comparison.
+                    cand = cache_state.get(f["name"])
+                else:
+                    cand = _dynamic_lookup_candidate(row, f, cfg)
+                if (f.get("ignore_null_inputs")
+                        and ref and ref.upper() != "SEQUENCE-ID"
+                        and _dynamic_lookup_is_null(row.get(ref))):
+                    cand = cache_state.get(f["name"])
+                candidates[f["name"]] = cand
+                if (not f.get("ignore_in_compare")
+                        and not _dynamic_lookup_equal(
+                            cand, cache_state.get(f["name"]), case_sensitive)):
+                    changed = True
+            if (insert_else_update and changed
+                    and _dynamic_lookup_condition_holds(row, cache_state, cfg)):
+                new_lookup_row = 2
+                old_vals = dict(cache_state)
+                for f in out_fields:
+                    ref = f.get("ref_field") or ""
+                    if ref.upper() == "SEQUENCE-ID":
+                        continue
+                    if (f.get("ignore_null_inputs") and ref
+                            and _dynamic_lookup_is_null(row.get(ref))):
+                        continue
+                    cache_state[f["name"]] = candidates[f["name"]]
+                output_vals = old_vals if output_old_value else dict(cache_state)
+            else:
+                new_lookup_row = 0
+                output_vals = dict(cache_state)
+
+        out = {name: row.get(name) for name in input_columns}
+        for f in out_fields:
+            out[f["name"]] = output_vals.get(f["name"])
+        out[new_lookup_row_col] = new_lookup_row
+        results.append(out)
+    return results
+
+
+def _dynamic_lookup_spark_type(datatype):
+    t = str(datatype or "").lower()
+    if "bigint" in t or "long" in t:
+        return LongType()
+    if "integer" in t or "int" in t:
+        return IntegerType()
+    if "smallint" in t or "short" in t:
+        return ShortType()
+    if "decimal" in t or "number" in t:
+        return DecimalType(38, 10)
+    if "date/time" in t or "timestamp" in t:
+        return TimestampType()
+    if "date" in t:
+        return DateType()
+    if "float" in t or "double" in t:
+        return DoubleType()
+    if "binary" in t:
+        return BinaryType()
+    return StringType()
+
+
+def _dynamic_lookup_output_schema(input_df, lookup_df, cfg):
+    out_fields = cfg.get("lookup_output_fields") or []
+    new_col = cfg.get("new_lookup_row_col") or "NewLookupRow"
+    lookup_fields = {f.name.lower(): f for f in lookup_df.schema.fields}
+    fields = []
+    seen = set()
+    for f in input_df.schema.fields:
+        lower = f.name.lower()
+        if lower == new_col.lower():
+            continue
+        if isinstance(f.dataType, NullType):
+            # Arrow cannot carry Spark NullType; a typed NULL string is
+            # semantically equivalent and safe for downstream expressions.
+            fields.append(StructField(f.name, StringType(), True))
+        else:
+            fields.append(f)
+        seen.add(lower)
+    for of in out_fields:
+        lower = of["name"].lower()
+        lf = lookup_fields.get(lower)
+        if lf is not None and not isinstance(lf.dataType, NullType):
+            sf = lf
+        else:
+            sf = StructField(
+                of["name"], _dynamic_lookup_spark_type(of.get("datatype")), True)
+        if lower in seen:
+            fields = [sf if f.name.lower() == lower else f for f in fields]
+        else:
+            fields.append(sf)
+            seen.add(lower)
+    fields.append(StructField(new_col, IntegerType(), True))
+    return StructType(fields)
+
+
+def _dynamic_lookup_pyarrow_ok():
+    try:
+        import pandas  # noqa: F401
+        import pyarrow  # noqa: F401
+        from pyspark.sql.pandas.utils import require_minimum_pyarrow_version
+        require_minimum_pyarrow_version()
+        return True
+    except Exception:
+        return False
+
+
+def _dynamic_lookup_apply_in_pandas(spark, joined, cfg, output_schema):
+    import pandas as pd
+    output_columns = [f.name for f in output_schema.fields]
+
+    def _process_group(pdf):
+        rows = pdf.to_dict("records")
+        return pd.DataFrame(
+            _process_dynamic_lookup_rows(rows, cfg),
+            columns=output_columns,
+        )
+
+    return joined.groupBy("__dyn_key").applyInPandas(
+        _process_group, schema=output_schema)
+
+
+def _dynamic_lookup_rdd(spark, joined, cfg, output_schema):
+    from pyspark.sql import Row
+
+    def _key(row):
+        k = row["__dyn_key"]
+        if isinstance(k, Row):
+            return tuple(k)
+        return (k,)
+
+    def _flat(kv):
+        return _process_dynamic_lookup_rows(
+            [r.asDict() for r in kv[1]], cfg)
+
+    results = joined.rdd.map(lambda r: (_key(r), r)).groupByKey().flatMap(_flat)
+    return spark.createDataFrame(results, schema=output_schema)
+
+
+def dynamic_lookup(spark: SparkSession, input_df: DataFrame,
+                   lookup_df: DataFrame, cfg: Dict[str, Any],
+                   config: Dict[str, Any] = None) -> DataFrame:
+    """Convert one Informatica dynamic lookup into a precise PySpark step.
+
+    The implementation is distributed but deterministic:
+      1. The base lookup source is checked for duplicate condition keys and
+         fails with Report Error / CMN_1650 semantics.
+      2. Input rows are left-joined to the base cache and grouped by the join
+         key (null keys get a unique per-row key).
+      3. applyInPandas runs the row-by-row dynamic-cache state machine inside
+         each group (fallback: equivalent RDD cogroup when pyarrow is missing
+         or below the Spark minimum).
+      4. Sequence-Id surrogate keys are pre-allocated outside the UDF, so the
+         same key is never generated twice across executors.
+    """
+    cfg = dict(cfg)
+    cfg["_input_columns"] = list(input_df.columns)
+    name = cfg.get("name") or "dynamic_lookup"
+    join_predicates = cfg.get("join_predicates") or []
+    if not join_predicates:
+        raise ValueError(
+            "dynamic_lookup requires at least one join predicate")
+    source_cols = [jp.get("source_col") for jp in join_predicates]
+    lookup_cols = [jp.get("lookup_col") for jp in join_predicates]
+    for sc in source_cols:
+        if sc not in input_df.columns:
+            raise ValueError(
+                "Lookup %s: input column '%s' not found" % (name, sc))
+    for lc in lookup_cols:
+        if lc not in lookup_df.columns:
+            raise ValueError(
+                "Lookup %s: lookup column '%s' not found" % (name, lc))
+
+    # Report Error: duplicate condition keys in the base cache must fail the
+    # session (CMN_1650). Duplicate keys in the *input* stream are legal and
+    # are handled by the state machine below (1/2/0 classification).
+    dup_cnt = lookup_df.groupBy(*[col(c) for c in lookup_cols]) \
+        .count().filter(col("count") > 1).count()
+    if dup_cnt:
+        raise RuntimeError(
+            "Lookup %s: %d duplicate keys found in lookup source — dynamic "
+            "cache only supports unique condition keys (Report Error / CMN_1650)"
+            % (name, dup_cnt))
+
+    joined = input_df
+    order_by = cfg.get("order_by_columns") or []
+    if order_by:
+        joined = joined.orderBy(*[col(c) for c in order_by])
+    joined = joined.withColumn("__dyn_seq", monotonically_increasing_id())
+
+    base_aliases = {c: "__lkp_" + c for c in lookup_df.columns}
+    base_df = lookup_df.select(*[
+        col(c).alias(base_aliases[c]) for c in lookup_df.columns])
+    on_cond = None
+    for sc, lc in zip(source_cols, lookup_cols):
+        part = joined[sc] == base_df[base_aliases[lc]]
+        on_cond = part if on_cond is None else (on_cond & part)
+    joined = joined.join(base_df, on=on_cond, how="left")
+    joined = joined.withColumn(
+        "__base_exists",
+        when(base_df[base_aliases[lookup_cols[0]]].isNotNull(), lit(1))
+        .otherwise(lit(0)),
+    )
+
+    # Group key: a same-typed struct of stringified join keys. SQL '=' never
+    # matches NULL, so each null-key input row gets a unique __dyn_seq-derived
+    # value and is treated as its own miss; non-null rows with the same key
+    # share one group and advance the cache state row by row.
+    key_exprs = []
+    for _i, sc in enumerate(source_cols):
+        key_exprs.append(
+            when(col(sc).isNull(),
+                 concat(lit("__NULL__:"),
+                        col("__dyn_seq").cast("string")))
+            .otherwise(concat(lit("V:"), col(sc).cast("string")))
+            .alias("k%d" % _i)
+        )
+    joined = joined.withColumn("__dyn_key", struct(*key_exprs))
+
+    # Sequence-Id pre-allocation: only the first input row of a key that misses
+    # the base cache can insert, so exactly those rows get a globally unique
+    # surrogate key before applyInPandas runs.
+    seq_cfg = cfg.get("sequence_config")
+    if seq_cfg and seq_cfg.get("output_col"):
+        seq_col = seq_cfg["output_col"]
+        base_seq_col = "__lkp_" + seq_col
+        if base_seq_col not in joined.columns:
+            raise ValueError(
+                "Lookup %s: sequence output column '%s' not found in lookup "
+                "source" % (name, seq_col))
+        seq_start = joined.agg(max(col(base_seq_col))).collect()[0][0]
+        if seq_start is None:
+            seq_start = 0
+        seq_start = cfg.get("sequence_start", seq_start)
+        from pyspark.sql.window import Window as DynamicWindow
+        w_first = DynamicWindow.partitionBy("__dyn_key").orderBy("__dyn_seq")
+        w_all = DynamicWindow.orderBy("__dyn_seq")
+        prealloc = joined.withColumn("__rn", row_number().over(w_first))
+        prealloc = prealloc.filter(
+            (col("__base_exists") == 0) & (col("__rn") == 1))
+        prealloc = prealloc.withColumn("__seq_idx", row_number().over(w_all))
+        prealloc = prealloc.withColumn(
+            "__dyn_seq_key", lit(seq_start) + col("__seq_idx"))
+        joined = joined.join(
+            prealloc.select("__dyn_seq", "__dyn_seq_key"),
+            on="__dyn_seq", how="left")
+    else:
+        joined = joined.withColumn("__dyn_seq_key", lit(None).cast("long"))
+
+    output_schema = _dynamic_lookup_output_schema(input_df, lookup_df, cfg)
+    executor = "apply_in_pandas"
+    if config:
+        dl_config = config.get("dynamic_lookup") or {}
+        executor = dl_config.get("executor", "apply_in_pandas")
+
+    if executor == "apply_in_pandas" and _dynamic_lookup_pyarrow_ok():
+        return _dynamic_lookup_apply_in_pandas(spark, joined, cfg, output_schema)
+
+    logging.warning(
+        "dynamic_lookup %s: pyarrow missing/too old or executor=rdd — using "
+        "the equivalent RDD fallback", name)
+    return _dynamic_lookup_rdd(spark, joined, cfg, output_schema)
 
 
 def _read_local_csv(spark: SparkSession, local_path: str, opts: Dict[str, Any]) -> DataFrame:

@@ -172,6 +172,16 @@ logging:
   backup_count: 7
 
 # =============================================================================
+# DYNAMIC LOOKUP EXECUTION
+# =============================================================================
+# apply_in_pandas is the precise state-machine implementation and requires
+# pyarrow (>= the Spark minimum) on the driver and every executor. If pyarrow
+# is unavailable, runtime_lib.dynamic_lookup automatically falls back to an
+# equivalent RDD implementation; set executor to "rdd" to force that path.
+dynamic_lookup:
+  executor: apply_in_pandas
+
+# =============================================================================
 # MAPPING-SPECIFIC RULES
 # =============================================================================
 rules:

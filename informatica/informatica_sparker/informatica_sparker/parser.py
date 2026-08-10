@@ -254,6 +254,8 @@ class InfaXMLParser:
                 is_group_by=is_group_by,
                 is_sort_key=field_elem.get("ISSORTKEY", "NO") == "YES",
                 sort_direction=field_elem.get("SORTDIRECTION", "ASCENDING"),
+                ignore_in_compare=field_elem.get("IGNORE_IN_COMPARE", "NO"),
+                ignore_null_inputs=field_elem.get("IGNORE_NULL_INPUTS", "NO"),
             )
             transform.fields.append(field)
 
