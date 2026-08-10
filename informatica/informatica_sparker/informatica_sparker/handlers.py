@@ -62,6 +62,16 @@ class TransformHandlers:
         # overwrite source columns such as LAST_REC_TXN_TYPE_CODE with NULL).
         self._mapplet_input_df: Dict[str, str] = {}
         self._mapplet_output_df: Dict[str, str] = {}
+        # Direct (non-chain) DataFrame registered for each processed instance.
+        # Lookup chain-walk may overwrite current_df_map for upstream instances
+        # so downstream components see the accumulated lookup merge; this map
+        # preserves each instance's own output for deferred processing.
+        self._direct_df_map: Dict[str, str] = {}
+        # While processing a deferred instance, prefer its direct upstream
+        # outputs instead of a chain/merge df that a lookup may have registered
+        # under the upstream name. Lookup-fed filters/routers still get the
+        # lookup chain via the lookup preference above.
+        self._prefer_direct_input = False
 
         self._build_maps()
 
@@ -220,8 +230,10 @@ class TransformHandlers:
 
     def _register_df(self, instance: Instance, df_name: str):
         self.current_df_map[instance.name] = df_name
+        self._direct_df_map[instance.name] = df_name
         if instance.transformation_name and instance.transformation_name != instance.name:
             self.current_df_map[instance.transformation_name] = df_name
+            self._direct_df_map[instance.transformation_name] = df_name
 
     def _get_source_config(self, source_name: str) -> Optional[SourceConfig]:
         for config in self.user_config.sources:
@@ -308,6 +320,154 @@ class TransformHandlers:
             )
         return text
 
+    def _process_deferred_instance(self, instance: Instance, plan: IRPlan) -> bool:
+        """Process one instance whose input was not ready in the main pass.
+
+        While a deferred instance runs, upstream resolution prefers each
+        upstream's direct output (not a lookup chain df that may have been
+        registered under that name). Lookup-fed filters/routers still receive
+        the lookup chain through the lookup preference in `_get_input_df`.
+        Returns True when the instance was successfully processed.
+        """
+        _d_type = self._resolve_transformation_type(instance)
+        self._prefer_direct_input = True
+        try:
+            if not self._all_upstreams_available(instance.name):
+                return False
+            if _d_type == "Joiner":
+                _all_inputs = self._get_all_input_dfs(instance.name)
+                _expected = len(set(
+                    c.from_instance for c in self.mapping.connectors
+                    if c.to_instance == instance.name))
+                if len(_all_inputs) < min(_expected, 4) or len(_all_inputs) < 2:
+                    return False
+            elif not self._get_input_df(instance.name):
+                return False
+
+            if _d_type in ("TARGET", "Target Definition"):
+                self.logger.log_transformation(instance.name, "Target",
+                    "Processing target (deferred)", LogLevel.INFO)
+                _steps = self._handle_target(instance, plan)
+                for _s in _steps:
+                    plan.add_step(_s)
+                return bool(_steps)
+
+            if _d_type == "Expression":
+                self.logger.log_transformation(instance.name, "Expression",
+                    "Processing expression (deferred)", LogLevel.INFO)
+                _result = self._handle_expression(instance, plan)
+                if isinstance(_result, list):
+                    for _s in _result:
+                        if _s:
+                            plan.add_step(_s)
+                elif _result:
+                    plan.add_step(_result)
+                return bool(_result)
+
+            if _d_type == "Filter":
+                self.logger.log_transformation(instance.name, "Filter",
+                    "Processing filter (deferred)", LogLevel.INFO)
+                _step = self._handle_filter(instance, plan)
+                if _step:
+                    plan.add_step(_step)
+                return bool(_step)
+
+            if _d_type in ("Union", "Custom Transformation"):
+                self.logger.log_transformation(instance.name, "Union",
+                    "Processing union (deferred)", LogLevel.INFO)
+                _result = self._handle_union(instance, plan)
+                if _result:
+                    plan.add_step(_result)
+                return bool(_result)
+
+            if _d_type == "Joiner":
+                self.logger.log_transformation(instance.name, "Joiner",
+                    "Processing joiner (deferred)", LogLevel.INFO)
+                _step = self._handle_joiner(instance, plan)
+                if _step:
+                    plan.add_step(_step)
+                return bool(_step)
+
+            if _d_type == "Lookup Procedure":
+                self.logger.log_transformation(instance.name, "Lookup",
+                    "Processing lookup (deferred)", LogLevel.INFO)
+                _steps = self._handle_lookup(instance, plan)
+                for _s in _steps:
+                    plan.add_step(_s)
+                return bool(_steps)
+
+            if _d_type == "Aggregator":
+                self.logger.log_transformation(instance.name, "Aggregator",
+                    "Processing aggregator (deferred)", LogLevel.INFO)
+                _result = self._handle_aggregator(instance, plan)
+                if isinstance(_result, list):
+                    for _s in _result:
+                        if _s:
+                            plan.add_step(_s)
+                elif _result:
+                    plan.add_step(_result)
+                return bool(_result)
+
+            if _d_type == "Sorter":
+                self.logger.log_transformation(instance.name, "Sorter",
+                    "Processing sorter (deferred)", LogLevel.INFO)
+                _step = self._handle_sorter(instance, plan)
+                if _step:
+                    plan.add_step(_step)
+                return bool(_step)
+
+            if _d_type == "Normalizer":
+                self.logger.log_transformation(instance.name, "Normalizer",
+                    "Processing normalizer (deferred)", LogLevel.INFO)
+                _step = self._handle_normalizer(instance, plan)
+                if _step:
+                    plan.add_step(_step)
+                return bool(_step)
+
+            if _d_type == "Rank":
+                self.logger.log_transformation(instance.name, "Rank",
+                    "Processing rank (deferred)", LogLevel.INFO)
+                _step = self._handle_rank(instance, plan)
+                if _step:
+                    plan.add_step(_step)
+                return bool(_step)
+
+            if _d_type == "Router":
+                self.logger.log_transformation(instance.name, "Router",
+                    "Processing router (deferred)", LogLevel.INFO)
+                _steps = self._handle_router(instance, plan)
+                for _s in _steps:
+                    plan.add_step(_s)
+                return bool(_steps)
+
+            if _d_type == "Update Strategy":
+                self.logger.log_transformation(instance.name, "UpdateStrategy",
+                    "Processing update strategy (deferred)", LogLevel.INFO)
+                _step = self._handle_update_strategy(instance, plan)
+                if _step:
+                    plan.add_step(_step)
+                return bool(_step)
+
+            if _d_type == "Transaction Control":
+                self.logger.log_transformation(instance.name, "TransactionControl",
+                    "Processing transaction control (deferred)", LogLevel.INFO)
+                _step = self._handle_transaction_control(instance, plan)
+                if _step:
+                    plan.add_step(_step)
+                return bool(_step)
+
+            if _d_type == "MAPPLET":
+                self.logger.log_mapplet(instance.name,
+                    "Processing mapplet (deferred)", LogLevel.INFO)
+                _steps = self._handle_mapplet(instance, plan)
+                for _s in _steps:
+                    plan.add_step(_s)
+                return bool(_steps)
+
+            return False
+        finally:
+            self._prefer_direct_input = False
+
     def build_ir_plan(self) -> IRPlan:
         # Collect mapping variables from XML definition
         mvars = {}
@@ -348,19 +508,25 @@ class TransformHandlers:
 
             # Defer if the upstream DataFrame isn't available yet (handles both
             # duplicate-name collision and wrong-fallback-order cases).
+            _has_upstream = any(
+                c.to_instance == instance.name for c in self.mapping.connectors)
             if inst_type in ("TARGET", "Target Definition", "Filter", "Expression",
-                             "Union", "Custom Transformation"):
-                _input_ok = self._get_input_df(instance.name)
-                if not _input_ok:
-                    _deferred_insts.append(instance)
-                    continue
+                             "Union", "Custom Transformation", "MAPPLET", "Router",
+                             "Aggregator", "Sorter", "Update Strategy", "Normalizer",
+                             "Rank", "Transaction Control", "Lookup Procedure"):
+                if _has_upstream:
+                    if not self._all_upstreams_available(instance.name):
+                        _deferred_insts.append(instance)
+                        continue
             elif inst_type in ("Joiner",):
                 # Joiner needs ALL upstream DFs to be available, not just one
                 _all_inputs = self._get_all_input_dfs(instance.name)
                 _expected = len(set(
                     c.from_instance for c in self.mapping.connectors
                     if c.to_instance == instance.name))
-                if len(_all_inputs) < min(_expected, 4) or len(_all_inputs) < 2:
+                if (not self._all_upstreams_available(instance.name)
+                        or len(_all_inputs) < min(_expected, 4)
+                        or len(_all_inputs) < 2):
                     _deferred_insts.append(instance)
                     continue
 
@@ -562,67 +728,31 @@ class TransformHandlers:
                 self.logger.log_transformation(inst_name, inst_type, f"Unsupported transformation type: {inst_type}", LogLevel.WARNING)
                 plan.add_warning(f"Unsupported transformation type: {inst_type} ({inst_name})")
 
-        # Process deferred instances. By now all upstream transforms have been
-        # processed so _get_input_df should succeed.
+        # Process deferred instances in dependency order. Because the fallback
+        # graph order can put several dependent transforms ahead of their
+        # upstreams (e.g. duplicate SOURCE/TARGET names create a cycle), keep
+        # retrying until no instance can make progress.
         import logging as _logging
         if _deferred_insts:
             _logging.warning(f"DEFERRED instances: {[(d.name, type(d).__name__) for d in _deferred_insts]}")
             _logging.warning(f"current_df_map keys: {list(self.current_df_map.keys())}")
-        for _d_inst in _deferred_insts:
-            _d_type = self._resolve_transformation_type(_d_inst)
-            _input_df = self._get_input_df(_d_inst.name)
-            if not _input_df:
-                # Still can't find input — let handler warn with fallback
-                pass
-            if _d_type in ("TARGET", "Target Definition"):
-                self.logger.log_transformation(_d_inst.name, "Target",
-                    "Processing target", LogLevel.INFO)
-                _steps = self._handle_target(_d_inst, plan)
-                for _s in _steps:
-                    plan.add_step(_s)
-                if _steps:
-                    self.logger.log_transformation(_d_inst.name, "Target",
-                        f"Target converted ({len(_steps)} steps)", LogLevel.SUCCESS)
-            elif _d_type == "Expression":
-                self.logger.log_transformation(_d_inst.name, "Expression",
-                    "Processing expression", LogLevel.INFO)
-                _result = self._handle_expression(_d_inst, plan)
-                if isinstance(_result, list):
-                    for _s in _result:
-                        if _s:
-                            plan.add_step(_s)
-                elif _result:
-                    plan.add_step(_result)
-                if _result:
-                    self.logger.log_transformation(_d_inst.name, "Expression",
-                        "Expression converted", LogLevel.SUCCESS)
-            elif _d_type == "Filter":
-                self.logger.log_transformation(_d_inst.name, "Filter",
-                    "Processing filter", LogLevel.INFO)
-                _step = self._handle_filter(_d_inst, plan)
-                if _step:
-                    plan.add_step(_step)
-            elif _d_type in ("Union", "Custom Transformation"):
-                _logging.warning(f"Processing deferred Union: {_d_inst.name}, input_df={_input_df}")
-                self.logger.log_transformation(_d_inst.name, "Union",
-                    "Processing union", LogLevel.INFO)
-                _result = self._handle_union(_d_inst, plan)
-                if _result:
-                    plan.add_step(_result)
-                    self.logger.log_transformation(_d_inst.name, "Union",
-                        "Union converted", LogLevel.SUCCESS)
+        _pending = list(_deferred_insts)
+        _remaining = []
+        while _pending:
+            _remaining = []
+            _progress = False
+            for _d_inst in _pending:
+                if self._process_deferred_instance(_d_inst, plan):
+                    _progress = True
                 else:
-                    _logging.warning(f"Union {_d_inst.name} returned None! inputs={self._get_all_input_dfs(_d_inst.name)}")
-            elif _d_type == "Joiner":
-                self.logger.log_transformation(_d_inst.name, "Joiner",
-                    "Processing joiner", LogLevel.INFO)
-                _step = self._handle_joiner(_d_inst, plan)
-                if _step:
-                    plan.add_step(_step)
-                    self.logger.log_transformation(_d_inst.name, "Joiner",
-                        "Joiner converted", LogLevel.SUCCESS)
-                else:
-                    _logging.warning(f"Joiner {_d_inst.name} returned None! inputs={self._get_all_input_dfs(_d_inst.name)}")
+                    _remaining.append(_d_inst)
+            if not _progress:
+                break
+            _pending = _remaining
+        for _d_inst in _remaining:
+            _logging.warning(
+                f"Deferred instance still missing input: {_d_inst.name} "
+                f"({self._resolve_transformation_type(_d_inst)})")
 
         # Also catch any instances that were overwritten in instance_map by a
         # SOURCE with the same name (SSAL1 pattern). These weren't found by
@@ -2491,6 +2621,8 @@ class TransformHandlers:
             self.current_df_map[f"{trans_name}{group_name}"] = df_output
             self.current_df_map[f"{instance.name}.{group_name}"] = df_output
             self.current_df_map[f"{trans_name}.{group_name}"] = df_output
+            self._direct_df_map[f"{instance.name}_{group_name}"] = df_output
+            self._direct_df_map[f"{trans_name}_{group_name}"] = df_output
 
             if condition:
                 translated = self.expr_translator.translate_for_filter(condition, f"router_{group_name}")
@@ -3030,11 +3162,11 @@ class TransformHandlers:
             # by DLKP_SOR_STS + EXP_BK) lose END_DATE/NewLookupRow. With
             # multiple lookup upstreams, the last-processed lookup carries all
             # previous merges. This preference is deliberately scoped to
-            # filters: applying it to expressions/mapplet inputs would reorder
-            # which df is primary in multi-input merge pre-steps and change
-            # left-join semantics.
+            # filters/routers: applying it to expressions/mapplet inputs would
+            # reorder which df is primary in multi-input merge pre-steps and
+            # change left-join semantics.
             _target_inst = self.instance_map.get(instance_name)
-            if _target_inst is not None and self._resolve_transformation_type(_target_inst) == "Filter":
+            if _target_inst is not None and self._resolve_transformation_type(_target_inst) in ("Filter", "Router"):
                 _lookup_ups = []
                 for _u in dict.fromkeys(upstream_instances):
                     if _u in self._lookup_order and _u in self.current_df_map:
@@ -3042,6 +3174,22 @@ class TransformHandlers:
                 if _lookup_ups:
                     _last_lkp = max(_lookup_ups, key=self._lookup_order.index)
                     return self.current_df_map[_last_lkp]
+            # A deferred instance must see its direct upstream outputs, not the
+            # chain/merge df that a lookup registered under the upstream name.
+            # Lookup-fed filters/routers were already handled above.
+            if self._prefer_direct_input:
+                _direct_vals = []
+                for _u in dict.fromkeys(upstream_instances):
+                    if _u in self._direct_df_map:
+                        _direct_vals.append(self._direct_df_map[_u])
+                if _direct_vals:
+                    if len(_direct_vals) == 1:
+                        return _direct_vals[0]
+                    _direct_non_chain = [v for v in _direct_vals
+                                         if not v.startswith(('df_lkp_merge', 'df_merge', 'df_sq_'))]
+                    if _direct_non_chain:
+                        return _direct_non_chain[0]
+                    return _direct_vals[0]
             if len(_matched_values) > 1:
                 for _v in _matched_values:
                     if _v.startswith('df_lkp_result') or _v.startswith('df_jnr_result'):
@@ -3117,11 +3265,35 @@ class TransformHandlers:
         for connector in self.mapping.connectors:
             if connector.to_instance == instance_name:
                 from_inst = connector.from_instance
-                if from_inst in self.current_df_map:
-                    df = self.current_df_map[from_inst]
+                _df = None
+                if self._prefer_direct_input and from_inst in self._direct_df_map:
+                    _df = self._direct_df_map[from_inst]
+                elif from_inst in self.current_df_map:
+                    _df = self.current_df_map[from_inst]
+                if _df:
+                    df = _df
                     if df not in inputs:
                         inputs.append(df)
         return inputs
+
+    def _all_upstreams_available(self, instance_name: str) -> bool:
+        """True when every connector upstream has a registered DataFrame.
+
+        Lookup chain-walk may map several upstream instances to the same merge
+        df, so availability is counted by instance, not by unique df value.
+        """
+        _expected = {
+            c.from_instance
+            for c in self.mapping.connectors
+            if c.to_instance == instance_name
+        }
+        if not _expected:
+            return True
+        _available = {
+            u for u in _expected
+            if u in self._direct_df_map or u in self.current_df_map
+        }
+        return len(_available) >= len(_expected)
 
     @staticmethod
     def _build_df_parent_map(steps: List[Any]) -> Dict[str, str]:

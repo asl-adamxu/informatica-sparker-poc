@@ -26,7 +26,7 @@ informatica-sparker convert WF_GMS_DDS_APLY_DLY.XML -o $OUT_ROOT/WF_GMS_DDS_APLY
 cd /var/lib/airflow/dags/adam/informatica
 ./convert_infa-pyspark.sh /var/lib/airflow/dags/adam/informatica/PowerCenter_workflows/transform_and_load \
                           /var/lib/airflow/dags/adam/informatica/PySpark_workflows/transform_and_load \
-                          WF_NHS_TL.XML
+                          WF_EMS_TL.XML
 ```
 
 4. test the generated mapping (example for the truncate step)
