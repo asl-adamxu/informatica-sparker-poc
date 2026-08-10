@@ -574,5 +574,13 @@ Source of record: `convert_informatica_pyspark.md` (# 需手动fix的Bug). The `
 
 ## Known Pending Items (待修复)
 
-- **动态组件的转换待修复**: full semantics of Informatica dynamic components (e.g. Dynamic Lookup cache/update behavior, dynamic update-strategy flows) are not yet converted. Current generated code covers only partial aspects (e.g. `NewLookupRow` 0/1 indicators). This must be revisited at the converter level in a future round.
+- **动态组件的转换待修复**: full semantics of Informatica dynamic components (e.g. Dynamic Lookup cache/update behavior, dynamic update-strategy flows) are not yet converted. Current generated code covers only partial aspects (e.g. `NewLookupRow` 0/1 indicators). This must be revisited at the converter level in a future round
+  暂定方案:
+  先row_number() over(partition by join key) as rn，
+  再left join到lookup表: 
+    if rn>1 then newlookuprow=0，
+    else if 找到 then newlookuprow=2 --DD_UPDATE
+    else 没找到 then newlookuprow=1 --DD_INSERT
+  后续filter、mapplet、update_strategy不变
+  
 - **WF_NHS_TL 临时注释**: the generated `WF_NHS_TL/wf_nhs_tl.py` currently has the `WL_NHS_SOR_LOAD_FOR_UPD_END` worklet block commented out (temporary disable) while dynamic component conversion is pending; it should be restored once the converter handles the full dynamic semantics.
