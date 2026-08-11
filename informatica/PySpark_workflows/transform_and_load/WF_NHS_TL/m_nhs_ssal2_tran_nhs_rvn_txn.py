@@ -194,10 +194,25 @@ SELECT NHS_RVN_TXN.RVN_TXN_CNCL_TRML_ID FROM NHS_RVN_TXN"""
         # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_NULL_BKEY
         df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_NULL_BKEY = lib.dynamic_lookup(
-            spark,
-            _lkp_input,
-            df_MPLT_AGMT_NHS_RVN_CLCT_TRML_LKP_DYN_SOR_NHS_RVN_CLCT_TRML,
-            {'name': 'MPLT_AGMT_NHS_RVN_CLCT_TRML_LKP_DYN_SOR_NHS_RVN_CLCT_TRML', 'join_predicates': [{'source_col': 'OUT_NHS_RVN_CLCT_TRML_ID', 'lookup_col': 'NHS_RVN_CLCT_TRML_ID'}], 'output_columns': ['RVN_CLCT_TRML_KEY', 'NHS_RVN_CLCT_TRML_ID'], 'lookup_output_fields': [{'name': 'RVN_CLCT_TRML_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'NHS_RVN_CLCT_TRML_ID', 'ref_field': 'OUT_NHS_RVN_CLCT_TRML_ID', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow_LKP_DYN_SOR_NHS_RVN_CLCT_TRML', 'sequence_config': {'output_col': 'RVN_CLCT_TRML_KEY'}, 'insert_else_update': True, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_MPLT_AGMT_NHS_RVN_CLCT_TRML_LKP_DYN_SOR_NHS_RVN_CLCT_TRML,
+            name='MPLT_AGMT_NHS_RVN_CLCT_TRML_LKP_DYN_SOR_NHS_RVN_CLCT_TRML',
+            join_predicates=[{'source_col': 'OUT_NHS_RVN_CLCT_TRML_ID', 'lookup_col': 'NHS_RVN_CLCT_TRML_ID'}],
+            output_columns=['RVN_CLCT_TRML_KEY', 'NHS_RVN_CLCT_TRML_ID'],
+            lookup_output_fields=[
+                {'name': 'RVN_CLCT_TRML_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'NHS_RVN_CLCT_TRML_ID', 'ref_field': 'OUT_NHS_RVN_CLCT_TRML_ID', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow_LKP_DYN_SOR_NHS_RVN_CLCT_TRML',
+            sequence_config={'output_col': 'RVN_CLCT_TRML_KEY'},
+            insert_else_update=True,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
             config=config,
         )
         ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_NULL_BKEY", df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_NULL_BKEY)
@@ -234,10 +249,25 @@ SELECT NHS_RVN_TXN.RVN_TXN_CNCL_TRML_ID FROM NHS_RVN_TXN"""
         # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_DUMMY
         df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_DUMMY = lib.dynamic_lookup(
-            spark,
-            _lkp_input,
-            df_MPLT_AGMT_NHS_RVN_CLCT_TRML_LKP_DYN_SSA_NHS_RVN_CLCT_TRML,
-            {'name': 'MPLT_AGMT_NHS_RVN_CLCT_TRML_LKP_DYN_SSA_NHS_RVN_CLCT_TRML', 'join_predicates': [{'source_col': 'RVN_CLCT_TRML_KEY', 'lookup_col': 'SURROGATE_KEY'}], 'output_columns': ['SURROGATE_KEY', 'DUMMY'], 'lookup_output_fields': [{'name': 'SURROGATE_KEY', 'ref_field': 'RVN_CLCT_TRML_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'DUMMY', 'ref_field': 'DUMMY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow_LKP_DYN_SSA_NHS_RVN_CLCT_TRML', 'sequence_config': None, 'insert_else_update': False, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_MPLT_AGMT_NHS_RVN_CLCT_TRML_LKP_DYN_SSA_NHS_RVN_CLCT_TRML,
+            name='MPLT_AGMT_NHS_RVN_CLCT_TRML_LKP_DYN_SSA_NHS_RVN_CLCT_TRML',
+            join_predicates=[{'source_col': 'RVN_CLCT_TRML_KEY', 'lookup_col': 'SURROGATE_KEY'}],
+            output_columns=['SURROGATE_KEY', 'DUMMY'],
+            lookup_output_fields=[
+                {'name': 'SURROGATE_KEY', 'ref_field': 'RVN_CLCT_TRML_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'DUMMY', 'ref_field': 'DUMMY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow_LKP_DYN_SSA_NHS_RVN_CLCT_TRML',
+            sequence_config=None,
+            insert_else_update=False,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
             config=config,
         )
         ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_DUMMY", df_mplt_lkp_chain_MPLT_AGMT_NHS_RVN_CLCT_TRML_EXP_DUMMY)
@@ -294,10 +324,25 @@ SELECT NHS_RVN_TXN.RVN_TXN_CNCL_TRML_ID FROM NHS_RVN_TXN"""
         # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_MPLT_AGMT_NHS_EST_BANK_EXP_NULL_BKEY
         df_mplt_lkp_chain_MPLT_AGMT_NHS_EST_BANK_EXP_NULL_BKEY = lib.dynamic_lookup(
-            spark,
-            _lkp_input,
-            df_MPLT_AGMT_NHS_EST_BANK_LKP_DYN_SOR_NHS_EST_BANK,
-            {'name': 'MPLT_AGMT_NHS_EST_BANK_LKP_DYN_SOR_NHS_EST_BANK', 'join_predicates': [{'source_col': 'OUT_NHS_EST_BANK_TXN_NUM', 'lookup_col': 'NHS_EST_BANK_TXN_NUM'}], 'output_columns': ['EST_BANK_KEY', 'NHS_EST_BANK_TXN_NUM'], 'lookup_output_fields': [{'name': 'EST_BANK_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'NHS_EST_BANK_TXN_NUM', 'ref_field': 'OUT_NHS_EST_BANK_TXN_NUM', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow_LKP_DYN_SOR_NHS_EST_BANK', 'sequence_config': {'output_col': 'EST_BANK_KEY'}, 'insert_else_update': True, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_MPLT_AGMT_NHS_EST_BANK_LKP_DYN_SOR_NHS_EST_BANK,
+            name='MPLT_AGMT_NHS_EST_BANK_LKP_DYN_SOR_NHS_EST_BANK',
+            join_predicates=[{'source_col': 'OUT_NHS_EST_BANK_TXN_NUM', 'lookup_col': 'NHS_EST_BANK_TXN_NUM'}],
+            output_columns=['EST_BANK_KEY', 'NHS_EST_BANK_TXN_NUM'],
+            lookup_output_fields=[
+                {'name': 'EST_BANK_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'NHS_EST_BANK_TXN_NUM', 'ref_field': 'OUT_NHS_EST_BANK_TXN_NUM', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow_LKP_DYN_SOR_NHS_EST_BANK',
+            sequence_config={'output_col': 'EST_BANK_KEY'},
+            insert_else_update=True,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
             config=config,
         )
         ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_NHS_EST_BANK_EXP_NULL_BKEY", df_mplt_lkp_chain_MPLT_AGMT_NHS_EST_BANK_EXP_NULL_BKEY)
@@ -334,10 +379,25 @@ SELECT NHS_RVN_TXN.RVN_TXN_CNCL_TRML_ID FROM NHS_RVN_TXN"""
         # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_MPLT_AGMT_NHS_EST_BANK_EXP_DUMMY
         df_mplt_lkp_chain_MPLT_AGMT_NHS_EST_BANK_EXP_DUMMY = lib.dynamic_lookup(
-            spark,
-            _lkp_input,
-            df_MPLT_AGMT_NHS_EST_BANK_LKP_DYN_SSA_NHS_EST_BANK,
-            {'name': 'MPLT_AGMT_NHS_EST_BANK_LKP_DYN_SSA_NHS_EST_BANK', 'join_predicates': [{'source_col': 'EST_BANK_KEY', 'lookup_col': 'SURROGATE_KEY'}], 'output_columns': ['SURROGATE_KEY', 'DUMMY'], 'lookup_output_fields': [{'name': 'SURROGATE_KEY', 'ref_field': 'EST_BANK_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'DUMMY', 'ref_field': 'DUMMY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow_LKP_DYN_SSA_NHS_EST_BANK', 'sequence_config': None, 'insert_else_update': False, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_MPLT_AGMT_NHS_EST_BANK_LKP_DYN_SSA_NHS_EST_BANK,
+            name='MPLT_AGMT_NHS_EST_BANK_LKP_DYN_SSA_NHS_EST_BANK',
+            join_predicates=[{'source_col': 'EST_BANK_KEY', 'lookup_col': 'SURROGATE_KEY'}],
+            output_columns=['SURROGATE_KEY', 'DUMMY'],
+            lookup_output_fields=[
+                {'name': 'SURROGATE_KEY', 'ref_field': 'EST_BANK_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'DUMMY', 'ref_field': 'DUMMY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow_LKP_DYN_SSA_NHS_EST_BANK',
+            sequence_config=None,
+            insert_else_update=False,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
             config=config,
         )
         ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_NHS_EST_BANK_EXP_DUMMY", df_mplt_lkp_chain_MPLT_AGMT_NHS_EST_BANK_EXP_DUMMY)
@@ -394,10 +454,25 @@ SELECT NHS_RVN_TXN.RVN_TXN_CNCL_TRML_ID FROM NHS_RVN_TXN"""
         # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_MPLT_AGMT_NHS_HOS_APLY_EXP_NULL_BKEY
         df_mplt_lkp_chain_MPLT_AGMT_NHS_HOS_APLY_EXP_NULL_BKEY = lib.dynamic_lookup(
-            spark,
-            _lkp_input,
-            df_MPLT_AGMT_NHS_HOS_APLY_LKP_DYN_SOR_NHS_HOS_APLY,
-            {'name': 'MPLT_AGMT_NHS_HOS_APLY_LKP_DYN_SOR_NHS_HOS_APLY', 'join_predicates': [{'source_col': 'OUT_NHS_HOS_APLY_KEY', 'lookup_col': 'NHS_HOS_APLY_KEY'}], 'output_columns': ['HOS_APLY_KEY', 'NHS_HOS_APLY_KEY'], 'lookup_output_fields': [{'name': 'HOS_APLY_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'NHS_HOS_APLY_KEY', 'ref_field': 'OUT_NHS_HOS_APLY_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'decimal'}], 'new_lookup_row_col': 'NewLookupRow_LKP_DYN_SOR_NHS_HOS_APLY', 'sequence_config': {'output_col': 'HOS_APLY_KEY'}, 'insert_else_update': True, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_MPLT_AGMT_NHS_HOS_APLY_LKP_DYN_SOR_NHS_HOS_APLY,
+            name='MPLT_AGMT_NHS_HOS_APLY_LKP_DYN_SOR_NHS_HOS_APLY',
+            join_predicates=[{'source_col': 'OUT_NHS_HOS_APLY_KEY', 'lookup_col': 'NHS_HOS_APLY_KEY'}],
+            output_columns=['HOS_APLY_KEY', 'NHS_HOS_APLY_KEY'],
+            lookup_output_fields=[
+                {'name': 'HOS_APLY_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'NHS_HOS_APLY_KEY', 'ref_field': 'OUT_NHS_HOS_APLY_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'decimal'}
+            ],
+            new_lookup_row_col='NewLookupRow_LKP_DYN_SOR_NHS_HOS_APLY',
+            sequence_config={'output_col': 'HOS_APLY_KEY'},
+            insert_else_update=True,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
             config=config,
         )
         ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_NHS_HOS_APLY_EXP_NULL_BKEY", df_mplt_lkp_chain_MPLT_AGMT_NHS_HOS_APLY_EXP_NULL_BKEY)
@@ -434,10 +509,25 @@ SELECT NHS_RVN_TXN.RVN_TXN_CNCL_TRML_ID FROM NHS_RVN_TXN"""
         # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_MPLT_AGMT_NHS_HOS_APLY_EXP_DUMMY
         df_mplt_lkp_chain_MPLT_AGMT_NHS_HOS_APLY_EXP_DUMMY = lib.dynamic_lookup(
-            spark,
-            _lkp_input,
-            df_MPLT_AGMT_NHS_HOS_APLY_LKP_DYN_SSA_NHS_HOS_APLY,
-            {'name': 'MPLT_AGMT_NHS_HOS_APLY_LKP_DYN_SSA_NHS_HOS_APLY', 'join_predicates': [{'source_col': 'HOS_APLY_KEY', 'lookup_col': 'SURROGATE_KEY'}], 'output_columns': ['SURROGATE_KEY', 'DUMMY'], 'lookup_output_fields': [{'name': 'SURROGATE_KEY', 'ref_field': 'HOS_APLY_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'DUMMY', 'ref_field': 'DUMMY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow_LKP_DYN_SSA_NHS_HOS_APLY', 'sequence_config': None, 'insert_else_update': False, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_MPLT_AGMT_NHS_HOS_APLY_LKP_DYN_SSA_NHS_HOS_APLY,
+            name='MPLT_AGMT_NHS_HOS_APLY_LKP_DYN_SSA_NHS_HOS_APLY',
+            join_predicates=[{'source_col': 'HOS_APLY_KEY', 'lookup_col': 'SURROGATE_KEY'}],
+            output_columns=['SURROGATE_KEY', 'DUMMY'],
+            lookup_output_fields=[
+                {'name': 'SURROGATE_KEY', 'ref_field': 'HOS_APLY_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'DUMMY', 'ref_field': 'DUMMY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow_LKP_DYN_SSA_NHS_HOS_APLY',
+            sequence_config=None,
+            insert_else_update=False,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
             config=config,
         )
         ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_NHS_HOS_APLY_EXP_DUMMY", df_mplt_lkp_chain_MPLT_AGMT_NHS_HOS_APLY_EXP_DUMMY)
@@ -494,10 +584,25 @@ SELECT NHS_RVN_TXN.RVN_TXN_CNCL_TRML_ID FROM NHS_RVN_TXN"""
         # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_MPLT_AGMT_NHS_HOS_OWN_EXP_NULL_BKEY
         df_mplt_lkp_chain_MPLT_AGMT_NHS_HOS_OWN_EXP_NULL_BKEY = lib.dynamic_lookup(
-            spark,
-            _lkp_input,
-            df_MPLT_AGMT_NHS_HOS_OWN_LKP_DYN_SOR_NHS_HOS_OWN,
-            {'name': 'MPLT_AGMT_NHS_HOS_OWN_LKP_DYN_SOR_NHS_HOS_OWN', 'join_predicates': [{'source_col': 'OUT_NHS_HOS_OWN_KEY', 'lookup_col': 'NHS_HOS_OWN_KEY'}], 'output_columns': ['HOS_OWN_KEY', 'NHS_HOS_OWN_KEY'], 'lookup_output_fields': [{'name': 'HOS_OWN_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'NHS_HOS_OWN_KEY', 'ref_field': 'OUT_NHS_HOS_OWN_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'decimal'}], 'new_lookup_row_col': 'NewLookupRow_LKP_DYN_SOR_NHS_HOS_OWN', 'sequence_config': {'output_col': 'HOS_OWN_KEY'}, 'insert_else_update': True, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_MPLT_AGMT_NHS_HOS_OWN_LKP_DYN_SOR_NHS_HOS_OWN,
+            name='MPLT_AGMT_NHS_HOS_OWN_LKP_DYN_SOR_NHS_HOS_OWN',
+            join_predicates=[{'source_col': 'OUT_NHS_HOS_OWN_KEY', 'lookup_col': 'NHS_HOS_OWN_KEY'}],
+            output_columns=['HOS_OWN_KEY', 'NHS_HOS_OWN_KEY'],
+            lookup_output_fields=[
+                {'name': 'HOS_OWN_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'NHS_HOS_OWN_KEY', 'ref_field': 'OUT_NHS_HOS_OWN_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'decimal'}
+            ],
+            new_lookup_row_col='NewLookupRow_LKP_DYN_SOR_NHS_HOS_OWN',
+            sequence_config={'output_col': 'HOS_OWN_KEY'},
+            insert_else_update=True,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
             config=config,
         )
         ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_NHS_HOS_OWN_EXP_NULL_BKEY", df_mplt_lkp_chain_MPLT_AGMT_NHS_HOS_OWN_EXP_NULL_BKEY)
@@ -534,10 +639,25 @@ SELECT NHS_RVN_TXN.RVN_TXN_CNCL_TRML_ID FROM NHS_RVN_TXN"""
         # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_MPLT_AGMT_NHS_HOS_OWN_EXP_DUMMY
         df_mplt_lkp_chain_MPLT_AGMT_NHS_HOS_OWN_EXP_DUMMY = lib.dynamic_lookup(
-            spark,
-            _lkp_input,
-            df_MPLT_AGMT_NHS_HOS_OWN_LKP_DYN_SSA_NHS_HOS_OWN,
-            {'name': 'MPLT_AGMT_NHS_HOS_OWN_LKP_DYN_SSA_NHS_HOS_OWN', 'join_predicates': [{'source_col': 'HOS_OWN_KEY', 'lookup_col': 'SURROGATE_KEY'}], 'output_columns': ['SURROGATE_KEY', 'DUMMY'], 'lookup_output_fields': [{'name': 'SURROGATE_KEY', 'ref_field': 'HOS_OWN_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'DUMMY', 'ref_field': 'DUMMY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow_LKP_DYN_SSA_NHS_HOS_OWN', 'sequence_config': None, 'insert_else_update': False, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_MPLT_AGMT_NHS_HOS_OWN_LKP_DYN_SSA_NHS_HOS_OWN,
+            name='MPLT_AGMT_NHS_HOS_OWN_LKP_DYN_SSA_NHS_HOS_OWN',
+            join_predicates=[{'source_col': 'HOS_OWN_KEY', 'lookup_col': 'SURROGATE_KEY'}],
+            output_columns=['SURROGATE_KEY', 'DUMMY'],
+            lookup_output_fields=[
+                {'name': 'SURROGATE_KEY', 'ref_field': 'HOS_OWN_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'DUMMY', 'ref_field': 'DUMMY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow_LKP_DYN_SSA_NHS_HOS_OWN',
+            sequence_config=None,
+            insert_else_update=False,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
             config=config,
         )
         ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_NHS_HOS_OWN_EXP_DUMMY", df_mplt_lkp_chain_MPLT_AGMT_NHS_HOS_OWN_EXP_DUMMY)
@@ -633,10 +753,25 @@ SELECT NHS_RVN_TXN.RVN_TXN_CNCL_TRML_ID FROM NHS_RVN_TXN"""
         _lkp_input = df_lkp_merge_EXP_BK
         _lkp_input = _lkp_input.withColumn("IN_NHS_RVN_TXN_NUM", col("RVN_TXN_NUM"))
         df_lkp_merge_EXP_BK = lib.dynamic_lookup(
-            spark,
-            _lkp_input,
-            df_DLKP_SOR_MSTR,
-            {'name': 'DLKP_SOR_MSTR', 'join_predicates': [{'source_col': 'IN_NHS_RVN_TXN_NUM', 'lookup_col': 'NHS_RVN_TXN_NUM'}], 'output_columns': ['RVN_TXN_KEY', 'NHS_RVN_TXN_NUM'], 'lookup_output_fields': [{'name': 'RVN_TXN_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'NHS_RVN_TXN_NUM', 'ref_field': 'RVN_TXN_NUM', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow', 'sequence_config': {'output_col': 'RVN_TXN_KEY'}, 'insert_else_update': True, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_DLKP_SOR_MSTR,
+            name='DLKP_SOR_MSTR',
+            join_predicates=[{'source_col': 'IN_NHS_RVN_TXN_NUM', 'lookup_col': 'NHS_RVN_TXN_NUM'}],
+            output_columns=['RVN_TXN_KEY', 'NHS_RVN_TXN_NUM'],
+            lookup_output_fields=[
+                {'name': 'RVN_TXN_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'NHS_RVN_TXN_NUM', 'ref_field': 'RVN_TXN_NUM', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config={'output_col': 'RVN_TXN_KEY'},
+            insert_else_update=True,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
             config=config,
         )
         ctx.register_df("df_lkp_merge_EXP_BK", df_lkp_merge_EXP_BK)
@@ -776,10 +911,45 @@ where SOR_NHS_RVN_TXN_STS.RVN_TXN_KEY = ss.RVN_TXN_KEY and SOR_NHS_RVN_TXN_STS.b
         _lkp_input = _lkp_input.withColumn("IN_RVN_TXN_CNCL_TRML_KEY", col("RVN_CLCT_TRML_KEY"))
         _lkp_input = _lkp_input.withColumn("IN_EST_BANK_KEY", col("EST_BANK_KEY"))
         df_lkp_merge_EXP_BK = lib.dynamic_lookup(
-            spark,
-            _lkp_input,
-            df_DLKP_SOR_STS,
-            {'name': 'DLKP_SOR_STS', 'join_predicates': [{'source_col': 'IN_RVN_TXN_KEY', 'lookup_col': 'RVN_TXN_KEY'}], 'output_columns': ['RVN_TXN_KEY', 'BGN_DATE', 'END_DATE', 'RVN_TXN_DATE', 'RVN_TXN_MODE_CODE', 'RVN_TXN_INPT_USER_ID', 'RVN_TXN_STS_CODE', 'RVN_TXN_INPT_DATE', 'RVN_TXN_RCPT_NUM', 'DPST_RCPT_TYPE_CODE', 'RVN_TXN_INPT_BSNS_DATE', 'HOS_APLY_KEY', 'HOS_OWN_KEY', 'RVN_CLCT_TRML_KEY', 'RVN_TXN_CNCL_BSNS_DATE', 'RVN_TXN_CNCL_USER_ID', 'RVN_TXN_CNCL_TRML_KEY', 'EST_BANK_KEY', 'TXN_CNCL_RMK_TEXT', 'ROW_VER_NUM', 'PHASE_ASP_ID', 'CRT_TYPE_CODE'], 'lookup_output_fields': [{'name': 'RVN_TXN_KEY', 'ref_field': 'RVN_TXN_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'BGN_DATE', 'ref_field': 'DUMMY_DATE', 'ignore_in_compare': True, 'ignore_null_inputs': True, 'datatype': 'date/time'}, {'name': 'END_DATE', 'ref_field': 'DUMMY_DATE', 'ignore_in_compare': True, 'ignore_null_inputs': True, 'datatype': 'date/time'}, {'name': 'RVN_TXN_DATE', 'ref_field': 'RVN_TXN_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'}, {'name': 'RVN_TXN_MODE_CODE', 'ref_field': 'RVN_TXN_MODE_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'RVN_TXN_INPT_USER_ID', 'ref_field': 'RVN_TXN_INPT_USER_ID', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'RVN_TXN_STS_CODE', 'ref_field': 'RVN_TXN_STS_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'RVN_TXN_INPT_DATE', 'ref_field': 'RVN_TXN_INPT_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'}, {'name': 'RVN_TXN_RCPT_NUM', 'ref_field': 'RVN_TXN_RCPT_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'DPST_RCPT_TYPE_CODE', 'ref_field': 'DPST_RCPT_TYPE_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'RVN_TXN_INPT_BSNS_DATE', 'ref_field': 'RVN_TXN_INPT_BSNS_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'}, {'name': 'HOS_APLY_KEY', 'ref_field': 'HOS_APLY_KEY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'}, {'name': 'HOS_OWN_KEY', 'ref_field': 'HOS_OWN_KEY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'}, {'name': 'RVN_CLCT_TRML_KEY', 'ref_field': 'RVN_CLCT_TRML_KEY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'}, {'name': 'RVN_TXN_CNCL_BSNS_DATE', 'ref_field': 'RVN_TXN_CNCL_BSNS_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'}, {'name': 'RVN_TXN_CNCL_USER_ID', 'ref_field': 'RVN_TXN_CNCL_USER_ID', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'RVN_TXN_CNCL_TRML_KEY', 'ref_field': 'RVN_CLCT_TRML_KEY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'}, {'name': 'EST_BANK_KEY', 'ref_field': 'EST_BANK_KEY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'}, {'name': 'TXN_CNCL_RMK_TEXT', 'ref_field': 'TXN_CNCL_RMK_TEXT', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'ROW_VER_NUM', 'ref_field': 'ROW_VER_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'}, {'name': 'PHASE_ASP_ID', 'ref_field': 'PHASE_ASP_ID', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'}, {'name': 'CRT_TYPE_CODE', 'ref_field': 'CRT_TYPE_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow', 'sequence_config': None, 'insert_else_update': True, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_DLKP_SOR_STS,
+            name='DLKP_SOR_STS',
+            join_predicates=[{'source_col': 'IN_RVN_TXN_KEY', 'lookup_col': 'RVN_TXN_KEY'}],
+            output_columns=['RVN_TXN_KEY', 'BGN_DATE', 'END_DATE', 'RVN_TXN_DATE', 'RVN_TXN_MODE_CODE', 'RVN_TXN_INPT_USER_ID', 'RVN_TXN_STS_CODE', 'RVN_TXN_INPT_DATE', 'RVN_TXN_RCPT_NUM', 'DPST_RCPT_TYPE_CODE', 'RVN_TXN_INPT_BSNS_DATE', 'HOS_APLY_KEY', 'HOS_OWN_KEY', 'RVN_CLCT_TRML_KEY', 'RVN_TXN_CNCL_BSNS_DATE', 'RVN_TXN_CNCL_USER_ID', 'RVN_TXN_CNCL_TRML_KEY', 'EST_BANK_KEY', 'TXN_CNCL_RMK_TEXT', 'ROW_VER_NUM', 'PHASE_ASP_ID', 'CRT_TYPE_CODE'],
+            lookup_output_fields=[
+                {'name': 'RVN_TXN_KEY', 'ref_field': 'RVN_TXN_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'BGN_DATE', 'ref_field': 'DUMMY_DATE', 'ignore_in_compare': True, 'ignore_null_inputs': True, 'datatype': 'date/time'},
+                {'name': 'END_DATE', 'ref_field': 'DUMMY_DATE', 'ignore_in_compare': True, 'ignore_null_inputs': True, 'datatype': 'date/time'},
+                {'name': 'RVN_TXN_DATE', 'ref_field': 'RVN_TXN_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'},
+                {'name': 'RVN_TXN_MODE_CODE', 'ref_field': 'RVN_TXN_MODE_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'RVN_TXN_INPT_USER_ID', 'ref_field': 'RVN_TXN_INPT_USER_ID', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'RVN_TXN_STS_CODE', 'ref_field': 'RVN_TXN_STS_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'RVN_TXN_INPT_DATE', 'ref_field': 'RVN_TXN_INPT_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'},
+                {'name': 'RVN_TXN_RCPT_NUM', 'ref_field': 'RVN_TXN_RCPT_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'DPST_RCPT_TYPE_CODE', 'ref_field': 'DPST_RCPT_TYPE_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'RVN_TXN_INPT_BSNS_DATE', 'ref_field': 'RVN_TXN_INPT_BSNS_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'},
+                {'name': 'HOS_APLY_KEY', 'ref_field': 'HOS_APLY_KEY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'HOS_OWN_KEY', 'ref_field': 'HOS_OWN_KEY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'RVN_CLCT_TRML_KEY', 'ref_field': 'RVN_CLCT_TRML_KEY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'RVN_TXN_CNCL_BSNS_DATE', 'ref_field': 'RVN_TXN_CNCL_BSNS_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'},
+                {'name': 'RVN_TXN_CNCL_USER_ID', 'ref_field': 'RVN_TXN_CNCL_USER_ID', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'RVN_TXN_CNCL_TRML_KEY', 'ref_field': 'RVN_CLCT_TRML_KEY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'EST_BANK_KEY', 'ref_field': 'EST_BANK_KEY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'TXN_CNCL_RMK_TEXT', 'ref_field': 'TXN_CNCL_RMK_TEXT', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'ROW_VER_NUM', 'ref_field': 'ROW_VER_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'PHASE_ASP_ID', 'ref_field': 'PHASE_ASP_ID', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'CRT_TYPE_CODE', 'ref_field': 'CRT_TYPE_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config=None,
+            insert_else_update=True,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
             config=config,
         )
         ctx.register_df("df_lkp_merge_EXP_BK", df_lkp_merge_EXP_BK)
@@ -948,10 +1118,25 @@ where SOR_NHS_RVN_TXN_STS.RVN_TXN_KEY = ss.RVN_TXN_KEY and SOR_NHS_RVN_TXN_STS.b
         _lkp_input = _lkp_input.withColumn("IN_SURROGATE_KEY", col("RVN_TXN_KEY"))
         _lkp_input = _lkp_input.withColumn("IN_DUMMY", col("v_NULL"))
         df_lkp_merge_FILTRANS_MSTR = lib.dynamic_lookup(
-            spark,
-            _lkp_input,
-            df_DLKP_SSA_MSTR,
-            {'name': 'DLKP_SSA_MSTR', 'join_predicates': [{'source_col': 'IN_SURROGATE_KEY', 'lookup_col': 'SURROGATE_KEY'}], 'output_columns': ['SURROGATE_KEY', 'DUMMY'], 'lookup_output_fields': [{'name': 'SURROGATE_KEY', 'ref_field': 'RVN_TXN_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'DUMMY', 'ref_field': 'v_NULL', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow', 'sequence_config': None, 'insert_else_update': False, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_DLKP_SSA_MSTR,
+            name='DLKP_SSA_MSTR',
+            join_predicates=[{'source_col': 'IN_SURROGATE_KEY', 'lookup_col': 'SURROGATE_KEY'}],
+            output_columns=['SURROGATE_KEY', 'DUMMY'],
+            lookup_output_fields=[
+                {'name': 'SURROGATE_KEY', 'ref_field': 'RVN_TXN_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'DUMMY', 'ref_field': 'v_NULL', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config=None,
+            insert_else_update=False,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
             config=config,
         )
         ctx.register_df("df_lkp_merge_FILTRANS_MSTR", df_lkp_merge_FILTRANS_MSTR)
@@ -973,10 +1158,25 @@ where SOR_NHS_RVN_TXN_STS.RVN_TXN_KEY = ss.RVN_TXN_KEY and SOR_NHS_RVN_TXN_STS.b
         _lkp_input = _lkp_input.withColumn("IN_SURROGATE_KEY", col("RVN_TXN_KEY"))
         _lkp_input = _lkp_input.withColumn("IN_DUMMY", col("v_NULL"))
         df_lkp_merge_FILTRANS_STS = lib.dynamic_lookup(
-            spark,
-            _lkp_input,
-            df_DLKP_SSA_STS,
-            {'name': 'DLKP_SSA_STS', 'join_predicates': [{'source_col': 'IN_SURROGATE_KEY', 'lookup_col': 'SURROGATE_KEY'}], 'output_columns': ['SURROGATE_KEY', 'DUMMY'], 'lookup_output_fields': [{'name': 'SURROGATE_KEY', 'ref_field': 'RVN_TXN_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'DUMMY', 'ref_field': 'v_NULL', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow', 'sequence_config': None, 'insert_else_update': False, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_DLKP_SSA_STS,
+            name='DLKP_SSA_STS',
+            join_predicates=[{'source_col': 'IN_SURROGATE_KEY', 'lookup_col': 'SURROGATE_KEY'}],
+            output_columns=['SURROGATE_KEY', 'DUMMY'],
+            lookup_output_fields=[
+                {'name': 'SURROGATE_KEY', 'ref_field': 'RVN_TXN_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'DUMMY', 'ref_field': 'v_NULL', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config=None,
+            insert_else_update=False,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
             config=config,
         )
         ctx.register_df("df_lkp_merge_FILTRANS_STS", df_lkp_merge_FILTRANS_STS)

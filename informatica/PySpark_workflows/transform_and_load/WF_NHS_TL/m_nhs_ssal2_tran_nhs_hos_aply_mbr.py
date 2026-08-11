@@ -241,10 +241,25 @@ FROM
         # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_MPLT_AGMT_NHS_HOS_APLY_EXP_NULL_BKEY
         df_mplt_lkp_chain_MPLT_AGMT_NHS_HOS_APLY_EXP_NULL_BKEY = lib.dynamic_lookup(
-            spark,
-            _lkp_input,
-            df_MPLT_AGMT_NHS_HOS_APLY_LKP_DYN_SOR_NHS_HOS_APLY,
-            {'name': 'MPLT_AGMT_NHS_HOS_APLY_LKP_DYN_SOR_NHS_HOS_APLY', 'join_predicates': [{'source_col': 'OUT_NHS_HOS_APLY_KEY', 'lookup_col': 'NHS_HOS_APLY_KEY'}], 'output_columns': ['HOS_APLY_KEY', 'NHS_HOS_APLY_KEY'], 'lookup_output_fields': [{'name': 'HOS_APLY_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'NHS_HOS_APLY_KEY', 'ref_field': 'OUT_NHS_HOS_APLY_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'decimal'}], 'new_lookup_row_col': 'NewLookupRow_LKP_DYN_SOR_NHS_HOS_APLY', 'sequence_config': {'output_col': 'HOS_APLY_KEY'}, 'insert_else_update': True, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_MPLT_AGMT_NHS_HOS_APLY_LKP_DYN_SOR_NHS_HOS_APLY,
+            name='MPLT_AGMT_NHS_HOS_APLY_LKP_DYN_SOR_NHS_HOS_APLY',
+            join_predicates=[{'source_col': 'OUT_NHS_HOS_APLY_KEY', 'lookup_col': 'NHS_HOS_APLY_KEY'}],
+            output_columns=['HOS_APLY_KEY', 'NHS_HOS_APLY_KEY'],
+            lookup_output_fields=[
+                {'name': 'HOS_APLY_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'NHS_HOS_APLY_KEY', 'ref_field': 'OUT_NHS_HOS_APLY_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'decimal'}
+            ],
+            new_lookup_row_col='NewLookupRow_LKP_DYN_SOR_NHS_HOS_APLY',
+            sequence_config={'output_col': 'HOS_APLY_KEY'},
+            insert_else_update=True,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
             config=config,
         )
         ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_NHS_HOS_APLY_EXP_NULL_BKEY", df_mplt_lkp_chain_MPLT_AGMT_NHS_HOS_APLY_EXP_NULL_BKEY)
@@ -281,10 +296,25 @@ FROM
         # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_MPLT_AGMT_NHS_HOS_APLY_EXP_DUMMY
         df_mplt_lkp_chain_MPLT_AGMT_NHS_HOS_APLY_EXP_DUMMY = lib.dynamic_lookup(
-            spark,
-            _lkp_input,
-            df_MPLT_AGMT_NHS_HOS_APLY_LKP_DYN_SSA_NHS_HOS_APLY,
-            {'name': 'MPLT_AGMT_NHS_HOS_APLY_LKP_DYN_SSA_NHS_HOS_APLY', 'join_predicates': [{'source_col': 'HOS_APLY_KEY', 'lookup_col': 'SURROGATE_KEY'}], 'output_columns': ['SURROGATE_KEY', 'DUMMY'], 'lookup_output_fields': [{'name': 'SURROGATE_KEY', 'ref_field': 'HOS_APLY_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'DUMMY', 'ref_field': 'DUMMY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow_LKP_DYN_SSA_NHS_HOS_APLY', 'sequence_config': None, 'insert_else_update': False, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_MPLT_AGMT_NHS_HOS_APLY_LKP_DYN_SSA_NHS_HOS_APLY,
+            name='MPLT_AGMT_NHS_HOS_APLY_LKP_DYN_SSA_NHS_HOS_APLY',
+            join_predicates=[{'source_col': 'HOS_APLY_KEY', 'lookup_col': 'SURROGATE_KEY'}],
+            output_columns=['SURROGATE_KEY', 'DUMMY'],
+            lookup_output_fields=[
+                {'name': 'SURROGATE_KEY', 'ref_field': 'HOS_APLY_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'DUMMY', 'ref_field': 'DUMMY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow_LKP_DYN_SSA_NHS_HOS_APLY',
+            sequence_config=None,
+            insert_else_update=False,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
             config=config,
         )
         ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_NHS_HOS_APLY_EXP_DUMMY", df_mplt_lkp_chain_MPLT_AGMT_NHS_HOS_APLY_EXP_DUMMY)
@@ -353,10 +383,26 @@ FROM
         _lkp_input = _lkp_input.withColumn("IN_NHS_APLY_MBR_SEQ_NUM", col("APLY_MBR_SEQ_NUM"))
         _lkp_input = _lkp_input.withColumn("IN_HOS_APLY_KEY", col("HOS_APLY_KEY"))
         df_lkp_merge_EXP_BK = lib.dynamic_lookup(
-            spark,
-            _lkp_input,
-            df_DLKP_SOR_MSTR,
-            {'name': 'DLKP_SOR_MSTR', 'join_predicates': [{'source_col': 'IN_HOS_APLY_KEY', 'lookup_col': 'HOS_APLY_KEY'}, {'source_col': 'IN_NHS_APLY_MBR_SEQ_NUM', 'lookup_col': 'NHS_APLY_MBR_SEQ_NUM'}], 'output_columns': ['HOS_APLY_MBR_KEY', 'HOS_APLY_KEY', 'NHS_APLY_MBR_SEQ_NUM'], 'lookup_output_fields': [{'name': 'HOS_APLY_MBR_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'HOS_APLY_KEY', 'ref_field': 'HOS_APLY_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'decimal'}, {'name': 'NHS_APLY_MBR_SEQ_NUM', 'ref_field': 'APLY_MBR_SEQ_NUM', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'decimal'}], 'new_lookup_row_col': 'NewLookupRow', 'sequence_config': {'output_col': 'HOS_APLY_MBR_KEY'}, 'insert_else_update': True, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_DLKP_SOR_MSTR,
+            name='DLKP_SOR_MSTR',
+            join_predicates=[{'source_col': 'IN_HOS_APLY_KEY', 'lookup_col': 'HOS_APLY_KEY'}, {'source_col': 'IN_NHS_APLY_MBR_SEQ_NUM', 'lookup_col': 'NHS_APLY_MBR_SEQ_NUM'}],
+            output_columns=['HOS_APLY_MBR_KEY', 'HOS_APLY_KEY', 'NHS_APLY_MBR_SEQ_NUM'],
+            lookup_output_fields=[
+                {'name': 'HOS_APLY_MBR_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'HOS_APLY_KEY', 'ref_field': 'HOS_APLY_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'NHS_APLY_MBR_SEQ_NUM', 'ref_field': 'APLY_MBR_SEQ_NUM', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'decimal'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config={'output_col': 'HOS_APLY_MBR_KEY'},
+            insert_else_update=True,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
             config=config,
         )
         ctx.register_df("df_lkp_merge_EXP_BK", df_lkp_merge_EXP_BK)
@@ -411,10 +457,45 @@ where SOR_NHS_HOS_APLY_MBR_STS.HOS_APLY_MBR_KEY = ss.HOS_APLY_MBR_KEY and SOR_NH
         _lkp_input = _lkp_input.withColumn("IN_EFAS_DBL_BNFT_IND", col("EFAS_DBL_BNFT_IND"))
         _lkp_input = _lkp_input.withColumn("IN_HOS_APLY_MBR_KEY", col("HOS_APLY_MBR_KEY"))
         df_lkp_merge_EXP_BK = lib.dynamic_lookup(
-            spark,
-            _lkp_input,
-            df_DLKP_SOR_STS,
-            {'name': 'DLKP_SOR_STS', 'join_predicates': [{'source_col': 'IN_HOS_APLY_MBR_KEY', 'lookup_col': 'HOS_APLY_MBR_KEY'}], 'output_columns': ['HOS_APLY_MBR_KEY', 'BGN_DATE', 'END_DATE', 'FORM_COLR_CODE', 'HOS_APLY_NUM', 'APLY_MBR_ID_TYPE_CODE', 'APLY_MBR_ID_NUM', 'APLY_MBR_ID_CERT_NUM', 'APLY_MBR_ENG_SRNM_NAME', 'APLY_MBR_ENG_GIVE_NAME', 'APLY_MBR_CHI_NAME', 'APLY_MBR_GNDR_CODE', 'APLY_MBR_DOB_TEXT', 'APLY_MBR_RLTN_CODE', 'APLY_MBR_RLTN_DESP', 'APLY_MBR_MRTL_STS_CODE', 'SPS_LAND_HK_RGHT_IND', 'PRGNT_OVER_16_WEEK_IND', 'MBR_OWNR_CODE', 'APLY_MBR_HKIC_PRMNT_IND', 'ROW_VER_NUM', 'EFAS_DBL_BNFT_IND'], 'lookup_output_fields': [{'name': 'HOS_APLY_MBR_KEY', 'ref_field': 'HOS_APLY_MBR_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'BGN_DATE', 'ref_field': 'DUMMY_DATE', 'ignore_in_compare': True, 'ignore_null_inputs': True, 'datatype': 'date/time'}, {'name': 'END_DATE', 'ref_field': 'DUMMY_DATE', 'ignore_in_compare': True, 'ignore_null_inputs': True, 'datatype': 'date/time'}, {'name': 'FORM_COLR_CODE', 'ref_field': 'FORM_COLR_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'HOS_APLY_NUM', 'ref_field': 'HOS_APLY_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_MBR_ID_TYPE_CODE', 'ref_field': 'APLY_MBR_ID_TYPE_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_MBR_ID_NUM', 'ref_field': 'APLY_MBR_ID_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_MBR_ID_CERT_NUM', 'ref_field': 'APLY_MBR_ID_CERT_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_MBR_ENG_SRNM_NAME', 'ref_field': 'APLY_MBR_ENG_SRNM_NAME', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_MBR_ENG_GIVE_NAME', 'ref_field': 'APLY_MBR_ENG_GIVE_NAME', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_MBR_CHI_NAME', 'ref_field': 'APLY_MBR_CHI_NAME', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_MBR_GNDR_CODE', 'ref_field': 'APLY_MBR_GNDR_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_MBR_DOB_TEXT', 'ref_field': 'APLY_MBR_DOB_TEXT', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_MBR_RLTN_CODE', 'ref_field': 'APLY_MBR_RLTN_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_MBR_RLTN_DESP', 'ref_field': 'APLY_MBR_RLTN_DESP', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_MBR_MRTL_STS_CODE', 'ref_field': 'APLY_MBR_MRTL_STS_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'SPS_LAND_HK_RGHT_IND', 'ref_field': 'SPS_LAND_HK_RGHT_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'PRGNT_OVER_16_WEEK_IND', 'ref_field': 'PRGNT_OVER_16_WEEK_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'MBR_OWNR_CODE', 'ref_field': 'MBR_OWNR_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'APLY_MBR_HKIC_PRMNT_IND', 'ref_field': 'APLY_MBR_HKIC_PRMNT_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'ROW_VER_NUM', 'ref_field': 'ROW_VER_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'}, {'name': 'EFAS_DBL_BNFT_IND', 'ref_field': 'EFAS_DBL_BNFT_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow', 'sequence_config': None, 'insert_else_update': True, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_DLKP_SOR_STS,
+            name='DLKP_SOR_STS',
+            join_predicates=[{'source_col': 'IN_HOS_APLY_MBR_KEY', 'lookup_col': 'HOS_APLY_MBR_KEY'}],
+            output_columns=['HOS_APLY_MBR_KEY', 'BGN_DATE', 'END_DATE', 'FORM_COLR_CODE', 'HOS_APLY_NUM', 'APLY_MBR_ID_TYPE_CODE', 'APLY_MBR_ID_NUM', 'APLY_MBR_ID_CERT_NUM', 'APLY_MBR_ENG_SRNM_NAME', 'APLY_MBR_ENG_GIVE_NAME', 'APLY_MBR_CHI_NAME', 'APLY_MBR_GNDR_CODE', 'APLY_MBR_DOB_TEXT', 'APLY_MBR_RLTN_CODE', 'APLY_MBR_RLTN_DESP', 'APLY_MBR_MRTL_STS_CODE', 'SPS_LAND_HK_RGHT_IND', 'PRGNT_OVER_16_WEEK_IND', 'MBR_OWNR_CODE', 'APLY_MBR_HKIC_PRMNT_IND', 'ROW_VER_NUM', 'EFAS_DBL_BNFT_IND'],
+            lookup_output_fields=[
+                {'name': 'HOS_APLY_MBR_KEY', 'ref_field': 'HOS_APLY_MBR_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'BGN_DATE', 'ref_field': 'DUMMY_DATE', 'ignore_in_compare': True, 'ignore_null_inputs': True, 'datatype': 'date/time'},
+                {'name': 'END_DATE', 'ref_field': 'DUMMY_DATE', 'ignore_in_compare': True, 'ignore_null_inputs': True, 'datatype': 'date/time'},
+                {'name': 'FORM_COLR_CODE', 'ref_field': 'FORM_COLR_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'HOS_APLY_NUM', 'ref_field': 'HOS_APLY_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'APLY_MBR_ID_TYPE_CODE', 'ref_field': 'APLY_MBR_ID_TYPE_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'APLY_MBR_ID_NUM', 'ref_field': 'APLY_MBR_ID_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'APLY_MBR_ID_CERT_NUM', 'ref_field': 'APLY_MBR_ID_CERT_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'APLY_MBR_ENG_SRNM_NAME', 'ref_field': 'APLY_MBR_ENG_SRNM_NAME', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'APLY_MBR_ENG_GIVE_NAME', 'ref_field': 'APLY_MBR_ENG_GIVE_NAME', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'APLY_MBR_CHI_NAME', 'ref_field': 'APLY_MBR_CHI_NAME', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'APLY_MBR_GNDR_CODE', 'ref_field': 'APLY_MBR_GNDR_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'APLY_MBR_DOB_TEXT', 'ref_field': 'APLY_MBR_DOB_TEXT', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'APLY_MBR_RLTN_CODE', 'ref_field': 'APLY_MBR_RLTN_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'APLY_MBR_RLTN_DESP', 'ref_field': 'APLY_MBR_RLTN_DESP', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'APLY_MBR_MRTL_STS_CODE', 'ref_field': 'APLY_MBR_MRTL_STS_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'SPS_LAND_HK_RGHT_IND', 'ref_field': 'SPS_LAND_HK_RGHT_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'PRGNT_OVER_16_WEEK_IND', 'ref_field': 'PRGNT_OVER_16_WEEK_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'MBR_OWNR_CODE', 'ref_field': 'MBR_OWNR_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'APLY_MBR_HKIC_PRMNT_IND', 'ref_field': 'APLY_MBR_HKIC_PRMNT_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'ROW_VER_NUM', 'ref_field': 'ROW_VER_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'EFAS_DBL_BNFT_IND', 'ref_field': 'EFAS_DBL_BNFT_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config=None,
+            insert_else_update=True,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
             config=config,
         )
         ctx.register_df("df_lkp_merge_EXP_BK", df_lkp_merge_EXP_BK)
@@ -486,10 +567,25 @@ where SOR_NHS_HOS_APLY_MBR_STS.HOS_APLY_MBR_KEY = ss.HOS_APLY_MBR_KEY and SOR_NH
         _lkp_input = _lkp_input.withColumn("IN_SURROGATE_KEY", col("HOS_APLY_MBR_KEY"))
         _lkp_input = _lkp_input.withColumn("IN_DUMMY", col("v_NULL"))
         df_lkp_merge_FILTRANS_MSTR = lib.dynamic_lookup(
-            spark,
-            _lkp_input,
-            df_DLKP_SSA_MSTR,
-            {'name': 'DLKP_SSA_MSTR', 'join_predicates': [{'source_col': 'IN_SURROGATE_KEY', 'lookup_col': 'SURROGATE_KEY'}], 'output_columns': ['SURROGATE_KEY', 'DUMMY'], 'lookup_output_fields': [{'name': 'SURROGATE_KEY', 'ref_field': 'HOS_APLY_MBR_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'DUMMY', 'ref_field': 'v_NULL', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow', 'sequence_config': None, 'insert_else_update': False, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_DLKP_SSA_MSTR,
+            name='DLKP_SSA_MSTR',
+            join_predicates=[{'source_col': 'IN_SURROGATE_KEY', 'lookup_col': 'SURROGATE_KEY'}],
+            output_columns=['SURROGATE_KEY', 'DUMMY'],
+            lookup_output_fields=[
+                {'name': 'SURROGATE_KEY', 'ref_field': 'HOS_APLY_MBR_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'DUMMY', 'ref_field': 'v_NULL', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config=None,
+            insert_else_update=False,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
             config=config,
         )
         ctx.register_df("df_lkp_merge_FILTRANS_MSTR", df_lkp_merge_FILTRANS_MSTR)
@@ -656,10 +752,25 @@ where SOR_NHS_HOS_APLY_MBR_STS.HOS_APLY_MBR_KEY = ss.HOS_APLY_MBR_KEY and SOR_NH
         _lkp_input = _lkp_input.withColumn("IN_SURROGATE_KEY", col("HOS_APLY_MBR_KEY"))
         _lkp_input = _lkp_input.withColumn("IN_DUMMY", col("v_NULL"))
         df_lkp_merge_FILTRANS_STS = lib.dynamic_lookup(
-            spark,
-            _lkp_input,
-            df_DLKP_SSA_STS,
-            {'name': 'DLKP_SSA_STS', 'join_predicates': [{'source_col': 'IN_SURROGATE_KEY', 'lookup_col': 'SURROGATE_KEY'}], 'output_columns': ['SURROGATE_KEY', 'DUMMY'], 'lookup_output_fields': [{'name': 'SURROGATE_KEY', 'ref_field': 'HOS_APLY_MBR_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'DUMMY', 'ref_field': 'v_NULL', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow', 'sequence_config': None, 'insert_else_update': False, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_DLKP_SSA_STS,
+            name='DLKP_SSA_STS',
+            join_predicates=[{'source_col': 'IN_SURROGATE_KEY', 'lookup_col': 'SURROGATE_KEY'}],
+            output_columns=['SURROGATE_KEY', 'DUMMY'],
+            lookup_output_fields=[
+                {'name': 'SURROGATE_KEY', 'ref_field': 'HOS_APLY_MBR_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'DUMMY', 'ref_field': 'v_NULL', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config=None,
+            insert_else_update=False,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
             config=config,
         )
         ctx.register_df("df_lkp_merge_FILTRANS_STS", df_lkp_merge_FILTRANS_STS)

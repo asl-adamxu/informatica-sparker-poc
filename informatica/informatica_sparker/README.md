@@ -306,7 +306,7 @@ logging:
 - jinja2 >= 3.1.0
 - networkx >= 3.0
 - pyyaml >= 6.0
-- Runtime (driver + executors): pandas and pyarrow >= the Spark minimum for `applyInPandas` dynamic lookup; an RDD fallback is used automatically when pyarrow is missing/too old
+- Runtime (driver + executors): pandas and pyarrow >= the Spark minimum for `applyInPandas` dynamic lookup; an RDD fallback is used automatically when pyarrow is missing/too old (v2026.08.11: the RDD fallback is YARN-verified — `get_spark_session` ships `env/` to executors via `addPyFile`, since worker closures are cloudpickled by reference as `env.runtime_lib.<function>` and YARN executor nodes don't have the workflow directory on disk; a `spark.executorEnv.PYTHONPATH` entry alone is not enough)
 
 ## Templates
 

@@ -104,37 +104,36 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         
         logger.info("Step: apply_LKP_DYN_SOR_EMS_HSC_TPV_CNTR_AGRMT")
         # Lookup: apply_LKP_DYN_SOR_EMS_HSC_TPV_CNTR_AGRMT
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_LKP_DYN_SOR_EMS_HSC_TPV_CNTR_AGRMT.groupBy(col("TPV_CNTR_AGRMT_BK")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_LKP_DYN_SOR_EMS_HSC_TPV_CNTR_AGRMT: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_EXTRANS
         _lkp_input = _lkp_input.withColumn("TPV_CNTR_AGRMT_BK1", col("HSE_SRVC_APLY_KEY"))
         _lkp_input = _lkp_input.withColumn("HSE_SRVC_APLY_KEY1", col("HSE_SRVC_APLY_KEY"))
-        # Join condition: TPV_CNTR_AGRMT_BK1=TPV_CNTR_AGRMT_BK
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_EXTRANS = _lkp_input.alias("_main").join(
-            broadcast(df_LKP_DYN_SOR_EMS_HSC_TPV_CNTR_AGRMT).alias("_lkp"),
-            (col("_main.TPV_CNTR_AGRMT_BK1") == col("_lkp.TPV_CNTR_AGRMT_BK")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DYN_SOR_EMS_HSC_TPV_CNTR_AGRMT[c] for c in df_LKP_DYN_SOR_EMS_HSC_TPV_CNTR_AGRMT.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_lkp_merge_EXTRANS = lib.dynamic_lookup(
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_LKP_DYN_SOR_EMS_HSC_TPV_CNTR_AGRMT,
+            name='LKP_DYN_SOR_EMS_HSC_TPV_CNTR_AGRMT',
+            join_predicates=[{'source_col': 'TPV_CNTR_AGRMT_BK1', 'lookup_col': 'TPV_CNTR_AGRMT_BK'}],
+            output_columns=['TPV_CNTR_AGRMT_KEY', 'TPV_CNTR_AGRMT_BK', 'HSE_SRVC_APLY_KEY'],
+            lookup_output_fields=[
+                {'name': 'TPV_CNTR_AGRMT_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'TPV_CNTR_AGRMT_BK', 'ref_field': 'HSE_SRVC_APLY_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'HSE_SRVC_APLY_KEY', 'ref_field': 'HSE_SRVC_APLY_KEY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config={'output_col': 'TPV_CNTR_AGRMT_KEY'},
+            insert_else_update=True,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_LKP_DYN_SOR_EMS_HSC_TPV_CNTR_AGRMT.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "TPV_CNTR_AGRMT_BK"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_lkp_merge_EXTRANS = df_lkp_merge_EXTRANS.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_lkp_merge_EXTRANS = df_lkp_merge_EXTRANS.withColumn("NewLookupRow", lit(1))
-        ctx.register_df("df_lkp_merge_EXTRANS", df_lkp_merge_EXTRANS)        
+        ctx.register_df("df_lkp_merge_EXTRANS", df_lkp_merge_EXTRANS)
+        
         logger.info("Step: apply_FILTRANS")
         # Filter: apply_FILTRANS
         __fil_input = df_lkp_merge_EXTRANS
@@ -172,37 +171,35 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         
         logger.info("Step: apply_LKP_DYN_SSA_EMS_HSC_TPV_CNTR_AGRMT")
         # Lookup: apply_LKP_DYN_SSA_EMS_HSC_TPV_CNTR_AGRMT
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_LKP_DYN_SSA_EMS_HSC_TPV_CNTR_AGRMT.groupBy(col("SURROGATE_KEY")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_LKP_DYN_SSA_EMS_HSC_TPV_CNTR_AGRMT: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_EXPTRANS1
         _lkp_input = _lkp_input.withColumn("IN_SURROGATE_KEY", col("TPV_CNTR_AGRMT_KEY"))
         _lkp_input = _lkp_input.withColumn("IN_DUMMY", col("v_SSAL2_TBL_NAME"))
-        # Join condition: IN_SURROGATE_KEY=SURROGATE_KEY
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_FILTRANS = _lkp_input.alias("_main").join(
-            broadcast(df_LKP_DYN_SSA_EMS_HSC_TPV_CNTR_AGRMT).alias("_lkp"),
-            (col("_main.IN_SURROGATE_KEY") == col("_lkp.SURROGATE_KEY")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DYN_SSA_EMS_HSC_TPV_CNTR_AGRMT[c] for c in df_LKP_DYN_SSA_EMS_HSC_TPV_CNTR_AGRMT.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_lkp_merge_FILTRANS = lib.dynamic_lookup(
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_LKP_DYN_SSA_EMS_HSC_TPV_CNTR_AGRMT,
+            name='LKP_DYN_SSA_EMS_HSC_TPV_CNTR_AGRMT',
+            join_predicates=[{'source_col': 'IN_SURROGATE_KEY', 'lookup_col': 'SURROGATE_KEY'}],
+            output_columns=['SURROGATE_KEY', 'DUMMY'],
+            lookup_output_fields=[
+                {'name': 'SURROGATE_KEY', 'ref_field': 'TPV_CNTR_AGRMT_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'DUMMY', 'ref_field': 'v_SSAL2_TBL_NAME', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config=None,
+            insert_else_update=False,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_LKP_DYN_SSA_EMS_HSC_TPV_CNTR_AGRMT.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "SURROGATE_KEY"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_lkp_merge_FILTRANS = df_lkp_merge_FILTRANS.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_lkp_merge_FILTRANS = df_lkp_merge_FILTRANS.withColumn("NewLookupRow", lit(1))
-        ctx.register_df("df_lkp_merge_FILTRANS", df_lkp_merge_FILTRANS)        
+        ctx.register_df("df_lkp_merge_FILTRANS", df_lkp_merge_FILTRANS)
+        
         logger.info("Step: nullinput_MPLT_DLKP_CACHE_STATUS")
         # Expression: nullinput_MPLT_DLKP_CACHE_STATUS
         df_MPLT_DLKP_CACHE_STATUS_nullinput = df_lkp_merge_FILTRANS

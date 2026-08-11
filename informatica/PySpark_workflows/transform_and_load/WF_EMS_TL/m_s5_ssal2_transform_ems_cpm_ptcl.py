@@ -133,38 +133,38 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         
         logger.info("Step: apply_LKP_DYN_SOR_EMS_CPM_PTCL")
         # Lookup: apply_LKP_DYN_SOR_EMS_CPM_PTCL
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_LKP_DYN_SOR_EMS_CPM_PTCL.groupBy(col("PTCL_BK")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_LKP_DYN_SOR_EMS_CPM_PTCL: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_EXPTRANS2
         _lkp_input = _lkp_input.withColumn("IN_PTCL_BK", col("PTCL_BK"))
         _lkp_input = _lkp_input.withColumn("IN_CUST_MBR_ID_TYPE_CODE", col("CUST_MBR_ID_TYPE_CODE"))
         _lkp_input = _lkp_input.withColumn("IN_CUST_MBR_ID_NUM", col("CUST_MBR_ID_NUM"))
-        # Join condition: IN_PTCL_BK=PTCL_BK
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_EXPTRANS2 = _lkp_input.alias("_main").join(
-            broadcast(df_LKP_DYN_SOR_EMS_CPM_PTCL).alias("_lkp"),
-            (col("_main.IN_PTCL_BK") == col("_lkp.PTCL_BK")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DYN_SOR_EMS_CPM_PTCL[c] for c in df_LKP_DYN_SOR_EMS_CPM_PTCL.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_lkp_merge_EXPTRANS2 = lib.dynamic_lookup(
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_LKP_DYN_SOR_EMS_CPM_PTCL,
+            name='LKP_DYN_SOR_EMS_CPM_PTCL',
+            join_predicates=[{'source_col': 'IN_PTCL_BK', 'lookup_col': 'PTCL_BK'}],
+            output_columns=['PTCL_KEY', 'PTCL_BK', 'CUST_MBR_ID_TYPE_CODE', 'CUST_MBR_ID_NUM'],
+            lookup_output_fields=[
+                {'name': 'PTCL_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'PTCL_BK', 'ref_field': 'PTCL_BK', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_ID_TYPE_CODE', 'ref_field': 'CUST_MBR_ID_TYPE_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_ID_NUM', 'ref_field': 'CUST_MBR_ID_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config={'output_col': 'PTCL_KEY'},
+            insert_else_update=True,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_LKP_DYN_SOR_EMS_CPM_PTCL.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "PTCL_BK"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_lkp_merge_EXPTRANS2 = df_lkp_merge_EXPTRANS2.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_lkp_merge_EXPTRANS2 = df_lkp_merge_EXPTRANS2.withColumn("NewLookupRow", lit(1))
-        ctx.register_df("df_lkp_merge_EXPTRANS2", df_lkp_merge_EXPTRANS2)        
+        ctx.register_df("df_lkp_merge_EXPTRANS2", df_lkp_merge_EXPTRANS2)
+        
         logger.info("Step: read_LKP_SOR_EMS_CPM_PTCL")
         # Reading Data From Source - read_LKP_SOR_EMS_CPM_PTCL
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -259,11 +259,8 @@ AND SOR_EMS_CPM_PTCL_STS.PTCL_KEY=SSA_EMS_CPM_PTCL.PTCL_KEY"""
         
         logger.info("Step: apply_LKP_DYN_SOR_EMS_CPM_PTCL_STS")
         # Lookup: apply_LKP_DYN_SOR_EMS_CPM_PTCL_STS
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_LKP_DYN_SOR_EMS_CPM_PTCL_STS.groupBy(col("PTCL_KEY")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_LKP_DYN_SOR_EMS_CPM_PTCL_STS: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_merge_LKP_DYN_SOR_EMS_CPM_PTCL_STS_0
         _lkp_input = _lkp_input.withColumn("IN_LAST_UPD_HSE_BNFT_TYPE_CODE", col("LAST_UPD_HSE_BNFT_TYPE_CODE"))
         _lkp_input = _lkp_input.withColumn("IN_LAST_UPD_HSE_BNFT_REF_NUM", col("LAST_UPD_HSE_BNFT_REF_NUM"))
@@ -278,29 +275,42 @@ AND SOR_EMS_CPM_PTCL_STS.PTCL_KEY=SSA_EMS_CPM_PTCL.PTCL_KEY"""
         _lkp_input = _lkp_input.withColumn("IN_CUST_MBR_GNDR_CODE", col("CUST_MBR_GNDR_CODE"))
         _lkp_input = _lkp_input.withColumn("IN_CUST_MBR_ENTRY_DATE", col("CUST_MBR_ENTRY_DATE"))
         _lkp_input = _lkp_input.withColumn("IN_PTCL_KEY", col("PTCL_KEY"))
-        # Join condition: IN_PTCL_KEY=PTCL_KEY
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_EXPTRANS = _lkp_input.alias("_main").join(
-            broadcast(df_LKP_DYN_SOR_EMS_CPM_PTCL_STS).alias("_lkp"),
-            (col("_main.IN_PTCL_KEY") == col("_lkp.PTCL_KEY")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DYN_SOR_EMS_CPM_PTCL_STS[c] for c in df_LKP_DYN_SOR_EMS_CPM_PTCL_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_lkp_merge_EXPTRANS = lib.dynamic_lookup(
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_LKP_DYN_SOR_EMS_CPM_PTCL_STS,
+            name='LKP_DYN_SOR_EMS_CPM_PTCL_STS',
+            join_predicates=[{'source_col': 'IN_PTCL_KEY', 'lookup_col': 'PTCL_KEY'}],
+            output_columns=['PTCL_KEY', 'BGN_DATE', 'CUST_MBR_NAME', 'CUST_MBR_CHI_NAME', 'CUST_MBR_DOB_DATE', 'CUST_MBR_DOB_IND', 'CUST_MBR_GNDR_CODE', 'CUST_MBR_ENTRY_DATE', 'LAST_UPD_HSE_BNFT_TYPE_CODE', 'LAST_UPD_HSE_BNFT_REF_NUM', 'LAST_UPD_ORG_UNIT_CODE', 'CUST_MBR_PTCL_LAST_UPD_DATE', 'CUST_MBR_AMND_BY_USER_ID', 'CUST_MBR_MRTL_STS_CODE'],
+            lookup_output_fields=[
+                {'name': 'PTCL_KEY', 'ref_field': 'PTCL_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'BGN_DATE', 'ref_field': 'DUMMY_DATE', 'ignore_in_compare': True, 'ignore_null_inputs': True, 'datatype': 'date/time'},
+                {'name': 'CUST_MBR_NAME', 'ref_field': 'CUST_MBR_ENG_NAME', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_CHI_NAME', 'ref_field': 'CUST_MBR_CHI_NAME', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_DOB_DATE', 'ref_field': 'CUST_MBR_DOB_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'},
+                {'name': 'CUST_MBR_DOB_IND', 'ref_field': 'CUST_MBR_DOB_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_GNDR_CODE', 'ref_field': 'CUST_MBR_GNDR_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_ENTRY_DATE', 'ref_field': 'CUST_MBR_ENTRY_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'},
+                {'name': 'LAST_UPD_HSE_BNFT_TYPE_CODE', 'ref_field': 'LAST_UPD_HSE_BNFT_TYPE_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'LAST_UPD_HSE_BNFT_REF_NUM', 'ref_field': 'LAST_UPD_HSE_BNFT_REF_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'LAST_UPD_ORG_UNIT_CODE', 'ref_field': 'LAST_UPD_ORG_UNIT_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_PTCL_LAST_UPD_DATE', 'ref_field': 'CUST_MBR_PTCL_LAST_UPD_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'},
+                {'name': 'CUST_MBR_AMND_BY_USER_ID', 'ref_field': 'CUST_MBR_AMND_BY_USER_ID', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_MRTL_STS_CODE', 'ref_field': 'CUST_MBR_MRTL_STS_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config=None,
+            insert_else_update=True,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_LKP_DYN_SOR_EMS_CPM_PTCL_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "PTCL_KEY"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_lkp_merge_EXPTRANS = df_lkp_merge_EXPTRANS.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_lkp_merge_EXPTRANS = df_lkp_merge_EXPTRANS.withColumn("NewLookupRow", lit(1))
-        ctx.register_df("df_lkp_merge_EXPTRANS", df_lkp_merge_EXPTRANS)        
+        ctx.register_df("df_lkp_merge_EXPTRANS", df_lkp_merge_EXPTRANS)
+        
         logger.info("Step: apply_FILTRANS1")
         # Filter: apply_FILTRANS1
         __fil_input = df_lkp_merge_EXPTRANS
@@ -338,37 +348,35 @@ AND SOR_EMS_CPM_PTCL_STS.PTCL_KEY=SSA_EMS_CPM_PTCL.PTCL_KEY"""
         
         logger.info("Step: apply_LKP_DYN_SSA_EMS_CPM_PTCL_STS")
         # Lookup: apply_LKP_DYN_SSA_EMS_CPM_PTCL_STS
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_LKP_DYN_SSA_EMS_CPM_PTCL_STS.groupBy(col("SURROGATE_KEY")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_LKP_DYN_SSA_EMS_CPM_PTCL_STS: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_EXPTRANS11
         _lkp_input = _lkp_input.withColumn("IN_DUMMY", col("v_SSAL2_TBL_NAME"))
         _lkp_input = _lkp_input.withColumn("IN_SURROGATE_KEY", col("PTCL_KEY"))
-        # Join condition: IN_SURROGATE_KEY=SURROGATE_KEY
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_EXPTRANS11 = _lkp_input.alias("_main").join(
-            broadcast(df_LKP_DYN_SSA_EMS_CPM_PTCL_STS).alias("_lkp"),
-            (col("_main.IN_SURROGATE_KEY") == col("_lkp.SURROGATE_KEY")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DYN_SSA_EMS_CPM_PTCL_STS[c] for c in df_LKP_DYN_SSA_EMS_CPM_PTCL_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_lkp_merge_EXPTRANS11 = lib.dynamic_lookup(
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_LKP_DYN_SSA_EMS_CPM_PTCL_STS,
+            name='LKP_DYN_SSA_EMS_CPM_PTCL_STS',
+            join_predicates=[{'source_col': 'IN_SURROGATE_KEY', 'lookup_col': 'SURROGATE_KEY'}],
+            output_columns=['SURROGATE_KEY', 'DUMMY'],
+            lookup_output_fields=[
+                {'name': 'SURROGATE_KEY', 'ref_field': 'PTCL_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'DUMMY', 'ref_field': 'v_SSAL2_TBL_NAME', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config=None,
+            insert_else_update=False,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_LKP_DYN_SSA_EMS_CPM_PTCL_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "SURROGATE_KEY"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_lkp_merge_EXPTRANS11 = df_lkp_merge_EXPTRANS11.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_lkp_merge_EXPTRANS11 = df_lkp_merge_EXPTRANS11.withColumn("NewLookupRow", lit(1))
-        ctx.register_df("df_lkp_merge_EXPTRANS11", df_lkp_merge_EXPTRANS11)        
+        ctx.register_df("df_lkp_merge_EXPTRANS11", df_lkp_merge_EXPTRANS11)
+        
         logger.info("Step: nullinput_MPLT_DLKP_CACHE_STATUS1")
         # Expression: nullinput_MPLT_DLKP_CACHE_STATUS1
         df_MPLT_DLKP_CACHE_STATUS1_nullinput = df_lkp_merge_EXPTRANS11

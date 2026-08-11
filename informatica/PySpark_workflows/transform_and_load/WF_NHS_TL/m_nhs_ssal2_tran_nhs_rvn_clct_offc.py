@@ -137,10 +137,25 @@ FROM NHS_RVN_CLCT_OFFC"""
         _lkp_input = df_EXP_BK
         _lkp_input = _lkp_input.withColumn("IN_NHS_RVN_CLCT_OFFC_KEY", col("RVN_CLCT_OFFC_KEY"))
         df_lkp_merge_EXP_BK = lib.dynamic_lookup(
-            spark,
-            _lkp_input,
-            df_DLKP_SOR_MSTR,
-            {'name': 'DLKP_SOR_MSTR', 'join_predicates': [{'source_col': 'IN_NHS_RVN_CLCT_OFFC_KEY', 'lookup_col': 'NHS_RVN_CLCT_OFFC_KEY'}], 'output_columns': ['RVN_CLCT_OFFC_KEY', 'NHS_RVN_CLCT_OFFC_KEY'], 'lookup_output_fields': [{'name': 'RVN_CLCT_OFFC_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'NHS_RVN_CLCT_OFFC_KEY', 'ref_field': 'RVN_CLCT_OFFC_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow', 'sequence_config': {'output_col': 'RVN_CLCT_OFFC_KEY'}, 'insert_else_update': True, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_DLKP_SOR_MSTR,
+            name='DLKP_SOR_MSTR',
+            join_predicates=[{'source_col': 'IN_NHS_RVN_CLCT_OFFC_KEY', 'lookup_col': 'NHS_RVN_CLCT_OFFC_KEY'}],
+            output_columns=['RVN_CLCT_OFFC_KEY', 'NHS_RVN_CLCT_OFFC_KEY'],
+            lookup_output_fields=[
+                {'name': 'RVN_CLCT_OFFC_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'NHS_RVN_CLCT_OFFC_KEY', 'ref_field': 'RVN_CLCT_OFFC_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config={'output_col': 'RVN_CLCT_OFFC_KEY'},
+            insert_else_update=True,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
             config=config,
         )
         ctx.register_df("df_lkp_merge_EXP_BK", df_lkp_merge_EXP_BK)
@@ -187,10 +202,42 @@ where SOR_NHS_RVN_CLCT_OFFC_STS.RVN_CLCT_OFFC_KEY = ss.RVN_CLCT_OFFC_KEY and SOR
         _lkp_input = _lkp_input.withColumn("IN_TPS_LAST_RVN_TXN_RCPT_NUM", col("TPS_LAST_RVN_TXN_RCPT_NUM"))
         _lkp_input = _lkp_input.withColumn("IN_RVN_CLCT_OFFC_KEY", col("RVN_CLCT_OFFC_KEY"))
         df_lkp_merge_EXP_BK = lib.dynamic_lookup(
-            spark,
-            _lkp_input,
-            df_DLKP_SOR_STS,
-            {'name': 'DLKP_SOR_STS', 'join_predicates': [{'source_col': 'IN_RVN_CLCT_OFFC_KEY', 'lookup_col': 'RVN_CLCT_OFFC_KEY'}], 'output_columns': ['RVN_CLCT_OFFC_KEY', 'BGN_DATE', 'END_DATE', 'RVN_CLCT_OFFC_ENG_NAME', 'RVN_CLCT_OFFC_CHI_NAME', 'CLCT_OFFC_COST_CTR_CODE', 'CLCT_OFFC_BSNS_ACTV_CODE', 'RVN_CLCT_OFFC_ENG_ADDR_1', 'RVN_CLCT_OFFC_ENG_ADDR_2', 'RVN_CLCT_OFFC_ENG_ADDR_3', 'RVN_CLCT_OFFC_ENG_ADDR_4', 'RVN_CLCT_OFFC_CHI_ADDR_1', 'RVN_CLCT_OFFC_CHI_ADDR_2', 'RVN_CLCT_OFFC_CHI_ADDR_3', 'RVN_CLCT_OFFC_CHI_ADDR_4', 'RVN_CLCT_OFFC_CHI_ADDR_5', 'LAST_RVN_TXN_RCPT_NUM', 'ROW_VER_NUM', 'TPS_LAST_RVN_TXN_RCPT_NUM'], 'lookup_output_fields': [{'name': 'RVN_CLCT_OFFC_KEY', 'ref_field': 'RVN_CLCT_OFFC_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'BGN_DATE', 'ref_field': 'DUMMY_DATE', 'ignore_in_compare': True, 'ignore_null_inputs': True, 'datatype': 'date/time'}, {'name': 'END_DATE', 'ref_field': 'DUMMY_DATE', 'ignore_in_compare': True, 'ignore_null_inputs': True, 'datatype': 'date/time'}, {'name': 'RVN_CLCT_OFFC_ENG_NAME', 'ref_field': 'RVN_CLCT_OFFC_ENG_NAME', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'RVN_CLCT_OFFC_CHI_NAME', 'ref_field': 'RVN_CLCT_OFFC_CHI_NAME', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'CLCT_OFFC_COST_CTR_CODE', 'ref_field': 'CLCT_OFFC_COST_CTR_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'CLCT_OFFC_BSNS_ACTV_CODE', 'ref_field': 'CLCT_OFFC_BSNS_ACTV_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'RVN_CLCT_OFFC_ENG_ADDR_1', 'ref_field': 'RVN_CLCT_OFFC_ENG_ADDR_1', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'RVN_CLCT_OFFC_ENG_ADDR_2', 'ref_field': 'RVN_CLCT_OFFC_ENG_ADDR_2', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'RVN_CLCT_OFFC_ENG_ADDR_3', 'ref_field': 'RVN_CLCT_OFFC_ENG_ADDR_3', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'RVN_CLCT_OFFC_ENG_ADDR_4', 'ref_field': 'RVN_CLCT_OFFC_ENG_ADDR_4', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'RVN_CLCT_OFFC_CHI_ADDR_1', 'ref_field': 'RVN_CLCT_OFFC_CHI_ADDR_1', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'RVN_CLCT_OFFC_CHI_ADDR_2', 'ref_field': 'RVN_CLCT_OFFC_CHI_ADDR_2', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'RVN_CLCT_OFFC_CHI_ADDR_3', 'ref_field': 'RVN_CLCT_OFFC_CHI_ADDR_3', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'RVN_CLCT_OFFC_CHI_ADDR_4', 'ref_field': 'RVN_CLCT_OFFC_CHI_ADDR_4', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'RVN_CLCT_OFFC_CHI_ADDR_5', 'ref_field': 'RVN_CLCT_OFFC_CHI_ADDR_5', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'LAST_RVN_TXN_RCPT_NUM', 'ref_field': 'LAST_RVN_TXN_RCPT_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'}, {'name': 'ROW_VER_NUM', 'ref_field': 'ROW_VER_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'}, {'name': 'TPS_LAST_RVN_TXN_RCPT_NUM', 'ref_field': 'TPS_LAST_RVN_TXN_RCPT_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'}], 'new_lookup_row_col': 'NewLookupRow', 'sequence_config': None, 'insert_else_update': True, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_DLKP_SOR_STS,
+            name='DLKP_SOR_STS',
+            join_predicates=[{'source_col': 'IN_RVN_CLCT_OFFC_KEY', 'lookup_col': 'RVN_CLCT_OFFC_KEY'}],
+            output_columns=['RVN_CLCT_OFFC_KEY', 'BGN_DATE', 'END_DATE', 'RVN_CLCT_OFFC_ENG_NAME', 'RVN_CLCT_OFFC_CHI_NAME', 'CLCT_OFFC_COST_CTR_CODE', 'CLCT_OFFC_BSNS_ACTV_CODE', 'RVN_CLCT_OFFC_ENG_ADDR_1', 'RVN_CLCT_OFFC_ENG_ADDR_2', 'RVN_CLCT_OFFC_ENG_ADDR_3', 'RVN_CLCT_OFFC_ENG_ADDR_4', 'RVN_CLCT_OFFC_CHI_ADDR_1', 'RVN_CLCT_OFFC_CHI_ADDR_2', 'RVN_CLCT_OFFC_CHI_ADDR_3', 'RVN_CLCT_OFFC_CHI_ADDR_4', 'RVN_CLCT_OFFC_CHI_ADDR_5', 'LAST_RVN_TXN_RCPT_NUM', 'ROW_VER_NUM', 'TPS_LAST_RVN_TXN_RCPT_NUM'],
+            lookup_output_fields=[
+                {'name': 'RVN_CLCT_OFFC_KEY', 'ref_field': 'RVN_CLCT_OFFC_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'BGN_DATE', 'ref_field': 'DUMMY_DATE', 'ignore_in_compare': True, 'ignore_null_inputs': True, 'datatype': 'date/time'},
+                {'name': 'END_DATE', 'ref_field': 'DUMMY_DATE', 'ignore_in_compare': True, 'ignore_null_inputs': True, 'datatype': 'date/time'},
+                {'name': 'RVN_CLCT_OFFC_ENG_NAME', 'ref_field': 'RVN_CLCT_OFFC_ENG_NAME', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'RVN_CLCT_OFFC_CHI_NAME', 'ref_field': 'RVN_CLCT_OFFC_CHI_NAME', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CLCT_OFFC_COST_CTR_CODE', 'ref_field': 'CLCT_OFFC_COST_CTR_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CLCT_OFFC_BSNS_ACTV_CODE', 'ref_field': 'CLCT_OFFC_BSNS_ACTV_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'RVN_CLCT_OFFC_ENG_ADDR_1', 'ref_field': 'RVN_CLCT_OFFC_ENG_ADDR_1', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'RVN_CLCT_OFFC_ENG_ADDR_2', 'ref_field': 'RVN_CLCT_OFFC_ENG_ADDR_2', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'RVN_CLCT_OFFC_ENG_ADDR_3', 'ref_field': 'RVN_CLCT_OFFC_ENG_ADDR_3', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'RVN_CLCT_OFFC_ENG_ADDR_4', 'ref_field': 'RVN_CLCT_OFFC_ENG_ADDR_4', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'RVN_CLCT_OFFC_CHI_ADDR_1', 'ref_field': 'RVN_CLCT_OFFC_CHI_ADDR_1', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'RVN_CLCT_OFFC_CHI_ADDR_2', 'ref_field': 'RVN_CLCT_OFFC_CHI_ADDR_2', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'RVN_CLCT_OFFC_CHI_ADDR_3', 'ref_field': 'RVN_CLCT_OFFC_CHI_ADDR_3', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'RVN_CLCT_OFFC_CHI_ADDR_4', 'ref_field': 'RVN_CLCT_OFFC_CHI_ADDR_4', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'RVN_CLCT_OFFC_CHI_ADDR_5', 'ref_field': 'RVN_CLCT_OFFC_CHI_ADDR_5', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'LAST_RVN_TXN_RCPT_NUM', 'ref_field': 'LAST_RVN_TXN_RCPT_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'ROW_VER_NUM', 'ref_field': 'ROW_VER_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'TPS_LAST_RVN_TXN_RCPT_NUM', 'ref_field': 'TPS_LAST_RVN_TXN_RCPT_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config=None,
+            insert_else_update=True,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
             config=config,
         )
         ctx.register_df("df_lkp_merge_EXP_BK", df_lkp_merge_EXP_BK)
@@ -239,10 +286,25 @@ where SOR_NHS_RVN_CLCT_OFFC_STS.RVN_CLCT_OFFC_KEY = ss.RVN_CLCT_OFFC_KEY and SOR
         _lkp_input = _lkp_input.withColumn("IN_SURROGATE_KEY", col("RVN_CLCT_OFFC_KEY"))
         _lkp_input = _lkp_input.withColumn("IN_DUMMY", col("v_NULL"))
         df_lkp_merge_FILTRANS_MSTR = lib.dynamic_lookup(
-            spark,
-            _lkp_input,
-            df_DLKP_SSA_MSTR,
-            {'name': 'DLKP_SSA_MSTR', 'join_predicates': [{'source_col': 'IN_SURROGATE_KEY', 'lookup_col': 'SURROGATE_KEY'}], 'output_columns': ['SURROGATE_KEY', 'DUMMY'], 'lookup_output_fields': [{'name': 'SURROGATE_KEY', 'ref_field': 'RVN_CLCT_OFFC_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'DUMMY', 'ref_field': 'v_NULL', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow', 'sequence_config': None, 'insert_else_update': False, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_DLKP_SSA_MSTR,
+            name='DLKP_SSA_MSTR',
+            join_predicates=[{'source_col': 'IN_SURROGATE_KEY', 'lookup_col': 'SURROGATE_KEY'}],
+            output_columns=['SURROGATE_KEY', 'DUMMY'],
+            lookup_output_fields=[
+                {'name': 'SURROGATE_KEY', 'ref_field': 'RVN_CLCT_OFFC_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'DUMMY', 'ref_field': 'v_NULL', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config=None,
+            insert_else_update=False,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
             config=config,
         )
         ctx.register_df("df_lkp_merge_FILTRANS_MSTR", df_lkp_merge_FILTRANS_MSTR)
@@ -409,10 +471,25 @@ where SOR_NHS_RVN_CLCT_OFFC_STS.RVN_CLCT_OFFC_KEY = ss.RVN_CLCT_OFFC_KEY and SOR
         _lkp_input = _lkp_input.withColumn("IN_SURROGATE_KEY", col("RVN_CLCT_OFFC_KEY"))
         _lkp_input = _lkp_input.withColumn("IN_DUMMY", col("v_NULL"))
         df_lkp_merge_FILTRANS_STS = lib.dynamic_lookup(
-            spark,
-            _lkp_input,
-            df_DLKP_SSA_STS,
-            {'name': 'DLKP_SSA_STS', 'join_predicates': [{'source_col': 'IN_SURROGATE_KEY', 'lookup_col': 'SURROGATE_KEY'}], 'output_columns': ['SURROGATE_KEY', 'DUMMY'], 'lookup_output_fields': [{'name': 'SURROGATE_KEY', 'ref_field': 'RVN_CLCT_OFFC_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'DUMMY', 'ref_field': 'v_NULL', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow', 'sequence_config': None, 'insert_else_update': False, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_DLKP_SSA_STS,
+            name='DLKP_SSA_STS',
+            join_predicates=[{'source_col': 'IN_SURROGATE_KEY', 'lookup_col': 'SURROGATE_KEY'}],
+            output_columns=['SURROGATE_KEY', 'DUMMY'],
+            lookup_output_fields=[
+                {'name': 'SURROGATE_KEY', 'ref_field': 'RVN_CLCT_OFFC_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'DUMMY', 'ref_field': 'v_NULL', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config=None,
+            insert_else_update=False,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
             config=config,
         )
         ctx.register_df("df_lkp_merge_FILTRANS_STS", df_lkp_merge_FILTRANS_STS)

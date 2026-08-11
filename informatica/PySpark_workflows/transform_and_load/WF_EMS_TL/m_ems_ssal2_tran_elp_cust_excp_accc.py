@@ -103,11 +103,8 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         
         logger.info("Step: apply_DLKP_SOR_MSTR")
         # Lookup: apply_DLKP_SOR_MSTR
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_DLKP_SOR_MSTR.groupBy(col("CUST_ACCC_TXN_SHOP_CODE"), col("CUST_ACCC_TXN_MCHN_NUM"), col("CUST_ACCC_TXN_RCPT_NUM"), col("ACCC_FILE_SEQ_NUM"), col("CUST_ACCC_TXN_CHNL_CODE"), col("CUST_ACCC_TXN_MODE_CODE"), col("CUST_TNT_CODE"), col("CUST_ACCC_TXN_AMT")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_DLKP_SOR_MSTR: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_EXPTRANS
         _lkp_input = _lkp_input.withColumn("IN_CUST_ACCC_TXN_SHOP_CODE", col("CUST_ACCC_TXN_SHOP_CODE"))
         _lkp_input = _lkp_input.withColumn("IN_CUST_ACCC_TXN_MCHN_NUM", col("CUST_ACCC_TXN_MCHN_NUM"))
@@ -117,36 +114,37 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _lkp_input = _lkp_input.withColumn("IN_CUST_ACCC_TXN_MODE_CODE", col("CUST_ACCC_TXN_MODE_CODE"))
         _lkp_input = _lkp_input.withColumn("IN_CUST_TNT_CODE", col("CUST_TNT_CODE"))
         _lkp_input = _lkp_input.withColumn("IN_CUST_ACCC_TXN_AMT", col("CUST_ACCC_TXN_AMT"))
-        # Join condition: IN_CUST_ACCC_TXN_SHOP_CODE=CUST_ACCC_TXN_SHOP_CODE AND IN_CUST_ACCC_TXN_MCHN_NUM=CUST_ACCC_TXN_MCHN_NUM AND IN_CUST_ACCC_TXN_RCPT_NUM=CUST_ACCC_TXN_RCPT_NUM AND IN_ACCC_FILE_SEQ_NUM=ACCC_FILE_SEQ_NUM AND IN_CUST_ACCC_TXN_CHNL_CODE=CUST_ACCC_TXN_CHNL_CODE AND IN_CUST_ACCC_TXN_MODE_CODE=CUST_ACCC_TXN_MODE_CODE AND IN_CUST_TNT_CODE=CUST_TNT_CODE AND IN_CUST_ACCC_TXN_AMT=CUST_ACCC_TXN_AMT
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_EXPTRANS = _lkp_input.alias("_main").join(
-            broadcast(df_DLKP_SOR_MSTR).alias("_lkp"),
-            (col("_main.IN_CUST_ACCC_TXN_SHOP_CODE") == col("_lkp.CUST_ACCC_TXN_SHOP_CODE")) &
-            (col("_main.IN_CUST_ACCC_TXN_MCHN_NUM") == col("_lkp.CUST_ACCC_TXN_MCHN_NUM")) &
-            (col("_main.IN_CUST_ACCC_TXN_RCPT_NUM") == col("_lkp.CUST_ACCC_TXN_RCPT_NUM")) &
-            (col("_main.IN_ACCC_FILE_SEQ_NUM") == col("_lkp.ACCC_FILE_SEQ_NUM")) &
-            (col("_main.IN_CUST_ACCC_TXN_CHNL_CODE") == col("_lkp.CUST_ACCC_TXN_CHNL_CODE")) &
-            (col("_main.IN_CUST_ACCC_TXN_MODE_CODE") == col("_lkp.CUST_ACCC_TXN_MODE_CODE")) &
-            (col("_main.IN_CUST_TNT_CODE") == col("_lkp.CUST_TNT_CODE")) &
-            (col("_main.IN_CUST_ACCC_TXN_AMT") == col("_lkp.CUST_ACCC_TXN_AMT")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_DLKP_SOR_MSTR[c] for c in df_DLKP_SOR_MSTR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_lkp_merge_EXPTRANS = lib.dynamic_lookup(
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_DLKP_SOR_MSTR,
+            name='DLKP_SOR_MSTR',
+            join_predicates=[{'source_col': 'IN_CUST_ACCC_TXN_SHOP_CODE', 'lookup_col': 'CUST_ACCC_TXN_SHOP_CODE'}, {'source_col': 'IN_CUST_ACCC_TXN_MCHN_NUM', 'lookup_col': 'CUST_ACCC_TXN_MCHN_NUM'}, {'source_col': 'IN_CUST_ACCC_TXN_RCPT_NUM', 'lookup_col': 'CUST_ACCC_TXN_RCPT_NUM'}, {'source_col': 'IN_ACCC_FILE_SEQ_NUM', 'lookup_col': 'ACCC_FILE_SEQ_NUM'}, {'source_col': 'IN_CUST_ACCC_TXN_CHNL_CODE', 'lookup_col': 'CUST_ACCC_TXN_CHNL_CODE'}, {'source_col': 'IN_CUST_ACCC_TXN_MODE_CODE', 'lookup_col': 'CUST_ACCC_TXN_MODE_CODE'}, {'source_col': 'IN_CUST_TNT_CODE', 'lookup_col': 'CUST_TNT_CODE'}, {'source_col': 'IN_CUST_ACCC_TXN_AMT', 'lookup_col': 'CUST_ACCC_TXN_AMT'}],
+            output_columns=['CUST_EXCP_ACCC_KEY', 'ACCC_FILE_SEQ_NUM', 'CUST_ACCC_TXN_CHNL_CODE', 'CUST_ACCC_TXN_MODE_CODE', 'CUST_ACCC_TXN_SHOP_CODE', 'CUST_ACCC_TXN_MCHN_NUM', 'CUST_ACCC_TXN_RCPT_NUM', 'CUST_TNT_CODE', 'CUST_ACCC_TXN_AMT'],
+            lookup_output_fields=[
+                {'name': 'CUST_EXCP_ACCC_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'ACCC_FILE_SEQ_NUM', 'ref_field': 'ACCC_FILE_SEQ_NUM', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'CUST_ACCC_TXN_CHNL_CODE', 'ref_field': 'CUST_ACCC_TXN_CHNL_CODE', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_ACCC_TXN_MODE_CODE', 'ref_field': 'CUST_ACCC_TXN_MODE_CODE', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_ACCC_TXN_SHOP_CODE', 'ref_field': 'CUST_ACCC_TXN_SHOP_CODE', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_ACCC_TXN_MCHN_NUM', 'ref_field': 'CUST_ACCC_TXN_MCHN_NUM', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_ACCC_TXN_RCPT_NUM', 'ref_field': 'CUST_ACCC_TXN_RCPT_NUM', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_TNT_CODE', 'ref_field': 'CUST_TNT_CODE', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_ACCC_TXN_AMT', 'ref_field': 'CUST_ACCC_TXN_AMT', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'decimal'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config={'output_col': 'CUST_EXCP_ACCC_KEY'},
+            insert_else_update=True,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_DLKP_SOR_MSTR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "CUST_ACCC_TXN_SHOP_CODE"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_lkp_merge_EXPTRANS = df_lkp_merge_EXPTRANS.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_lkp_merge_EXPTRANS = df_lkp_merge_EXPTRANS.withColumn("NewLookupRow", lit(1))
-        ctx.register_df("df_lkp_merge_EXPTRANS", df_lkp_merge_EXPTRANS)        
+        ctx.register_df("df_lkp_merge_EXPTRANS", df_lkp_merge_EXPTRANS)
+        
         logger.info("Step: read_DLKP_SOR_STS")
         # Reading Data From Source - read_DLKP_SOR_STS
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -172,11 +170,8 @@ ORDER BY sts.CUST_EXCP_ACCC_KEY """
         
         logger.info("Step: apply_DLKP_SOR_STS")
         # Lookup: apply_DLKP_SOR_STS
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_DLKP_SOR_STS.groupBy(col("CUST_EXCP_ACCC_KEY")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_DLKP_SOR_STS: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_lkp_merge_EXPTRANS
         _lkp_input = _lkp_input.withColumn("IN_CUST_KEY", col("CUST_KEY"))
         _lkp_input = _lkp_input.withColumn("IN_HSE_SRVC_APLY_KEY", col("HSE_SRVC_APLY_KEY"))
@@ -197,28 +192,48 @@ ORDER BY sts.CUST_EXCP_ACCC_KEY """
         _lkp_input = _lkp_input.withColumn("IN_EXCP_ACCC_TXN_RMK_TEXT", col("EXCP_ACCC_TXN_RMK_TEXT"))
         _lkp_input = _lkp_input.withColumn("IN_ACCC_TXN_CTF_DATE", col("ACCC_TXN_CTF_DATE"))
         _lkp_input = _lkp_input.withColumn("IN_CUST_EXCP_ACCC_KEY", col("CUST_EXCP_ACCC_KEY"))
-        # Join condition: IN_CUST_EXCP_ACCC_KEY=CUST_EXCP_ACCC_KEY
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_EXPTRANS = _lkp_input.alias("_main").join(
-            broadcast(df_DLKP_SOR_STS).alias("_lkp"),
-            (col("_main.IN_CUST_EXCP_ACCC_KEY") == col("_lkp.CUST_EXCP_ACCC_KEY")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_DLKP_SOR_STS[c] for c in df_DLKP_SOR_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_lkp_merge_EXPTRANS = lib.dynamic_lookup(
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_DLKP_SOR_STS,
+            name='DLKP_SOR_STS',
+            join_predicates=[{'source_col': 'IN_CUST_EXCP_ACCC_KEY', 'lookup_col': 'CUST_EXCP_ACCC_KEY'}],
+            output_columns=['CUST_EXCP_ACCC_KEY', 'BGN_DATE', 'END_DATE', 'CUST_KEY', 'HSE_SRVC_APLY_KEY', 'ACCC_TXN_INTF_INPT_DATE', 'ACCC_TXN_INTF_PRCS_DATE', 'CUST_ACCC_TXN_DATE', 'CUST_ACCC_TXN_CHQ_DTL_TEXT', 'CUST_ACCC_TXN_PRCS_DATE', 'EXCP_ACCC_TXN_TYPE_CODE', 'CUST_PYB_ITEM_COST_CTR_CODE', 'CUST_PYB_ITEM_BSNS_ACTV_CODE', 'CUST_HSE_UNIT_KEY', 'CUST_HSE_UNIT_CODE_ADDR', 'CUST_ACCC_TXN_REJ_CODE', 'EXCP_ACCC_TXN_RMK_TEXT', 'ACCC_TXN_CTF_DATE', 'BILL_TYPE_CODE', 'BILL_ACCT_NUM', 'HA_SPCL_CUST_KEY'],
+            lookup_output_fields=[
+                {'name': 'CUST_EXCP_ACCC_KEY', 'ref_field': 'CUST_EXCP_ACCC_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'BGN_DATE', 'ref_field': 'DUMMY_DATE', 'ignore_in_compare': True, 'ignore_null_inputs': True, 'datatype': 'date/time'},
+                {'name': 'END_DATE', 'ref_field': 'DUMMY_DATE', 'ignore_in_compare': True, 'ignore_null_inputs': True, 'datatype': 'date/time'},
+                {'name': 'CUST_KEY', 'ref_field': 'CUST_KEY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'HSE_SRVC_APLY_KEY', 'ref_field': 'HSE_SRVC_APLY_KEY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'ACCC_TXN_INTF_INPT_DATE', 'ref_field': 'ACCC_TXN_INTF_INPT_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'},
+                {'name': 'ACCC_TXN_INTF_PRCS_DATE', 'ref_field': 'ACCC_TXN_INTF_PRCS_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'},
+                {'name': 'CUST_ACCC_TXN_DATE', 'ref_field': 'CUST_ACCC_TXN_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'},
+                {'name': 'CUST_ACCC_TXN_CHQ_DTL_TEXT', 'ref_field': 'CUST_ACCC_TXN_CHQ_DTL_TEXT', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_ACCC_TXN_PRCS_DATE', 'ref_field': 'CUST_ACCC_TXN_PRCS_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'},
+                {'name': 'EXCP_ACCC_TXN_TYPE_CODE', 'ref_field': 'EXCP_ACCC_TXN_TYPE_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_PYB_ITEM_COST_CTR_CODE', 'ref_field': 'CUST_PYB_ITEM_COST_CTR_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_PYB_ITEM_BSNS_ACTV_CODE', 'ref_field': 'CUST_PYB_ITEM_BSNS_ACTV_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_HSE_UNIT_KEY', 'ref_field': 'CUST_HSE_UNIT_KEY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_HSE_UNIT_CODE_ADDR', 'ref_field': 'CUST_HSE_UNIT_CODE_ADDR', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_ACCC_TXN_REJ_CODE', 'ref_field': 'CUST_ACCC_TXN_REJ_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'EXCP_ACCC_TXN_RMK_TEXT', 'ref_field': 'EXCP_ACCC_TXN_RMK_TEXT', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'ACCC_TXN_CTF_DATE', 'ref_field': 'ACCC_TXN_CTF_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'},
+                {'name': 'BILL_TYPE_CODE', 'ref_field': 'BILL_TYPE_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'BILL_ACCT_NUM', 'ref_field': 'BILL_ACCT_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'HA_SPCL_CUST_KEY', 'ref_field': 'HA_SPCL_CUST_KEY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config=None,
+            insert_else_update=True,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_DLKP_SOR_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "CUST_EXCP_ACCC_KEY"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_lkp_merge_EXPTRANS = df_lkp_merge_EXPTRANS.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_lkp_merge_EXPTRANS = df_lkp_merge_EXPTRANS.withColumn("NewLookupRow", lit(1))
+        ctx.register_df("df_lkp_merge_EXPTRANS", df_lkp_merge_EXPTRANS)
         
         logger.info("Step: apply_FILTRANS_MSTR")
         # Filter: apply_FILTRANS_MSTR
@@ -286,37 +301,35 @@ ORDER BY sts.CUST_EXCP_ACCC_KEY """
         
         logger.info("Step: apply_DLKP_SSA_MSTR")
         # Lookup: apply_DLKP_SSA_MSTR
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_DLKP_SSA_MSTR.groupBy(col("SURROGATE_KEY")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_DLKP_SSA_MSTR: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_EXPTRANS_MSTR
         _lkp_input = _lkp_input.withColumn("IN_DUMMY", col("v_NULL"))
         _lkp_input = _lkp_input.withColumn("IN_SURROGATE_KEY", col("CUST_EXCP_ACCC_KEY"))
-        # Join condition: IN_SURROGATE_KEY=SURROGATE_KEY
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_EXPTRANS_MSTR = _lkp_input.alias("_main").join(
-            broadcast(df_DLKP_SSA_MSTR).alias("_lkp"),
-            (col("_main.IN_SURROGATE_KEY") == col("_lkp.SURROGATE_KEY")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_DLKP_SSA_MSTR[c] for c in df_DLKP_SSA_MSTR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_lkp_merge_EXPTRANS_MSTR = lib.dynamic_lookup(
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_DLKP_SSA_MSTR,
+            name='DLKP_SSA_MSTR',
+            join_predicates=[{'source_col': 'IN_SURROGATE_KEY', 'lookup_col': 'SURROGATE_KEY'}],
+            output_columns=['SURROGATE_KEY', 'DUMMY'],
+            lookup_output_fields=[
+                {'name': 'SURROGATE_KEY', 'ref_field': 'CUST_EXCP_ACCC_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'DUMMY', 'ref_field': 'v_NULL', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config=None,
+            insert_else_update=False,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_DLKP_SSA_MSTR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "SURROGATE_KEY"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_lkp_merge_EXPTRANS_MSTR = df_lkp_merge_EXPTRANS_MSTR.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_lkp_merge_EXPTRANS_MSTR = df_lkp_merge_EXPTRANS_MSTR.withColumn("NewLookupRow", lit(1))
-        ctx.register_df("df_lkp_merge_EXPTRANS_MSTR", df_lkp_merge_EXPTRANS_MSTR)        
+        ctx.register_df("df_lkp_merge_EXPTRANS_MSTR", df_lkp_merge_EXPTRANS_MSTR)
+        
         logger.info("Step: read_DLKP_SSA_STS")
         # Reading Data From Source - read_DLKP_SSA_STS
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -328,37 +341,35 @@ ORDER BY sts.CUST_EXCP_ACCC_KEY """
         
         logger.info("Step: apply_DLKP_SSA_STS")
         # Lookup: apply_DLKP_SSA_STS
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_DLKP_SSA_STS.groupBy(col("SURROGATE_KEY")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_DLKP_SSA_STS: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_EXPTRANS_STS
         _lkp_input = _lkp_input.withColumn("IN_DUMMY", col("v_NULL"))
         _lkp_input = _lkp_input.withColumn("IN_SURROGATE_KEY", col("CUST_EXCP_ACCC_KEY"))
-        # Join condition: IN_SURROGATE_KEY=SURROGATE_KEY
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_EXPTRANS_STS = _lkp_input.alias("_main").join(
-            broadcast(df_DLKP_SSA_STS).alias("_lkp"),
-            (col("_main.IN_SURROGATE_KEY") == col("_lkp.SURROGATE_KEY")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_DLKP_SSA_STS[c] for c in df_DLKP_SSA_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_lkp_merge_EXPTRANS_STS = lib.dynamic_lookup(
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_DLKP_SSA_STS,
+            name='DLKP_SSA_STS',
+            join_predicates=[{'source_col': 'IN_SURROGATE_KEY', 'lookup_col': 'SURROGATE_KEY'}],
+            output_columns=['SURROGATE_KEY', 'DUMMY'],
+            lookup_output_fields=[
+                {'name': 'SURROGATE_KEY', 'ref_field': 'CUST_EXCP_ACCC_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'DUMMY', 'ref_field': 'v_NULL', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config=None,
+            insert_else_update=False,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_DLKP_SSA_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "SURROGATE_KEY"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_lkp_merge_EXPTRANS_STS = df_lkp_merge_EXPTRANS_STS.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_lkp_merge_EXPTRANS_STS = df_lkp_merge_EXPTRANS_STS.withColumn("NewLookupRow", lit(1))
-        ctx.register_df("df_lkp_merge_EXPTRANS_STS", df_lkp_merge_EXPTRANS_STS)        
+        ctx.register_df("df_lkp_merge_EXPTRANS_STS", df_lkp_merge_EXPTRANS_STS)
+        
         logger.info("Step: nullinput_MPLT_DLKP_CACHE_STATUS_MSTR")
         # Expression: nullinput_MPLT_DLKP_CACHE_STATUS_MSTR
         df_MPLT_DLKP_CACHE_STATUS_MSTR_nullinput = df_lkp_merge_EXPTRANS_MSTR

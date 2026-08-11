@@ -42,7 +42,11 @@ informatica_sparker/templates/lib/logging.py.j2
 informatica_sparker/templates/lib/spark.py.j2
 informatica_sparker/utils/__init__.py
 informatica_sparker/utils/sql_dialect.py
+tests/test_deferred_mapplet_wiring.py
+tests/test_dynamic_lookup.py
+tests/test_lookup_filter_wiring.py
 tests/test_metadata_builder.py
+tests/test_runtime_lib_oracle_pushdown.py
 tests/test_validation.py
 validation/__init__.py
 validation/cli.py

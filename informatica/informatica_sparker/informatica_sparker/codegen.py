@@ -23,6 +23,11 @@ class CodeGenerator:
         )
         self.env.filters['topython'] = lambda v: json.dumps(v, indent=2).replace(
             'true', 'True').replace('false', 'False').replace('null', 'None')
+        # Python-single-quote repr for embedding scalar values / small literals
+        # in generated code (dynamic lookup kwargs). Nested containers that
+        # exceed one line must be rendered item-by-item in the template to keep
+        # continuation indentation valid.
+        self.env.filters['pyrepr'] = repr
         # Case-insensitive replace for schema parameterization: the XML owner
         # (e.g. "psor") and the SQL text (e.g. "FROM PSOR.TABLE") may differ in
         # case, and plain `replace` would miss the hardcoded prefix.

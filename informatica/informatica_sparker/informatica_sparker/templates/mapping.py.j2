@@ -440,11 +440,20 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         {% else %}
         _lkp_input = {{ step.df_input }}
         {% endif %}
+        {% set _dl_cfg = step.params.get('dynamic_lookup') %}
         {{ step.df_output }} = lib.dynamic_lookup(
-            spark,
-            _lkp_input,
-            {{ lookup_df_name }},
-            {{ step.params.get('dynamic_lookup') }},
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df={{ lookup_df_name }},
+            {% for _k, _v in _dl_cfg.items() %}
+            {% if _k == 'lookup_output_fields' %}
+            {{ _k }}=[
+                {{ _v | map('pyrepr') | join(',\n                ') }}
+            ],
+            {% else %}
+            {{ _k }}={{ _v | pyrepr }},
+            {% endif %}
+            {% endfor %}
             config=config,
         )
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})

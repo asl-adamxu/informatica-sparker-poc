@@ -188,35 +188,34 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CPM_CUST_LKP_DYN_SOR_EMS_CPM_CUST")
         # Lookup: apply_MPLT_AGMT_EMS_CPM_CUST_LKP_DYN_SOR_EMS_CPM_CUST
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_MPLT_AGMT_EMS_CPM_CUST_LKP_DYN_SOR_EMS_CPM_CUST.groupBy(col("CUST_BK")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_MPLT_AGMT_EMS_CPM_CUST_LKP_DYN_SOR_EMS_CPM_CUST: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_MPLT_AGMT_EMS_CPM_CUST_EXPTRANS
-        # Join condition: IN_CUST_BK=CUST_BK
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_EXPTRANS = _lkp_input.alias("_main").join(
-            broadcast(df_MPLT_AGMT_EMS_CPM_CUST_LKP_DYN_SOR_EMS_CPM_CUST).alias("_lkp"),
-            (col("_main.IN_CUST_BK") == col("_lkp.CUST_BK")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_MPLT_AGMT_EMS_CPM_CUST_LKP_DYN_SOR_EMS_CPM_CUST[c] for c in df_MPLT_AGMT_EMS_CPM_CUST_LKP_DYN_SOR_EMS_CPM_CUST.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_EXPTRANS = lib.dynamic_lookup(
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_MPLT_AGMT_EMS_CPM_CUST_LKP_DYN_SOR_EMS_CPM_CUST,
+            name='MPLT_AGMT_EMS_CPM_CUST_LKP_DYN_SOR_EMS_CPM_CUST',
+            join_predicates=[{'source_col': 'IN_CUST_BK', 'lookup_col': 'CUST_BK'}],
+            output_columns=['CUST_KEY', 'CUST_BK', 'DUMMY'],
+            lookup_output_fields=[
+                {'name': 'CUST_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'CUST_BK', 'ref_field': 'IN_CUST_BK', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'DUMMY', 'ref_field': 'IN_DUMMY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow_LKP_DYN_SOR_EMS_CPM_CUST',
+            sequence_config={'output_col': 'CUST_KEY'},
+            insert_else_update=True,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_MPLT_AGMT_EMS_CPM_CUST_LKP_DYN_SOR_EMS_CPM_CUST.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "CUST_BK"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_EXPTRANS = df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_EXPTRANS.withColumn("NewLookupRow_LKP_DYN_SOR_EMS_CPM_CUST", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_EXPTRANS = df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_EXPTRANS.withColumn("NewLookupRow_LKP_DYN_SOR_EMS_CPM_CUST", lit(1))
-        ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_EXPTRANS", df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_EXPTRANS)        
+        ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_EXPTRANS", df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_EXPTRANS)
+        
         logger.info("Step: rename_EXP_SK")
         # Expression: rename_EXP_SK
         df_MPLT_AGMT_EMS_CPM_CUST_rename_EXP_SK = df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_EXPTRANS
@@ -245,35 +244,33 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CPM_CUST_LKP_DYN_SSA_EMS_CPM_CUST")
         # Lookup: apply_MPLT_AGMT_EMS_CPM_CUST_LKP_DYN_SSA_EMS_CPM_CUST
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_MPLT_AGMT_EMS_CPM_CUST_LKP_DYN_SSA_EMS_CPM_CUST.groupBy(col("SURROGATE_KEY")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_MPLT_AGMT_EMS_CPM_CUST_LKP_DYN_SSA_EMS_CPM_CUST: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_MPLT_AGMT_EMS_CPM_CUST_EXP_SK
-        # Join condition: CUST_KEY=SURROGATE_KEY
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_EXP_SK = _lkp_input.alias("_main").join(
-            broadcast(df_MPLT_AGMT_EMS_CPM_CUST_LKP_DYN_SSA_EMS_CPM_CUST).alias("_lkp"),
-            (col("_main.CUST_KEY") == col("_lkp.SURROGATE_KEY")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_MPLT_AGMT_EMS_CPM_CUST_LKP_DYN_SSA_EMS_CPM_CUST[c] for c in df_MPLT_AGMT_EMS_CPM_CUST_LKP_DYN_SSA_EMS_CPM_CUST.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_EXP_SK = lib.dynamic_lookup(
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_MPLT_AGMT_EMS_CPM_CUST_LKP_DYN_SSA_EMS_CPM_CUST,
+            name='MPLT_AGMT_EMS_CPM_CUST_LKP_DYN_SSA_EMS_CPM_CUST',
+            join_predicates=[{'source_col': 'CUST_KEY', 'lookup_col': 'SURROGATE_KEY'}],
+            output_columns=['SURROGATE_KEY', 'DUMMY'],
+            lookup_output_fields=[
+                {'name': 'SURROGATE_KEY', 'ref_field': 'CUST_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'DUMMY', 'ref_field': 'OUT_TABLE_NAME', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow_LKP_DYN_SSA_EMS_CPM_CUST',
+            sequence_config=None,
+            insert_else_update=False,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_MPLT_AGMT_EMS_CPM_CUST_LKP_DYN_SSA_EMS_CPM_CUST.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "SURROGATE_KEY"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_EXP_SK = df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_EXP_SK.withColumn("NewLookupRow_LKP_DYN_SSA_EMS_CPM_CUST", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_EXP_SK = df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_EXP_SK.withColumn("NewLookupRow_LKP_DYN_SSA_EMS_CPM_CUST", lit(1))
-        ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_EXP_SK", df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_EXP_SK)        
+        ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_EXP_SK", df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_EXP_SK)
+        
         logger.info("Step: rename_EXPTRANS1")
         # Expression: rename_EXPTRANS1
         df_MPLT_AGMT_EMS_CPM_CUST_rename_EXPTRANS1 = df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_EXP_SK
@@ -365,35 +362,35 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CPM_PTCL_LKP_DYN_SOR_EMS_CPM_PTCL")
         # Lookup: apply_MPLT_AGMT_EMS_CPM_PTCL_LKP_DYN_SOR_EMS_CPM_PTCL
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_MPLT_AGMT_EMS_CPM_PTCL_LKP_DYN_SOR_EMS_CPM_PTCL.groupBy(col("PTCL_BK")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_MPLT_AGMT_EMS_CPM_PTCL_LKP_DYN_SOR_EMS_CPM_PTCL: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_MPLT_AGMT_EMS_CPM_PTCL_EXPTRANS
-        # Join condition: IN_PTCL_BK=PTCL_BK
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_PTCL_EXPTRANS = _lkp_input.alias("_main").join(
-            broadcast(df_MPLT_AGMT_EMS_CPM_PTCL_LKP_DYN_SOR_EMS_CPM_PTCL).alias("_lkp"),
-            (col("_main.IN_PTCL_BK") == col("_lkp.PTCL_BK")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_MPLT_AGMT_EMS_CPM_PTCL_LKP_DYN_SOR_EMS_CPM_PTCL[c] for c in df_MPLT_AGMT_EMS_CPM_PTCL_LKP_DYN_SOR_EMS_CPM_PTCL.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_PTCL_EXPTRANS = lib.dynamic_lookup(
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_MPLT_AGMT_EMS_CPM_PTCL_LKP_DYN_SOR_EMS_CPM_PTCL,
+            name='MPLT_AGMT_EMS_CPM_PTCL_LKP_DYN_SOR_EMS_CPM_PTCL',
+            join_predicates=[{'source_col': 'IN_PTCL_BK', 'lookup_col': 'PTCL_BK'}],
+            output_columns=['PTCL_KEY', 'PTCL_BK', 'CUST_MBR_ID_TYPE_CODE', 'CUST_MBR_ID_NUM'],
+            lookup_output_fields=[
+                {'name': 'PTCL_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'PTCL_BK', 'ref_field': 'IN_PTCL_BK', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_ID_TYPE_CODE', 'ref_field': 'IN_CUST_MBR_ID_TYPE_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': True, 'datatype': 'string'},
+                {'name': 'CUST_MBR_ID_NUM', 'ref_field': 'IN_CUST_MBR_ID_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': True, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow_LKP_DYN_SOR_EMS_CPM_PTCL',
+            sequence_config={'output_col': 'PTCL_KEY'},
+            insert_else_update=True,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_MPLT_AGMT_EMS_CPM_PTCL_LKP_DYN_SOR_EMS_CPM_PTCL.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "PTCL_BK"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_PTCL_EXPTRANS = df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_PTCL_EXPTRANS.withColumn("NewLookupRow_LKP_DYN_SOR_EMS_CPM_PTCL", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_PTCL_EXPTRANS = df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_PTCL_EXPTRANS.withColumn("NewLookupRow_LKP_DYN_SOR_EMS_CPM_PTCL", lit(1))
-        ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_PTCL_EXPTRANS", df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_PTCL_EXPTRANS)        
+        ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_PTCL_EXPTRANS", df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_PTCL_EXPTRANS)
+        
         logger.info("Step: rename_EXP_SK")
         # Expression: rename_EXP_SK
         df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXP_SK = df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_PTCL_EXPTRANS
@@ -422,35 +419,33 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CPM_PTCL_LKP_DYN_SSA_EMS_CPM_PTCL")
         # Lookup: apply_MPLT_AGMT_EMS_CPM_PTCL_LKP_DYN_SSA_EMS_CPM_PTCL
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_MPLT_AGMT_EMS_CPM_PTCL_LKP_DYN_SSA_EMS_CPM_PTCL.groupBy(col("SURROGATE_KEY")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_MPLT_AGMT_EMS_CPM_PTCL_LKP_DYN_SSA_EMS_CPM_PTCL: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_MPLT_AGMT_EMS_CPM_PTCL_EXP_SK
-        # Join condition: PTCL_KEY=SURROGATE_KEY
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_PTCL_EXP_SK = _lkp_input.alias("_main").join(
-            broadcast(df_MPLT_AGMT_EMS_CPM_PTCL_LKP_DYN_SSA_EMS_CPM_PTCL).alias("_lkp"),
-            (col("_main.PTCL_KEY") == col("_lkp.SURROGATE_KEY")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_MPLT_AGMT_EMS_CPM_PTCL_LKP_DYN_SSA_EMS_CPM_PTCL[c] for c in df_MPLT_AGMT_EMS_CPM_PTCL_LKP_DYN_SSA_EMS_CPM_PTCL.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_PTCL_EXP_SK = lib.dynamic_lookup(
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_MPLT_AGMT_EMS_CPM_PTCL_LKP_DYN_SSA_EMS_CPM_PTCL,
+            name='MPLT_AGMT_EMS_CPM_PTCL_LKP_DYN_SSA_EMS_CPM_PTCL',
+            join_predicates=[{'source_col': 'PTCL_KEY', 'lookup_col': 'SURROGATE_KEY'}],
+            output_columns=['SURROGATE_KEY', 'DUMMY'],
+            lookup_output_fields=[
+                {'name': 'SURROGATE_KEY', 'ref_field': 'PTCL_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'DUMMY', 'ref_field': 'OUT_TABLE_NAME', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow_LKP_DYN_SSA_EMS_CPM_PTCL',
+            sequence_config=None,
+            insert_else_update=False,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_MPLT_AGMT_EMS_CPM_PTCL_LKP_DYN_SSA_EMS_CPM_PTCL.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "SURROGATE_KEY"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_PTCL_EXP_SK = df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_PTCL_EXP_SK.withColumn("NewLookupRow_LKP_DYN_SSA_EMS_CPM_PTCL", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_PTCL_EXP_SK = df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_PTCL_EXP_SK.withColumn("NewLookupRow_LKP_DYN_SSA_EMS_CPM_PTCL", lit(1))
-        ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_PTCL_EXP_SK", df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_PTCL_EXP_SK)        
+        ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_PTCL_EXP_SK", df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_PTCL_EXP_SK)
+        
         logger.info("Step: rename_EXPTRANS1")
         # Expression: rename_EXPTRANS1
         df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXPTRANS1 = df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_PTCL_EXP_SK
@@ -523,35 +518,35 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CPM_CUST_APLY_LKP_DYN_SOR_EMS_CPM_CUST_APLY")
         # Lookup: apply_MPLT_AGMT_EMS_CPM_CUST_APLY_LKP_DYN_SOR_EMS_CPM_CUST_APLY
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_MPLT_AGMT_EMS_CPM_CUST_APLY_LKP_DYN_SOR_EMS_CPM_CUST_APLY.groupBy(col("CUST_APLY_BK")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_MPLT_AGMT_EMS_CPM_CUST_APLY_LKP_DYN_SOR_EMS_CPM_CUST_APLY: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_MPLT_AGMT_EMS_CPM_CUST_APLY_EXPTRANS
-        # Join condition: IN_CUST_APLY_BK=CUST_APLY_BK
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_APLY_EXPTRANS = _lkp_input.alias("_main").join(
-            broadcast(df_MPLT_AGMT_EMS_CPM_CUST_APLY_LKP_DYN_SOR_EMS_CPM_CUST_APLY).alias("_lkp"),
-            (col("_main.IN_CUST_APLY_BK") == col("_lkp.CUST_APLY_BK")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_MPLT_AGMT_EMS_CPM_CUST_APLY_LKP_DYN_SOR_EMS_CPM_CUST_APLY[c] for c in df_MPLT_AGMT_EMS_CPM_CUST_APLY_LKP_DYN_SOR_EMS_CPM_CUST_APLY.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_APLY_EXPTRANS = lib.dynamic_lookup(
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_MPLT_AGMT_EMS_CPM_CUST_APLY_LKP_DYN_SOR_EMS_CPM_CUST_APLY,
+            name='MPLT_AGMT_EMS_CPM_CUST_APLY_LKP_DYN_SOR_EMS_CPM_CUST_APLY',
+            join_predicates=[{'source_col': 'IN_CUST_APLY_BK', 'lookup_col': 'CUST_APLY_BK'}],
+            output_columns=['CUST_APLY_KEY', 'CUST_APLY_BK', 'CUST_KEY', 'HSE_SRVC_APLY_KEY'],
+            lookup_output_fields=[
+                {'name': 'CUST_APLY_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'CUST_APLY_BK', 'ref_field': 'IN_CUST_APLY_BK', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_KEY', 'ref_field': 'IN_CUST_KEY', 'ignore_in_compare': False, 'ignore_null_inputs': True, 'datatype': 'decimal'},
+                {'name': 'HSE_SRVC_APLY_KEY', 'ref_field': 'IN_HSE_SRVC_APLY_KEY', 'ignore_in_compare': False, 'ignore_null_inputs': True, 'datatype': 'decimal'}
+            ],
+            new_lookup_row_col='NewLookupRow_LKP_DYN_SOR_EMS_CPM_CUST_APLY',
+            sequence_config={'output_col': 'CUST_APLY_KEY'},
+            insert_else_update=True,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_MPLT_AGMT_EMS_CPM_CUST_APLY_LKP_DYN_SOR_EMS_CPM_CUST_APLY.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "CUST_APLY_BK"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_APLY_EXPTRANS = df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_APLY_EXPTRANS.withColumn("NewLookupRow_LKP_DYN_SOR_EMS_CPM_CUST_APLY", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_APLY_EXPTRANS = df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_APLY_EXPTRANS.withColumn("NewLookupRow_LKP_DYN_SOR_EMS_CPM_CUST_APLY", lit(1))
-        ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_APLY_EXPTRANS", df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_APLY_EXPTRANS)        
+        ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_APLY_EXPTRANS", df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_APLY_EXPTRANS)
+        
         logger.info("Step: rename_EXP_SK")
         # Expression: rename_EXP_SK
         df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXP_SK = df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_APLY_EXPTRANS
@@ -580,35 +575,33 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CPM_CUST_APLY_LKP_DYN_SSA_EMS_CPM_CUST_APLY")
         # Lookup: apply_MPLT_AGMT_EMS_CPM_CUST_APLY_LKP_DYN_SSA_EMS_CPM_CUST_APLY
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_MPLT_AGMT_EMS_CPM_CUST_APLY_LKP_DYN_SSA_EMS_CPM_CUST_APLY.groupBy(col("SURROGATE_KEY")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_MPLT_AGMT_EMS_CPM_CUST_APLY_LKP_DYN_SSA_EMS_CPM_CUST_APLY: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_MPLT_AGMT_EMS_CPM_CUST_APLY_EXP_SK
-        # Join condition: CUST_APLY_KEY=SURROGATE_KEY
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_APLY_EXP_SK = _lkp_input.alias("_main").join(
-            broadcast(df_MPLT_AGMT_EMS_CPM_CUST_APLY_LKP_DYN_SSA_EMS_CPM_CUST_APLY).alias("_lkp"),
-            (col("_main.CUST_APLY_KEY") == col("_lkp.SURROGATE_KEY")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_MPLT_AGMT_EMS_CPM_CUST_APLY_LKP_DYN_SSA_EMS_CPM_CUST_APLY[c] for c in df_MPLT_AGMT_EMS_CPM_CUST_APLY_LKP_DYN_SSA_EMS_CPM_CUST_APLY.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_APLY_EXP_SK = lib.dynamic_lookup(
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_MPLT_AGMT_EMS_CPM_CUST_APLY_LKP_DYN_SSA_EMS_CPM_CUST_APLY,
+            name='MPLT_AGMT_EMS_CPM_CUST_APLY_LKP_DYN_SSA_EMS_CPM_CUST_APLY',
+            join_predicates=[{'source_col': 'CUST_APLY_KEY', 'lookup_col': 'SURROGATE_KEY'}],
+            output_columns=['SURROGATE_KEY', 'DUMMY'],
+            lookup_output_fields=[
+                {'name': 'SURROGATE_KEY', 'ref_field': 'CUST_APLY_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'DUMMY', 'ref_field': 'OUT_TABLE_NAME', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow_LKP_DYN_SSA_EMS_CPM_CUST_APLY',
+            sequence_config=None,
+            insert_else_update=False,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_MPLT_AGMT_EMS_CPM_CUST_APLY_LKP_DYN_SSA_EMS_CPM_CUST_APLY.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "SURROGATE_KEY"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_APLY_EXP_SK = df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_APLY_EXP_SK.withColumn("NewLookupRow_LKP_DYN_SSA_EMS_CPM_CUST_APLY", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_APLY_EXP_SK = df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_APLY_EXP_SK.withColumn("NewLookupRow_LKP_DYN_SSA_EMS_CPM_CUST_APLY", lit(1))
-        ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_APLY_EXP_SK", df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_APLY_EXP_SK)        
+        ctx.register_df("df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_APLY_EXP_SK", df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_APLY_EXP_SK)
+        
         logger.info("Step: rename_EXPTRANS1")
         # Expression: rename_EXPTRANS1
         df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXPTRANS1 = df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_APLY_EXP_SK
@@ -765,11 +758,8 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         
         logger.info("Step: apply_LKP_DYN_SOR_EMS_CPM_CUST_APLY_MBR")
         # Lookup: apply_LKP_DYN_SOR_EMS_CPM_CUST_APLY_MBR
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_LKP_DYN_SOR_EMS_CPM_CUST_APLY_MBR.groupBy(col("CUST_APLY_MBR_BK")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_LKP_DYN_SOR_EMS_CPM_CUST_APLY_MBR: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_merge_LKP_DYN_SOR_EMS_CPM_CUST_APLY_MBR_2
         _lkp_input = _lkp_input.withColumn("IN_PTCL_KEY", col("PTCL_KEY"))
         _lkp_input = _lkp_input.withColumn("IN_CUST_APLY_KEY", col("CUST_APLY_KEY"))
@@ -778,29 +768,36 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _lkp_input = _lkp_input.withColumn("IN_HSE_SRVC_APLY_TYPE_CODE", col("HSE_SRVC_APLY_TYPE_CODE"))
         _lkp_input = _lkp_input.withColumn("IN_CUST_APLY_MBR_BK", col("CUST_APLY_MBR_BK"))
         _lkp_input = _lkp_input.withColumn("IN_CUST_KEY", col("CUST_KEY"))
-        # Join condition: IN_CUST_APLY_MBR_BK=CUST_APLY_MBR_BK
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_MPLT_AGMT_EMS_CPM_PTCL = _lkp_input.alias("_main").join(
-            broadcast(df_LKP_DYN_SOR_EMS_CPM_CUST_APLY_MBR).alias("_lkp"),
-            (col("_main.IN_CUST_APLY_MBR_BK") == col("_lkp.CUST_APLY_MBR_BK")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DYN_SOR_EMS_CPM_CUST_APLY_MBR[c] for c in df_LKP_DYN_SOR_EMS_CPM_CUST_APLY_MBR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_lkp_merge_MPLT_AGMT_EMS_CPM_PTCL = lib.dynamic_lookup(
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_LKP_DYN_SOR_EMS_CPM_CUST_APLY_MBR,
+            name='LKP_DYN_SOR_EMS_CPM_CUST_APLY_MBR',
+            join_predicates=[{'source_col': 'IN_CUST_APLY_MBR_BK', 'lookup_col': 'CUST_APLY_MBR_BK'}],
+            output_columns=['CUST_APLY_MBR_KEY', 'CUST_APLY_MBR_BK', 'CUST_KEY', 'PTCL_KEY', 'CUST_APLY_KEY', 'CUST_MBR_ID_NUM', 'CUST_MBR_ID_TYPE_CODE', 'HSE_SRVC_APLY_TYPE_CODE'],
+            lookup_output_fields=[
+                {'name': 'CUST_APLY_MBR_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'CUST_APLY_MBR_BK', 'ref_field': 'CUST_APLY_MBR_BK', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_KEY', 'ref_field': 'CUST_KEY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'PTCL_KEY', 'ref_field': 'PTCL_KEY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'CUST_APLY_KEY', 'ref_field': 'CUST_APLY_KEY', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'CUST_MBR_ID_NUM', 'ref_field': 'CUST_MBR_ID_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_ID_TYPE_CODE', 'ref_field': 'CUST_MBR_ID_TYPE_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'HSE_SRVC_APLY_TYPE_CODE', 'ref_field': 'HSE_SRVC_APLY_TYPE_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config={'output_col': 'CUST_APLY_MBR_KEY'},
+            insert_else_update=True,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_LKP_DYN_SOR_EMS_CPM_CUST_APLY_MBR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "CUST_APLY_MBR_BK"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_lkp_merge_MPLT_AGMT_EMS_CPM_PTCL = df_lkp_merge_MPLT_AGMT_EMS_CPM_PTCL.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_lkp_merge_MPLT_AGMT_EMS_CPM_PTCL = df_lkp_merge_MPLT_AGMT_EMS_CPM_PTCL.withColumn("NewLookupRow", lit(1))
-        ctx.register_df("df_lkp_merge_MPLT_AGMT_EMS_CPM_PTCL", df_lkp_merge_MPLT_AGMT_EMS_CPM_PTCL)        
+        ctx.register_df("df_lkp_merge_MPLT_AGMT_EMS_CPM_PTCL", df_lkp_merge_MPLT_AGMT_EMS_CPM_PTCL)
+        
         logger.info("Step: apply_FILTRANS211")
         # Filter: apply_FILTRANS211
         __fil_input = df_MPLT_AGMT_EMS_CPM_CUST_APLY
@@ -823,11 +820,8 @@ ORDER BY CUST_APLY_MBR_KEY """
         
         logger.info("Step: apply_LKP_DYN_SOR_EMS_CPM_CUST_APLY_MBR_STS")
         # Lookup: apply_LKP_DYN_SOR_EMS_CPM_CUST_APLY_MBR_STS
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_LKP_DYN_SOR_EMS_CPM_CUST_APLY_MBR_STS.groupBy(col("CUST_APLY_MBR_KEY")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_LKP_DYN_SOR_EMS_CPM_CUST_APLY_MBR_STS: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_EXP_DUMMY
         _lkp_input = _lkp_input.withColumn("IN_CUST_APLY_MBR_KEY", col("CUST_APLY_MBR_KEY"))
         _lkp_input = _lkp_input.withColumn("IN_CUST_MBR_CC_CODE_5", col("CUST_MBR_CC_CODE_5"))
@@ -914,29 +908,114 @@ ORDER BY CUST_APLY_MBR_KEY """
         _lkp_input = _lkp_input.withColumn("IN_ACTL_CUST_MBR_AST_AMT", col("ACTL_CUST_MBR_AST_AMT"))
         _lkp_input = _lkp_input.withColumn("IN_LAST_REC_TXN_MBR_CODE", col("LAST_REC_TXN_MBR_CODE"))
         _lkp_input = _lkp_input.withColumn("IN_CUST_MBR_DSBL_ALWN_RCPT_IND", col("CUST_MBR_DSBL_ALWN_RCPT_IND"))
-        # Join condition: IN_CUST_APLY_MBR_KEY=CUST_APLY_MBR_KEY
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_EXP_DUMMY = _lkp_input.alias("_main").join(
-            broadcast(df_LKP_DYN_SOR_EMS_CPM_CUST_APLY_MBR_STS).alias("_lkp"),
-            (col("_main.IN_CUST_APLY_MBR_KEY") == col("_lkp.CUST_APLY_MBR_KEY")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DYN_SOR_EMS_CPM_CUST_APLY_MBR_STS[c] for c in df_LKP_DYN_SOR_EMS_CPM_CUST_APLY_MBR_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_lkp_merge_EXP_DUMMY = lib.dynamic_lookup(
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_LKP_DYN_SOR_EMS_CPM_CUST_APLY_MBR_STS,
+            name='LKP_DYN_SOR_EMS_CPM_CUST_APLY_MBR_STS',
+            join_predicates=[{'source_col': 'IN_CUST_APLY_MBR_KEY', 'lookup_col': 'CUST_APLY_MBR_KEY'}],
+            output_columns=['CUST_APLY_MBR_KEY', 'BGN_DATE', 'CUST_APLY_MBR_STS_CODE', 'CUST_MBR_HSHLD_HEAD_CODE', 'CUST_MBR_CNTC_CODE', 'CUST_MBR_OWNR_CODE', 'CUST_MBR_HOME_ADDR_1', 'CUST_MBR_HOME_ADDR_2', 'CUST_MBR_HOME_ADDR_3', 'CUST_MBR_HOME_ADDR_4', 'CUST_MBR_HOME_ADDR_5', 'CUST_MBR_HOME_CHI_ADDR_1', 'CUST_MBR_HOME_CHI_ADDR_2', 'CUST_MBR_HOME_CHI_ADDR_3', 'CUST_MBR_HOME_CHI_ADDR_4', 'CUST_MBR_HOME_CHI_ADDR_5', 'CUST_MBR_CRSP_CODE_ADDR', 'CUST_MBR_CRSP_ADDR_1', 'CUST_MBR_CRSP_ADDR_2', 'CUST_MBR_CRSP_ADDR_3', 'CUST_MBR_CRSP_ADDR_4', 'CUST_MBR_CRSP_ADDR_5', 'CUST_MBR_CRSP_CHI_ADDR_1', 'CUST_MBR_CRSP_CHI_ADDR_2', 'CUST_MBR_CRSP_CHI_ADDR_3', 'CUST_MBR_CRSP_CHI_ADDR_4', 'CUST_MBR_CRSP_CHI_ADDR_5', 'CUST_MBR_EMAIL_ADDR', 'CUST_MBR_HOME_PHONE_NUM', 'CUST_MBR_OFFC_PHONE_NUM', 'CUST_MBR_HOME_CODE_ADDR', 'CUST_MBR_MBL_PHONE_NUM', 'CUST_MBR_INCM_AMT', 'CUST_MBR_AST_AMT', 'CUST_MBR_OCPY_STS_CODE', 'CUST_MBR_UP_IND', 'CUST_MBR_RR_IND', 'CUST_MBR_TEMP_STAY_BGN_DATE', 'CUST_MBR_TEMP_STAY_END_DATE', 'CUST_MBR_RLNQ_DATE', 'OWN_SRDR_RSN_CODE', 'CUST_MBR_STS_UPD_DATE', 'CUST_MBR_NAME', 'CUST_MBR_CHI_NAME', 'CUST_MBR_CC_CODE_1', 'CUST_MBR_CC_CODE_2', 'CUST_MBR_CC_CODE_3', 'CUST_MBR_CC_CODE_4', 'CUST_MBR_CC_CODE_5', 'CUST_MBR_CC_CODE_6', 'CUST_MBR_DOB_DATE', 'CUST_MBR_DOB_IND', 'CUST_MBR_GNDR_CODE', 'CUST_MBR_MRTL_STS_CODE', 'CUST_MBR_CHI_ENTRY_DATE', 'CUST_MBR_DVRC_BFR_IND', 'CUST_MBR_ID_ISS_DATE', 'CUST_MBR_ID_CERT_NUM', 'CUST_MBR_RLTN_CODE', 'RLT_MBR_ID_TYPE_CODE', 'RLT_MBR_ID_NUM', 'CUST_MBR_ELDR_IND', 'DSBL_CATG_CODE_1', 'DSBL_CATG_CODE_2', 'DSBL_CATG_CODE_3', 'PREV_CUST_MBR_ENG_NAME', 'PREV_CUST_MBR_CHI_NAME', 'CUST_MBR_HK_LAND_RGHT_IND', 'CUST_MBR_GUDN_IND', 'CUST_MBR_JNT_CSTDY_IND', 'CUST_MBR_ENTRY_DATE_CNFR_IND', 'CUST_MBR_HSTL_TYPE_CODE', 'CUST_MBR_CSSA_IND', 'PREV_CUST_MBR_CSSA_IND', 'CUST_MBR_PRGNT_IND', 'CUST_MBR_EXPCT_CHILD_NUM', 'CUST_MBR_EXPCT_DLVR_DATE', 'CUST_MBR_SIGN_IND', 'CUST_MBR_SEQ_NUM', 'DOC_CHK_IND', 'SRC_SYS_CODE', 'CUR_TNT_IND', 'ACTL_CUST_MBR_INCM_AMT', 'ACTL_CUST_MBR_AST_AMT', 'LAST_REC_TXN_MBR_CODE', 'CUST_MBR_DSBL_ALWN_RCPT_IND'],
+            lookup_output_fields=[
+                {'name': 'CUST_APLY_MBR_KEY', 'ref_field': 'CUST_APLY_MBR_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'BGN_DATE', 'ref_field': 'DUMMY_DATE', 'ignore_in_compare': True, 'ignore_null_inputs': True, 'datatype': 'date/time'},
+                {'name': 'CUST_APLY_MBR_STS_CODE', 'ref_field': 'CUST_APLY_MBR_STS_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_HSHLD_HEAD_CODE', 'ref_field': 'CUST_MBR_HSHLD_HEAD_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_CNTC_CODE', 'ref_field': 'CUST_MBR_CNTC_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_OWNR_CODE', 'ref_field': 'CUST_MBR_OWNR_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_HOME_ADDR_1', 'ref_field': 'CUST_MBR_HOME_ENG_ADDR_1', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_HOME_ADDR_2', 'ref_field': 'CUST_MBR_HOME_ENG_ADDR_2', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_HOME_ADDR_3', 'ref_field': 'CUST_MBR_HOME_ENG_ADDR_3', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_HOME_ADDR_4', 'ref_field': 'CUST_MBR_HOME_ENG_ADDR_4', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_HOME_ADDR_5', 'ref_field': 'CUST_MBR_HOME_ENG_ADDR_5', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_HOME_CHI_ADDR_1', 'ref_field': 'CUST_MBR_HOME_CHI_ADDR_1', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_HOME_CHI_ADDR_2', 'ref_field': 'CUST_MBR_HOME_CHI_ADDR_2', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_HOME_CHI_ADDR_3', 'ref_field': 'CUST_MBR_HOME_CHI_ADDR_3', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_HOME_CHI_ADDR_4', 'ref_field': 'CUST_MBR_HOME_CHI_ADDR_4', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_HOME_CHI_ADDR_5', 'ref_field': 'CUST_MBR_HOME_CHI_ADDR_5', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_CRSP_CODE_ADDR', 'ref_field': 'CUST_MBR_CRSP_CODE_ADDR', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_CRSP_ADDR_1', 'ref_field': 'CUST_MBR_CRSP_ENG_ADDR_1', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_CRSP_ADDR_2', 'ref_field': 'CUST_MBR_CRSP_ENG_ADDR_2', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_CRSP_ADDR_3', 'ref_field': 'CUST_MBR_CRSP_ENG_ADDR_3', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_CRSP_ADDR_4', 'ref_field': 'CUST_MBR_CRSP_ENG_ADDR_4', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_CRSP_ADDR_5', 'ref_field': 'CUST_MBR_CRSP_ENG_ADDR_5', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_CRSP_CHI_ADDR_1', 'ref_field': 'CUST_MBR_CRSP_CHI_ADDR_1', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_CRSP_CHI_ADDR_2', 'ref_field': 'CUST_MBR_CRSP_CHI_ADDR_2', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_CRSP_CHI_ADDR_3', 'ref_field': 'CUST_MBR_CRSP_CHI_ADDR_3', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_CRSP_CHI_ADDR_4', 'ref_field': 'CUST_MBR_CRSP_CHI_ADDR_4', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_CRSP_CHI_ADDR_5', 'ref_field': 'CUST_MBR_CRSP_CHI_ADDR_5', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_EMAIL_ADDR', 'ref_field': 'CUST_MBR_EMAIL_ADDR', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_HOME_PHONE_NUM', 'ref_field': 'CUST_MBR_HOME_PHONE_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_OFFC_PHONE_NUM', 'ref_field': 'CUST_MBR_OFFC_PHONE_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_HOME_CODE_ADDR', 'ref_field': 'CUST_MBR_HOME_CODE_ADDR', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_MBL_PHONE_NUM', 'ref_field': 'CUST_MBR_MBL_PHONE_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_INCM_AMT', 'ref_field': 'CUST_MBR_INCM_AMT', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'CUST_MBR_AST_AMT', 'ref_field': 'CUST_MBR_AST_AMT', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'CUST_MBR_OCPY_STS_CODE', 'ref_field': 'CUST_MBR_OCPY_STS_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_UP_IND', 'ref_field': 'CUST_MBR_UP_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_RR_IND', 'ref_field': 'CUST_MBR_RR_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_TEMP_STAY_BGN_DATE', 'ref_field': 'CUST_MBR_TEMP_STAY_BGN_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'},
+                {'name': 'CUST_MBR_TEMP_STAY_END_DATE', 'ref_field': 'CUST_MBR_TEMP_STAY_END_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'},
+                {'name': 'CUST_MBR_RLNQ_DATE', 'ref_field': 'CUST_MBR_RLNQ_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'},
+                {'name': 'OWN_SRDR_RSN_CODE', 'ref_field': 'OWN_SRDR_RSN_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_STS_UPD_DATE', 'ref_field': 'CUST_MBR_STS_UPD_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'},
+                {'name': 'CUST_MBR_NAME', 'ref_field': 'CUST_MBR_ENG_NAME', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_CHI_NAME', 'ref_field': 'CUST_MBR_CHI_NAME', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_CC_CODE_1', 'ref_field': 'CUST_MBR_CC_CODE_1', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_CC_CODE_2', 'ref_field': 'CUST_MBR_CC_CODE_2', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_CC_CODE_3', 'ref_field': 'CUST_MBR_CC_CODE_3', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_CC_CODE_4', 'ref_field': 'CUST_MBR_CC_CODE_4', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_CC_CODE_5', 'ref_field': 'CUST_MBR_CC_CODE_5', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_CC_CODE_6', 'ref_field': 'CUST_MBR_CC_CODE_6', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_DOB_DATE', 'ref_field': 'CUST_MBR_DOB_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'},
+                {'name': 'CUST_MBR_DOB_IND', 'ref_field': 'CUST_MBR_DOB_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_GNDR_CODE', 'ref_field': 'CUST_MBR_GNDR_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_MRTL_STS_CODE', 'ref_field': 'CUST_MBR_MRTL_STS_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_CHI_ENTRY_DATE', 'ref_field': 'CUST_MBR_CHI_ENTRY_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'},
+                {'name': 'CUST_MBR_DVRC_BFR_IND', 'ref_field': 'CUST_MBR_DVRC_BFR_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_ID_ISS_DATE', 'ref_field': 'CUST_MBR_ID_ISS_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'},
+                {'name': 'CUST_MBR_ID_CERT_NUM', 'ref_field': 'CUST_MBR_ID_CERT_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_RLTN_CODE', 'ref_field': 'CUST_MBR_RLTN_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'RLT_MBR_ID_TYPE_CODE', 'ref_field': 'RLT_MBR_ID_TYPE_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'RLT_MBR_ID_NUM', 'ref_field': 'RLT_MBR_ID_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_ELDR_IND', 'ref_field': 'CUST_MBR_ELDR_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'DSBL_CATG_CODE_1', 'ref_field': 'DSBL_CATG_CODE_1', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'DSBL_CATG_CODE_2', 'ref_field': 'DSBL_CATG_CODE_2', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'DSBL_CATG_CODE_3', 'ref_field': 'DSBL_CATG_CODE_3', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'PREV_CUST_MBR_ENG_NAME', 'ref_field': 'PREV_CUST_MBR_ENG_NAME', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'PREV_CUST_MBR_CHI_NAME', 'ref_field': 'PREV_CUST_MBR_CHI_NAME', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_HK_LAND_RGHT_IND', 'ref_field': 'CUST_MBR_HK_LAND_RGHT_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_GUDN_IND', 'ref_field': 'CUST_MBR_GUDN_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_JNT_CSTDY_IND', 'ref_field': 'CUST_MBR_JNT_CSTDY_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_ENTRY_DATE_CNFR_IND', 'ref_field': 'CUST_MBR_ENTRY_DATE_CNFR_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_HSTL_TYPE_CODE', 'ref_field': 'CUST_MBR_HSTL_TYPE_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_CSSA_IND', 'ref_field': 'CUST_MBR_CSSA_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'PREV_CUST_MBR_CSSA_IND', 'ref_field': 'PREV_CUST_MBR_CSSA_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_PRGNT_IND', 'ref_field': 'CUST_MBR_PRGNT_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_EXPCT_CHILD_NUM', 'ref_field': 'CUST_MBR_EXPCT_CHILD_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'CUST_MBR_EXPCT_DLVR_DATE', 'ref_field': 'CUST_MBR_EXPCT_DLVR_DATE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'date/time'},
+                {'name': 'CUST_MBR_SIGN_IND', 'ref_field': 'CUST_MBR_SIGN_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_SEQ_NUM', 'ref_field': 'CUST_MBR_SEQ_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'DOC_CHK_IND', 'ref_field': 'DOC_CHK_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'SRC_SYS_CODE', 'ref_field': 'SRC_SYS_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUR_TNT_IND', 'ref_field': 'CUR_TNT_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'ACTL_CUST_MBR_INCM_AMT', 'ref_field': 'ACTL_CUST_MBR_INCM_AMT', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'ACTL_CUST_MBR_AST_AMT', 'ref_field': 'ACTL_CUST_MBR_AST_AMT', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'LAST_REC_TXN_MBR_CODE', 'ref_field': 'LAST_REC_TXN_MBR_CODE', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'CUST_MBR_DSBL_ALWN_RCPT_IND', 'ref_field': 'CUST_MBR_DSBL_ALWN_RCPT_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config=None,
+            insert_else_update=True,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_LKP_DYN_SOR_EMS_CPM_CUST_APLY_MBR_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "CUST_APLY_MBR_KEY"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_lkp_merge_EXP_DUMMY = df_lkp_merge_EXP_DUMMY.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_lkp_merge_EXP_DUMMY = df_lkp_merge_EXP_DUMMY.withColumn("NewLookupRow", lit(1))
-        ctx.register_df("df_lkp_merge_EXP_DUMMY", df_lkp_merge_EXP_DUMMY)        
+        ctx.register_df("df_lkp_merge_EXP_DUMMY", df_lkp_merge_EXP_DUMMY)
+        
         logger.info("Step: write_SSA_EMS_CPM_CUST_APLY")
         # Write to Target: write_SSA_EMS_CPM_CUST_APLY
         df_write = df_FILTRANS211
@@ -1074,37 +1153,35 @@ ORDER BY CUST_APLY_MBR_KEY """
         
         logger.info("Step: apply_LKP_DYN_SSA_EMS_CPM_CUST_APLY_MBR_STS")
         # Lookup: apply_LKP_DYN_SSA_EMS_CPM_CUST_APLY_MBR_STS
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_LKP_DYN_SSA_EMS_CPM_CUST_APLY_MBR_STS.groupBy(col("SURROGATE_KEY")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_LKP_DYN_SSA_EMS_CPM_CUST_APLY_MBR_STS: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_EXPTRANS11
         _lkp_input = _lkp_input.withColumn("IN_DUMMY", col("v_SSAL2_TBL_NAME"))
         _lkp_input = _lkp_input.withColumn("IN_SURROGATE_KEY", col("CUST_APLY_MBR_KEY"))
-        # Join condition: IN_SURROGATE_KEY=SURROGATE_KEY
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_EXPTRANS11 = _lkp_input.alias("_main").join(
-            broadcast(df_LKP_DYN_SSA_EMS_CPM_CUST_APLY_MBR_STS).alias("_lkp"),
-            (col("_main.IN_SURROGATE_KEY") == col("_lkp.SURROGATE_KEY")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKP_DYN_SSA_EMS_CPM_CUST_APLY_MBR_STS[c] for c in df_LKP_DYN_SSA_EMS_CPM_CUST_APLY_MBR_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
+        df_lkp_merge_EXPTRANS11 = lib.dynamic_lookup(
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_LKP_DYN_SSA_EMS_CPM_CUST_APLY_MBR_STS,
+            name='LKP_DYN_SSA_EMS_CPM_CUST_APLY_MBR_STS',
+            join_predicates=[{'source_col': 'IN_SURROGATE_KEY', 'lookup_col': 'SURROGATE_KEY'}],
+            output_columns=['SURROGATE_KEY', 'DUMMY'],
+            lookup_output_fields=[
+                {'name': 'SURROGATE_KEY', 'ref_field': 'CUST_APLY_MBR_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'DUMMY', 'ref_field': 'v_SSAL2_TBL_NAME', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config=None,
+            insert_else_update=False,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_LKP_DYN_SSA_EMS_CPM_CUST_APLY_MBR_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns] and c.lower() != 'newlookuprow']
-        _nlr_key = "SURROGATE_KEY"
-        if (_nlr_key.lower() not in [x.lower() for x in _lkp_input.columns]
-                and _nlr_key.lower() in [x.lower() for x in _nlr_lkp_cols]):
-            _nlr_lkp_cols = [c for c in _nlr_lkp_cols if c.lower() != _nlr_key.lower()]
-            _nlr_lkp_cols.insert(0, _nlr_key)
-        if _nlr_lkp_cols:
-            df_lkp_merge_EXPTRANS11 = df_lkp_merge_EXPTRANS11.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_lkp_merge_EXPTRANS11 = df_lkp_merge_EXPTRANS11.withColumn("NewLookupRow", lit(1))
-        ctx.register_df("df_lkp_merge_EXPTRANS11", df_lkp_merge_EXPTRANS11)        
+        ctx.register_df("df_lkp_merge_EXPTRANS11", df_lkp_merge_EXPTRANS11)
+        
         logger.info("Step: nullinput_MPLT_DLKP_CACHE_STATUS1")
         # Expression: nullinput_MPLT_DLKP_CACHE_STATUS1
         df_MPLT_DLKP_CACHE_STATUS1_nullinput = df_lkp_merge_EXPTRANS11

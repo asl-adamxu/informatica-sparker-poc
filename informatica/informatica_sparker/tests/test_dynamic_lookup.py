@@ -302,6 +302,55 @@ def test_spark_apply_in_pandas_insert_update_and_null_key(runtime_lib, spark):
     ]
 
 
+def test_runtime_kwargs_call_matches_dict_call(runtime_lib, spark):
+    """Generated code calls dynamic_lookup with keyword arguments; the merged
+    cfg must behave identically to the legacy positional-dict form."""
+    from pyspark.sql.types import LongType, StringType, StructField, StructType
+
+    input_df = spark.createDataFrame(
+        [("1", "a"), ("1", "b")], ["IN_KEY", "IN_VAL"]
+    )
+    lookup_df = spark.createDataFrame(
+        [],
+        StructType([
+            StructField("KEY", StringType(), True),
+            StructField("VAL", StringType(), True),
+            StructField("SEQ", LongType(), True),
+        ]),
+    )
+    out = runtime_lib.dynamic_lookup(
+        spark=spark,
+        input_df=input_df,
+        lookup_df=lookup_df,
+        name="TEST_LKP",
+        join_predicates=[{"source_col": "IN_KEY", "lookup_col": "KEY"}],
+        output_columns=["SEQ", "VAL"],
+        lookup_output_fields=[
+            {"name": "SEQ", "ref_field": "Sequence-Id",
+             "ignore_in_compare": False, "ignore_null_inputs": False,
+             "datatype": "integer"},
+            {"name": "VAL", "ref_field": "IN_VAL",
+             "ignore_in_compare": False, "ignore_null_inputs": False,
+             "datatype": "string"},
+        ],
+        new_lookup_row_col="NewLookupRow",
+        sequence_config={"output_col": "SEQ"},
+        insert_else_update=True,
+        update_else_insert=False,
+        update_condition="TRUE",
+        output_old_value_on_update=False,
+        case_sensitive_string_comparison=False,
+        lookup_policy="Report Error",
+        order_by_columns=[],
+        config={"dynamic_lookup": {"executor": "rdd"}},
+    )
+    rows = out.orderBy("IN_VAL").collect()
+    assert [(r.IN_VAL, r.SEQ, r.NewLookupRow) for r in rows] == [
+        ("a", 1, 1),
+        ("b", 1, 2),
+    ]
+
+
 def test_spark_rdd_fallback_matches_apply_in_pandas(runtime_lib, spark):
     from pyspark.sql.types import LongType, StringType, StructField, StructType
 
@@ -362,6 +411,15 @@ def test_generated_nhs_uses_dynamic_lookup_helper():
         assert old_approx.search(text) is None, (
             f"{path.name}: legacy CASE WHEN NewLookupRow approximation still "
             "generated"
+        )
+        # Dynamic lookups must be generated as keyword-argument calls (readable
+        # config), not the old positional (spark, _lkp_input, df, {inline dict}).
+        for call in re.finditer(
+                r"lib\.dynamic_lookup\(\s*spark=spark,\s*"
+                r"input_df=_lkp_input,\s*lookup_df=", text):
+            assert call, f"{path.name}: dynamic_lookup not in kwargs form"
+        assert re.search(r"lib\.dynamic_lookup\(\s*\n\s+spark,\s*\n", text) is None, (
+            f"{path.name}: legacy positional dynamic_lookup call still generated"
         )
         compile(text, str(path), "exec")
         checked += 1

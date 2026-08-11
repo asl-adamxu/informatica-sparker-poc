@@ -612,8 +612,9 @@ def _dynamic_lookup_rdd(spark, joined, cfg, output_schema):
 
 
 def dynamic_lookup(spark: SparkSession, input_df: DataFrame,
-                   lookup_df: DataFrame, cfg: Dict[str, Any],
-                   config: Dict[str, Any] = None) -> DataFrame:
+                   lookup_df: DataFrame, cfg: Dict[str, Any] = None,
+                   config: Dict[str, Any] = None,
+                   **dl_kwargs: Any) -> DataFrame:
     """Convert one Informatica dynamic lookup into a precise PySpark step.
 
     The implementation is distributed but deterministic:
@@ -626,8 +627,13 @@ def dynamic_lookup(spark: SparkSession, input_df: DataFrame,
          or below the Spark minimum).
       4. Sequence-Id surrogate keys are pre-allocated outside the UDF, so the
          same key is never generated twice across executors.
+
+    The lookup configuration may be passed either as a positional dict (legacy
+    generated code, tests) or as individual keyword arguments (current
+    generated code) — the two are merged and equivalent.
     """
-    cfg = dict(cfg)
+    cfg = dict(cfg or {})
+    cfg.update(dl_kwargs)
     cfg["_input_columns"] = list(input_df.columns)
     name = cfg.get("name") or "dynamic_lookup"
     join_predicates = cfg.get("join_predicates") or []
@@ -1342,6 +1348,24 @@ def get_spark_session(app_name: str, config: Dict[str, Any] = None) -> SparkSess
     #     on the executor nodes.
     builder = builder.config("spark.pyspark.python", sys.executable)
 
+    # 4c. Make this workflow's env package importable on executor Python workers.
+    #     Worker-side closures in env.runtime_lib (e.g. the dynamic lookup state
+    #     machine) are cloudpickled BY REFERENCE (env.runtime_lib.<function>), so
+    #     executors must be able to `import env`. YARN executors do not share the
+    #     driver's cwd/sys.path — prepend the workflow root directory (parent of
+    #     this env/ package) to spark.executorEnv.PYTHONPATH, alongside Spark's
+    #     own python + py4j paths already configured in config.yml.
+    _wf_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _epp_key = "spark.executorEnv.PYTHONPATH"
+    _epp = ""
+    for _src in (profile.get("config", {}), spark_cfg.get("config", {})):
+        if str(_src.get(_epp_key) or ""):
+            _epp = str(_src[_epp_key])
+            break
+    if _wf_root not in _epp.split(os.pathsep):
+        _epp = _wf_root + os.pathsep + _epp if _epp else _wf_root
+    builder = builder.config(_epp_key, _epp)
+
     # 5. Spark log level — spark.log.level is read at SparkContext construction
     #    (before setLogLevel below), suppressing init-time WARN noise.
     try:
@@ -1352,6 +1376,31 @@ def get_spark_session(app_name: str, config: Dict[str, Any] = None) -> SparkSess
         pass
 
     spark = builder.getOrCreate()
+
+    # 4d. Ship this workflow's env package to executors. Worker-side closures
+    #     in env.runtime_lib (e.g. the dynamic lookup state machine) are
+    #     cloudpickled BY REFERENCE (env.runtime_lib.<function>), so the Python
+    #     workers must be able to `import env`. YARN executors run on other
+    #     nodes that do NOT have this workflow's directory on disk — the
+    #     PYTHONPATH entry from 4c alone is not enough. addPyFile ships a small
+    #     zip of env/ (regular package: __init__.py + all *.py) to every
+    #     executor; local mode already has the files, so this is best-effort.
+    try:
+        import io as _io  # noqa: F401
+        import zipfile as _zf
+        import tempfile as _tf
+        _env_dir = os.path.join(_wf_root, "env")
+        _zip_path = os.path.join(
+            _tf.gettempdir(),
+            "pcis_env_%s.zip" % os.path.basename(_wf_root))
+        with _zf.ZipFile(_zip_path, "w", _zf.ZIP_DEFLATED) as _z:
+            _z.writestr("env/__init__.py", "")
+            for _f in sorted(os.listdir(_env_dir)):
+                if _f.endswith(".py"):
+                    _z.write(os.path.join(_env_dir, _f), "env/" + _f)
+        spark.sparkContext.addPyFile(_zip_path)
+    except Exception as _exc:
+        print("WARN: could not ship env/ to executors: %s" % _exc)
 
     # Apply Spark log level from config (spark.log_level, e.g. ERROR) to suppress
     # the default WARN noise and Java log4j chatter.

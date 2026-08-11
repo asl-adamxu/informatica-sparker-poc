@@ -139,10 +139,27 @@ FROM
         _lkp_input = _lkp_input.withColumn("IN_NHS_PRIOR_CATG_CODE", col("PRIOR_CATG_CODE"))
         _lkp_input = _lkp_input.withColumn("IN_NHS_PRIOR_CATG_GRP_CODE", col("PRIOR_CATG_GRP_CODE"))
         df_lkp_merge_EXP_BK = lib.dynamic_lookup(
-            spark,
-            _lkp_input,
-            df_DLKP_SOR_MSTR,
-            {'name': 'DLKP_SOR_MSTR', 'join_predicates': [{'source_col': 'IN_NHS_PHASE_CODE', 'lookup_col': 'NHS_PHASE_CODE'}, {'source_col': 'IN_NHS_PRIOR_CATG_CODE', 'lookup_col': 'NHS_PRIOR_CATG_CODE'}, {'source_col': 'IN_NHS_PRIOR_CATG_GRP_CODE', 'lookup_col': 'NHS_PRIOR_CATG_GRP_CODE'}], 'output_columns': ['PRIOR_CATG_GRP_KEY', 'NHS_PHASE_CODE', 'NHS_PRIOR_CATG_CODE', 'NHS_PRIOR_CATG_GRP_CODE'], 'lookup_output_fields': [{'name': 'PRIOR_CATG_GRP_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'NHS_PHASE_CODE', 'ref_field': 'PHASE_CODE', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'NHS_PRIOR_CATG_CODE', 'ref_field': 'PRIOR_CATG_CODE', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'string'}, {'name': 'NHS_PRIOR_CATG_GRP_CODE', 'ref_field': 'PRIOR_CATG_GRP_CODE', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow', 'sequence_config': {'output_col': 'PRIOR_CATG_GRP_KEY'}, 'insert_else_update': True, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_DLKP_SOR_MSTR,
+            name='DLKP_SOR_MSTR',
+            join_predicates=[{'source_col': 'IN_NHS_PHASE_CODE', 'lookup_col': 'NHS_PHASE_CODE'}, {'source_col': 'IN_NHS_PRIOR_CATG_CODE', 'lookup_col': 'NHS_PRIOR_CATG_CODE'}, {'source_col': 'IN_NHS_PRIOR_CATG_GRP_CODE', 'lookup_col': 'NHS_PRIOR_CATG_GRP_CODE'}],
+            output_columns=['PRIOR_CATG_GRP_KEY', 'NHS_PHASE_CODE', 'NHS_PRIOR_CATG_CODE', 'NHS_PRIOR_CATG_GRP_CODE'],
+            lookup_output_fields=[
+                {'name': 'PRIOR_CATG_GRP_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'NHS_PHASE_CODE', 'ref_field': 'PHASE_CODE', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'NHS_PRIOR_CATG_CODE', 'ref_field': 'PRIOR_CATG_CODE', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'string'},
+                {'name': 'NHS_PRIOR_CATG_GRP_CODE', 'ref_field': 'PRIOR_CATG_GRP_CODE', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config={'output_col': 'PRIOR_CATG_GRP_KEY'},
+            insert_else_update=True,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
             config=config,
         )
         ctx.register_df("df_lkp_merge_EXP_BK", df_lkp_merge_EXP_BK)
@@ -175,10 +192,28 @@ where SOR_NHS_PRIOR_CATG_GRP_STS.PRIOR_CATG_GRP_KEY = ss.PRIOR_CATG_GRP_KEY and 
         _lkp_input = _lkp_input.withColumn("IN_PRIOR_CATG_GF_ELGBL_IND", col("PRIOR_CATG_GF_ELGBL_IND"))
         _lkp_input = _lkp_input.withColumn("IN_PRIOR_CATG_GRP_KEY", col("PRIOR_CATG_GRP_KEY"))
         df_lkp_merge_EXP_BK = lib.dynamic_lookup(
-            spark,
-            _lkp_input,
-            df_DLKP_SOR_STS,
-            {'name': 'DLKP_SOR_STS', 'join_predicates': [{'source_col': 'IN_PRIOR_CATG_GRP_KEY', 'lookup_col': 'PRIOR_CATG_GRP_KEY'}], 'output_columns': ['PRIOR_CATG_GRP_KEY', 'BGN_DATE', 'END_DATE', 'ROW_VER_NUM', 'PRIOR_CATG_GF_ELGBL_IND'], 'lookup_output_fields': [{'name': 'PRIOR_CATG_GRP_KEY', 'ref_field': 'PRIOR_CATG_GRP_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'BGN_DATE', 'ref_field': 'DUMMY_DATE', 'ignore_in_compare': True, 'ignore_null_inputs': True, 'datatype': 'date/time'}, {'name': 'END_DATE', 'ref_field': 'DUMMY_DATE', 'ignore_in_compare': True, 'ignore_null_inputs': True, 'datatype': 'date/time'}, {'name': 'ROW_VER_NUM', 'ref_field': 'ROW_VER_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'}, {'name': 'PRIOR_CATG_GF_ELGBL_IND', 'ref_field': 'PRIOR_CATG_GF_ELGBL_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow', 'sequence_config': None, 'insert_else_update': True, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_DLKP_SOR_STS,
+            name='DLKP_SOR_STS',
+            join_predicates=[{'source_col': 'IN_PRIOR_CATG_GRP_KEY', 'lookup_col': 'PRIOR_CATG_GRP_KEY'}],
+            output_columns=['PRIOR_CATG_GRP_KEY', 'BGN_DATE', 'END_DATE', 'ROW_VER_NUM', 'PRIOR_CATG_GF_ELGBL_IND'],
+            lookup_output_fields=[
+                {'name': 'PRIOR_CATG_GRP_KEY', 'ref_field': 'PRIOR_CATG_GRP_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'BGN_DATE', 'ref_field': 'DUMMY_DATE', 'ignore_in_compare': True, 'ignore_null_inputs': True, 'datatype': 'date/time'},
+                {'name': 'END_DATE', 'ref_field': 'DUMMY_DATE', 'ignore_in_compare': True, 'ignore_null_inputs': True, 'datatype': 'date/time'},
+                {'name': 'ROW_VER_NUM', 'ref_field': 'ROW_VER_NUM', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'PRIOR_CATG_GF_ELGBL_IND', 'ref_field': 'PRIOR_CATG_GF_ELGBL_IND', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config=None,
+            insert_else_update=True,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
             config=config,
         )
         ctx.register_df("df_lkp_merge_EXP_BK", df_lkp_merge_EXP_BK)
@@ -227,10 +262,25 @@ where SOR_NHS_PRIOR_CATG_GRP_STS.PRIOR_CATG_GRP_KEY = ss.PRIOR_CATG_GRP_KEY and 
         _lkp_input = _lkp_input.withColumn("IN_SURROGATE_KEY", col("PRIOR_CATG_GRP_KEY"))
         _lkp_input = _lkp_input.withColumn("IN_DUMMY", col("v_NULL"))
         df_lkp_merge_FILTRANS_MSTR = lib.dynamic_lookup(
-            spark,
-            _lkp_input,
-            df_DLKP_SSA_MSTR,
-            {'name': 'DLKP_SSA_MSTR', 'join_predicates': [{'source_col': 'IN_SURROGATE_KEY', 'lookup_col': 'SURROGATE_KEY'}], 'output_columns': ['SURROGATE_KEY', 'DUMMY'], 'lookup_output_fields': [{'name': 'SURROGATE_KEY', 'ref_field': 'PRIOR_CATG_GRP_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'DUMMY', 'ref_field': 'v_NULL', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow', 'sequence_config': None, 'insert_else_update': False, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_DLKP_SSA_MSTR,
+            name='DLKP_SSA_MSTR',
+            join_predicates=[{'source_col': 'IN_SURROGATE_KEY', 'lookup_col': 'SURROGATE_KEY'}],
+            output_columns=['SURROGATE_KEY', 'DUMMY'],
+            lookup_output_fields=[
+                {'name': 'SURROGATE_KEY', 'ref_field': 'PRIOR_CATG_GRP_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'DUMMY', 'ref_field': 'v_NULL', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config=None,
+            insert_else_update=False,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
             config=config,
         )
         ctx.register_df("df_lkp_merge_FILTRANS_MSTR", df_lkp_merge_FILTRANS_MSTR)
@@ -397,10 +447,25 @@ where SOR_NHS_PRIOR_CATG_GRP_STS.PRIOR_CATG_GRP_KEY = ss.PRIOR_CATG_GRP_KEY and 
         _lkp_input = _lkp_input.withColumn("IN_SURROGATE_KEY", col("PRIOR_CATG_GRP_KEY"))
         _lkp_input = _lkp_input.withColumn("IN_DUMMY", col("v_NULL"))
         df_lkp_merge_FILTRANS_STS = lib.dynamic_lookup(
-            spark,
-            _lkp_input,
-            df_DLKP_SSA_STS,
-            {'name': 'DLKP_SSA_STS', 'join_predicates': [{'source_col': 'IN_SURROGATE_KEY', 'lookup_col': 'SURROGATE_KEY'}], 'output_columns': ['SURROGATE_KEY', 'DUMMY'], 'lookup_output_fields': [{'name': 'SURROGATE_KEY', 'ref_field': 'PRIOR_CATG_GRP_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'}, {'name': 'DUMMY', 'ref_field': 'v_NULL', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}], 'new_lookup_row_col': 'NewLookupRow', 'sequence_config': None, 'insert_else_update': False, 'update_else_insert': False, 'update_condition': 'TRUE', 'output_old_value_on_update': False, 'case_sensitive_string_comparison': False, 'lookup_policy': 'Report Error', 'order_by_columns': []},
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_DLKP_SSA_STS,
+            name='DLKP_SSA_STS',
+            join_predicates=[{'source_col': 'IN_SURROGATE_KEY', 'lookup_col': 'SURROGATE_KEY'}],
+            output_columns=['SURROGATE_KEY', 'DUMMY'],
+            lookup_output_fields=[
+                {'name': 'SURROGATE_KEY', 'ref_field': 'PRIOR_CATG_GRP_KEY', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'DUMMY', 'ref_field': 'v_NULL', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config=None,
+            insert_else_update=False,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
             config=config,
         )
         ctx.register_df("df_lkp_merge_FILTRANS_STS", df_lkp_merge_FILTRANS_STS)
