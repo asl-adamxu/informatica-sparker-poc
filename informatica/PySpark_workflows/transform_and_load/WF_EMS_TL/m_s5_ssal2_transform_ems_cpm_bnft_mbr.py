@@ -140,7 +140,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: rename_EXP_NULL_BKEY")
         # Expression: rename_EXP_NULL_BKEY
         df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXP_NULL_BKEY = df_MPLT_AGMT_EMS_CPM_PTCL_input
-        df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXP_NULL_BKEY = df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXP_NULL_BKEY.drop("IN_BKEY").withColumnRenamed("IN_PTCL_BK", "IN_BKEY")
+        __expr_renames = [
+            ("IN_PTCL_BK", "IN_BKEY"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXP_NULL_BKEY = df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXP_NULL_BKEY.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXP_NULL_BKEY", df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXP_NULL_BKEY)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CPM_PTCL_EXP_NULL_BKEY")
@@ -154,7 +158,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: rename_EXPTRANS")
         # Expression: rename_EXPTRANS
         df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXPTRANS = df_MPLT_AGMT_EMS_CPM_PTCL_EXP_NULL_BKEY
-        df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXPTRANS = df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXPTRANS.drop("IN_PTCL_BK").withColumnRenamed("OUT_BKEY", "IN_PTCL_BK")
+        __expr_renames = [
+            ("OUT_BKEY", "IN_PTCL_BK"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXPTRANS = df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXPTRANS.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXPTRANS", df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXPTRANS)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CPM_PTCL_EXPTRANS")
@@ -209,7 +217,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: rename_EXP_SK")
         # Expression: rename_EXP_SK
         df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXP_SK = df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_PTCL_EXPTRANS
-        df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXP_SK = df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXP_SK.drop("SOR_CACHE_STATUS").withColumnRenamed("NewLookupRow_LKP_DYN_SOR_EMS_CPM_PTCL", "SOR_CACHE_STATUS")
+        __expr_renames = [
+            ("NewLookupRow_LKP_DYN_SOR_EMS_CPM_PTCL", "SOR_CACHE_STATUS"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXP_SK = df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXP_SK.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXP_SK", df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXP_SK)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CPM_PTCL_EXP_SK")
@@ -264,7 +276,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: rename_EXPTRANS1")
         # Expression: rename_EXPTRANS1
         df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXPTRANS1 = df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_PTCL_EXP_SK
-        df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXPTRANS1 = df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXPTRANS1.drop("SSA_CACHE_STATUS").withColumnRenamed("NewLookupRow_LKP_DYN_SSA_EMS_CPM_PTCL", "SSA_CACHE_STATUS")
+        __expr_renames = [
+            ("NewLookupRow_LKP_DYN_SSA_EMS_CPM_PTCL", "SSA_CACHE_STATUS"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXPTRANS1 = df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXPTRANS1.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXPTRANS1", df_MPLT_AGMT_EMS_CPM_PTCL_rename_EXPTRANS1)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CPM_PTCL_EXPTRANS1")
@@ -283,8 +299,12 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_MPLT_AGMT_EMS_CPM_PTCL")
         # Expression: apply_MPLT_AGMT_EMS_CPM_PTCL
         df_MPLT_AGMT_EMS_CPM_PTCL = df_MPLT_AGMT_EMS_CPM_PTCL_EXPTRANS1
-        df_MPLT_AGMT_EMS_CPM_PTCL = df_MPLT_AGMT_EMS_CPM_PTCL.drop("OUT_DLPK_SOR_CACHE").withColumnRenamed("SOR_CACHE_STATUS", "OUT_DLPK_SOR_CACHE")
-        df_MPLT_AGMT_EMS_CPM_PTCL = df_MPLT_AGMT_EMS_CPM_PTCL.drop("OUT_AUG_IND").withColumnRenamed("V_AUG_IND", "OUT_AUG_IND")
+        __expr_renames = [
+            ("SOR_CACHE_STATUS", "OUT_DLPK_SOR_CACHE"),
+            ("V_AUG_IND", "OUT_AUG_IND"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CPM_PTCL = df_MPLT_AGMT_EMS_CPM_PTCL.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CPM_PTCL", df_MPLT_AGMT_EMS_CPM_PTCL)
         
         logger.info("Step: read_LKP_SOR_EMS_CPM_BNFT_MBR")
@@ -316,8 +336,12 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_FILTRANS2111")
         # Filter: apply_FILTRANS2111
         __fil_input = df_MPLT_AGMT_EMS_CPM_PTCL
-        __fil_input = __fil_input.drop("SOR_CACHE_STATUS").withColumnRenamed("OUT_DLPK_SOR_CACHE", "SOR_CACHE_STATUS")
-        __fil_input = __fil_input.drop("V_AUG_IND").withColumnRenamed("OUT_AUG_IND", "V_AUG_IND")
+        __fil_renames = [
+            ("OUT_DLPK_SOR_CACHE", "SOR_CACHE_STATUS"),
+            ("OUT_AUG_IND", "V_AUG_IND"),
+        ]
+        for _old, _new in __fil_renames:
+            __fil_input = __fil_input.drop(_new).withColumnRenamed(_old, _new)
         df_FILTRANS2111 = __fil_input.filter(expr("SOR_CACHE_STATUS = 1"))
         ctx.register_df("df_FILTRANS2111", df_FILTRANS2111)
 
@@ -407,7 +431,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "V_AUG_IND", "CUST_MBR_ID_NUM": "CUST_MBR_ID_NUM", "CUST_MBR_ID_TYPE_CODE": "CUST_MBR_ID_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "OPR_IND": "OPR_IND", "PTCL_BK": "PTCL_BK", "PTCL_KEY": "PTCL_KEY"}
+        _field_map = {"AGMT_IND": "V_AUG_IND"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 
@@ -427,29 +451,65 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("write_SSA_EMS_CPM_PTCL write completed")
         logger.info("Step: apply_RTRTRANS")
         # Router: apply_RTRTRANS - splits into multiple output groups
-        df_rtr_RTRTRANS_NEWGROUP1 = df_lkp_merge_MPLT_AGMT_EMS_CPM_PTCL.filter(expr("NewLookupRow > 0 OR LAST_REC_TXN_TYPE_CODE = 'D'"))
-        df_rtr_RTRTRANS_NEWGROUP1 = df_rtr_RTRTRANS_NEWGROUP1.drop("NewLookupRow1").withColumnRenamed("NewLookupRow", "NewLookupRow1")
-        df_rtr_RTRTRANS_NEWGROUP1 = df_rtr_RTRTRANS_NEWGROUP1.drop("HSE_BNFT_MBR_KEY1").withColumnRenamed("HSE_BNFT_MBR_KEY", "HSE_BNFT_MBR_KEY1")
-        df_rtr_RTRTRANS_NEWGROUP1 = df_rtr_RTRTRANS_NEWGROUP1.drop("HSE_BNFT_MBR_BK1").withColumnRenamed("HSE_BNFT_MBR_BK", "HSE_BNFT_MBR_BK1")
-        df_rtr_RTRTRANS_NEWGROUP1 = df_rtr_RTRTRANS_NEWGROUP1.drop("PTCL_KEY1").withColumnRenamed("PTCL_KEY", "PTCL_KEY1")
-        df_rtr_RTRTRANS_NEWGROUP1 = df_rtr_RTRTRANS_NEWGROUP1.drop("HSE_BNFT_MBR_ID_TYPE_CODE1").withColumnRenamed("HSE_BNFT_MBR_ID_TYPE_CODE", "HSE_BNFT_MBR_ID_TYPE_CODE1")
-        df_rtr_RTRTRANS_NEWGROUP1 = df_rtr_RTRTRANS_NEWGROUP1.drop("HSE_BNFT_MBR_ID_NUM1").withColumnRenamed("HSE_BNFT_MBR_ID_NUM", "HSE_BNFT_MBR_ID_NUM1")
-        df_rtr_RTRTRANS_NEWGROUP1 = df_rtr_RTRTRANS_NEWGROUP1.drop("HSE_BNFT_INTR_KEY_CODE1").withColumnRenamed("HSE_BNFT_INTR_KEY_CODE", "HSE_BNFT_INTR_KEY_CODE1")
-        df_rtr_RTRTRANS_NEWGROUP1 = df_rtr_RTRTRANS_NEWGROUP1.drop("HSE_BNFT_TYPE_CODE1").withColumnRenamed("HSE_BNFT_TYPE_CODE", "HSE_BNFT_TYPE_CODE1")
-        df_rtr_RTRTRANS_NEWGROUP1 = df_rtr_RTRTRANS_NEWGROUP1.drop("LAST_REC_TXN_TYPE_CODE1").withColumnRenamed("LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE1")
+        _feed_specs = [
+            (df_lkp_merge_MPLT_AGMT_EMS_CPM_PTCL, {}),
+            (df_EXPTRANS2, {}),
+        ]
+        _rtr_ports = []
+        for _df, _aliases in _feed_specs:
+            for _c in _df.columns:
+                _p = _aliases.get(_c, _c)
+                if _p.lower() not in [x.lower() for x in _rtr_ports]:
+                    _rtr_ports.append(_p)
+        _feed_views = []
+        for _df, _aliases in _feed_specs:
+            _rev = {_v: _k for _k, _v in _aliases.items()}
+            _sel = []
+            for _p in _rtr_ports:
+                if _p in _rev:
+                    if _rev[_p].lower() in [x.lower() for x in _df.columns]:
+                        _sel.append(col(_rev[_p]).alias(_p))
+                    else:
+                        _sel.append(lit(None).alias(_p))
+                elif _p.lower() in [x.lower() for x in _df.columns] and _p not in _aliases:
+                    _sel.append(col(_p))
+                else:
+                    _sel.append(lit(None).alias(_p))
+            _feed_views.append(_df.select(*_sel))
+        df_rtr_input = _feed_views[0]
+        df_rtr_input = df_rtr_input.unionByName(_feed_views[1])
+        ctx.register_df("df_rtr_input", df_rtr_input)
+        df_rtr_RTRTRANS_NEWGROUP1 = df_rtr_input.filter(expr("NewLookupRow > 0 OR LAST_REC_TXN_TYPE_CODE = 'D'"))
+        __rtr_renames = [
+            ("NewLookupRow", "NewLookupRow1"),
+            ("HSE_BNFT_MBR_KEY", "HSE_BNFT_MBR_KEY1"),
+            ("HSE_BNFT_MBR_BK", "HSE_BNFT_MBR_BK1"),
+            ("PTCL_KEY", "PTCL_KEY1"),
+            ("HSE_BNFT_MBR_ID_TYPE_CODE", "HSE_BNFT_MBR_ID_TYPE_CODE1"),
+            ("HSE_BNFT_MBR_ID_NUM", "HSE_BNFT_MBR_ID_NUM1"),
+            ("HSE_BNFT_INTR_KEY_CODE", "HSE_BNFT_INTR_KEY_CODE1"),
+            ("HSE_BNFT_TYPE_CODE", "HSE_BNFT_TYPE_CODE1"),
+            ("LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE1"),
+        ]
+        for _old, _new in __rtr_renames:
+            df_rtr_RTRTRANS_NEWGROUP1 = df_rtr_RTRTRANS_NEWGROUP1.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_rtr_RTRTRANS_NEWGROUP1", df_rtr_RTRTRANS_NEWGROUP1)
-        df_rtr_RTRTRANS_DEFAULT1 = df_lkp_merge_MPLT_AGMT_EMS_CPM_PTCL  # Default group
-        df_rtr_RTRTRANS_DEFAULT1 = df_rtr_RTRTRANS_DEFAULT1.drop("NewLookupRow2").withColumnRenamed("NewLookupRow", "NewLookupRow2")
-        df_rtr_RTRTRANS_DEFAULT1 = df_rtr_RTRTRANS_DEFAULT1.drop("HSE_BNFT_MBR_KEY2").withColumnRenamed("HSE_BNFT_MBR_KEY", "HSE_BNFT_MBR_KEY2")
-        df_rtr_RTRTRANS_DEFAULT1 = df_rtr_RTRTRANS_DEFAULT1.drop("HSE_BNFT_MBR_BK2").withColumnRenamed("HSE_BNFT_MBR_BK", "HSE_BNFT_MBR_BK2")
-        df_rtr_RTRTRANS_DEFAULT1 = df_rtr_RTRTRANS_DEFAULT1.drop("PTCL_KEY2").withColumnRenamed("PTCL_KEY", "PTCL_KEY2")
-        df_rtr_RTRTRANS_DEFAULT1 = df_rtr_RTRTRANS_DEFAULT1.drop("HSE_BNFT_MBR_ID_TYPE_CODE2").withColumnRenamed("HSE_BNFT_MBR_ID_TYPE_CODE", "HSE_BNFT_MBR_ID_TYPE_CODE2")
-        df_rtr_RTRTRANS_DEFAULT1 = df_rtr_RTRTRANS_DEFAULT1.drop("HSE_BNFT_MBR_ID_NUM2").withColumnRenamed("HSE_BNFT_MBR_ID_NUM", "HSE_BNFT_MBR_ID_NUM2")
-        df_rtr_RTRTRANS_DEFAULT1 = df_rtr_RTRTRANS_DEFAULT1.drop("HSE_BNFT_INTR_KEY_CODE2").withColumnRenamed("HSE_BNFT_INTR_KEY_CODE", "HSE_BNFT_INTR_KEY_CODE2")
-        df_rtr_RTRTRANS_DEFAULT1 = df_rtr_RTRTRANS_DEFAULT1.drop("HSE_BNFT_TYPE_CODE2").withColumnRenamed("HSE_BNFT_TYPE_CODE", "HSE_BNFT_TYPE_CODE2")
-        df_rtr_RTRTRANS_DEFAULT1 = df_rtr_RTRTRANS_DEFAULT1.drop("LAST_REC_TXN_TYPE_CODE2").withColumnRenamed("LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE2")
+        df_rtr_RTRTRANS_DEFAULT1 = df_rtr_input.filter(~(expr("NewLookupRow > 0 OR LAST_REC_TXN_TYPE_CODE = 'D'")))
+        __rtr_renames = [
+            ("NewLookupRow", "NewLookupRow2"),
+            ("HSE_BNFT_MBR_KEY", "HSE_BNFT_MBR_KEY2"),
+            ("HSE_BNFT_MBR_BK", "HSE_BNFT_MBR_BK2"),
+            ("PTCL_KEY", "PTCL_KEY2"),
+            ("HSE_BNFT_MBR_ID_TYPE_CODE", "HSE_BNFT_MBR_ID_TYPE_CODE2"),
+            ("HSE_BNFT_MBR_ID_NUM", "HSE_BNFT_MBR_ID_NUM2"),
+            ("HSE_BNFT_INTR_KEY_CODE", "HSE_BNFT_INTR_KEY_CODE2"),
+            ("HSE_BNFT_TYPE_CODE", "HSE_BNFT_TYPE_CODE2"),
+            ("LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE2"),
+        ]
+        for _old, _new in __rtr_renames:
+            df_rtr_RTRTRANS_DEFAULT1 = df_rtr_RTRTRANS_DEFAULT1.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_rtr_RTRTRANS_DEFAULT1", df_rtr_RTRTRANS_DEFAULT1)
-        
+
         logger.info("Step: read_LKP_DYN_SOR_EMS_CPM_BNFT_MBR_STS")
         # Reading Data From Source - read_LKP_DYN_SOR_EMS_CPM_BNFT_MBR_STS
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -517,12 +577,91 @@ AND SOR_EMS_CPM_BNFT_MBR_STS.HSE_BNFT_MBR_KEY=SSA_EMS_CPM_BNFT_MBR.HSE_BNFT_MBR_
         )
         ctx.register_df("df_lkp_merge_EXPTRANS", df_lkp_merge_EXPTRANS)
         
+        logger.info("Step: apply_EXPTRANS1")
+        # Expression: apply_EXPTRANS1
+        df_EXPTRANS1 = df_rtr_RTRTRANS_NEWGROUP1
+        _expr = """to_date('$$v_snsh_date','yyyyMMdd')"""
+        _expr = _expr.replace("$$v_snsh_date", str(v_snsh_date))
+        _expr = _expr.replace("$$v_init_flag", str(v_init_flag))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("SNAPSHOT_DATE", expr(_expr))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("IN_CACHE_STATUS", expr("NewLookupRow1"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("v_SSAL2_TBL_NAME", expr("'SSA_EMS_CPM_BNFT_MBR'"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("AGMT_IND", expr("'N'"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("DELETE_IND", expr("CASE WHEN LAST_REC_TXN_TYPE_CODE1 = 'D' THEN 'Y' ELSE 'N' END"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("LST_UPT_DTIME", expr("NULL"))
+        _expr = """'$$v_init_flag'"""
+        _expr = _expr.replace("$$v_snsh_date", str(v_snsh_date))
+        _expr = _expr.replace("$$v_init_flag", str(v_init_flag))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("INIT_FLAG", expr(_expr))
+        # Ensure any missing pass-through columns exist (no connector feeding them)
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
+        
+        logger.info("Step: apply_EXPTRANS4")
+        # Expression: apply_EXPTRANS4
+        df_EXPTRANS4 = df_rtr_RTRTRANS_DEFAULT1
+        df_EXPTRANS4 = df_EXPTRANS4.withColumn("HSE_BNFT_MBR_KEY", expr("HSE_BNFT_MBR_KEY2"))
+        df_EXPTRANS4 = df_EXPTRANS4.withColumn("HSE_BNFT_MBR_BK", expr("HSE_BNFT_MBR_BK2"))
+        df_EXPTRANS4 = df_EXPTRANS4.withColumn("LAST_REC_TXN_DATE", expr("current_timestamp()"))
+        df_EXPTRANS4 = df_EXPTRANS4.withColumn("OPR_IND", expr("'X'"))
+        # Ensure any missing pass-through columns exist (no connector feeding them)
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_EXPTRANS4", df_EXPTRANS4)
+        
         logger.info("Step: apply_FILTRANS1")
         # Filter: apply_FILTRANS1
         __fil_input = df_lkp_merge_EXPTRANS
         df_FILTRANS1 = __fil_input.filter(expr("NewLookupRow > 0 OR LAST_REC_TXN_TYPE_CODE = 'D'"))
         ctx.register_df("df_FILTRANS1", df_FILTRANS1)
 
+        logger.info("Step: read_LKP_DYN_SSA_EMS_CPM_BNFT_MBR")
+        # Reading Data From Source - read_LKP_DYN_SSA_EMS_CPM_BNFT_MBR
+        # Resolve connection by alias (supports lookup/source connections dynamically)
+        _conn = lib.get_db_config(config, "SSA")
+        query = f"""SELECT HSE_BNFT_MBR_KEY as SURROGATE_KEY, 'S' as DUMMY  FROM SSA_EMS_CPM_BNFT_MBR"""
+        query = query.replace("$$v_snsh_date", v_snsh_date)
+        query = query.replace("$$v_init_flag", v_init_flag)
+        df_LKP_DYN_SSA_EMS_CPM_BNFT_MBR = lib.read_sql(spark, _conn, query=query)
+        
+        logger.info("Step: apply_LKP_DYN_SSA_EMS_CPM_BNFT_MBR")
+        # Lookup: apply_LKP_DYN_SSA_EMS_CPM_BNFT_MBR
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
+        _lkp_input = df_EXPTRANS1
+        _lkp_input = _lkp_input.withColumn("IN_DUMMY", col("v_SSAL2_TBL_NAME"))
+        _lkp_input = _lkp_input.withColumn("IN_SURROGATE_KEY", col("HSE_BNFT_MBR_KEY1"))
+        df_lkp_merge_EXPTRANS1 = lib.dynamic_lookup(
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_LKP_DYN_SSA_EMS_CPM_BNFT_MBR,
+            name='LKP_DYN_SSA_EMS_CPM_BNFT_MBR',
+            join_predicates=[{'source_col': 'IN_SURROGATE_KEY', 'lookup_col': 'SURROGATE_KEY'}],
+            output_columns=['SURROGATE_KEY', 'DUMMY'],
+            lookup_output_fields=[
+                {'name': 'SURROGATE_KEY', 'ref_field': 'HSE_BNFT_MBR_KEY1', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'decimal'},
+                {'name': 'DUMMY', 'ref_field': 'v_SSAL2_TBL_NAME', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'string'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config=None,
+            insert_else_update=False,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
+            config=config,
+        )
+        ctx.register_df("df_lkp_merge_EXPTRANS1", df_lkp_merge_EXPTRANS1)
+        
+        logger.info("Step: apply_UPDTRANS")
+        # Update Strategy: apply_UPDTRANS
+        # Strategy: DD_INSERT
+        # Static DD_INSERT — pass through; the target write
+        # step applies the strategy directly (append / batch_update / batch_delete).
+        df_UPDTRANS = df_EXPTRANS4
+        ctx.register_df("df_UPDTRANS", df_UPDTRANS)
+        
         logger.info("Step: apply_EXPTRANS11")
         # Expression: apply_EXPTRANS11
         df_EXPTRANS11 = df_FILTRANS1
@@ -543,6 +682,188 @@ AND SOR_EMS_CPM_BNFT_MBR_STS.HSE_BNFT_MBR_KEY=SSA_EMS_CPM_BNFT_MBR.HSE_BNFT_MBR_
         # Keep all upstream columns + computed columns (no select filtering)
         ctx.register_df("df_EXPTRANS11", df_EXPTRANS11)
         
+        logger.info("Step: nullinput_MPLT_DLKP_CACHE_STATUS")
+        # Expression: nullinput_MPLT_DLKP_CACHE_STATUS
+        df_MPLT_DLKP_CACHE_STATUS_nullinput = df_lkp_merge_EXPTRANS1
+        df_MPLT_DLKP_CACHE_STATUS_nullinput = df_MPLT_DLKP_CACHE_STATUS_nullinput.withColumn("IN_SOR_DATE", expr("NULL"))
+        df_MPLT_DLKP_CACHE_STATUS_nullinput = df_MPLT_DLKP_CACHE_STATUS_nullinput.withColumn("IN_TABLE_NAME", expr("NULL"))
+        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_nullinput", df_MPLT_DLKP_CACHE_STATUS_nullinput)
+        
+        logger.info("Step: input_MPLT_DLKP_CACHE_STATUS")
+        # Expression: input_MPLT_DLKP_CACHE_STATUS
+        df_MPLT_DLKP_CACHE_STATUS_input = df_MPLT_DLKP_CACHE_STATUS_nullinput
+        df_MPLT_DLKP_CACHE_STATUS_input = df_MPLT_DLKP_CACHE_STATUS_input.withColumn("IN_V_SNAPSHOT_DATE", expr("SNAPSHOT_DATE"))
+        df_MPLT_DLKP_CACHE_STATUS_input = df_MPLT_DLKP_CACHE_STATUS_input.withColumn("IN_V_DLKP_SOR_CACHE_STATUS", expr("IN_CACHE_STATUS"))
+        df_MPLT_DLKP_CACHE_STATUS_input = df_MPLT_DLKP_CACHE_STATUS_input.withColumn("IN_AGMT_IND", expr("AGMT_IND"))
+        df_MPLT_DLKP_CACHE_STATUS_input = df_MPLT_DLKP_CACHE_STATUS_input.withColumn("IN_V_DEL_IND", expr("DELETE_IND"))
+        df_MPLT_DLKP_CACHE_STATUS_input = df_MPLT_DLKP_CACHE_STATUS_input.withColumn("IN_V_INIT_IND", expr("INIT_FLAG"))
+        df_MPLT_DLKP_CACHE_STATUS_input = df_MPLT_DLKP_CACHE_STATUS_input.withColumn("IN_V_LAST_UPDATE_DATE", expr("LST_UPT_DTIME"))
+        df_MPLT_DLKP_CACHE_STATUS_input = df_MPLT_DLKP_CACHE_STATUS_input.withColumn("IN_V_DLKP_SSA_CACHE_STATUS", expr("NewLookupRow"))
+        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_input", df_MPLT_DLKP_CACHE_STATUS_input)
+        
+        logger.info("Step: rename_EXPTRANS2")
+        # Expression: rename_EXPTRANS2
+        df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS_input
+        __expr_renames = [
+            ("IN_V_DEL_IND", "IN_DEL_FLAG"),
+            ("IN_V_DLKP_SOR_CACHE_STATUS", "IN_DLK_SOR_CACHE_STATUS"),
+            ("IN_V_SNAPSHOT_DATE", "SNAPSHOT_DATE"),
+            ("IN_AGMT_IND", "AGMT_IND"),
+            ("IN_TABLE_NAME", "TABLE_NAME"),
+            ("IN_V_DLKP_SSA_CACHE_STATUS", "IN_DLKP_SSA_CACHE_STATUS"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2.drop(_new).withColumnRenamed(_old, _new)
+        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2", df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2)
+        
+        logger.info("Step: apply_MPLT_DLKP_CACHE_STATUS_EXPTRANS2")
+        # Expression: apply_MPLT_DLKP_CACHE_STATUS_EXPTRANS2
+        df_MPLT_DLKP_CACHE_STATUS_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2
+        df_MPLT_DLKP_CACHE_STATUS_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS_EXPTRANS2.withColumn("UPDATE_STRATEGY_STATUS", expr("CASE WHEN IN_DLK_SOR_CACHE_STATUS = 1 THEN 'DD_INSERT' ELSE CASE WHEN IN_DLKP_SSA_CACHE_STATUS = 1 THEN 'DD_INSERT' ELSE 'DD_UPDATE' END END"))
+        df_MPLT_DLKP_CACHE_STATUS_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS_EXPTRANS2.withColumn("NEW_FLAG", expr("CASE WHEN IN_DLK_SOR_CACHE_STATUS = 1 THEN 1 ELSE 0 END"))
+        df_MPLT_DLKP_CACHE_STATUS_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS_EXPTRANS2.withColumn("CHG_FLAG", expr("CASE WHEN IN_DLK_SOR_CACHE_STATUS = 2 THEN 1 ELSE 0 END"))
+        df_MPLT_DLKP_CACHE_STATUS_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS_EXPTRANS2.withColumn("DEL_FLAG", expr("CASE WHEN IN_DEL_FLAG = 'Y' THEN 1 WHEN IN_DEL_FLAG = 'y' THEN 1 ELSE 0 END"))
+        # Ensure any missing pass-through columns exist (no connector feeding them)
+        for _col in ["IN_DEL_FLAG", "AGMT_IND", "TABLE_NAME", "SNAPSHOT_DATE"]:
+            if _col.lower() not in [x.lower() for x in df_MPLT_DLKP_CACHE_STATUS_EXPTRANS2.columns]:
+                df_MPLT_DLKP_CACHE_STATUS_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS_EXPTRANS2.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_EXPTRANS2", df_MPLT_DLKP_CACHE_STATUS_EXPTRANS2)
+        
+        logger.info("Step: rename_EXP_SSAL2_TRANSFORM2")
+        # Expression: rename_EXP_SSAL2_TRANSFORM2
+        df_MPLT_DLKP_CACHE_STATUS_rename_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS_EXPTRANS2
+        __expr_renames = [
+            ("IN_SOR_DATE", "SOR_DATE"),
+            ("IN_V_INIT_IND", "INIT_FLAG"),
+            ("IN_V_LAST_UPDATE_DATE", "LAST_UPDATE_DATE"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_DLKP_CACHE_STATUS_rename_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS_rename_EXP_SSAL2_TRANSFORM2.drop(_new).withColumnRenamed(_old, _new)
+        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_rename_EXP_SSAL2_TRANSFORM2", df_MPLT_DLKP_CACHE_STATUS_rename_EXP_SSAL2_TRANSFORM2)
+        
+        logger.info("Step: apply_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2")
+        # Expression: apply_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2
+        df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS_rename_EXP_SSAL2_TRANSFORM2
+        df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2.withColumn("CDC_FLAG", expr("CASE WHEN 1 = NEW_FLAG THEN 1 WHEN 1 = CHG_FLAG THEN 1 WHEN 1 = DEL_FLAG THEN 1 ELSE 0 END"))
+        df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2.withColumn("V_OPR_IND", expr("CASE WHEN NEW_FLAG = 1 THEN 'B' ELSE CASE WHEN CHG_FLAG = 1 THEN 'EB' ELSE CASE WHEN DEL_FLAG = 1 THEN 'E' ELSE NULL END END END"))
+        df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2.withColumn("OPR_IND", expr("V_OPR_IND"))
+        df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2.withColumn("AGMT_IND", expr("'N'"))
+        df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2.withColumn("BGN_DATE", expr("CASE WHEN V_OPR_IND='B' AND INIT_FLAG = 'Y' THEN to_date('19000101','yyyyMMdd') ELSE SNAPSHOT_DATE END"))
+        df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2.withColumn("END_DATE", expr("CASE WHEN DEL_FLAG = 1 THEN CASE WHEN INIT_FLAG = 'Y' THEN CASE WHEN LAST_UPDATE_DATE IS NULL THEN date_add(SNAPSHOT_DATE, CAST(-1 AS INT)) ELSE LAST_UPDATE_DATE END ELSE date_add(SNAPSHOT_DATE, CAST(-1 AS INT)) END ELSE CASE WHEN NEW_FLAG = 1 THEN to_date('99991231','yyyyMMdd') ELSE CASE WHEN CHG_FLAG = 1 THEN date_add(SNAPSHOT_DATE, CAST(-1 AS INT)) ELSE NULL END END END"))
+        df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2.withColumn("LAST_REC_TXN_DATE", expr("current_timestamp()"))
+        df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2.withColumn("LAST_REC_TXN_TYPE_CODE", expr("CASE WHEN DEL_FLAG = 1 THEN 'D' ELSE NULL END"))
+        # Ensure any missing pass-through columns exist (no connector feeding them)
+        for _col in ["SOR_DATE"]:
+            if _col.lower() not in [x.lower() for x in df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2.columns]:
+                df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2.withColumn(_col, lit(None))
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2", df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2)
+        
+        logger.info("Step: rename_EXPTRANS")
+        # Expression: rename_EXPTRANS
+        df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS = df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2
+        __expr_renames = [
+            ("AGMT_IND", "IN_AGMT_IND"),
+            ("OPR_IND", "IN_OPR_IND"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS = df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS.drop(_new).withColumnRenamed(_old, _new)
+        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS", df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS)
+        
+        logger.info("Step: apply_MPLT_DLKP_CACHE_STATUS_EXPTRANS")
+        # Expression: apply_MPLT_DLKP_CACHE_STATUS_EXPTRANS
+        df_MPLT_DLKP_CACHE_STATUS_EXPTRANS = df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS
+        df_MPLT_DLKP_CACHE_STATUS_EXPTRANS = df_MPLT_DLKP_CACHE_STATUS_EXPTRANS.withColumn("OUT_V_OPR_IND", expr("CASE WHEN IN_AGMT_IND = 'Y' THEN 'A' ELSE IN_OPR_IND END"))
+        df_MPLT_DLKP_CACHE_STATUS_EXPTRANS = df_MPLT_DLKP_CACHE_STATUS_EXPTRANS.withColumn("OUT_BGN_DATE", expr("CASE WHEN IN_OPR_IND='B' AND DEL_FLAG = 1 THEN to_date('19000101','yyyyMMdd') ELSE BGN_DATE END"))
+        # Ensure any missing pass-through columns exist (no connector feeding them)
+        # Keep all upstream columns + computed columns (no select filtering)
+        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_EXPTRANS", df_MPLT_DLKP_CACHE_STATUS_EXPTRANS)
+        
+        logger.info("Step: join_output_MPLT_DLKP_CACHE_STATUS_0")
+        # Lookup: join_output_MPLT_DLKP_CACHE_STATUS_0
+        # Merge on common columns — drop lookup columns that duplicate non-key input columns. 
+        # Matches are CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
+        _cc = list(dict.fromkeys(c for c in df_MPLT_DLKP_CACHE_STATUS_EXPTRANS.columns if c.lower() in [x.lower() for x in df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2.columns]))
+        if _cc:
+            __lkp_dup = [c for c in df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2.columns if c.lower() in [x.lower() for x in df_MPLT_DLKP_CACHE_STATUS_EXPTRANS.columns] and c.lower() not in [x.lower() for x in _cc]]
+            # Break attribute lineage on the merged side: when both inputs are built from the same source plan. 
+            # Re-projecting with aliases gives this side fresh attribute IDs without changing rows or column names.
+            __rhs = df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2.drop(*__lkp_dup) if __lkp_dup else df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_MPLT_DLKP_CACHE_STATUS_merge_output_0 = df_MPLT_DLKP_CACHE_STATUS_EXPTRANS.join(
+                __rhs,
+                on=_cc, how="left"
+            )
+        else:
+            logger.warning("No common columns between df_MPLT_DLKP_CACHE_STATUS_EXPTRANS and df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2 — using synthetic key join")
+            __rhs = df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2.withColumn("_join_key", lit(1))
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_MPLT_DLKP_CACHE_STATUS_merge_output_0 = df_MPLT_DLKP_CACHE_STATUS_EXPTRANS.withColumn("_join_key", lit(1)).join(
+                __rhs,
+                on="_join_key", how="left").drop("_join_key")
+        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_merge_output_0", df_MPLT_DLKP_CACHE_STATUS_merge_output_0)
+        
+        logger.info("Step: join_output_MPLT_DLKP_CACHE_STATUS_1")
+        # Lookup: join_output_MPLT_DLKP_CACHE_STATUS_1
+        # Merge on common columns — drop lookup columns that duplicate non-key input columns. 
+        # Matches are CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
+        _cc = list(dict.fromkeys(c for c in df_MPLT_DLKP_CACHE_STATUS_merge_output_0.columns if c.lower() in [x.lower() for x in df_MPLT_DLKP_CACHE_STATUS_EXPTRANS2.columns]))
+        if _cc:
+            __lkp_dup = [c for c in df_MPLT_DLKP_CACHE_STATUS_EXPTRANS2.columns if c.lower() in [x.lower() for x in df_MPLT_DLKP_CACHE_STATUS_merge_output_0.columns] and c.lower() not in [x.lower() for x in _cc]]
+            # Break attribute lineage on the merged side: when both inputs are built from the same source plan. 
+            # Re-projecting with aliases gives this side fresh attribute IDs without changing rows or column names.
+            __rhs = df_MPLT_DLKP_CACHE_STATUS_EXPTRANS2.drop(*__lkp_dup) if __lkp_dup else df_MPLT_DLKP_CACHE_STATUS_EXPTRANS2
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_MPLT_DLKP_CACHE_STATUS_merge_output_1 = df_MPLT_DLKP_CACHE_STATUS_merge_output_0.join(
+                __rhs,
+                on=_cc, how="left"
+            )
+        else:
+            logger.warning("No common columns between df_MPLT_DLKP_CACHE_STATUS_merge_output_0 and df_MPLT_DLKP_CACHE_STATUS_EXPTRANS2 — using synthetic key join")
+            __rhs = df_MPLT_DLKP_CACHE_STATUS_EXPTRANS2.withColumn("_join_key", lit(1))
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_MPLT_DLKP_CACHE_STATUS_merge_output_1 = df_MPLT_DLKP_CACHE_STATUS_merge_output_0.withColumn("_join_key", lit(1)).join(
+                __rhs,
+                on="_join_key", how="left").drop("_join_key")
+        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_merge_output_1", df_MPLT_DLKP_CACHE_STATUS_merge_output_1)
+        
+        logger.info("Step: apply_MPLT_DLKP_CACHE_STATUS")
+        # Expression: apply_MPLT_DLKP_CACHE_STATUS
+        df_MPLT_DLKP_CACHE_STATUS = df_MPLT_DLKP_CACHE_STATUS_merge_output_1
+        __expr_renames = [
+            ("LAST_REC_TXN_DATE", "OUT_V_LAST_REC_TXN_DATE"),
+            ("LAST_REC_TXN_TYPE_CODE", "OUT_V_LAST_REC_TXN_TYPE_CODE"),
+            ("SOR_DATE", "OUT_SOR_DATE"),
+            ("BGN_DATE", "OUT_V_BGN_DATE"),
+            ("END_DATE", "OUT_V_END_DATE"),
+            ("AGMT_IND", "OUT_AGMT_IND"),
+            ("TABLE_NAME", "OUT_TABLE_NAME"),
+            ("UPDATE_STRATEGY_STATUS", "OUT_V_UPD_STRATEGY_STATUS"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_DLKP_CACHE_STATUS = df_MPLT_DLKP_CACHE_STATUS.drop(_new).withColumnRenamed(_old, _new)
+        ctx.register_df("df_MPLT_DLKP_CACHE_STATUS", df_MPLT_DLKP_CACHE_STATUS)
+        
+        logger.info("Step: write_SSA_EMS_CPM_BNFT_MBR1")
+        # Write to Target: write_SSA_EMS_CPM_BNFT_MBR1
+        df_write = df_UPDTRANS
+        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
+        df_write = df_write.withColumn("PTCL_KEY", lit(None).cast(StringType()))
+        df_write = df_write.withColumn("HSE_BNFT_MBR_ID_TYPE_CODE", lit(None).cast(StringType()))
+        df_write = df_write.withColumn("HSE_BNFT_MBR_ID_NUM", lit(None).cast(StringType()))
+        df_write = df_write.withColumn("HSE_BNFT_INTR_KEY_CODE", lit(None).cast(StringType()))
+        df_write = df_write.withColumn("HSE_BNFT_TYPE_CODE", lit(None).cast(StringType()))
+        df_write = df_write.withColumn("AGMT_IND", lit(None).cast(StringType()))
+        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
+        df_write = df_write.withColumn("SOR_DATE", lit(None).cast(StringType()))
+        # Select only target-defined columns (field_map already handled name alignment)
+        _target_cols = ['HSE_BNFT_MBR_KEY', 'HSE_BNFT_MBR_BK', 'PTCL_KEY', 'HSE_BNFT_MBR_ID_TYPE_CODE', 'HSE_BNFT_MBR_ID_NUM', 'HSE_BNFT_INTR_KEY_CODE', 'HSE_BNFT_TYPE_CODE', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'OPR_IND', 'SOR_DATE']
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
+        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
+        lib.write_table(df_write, conn_target, "SSA_EMS_CPM_BNFT_MBR", mode="append")
+
+        logger.info("write_SSA_EMS_CPM_BNFT_MBR1 write completed")
         logger.info("Step: read_LKP_DYN_SSA_EMS_CPM_BNFT_MBR_STS")
         # Reading Data From Source - read_LKP_DYN_SSA_EMS_CPM_BNFT_MBR_STS
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -583,6 +904,18 @@ AND SOR_EMS_CPM_BNFT_MBR_STS.HSE_BNFT_MBR_KEY=SSA_EMS_CPM_BNFT_MBR.HSE_BNFT_MBR_
         )
         ctx.register_df("df_lkp_merge_EXPTRANS11", df_lkp_merge_EXPTRANS11)
         
+        logger.info("Step: apply_UPD_SSAL2_MSTR1")
+        # Update Strategy: apply_UPD_SSAL2_MSTR1
+        # Strategy: OUT_V_UPD_STRATEGY_STATUS
+        # Dynamic strategy from field — split rows by _update_flag
+        df_UPD_SSAL2_MSTR1 = df_MPLT_DLKP_CACHE_STATUS.withColumn("_update_flag",
+            when(col("OUT_V_UPD_STRATEGY_STATUS") == "DD_INSERT", lit("I"))
+            .when(col("OUT_V_UPD_STRATEGY_STATUS") == "DD_UPDATE", lit("U"))
+            .when(col("OUT_V_UPD_STRATEGY_STATUS") == "DD_DELETE", lit("D"))
+            .otherwise(lit("I"))
+        )
+        ctx.register_df("df_UPD_SSAL2_MSTR1", df_UPD_SSAL2_MSTR1)
+        
         logger.info("Step: nullinput_MPLT_DLKP_CACHE_STATUS1")
         # Expression: nullinput_MPLT_DLKP_CACHE_STATUS1
         df_MPLT_DLKP_CACHE_STATUS1_nullinput = df_lkp_merge_EXPTRANS11
@@ -605,12 +938,16 @@ AND SOR_EMS_CPM_BNFT_MBR_STS.HSE_BNFT_MBR_KEY=SSA_EMS_CPM_BNFT_MBR.HSE_BNFT_MBR_
         logger.info("Step: rename_EXPTRANS2")
         # Expression: rename_EXPTRANS2
         df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS1_input
-        df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2.drop("IN_DEL_FLAG").withColumnRenamed("IN_V_DEL_IND", "IN_DEL_FLAG")
-        df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2.drop("IN_DLK_SOR_CACHE_STATUS").withColumnRenamed("IN_V_DLKP_SOR_CACHE_STATUS", "IN_DLK_SOR_CACHE_STATUS")
-        df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2.drop("SNAPSHOT_DATE").withColumnRenamed("IN_V_SNAPSHOT_DATE", "SNAPSHOT_DATE")
-        df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2.drop("AGMT_IND").withColumnRenamed("IN_AGMT_IND", "AGMT_IND")
-        df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2.drop("TABLE_NAME").withColumnRenamed("IN_TABLE_NAME", "TABLE_NAME")
-        df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2.drop("IN_DLKP_SSA_CACHE_STATUS").withColumnRenamed("IN_V_DLKP_SSA_CACHE_STATUS", "IN_DLKP_SSA_CACHE_STATUS")
+        __expr_renames = [
+            ("IN_V_DEL_IND", "IN_DEL_FLAG"),
+            ("IN_V_DLKP_SOR_CACHE_STATUS", "IN_DLK_SOR_CACHE_STATUS"),
+            ("IN_V_SNAPSHOT_DATE", "SNAPSHOT_DATE"),
+            ("IN_AGMT_IND", "AGMT_IND"),
+            ("IN_TABLE_NAME", "TABLE_NAME"),
+            ("IN_V_DLKP_SSA_CACHE_STATUS", "IN_DLKP_SSA_CACHE_STATUS"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2", df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2)
         
         logger.info("Step: apply_MPLT_DLKP_CACHE_STATUS_EXPTRANS2")
@@ -630,9 +967,13 @@ AND SOR_EMS_CPM_BNFT_MBR_STS.HSE_BNFT_MBR_KEY=SSA_EMS_CPM_BNFT_MBR.HSE_BNFT_MBR_
         logger.info("Step: rename_EXP_SSAL2_TRANSFORM2")
         # Expression: rename_EXP_SSAL2_TRANSFORM2
         df_MPLT_DLKP_CACHE_STATUS1_rename_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS1_EXPTRANS2
-        df_MPLT_DLKP_CACHE_STATUS1_rename_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS1_rename_EXP_SSAL2_TRANSFORM2.drop("SOR_DATE").withColumnRenamed("IN_SOR_DATE", "SOR_DATE")
-        df_MPLT_DLKP_CACHE_STATUS1_rename_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS1_rename_EXP_SSAL2_TRANSFORM2.drop("INIT_FLAG").withColumnRenamed("IN_V_INIT_IND", "INIT_FLAG")
-        df_MPLT_DLKP_CACHE_STATUS1_rename_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS1_rename_EXP_SSAL2_TRANSFORM2.drop("LAST_UPDATE_DATE").withColumnRenamed("IN_V_LAST_UPDATE_DATE", "LAST_UPDATE_DATE")
+        __expr_renames = [
+            ("IN_SOR_DATE", "SOR_DATE"),
+            ("IN_V_INIT_IND", "INIT_FLAG"),
+            ("IN_V_LAST_UPDATE_DATE", "LAST_UPDATE_DATE"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_DLKP_CACHE_STATUS1_rename_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS1_rename_EXP_SSAL2_TRANSFORM2.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_DLKP_CACHE_STATUS1_rename_EXP_SSAL2_TRANSFORM2", df_MPLT_DLKP_CACHE_STATUS1_rename_EXP_SSAL2_TRANSFORM2)
         
         logger.info("Step: apply_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2")
@@ -656,8 +997,12 @@ AND SOR_EMS_CPM_BNFT_MBR_STS.HSE_BNFT_MBR_KEY=SSA_EMS_CPM_BNFT_MBR.HSE_BNFT_MBR_
         logger.info("Step: rename_EXPTRANS")
         # Expression: rename_EXPTRANS
         df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS = df_MPLT_DLKP_CACHE_STATUS1_EXP_SSAL2_TRANSFORM2
-        df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS = df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS.drop("IN_AGMT_IND").withColumnRenamed("AGMT_IND", "IN_AGMT_IND")
-        df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS = df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS.drop("IN_OPR_IND").withColumnRenamed("OPR_IND", "IN_OPR_IND")
+        __expr_renames = [
+            ("AGMT_IND", "IN_AGMT_IND"),
+            ("OPR_IND", "IN_OPR_IND"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS = df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS", df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS)
         
         logger.info("Step: apply_MPLT_DLKP_CACHE_STATUS_EXPTRANS")
@@ -720,16 +1065,63 @@ AND SOR_EMS_CPM_BNFT_MBR_STS.HSE_BNFT_MBR_KEY=SSA_EMS_CPM_BNFT_MBR.HSE_BNFT_MBR_
         logger.info("Step: apply_MPLT_DLKP_CACHE_STATUS1")
         # Expression: apply_MPLT_DLKP_CACHE_STATUS1
         df_MPLT_DLKP_CACHE_STATUS1 = df_MPLT_DLKP_CACHE_STATUS1_merge_output_1
-        df_MPLT_DLKP_CACHE_STATUS1 = df_MPLT_DLKP_CACHE_STATUS1.drop("OUT_V_LAST_REC_TXN_DATE").withColumnRenamed("LAST_REC_TXN_DATE", "OUT_V_LAST_REC_TXN_DATE")
-        df_MPLT_DLKP_CACHE_STATUS1 = df_MPLT_DLKP_CACHE_STATUS1.drop("OUT_V_LAST_REC_TXN_TYPE_CODE").withColumnRenamed("LAST_REC_TXN_TYPE_CODE", "OUT_V_LAST_REC_TXN_TYPE_CODE")
-        df_MPLT_DLKP_CACHE_STATUS1 = df_MPLT_DLKP_CACHE_STATUS1.drop("OUT_SOR_DATE").withColumnRenamed("SOR_DATE", "OUT_SOR_DATE")
-        df_MPLT_DLKP_CACHE_STATUS1 = df_MPLT_DLKP_CACHE_STATUS1.drop("OUT_V_BGN_DATE").withColumnRenamed("BGN_DATE", "OUT_V_BGN_DATE")
-        df_MPLT_DLKP_CACHE_STATUS1 = df_MPLT_DLKP_CACHE_STATUS1.drop("OUT_V_END_DATE").withColumnRenamed("END_DATE", "OUT_V_END_DATE")
-        df_MPLT_DLKP_CACHE_STATUS1 = df_MPLT_DLKP_CACHE_STATUS1.drop("OUT_AGMT_IND").withColumnRenamed("AGMT_IND", "OUT_AGMT_IND")
-        df_MPLT_DLKP_CACHE_STATUS1 = df_MPLT_DLKP_CACHE_STATUS1.drop("OUT_TABLE_NAME").withColumnRenamed("TABLE_NAME", "OUT_TABLE_NAME")
-        df_MPLT_DLKP_CACHE_STATUS1 = df_MPLT_DLKP_CACHE_STATUS1.drop("OUT_V_UPD_STRATEGY_STATUS").withColumnRenamed("UPDATE_STRATEGY_STATUS", "OUT_V_UPD_STRATEGY_STATUS")
+        __expr_renames = [
+            ("LAST_REC_TXN_DATE", "OUT_V_LAST_REC_TXN_DATE"),
+            ("LAST_REC_TXN_TYPE_CODE", "OUT_V_LAST_REC_TXN_TYPE_CODE"),
+            ("SOR_DATE", "OUT_SOR_DATE"),
+            ("BGN_DATE", "OUT_V_BGN_DATE"),
+            ("END_DATE", "OUT_V_END_DATE"),
+            ("AGMT_IND", "OUT_AGMT_IND"),
+            ("TABLE_NAME", "OUT_TABLE_NAME"),
+            ("UPDATE_STRATEGY_STATUS", "OUT_V_UPD_STRATEGY_STATUS"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_DLKP_CACHE_STATUS1 = df_MPLT_DLKP_CACHE_STATUS1.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_DLKP_CACHE_STATUS1", df_MPLT_DLKP_CACHE_STATUS1)
         
+        logger.info("Step: write_SSA_EMS_CPM_BNFT_MBR")
+        # Write to Target: write_SSA_EMS_CPM_BNFT_MBR
+        df_write = df_UPD_SSAL2_MSTR1
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
+        _field_map = {"AGMT_IND": "OUT_AGMT_IND", "LAST_REC_TXN_DATE": "OUT_LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "OUT_LAST_REC_TXN_TYPE_CODE", "OPR_IND": "OUT_OPR_IND"}
+        for _tgt_col, _src_col in _field_map.items():
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
+                # Drop any column that would conflict case-insensitively with the target name 
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
+                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
+        # Dynamic field strategy — split by _update_flag operation (INSERT/UPDATE/DELETE)
+        _df_ins = df_write.filter(col("_update_flag") == "I").drop("_update_flag")
+        _df_upd = df_write.filter(col("_update_flag") == "U").drop("_update_flag")
+        _df_del = df_write.filter(col("_update_flag") == "D").drop("_update_flag")
+        df_write = df_write.drop("_update_flag")
+        # DELETE: composite key batch delete (all key columns together)
+        _del_key_cols = ['HSE_BNFT_MBR_KEY']
+        if not _df_del.rdd.isEmpty():
+            _del_rows = [tuple(r[c] for c in _del_key_cols) for r in _df_del.select(*_del_key_cols).distinct().collect()]
+            if _del_rows:
+                lib.batch_delete_composite(spark, conn_target, "SSA_EMS_CPM_BNFT_MBR", _del_key_cols, _del_rows, 1000)
+        # UPDATE: batch update via JDBC
+        if not _df_upd.rdd.isEmpty():
+            _upd_key_cols = ['HSE_BNFT_MBR_KEY']
+            _upd_set_cols = [c for c in _df_upd.columns if c.lower() not in [k.lower() for k in _upd_key_cols]]
+            if _upd_set_cols:
+                _upd_rows = [tuple(r[c] for c in _upd_set_cols + _upd_key_cols) for r in _df_upd.collect()]
+                lib.batch_update(spark, conn_target, "SSA_EMS_CPM_BNFT_MBR", _upd_set_cols, _upd_key_cols, _upd_rows, 1000)
+        # INSERT — set df_write to _df_ins so it flows through normal write path
+        df_write = _df_ins
+        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
+        df_write = df_write.withColumn("SOR_DATE", lit(None).cast(StringType()))
+        # Select only target-defined columns (field_map already handled name alignment)
+        _target_cols = ['HSE_BNFT_MBR_KEY', 'HSE_BNFT_MBR_BK', 'PTCL_KEY', 'HSE_BNFT_MBR_ID_TYPE_CODE', 'HSE_BNFT_MBR_ID_NUM', 'HSE_BNFT_INTR_KEY_CODE', 'HSE_BNFT_TYPE_CODE', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'OPR_IND', 'SOR_DATE']
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
+        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
+        lib.write_table(df_write, conn_target, "SSA_EMS_CPM_BNFT_MBR", mode="append")
+
+        logger.info("write_SSA_EMS_CPM_BNFT_MBR write completed")
         logger.info("Step: apply_UPD_SSAL2_MSTR11")
         # Update Strategy: apply_UPD_SSAL2_MSTR11
         # Strategy: OUT_V_UPD_STRATEGY_STATUS
@@ -748,7 +1140,7 @@ AND SOR_EMS_CPM_BNFT_MBR_STS.HSE_BNFT_MBR_KEY=SSA_EMS_CPM_BNFT_MBR.HSE_BNFT_MBR_
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"BGN_DATE": "OUT_V_BGN_DATE", "END_DATE": "OUT_V_END_DATE", "HSE_BNFT_MBR_KEY": "HSE_BNFT_MBR_KEY", "HSE_BNFT_REF_NUM": "HSE_BNFT_REF_NUM", "LAST_REC_TXN_DATE": "OUT_LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "OUT_LAST_REC_TXN_TYPE_CODE", "OPR_IND": "OUT_OPR_IND", "SOR_DATE": "OUT_SOR_DATE"}
+        _field_map = {"BGN_DATE": "OUT_V_BGN_DATE", "END_DATE": "OUT_V_END_DATE", "LAST_REC_TXN_DATE": "OUT_LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "OUT_LAST_REC_TXN_TYPE_CODE", "OPR_IND": "OUT_OPR_IND", "SOR_DATE": "OUT_SOR_DATE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 

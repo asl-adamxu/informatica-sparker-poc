@@ -90,17 +90,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: write_SOR_EMS_PHA_LOC_PREF")
         # Write to Target: write_SOR_EMS_PHA_LOC_PREF
         df_write = df_SQ_SSA_EMS_PHA_LOC_PREF
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "AGMT_IND", "EMS_LOC_PREF_KEY": "EMS_LOC_PREF_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LOC_PREF_KEY": "LOC_PREF_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Add NULL for unmapped target columns (schema parity) - excluding identity columns
         df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
         # Select only target-defined columns (field_map already handled name alignment)
@@ -116,7 +105,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"APLY_KEY": "APLY_KEY", "BGN_DATE": "BGN_DATE", "END_DATE": "OUT_END_DATE", "FLR_LVL_IND": "FLR_LVL_IND", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LIFT_STOP_IND": "LIFT_STOP_IND", "LOC_PREF_APRV_DATE": "LOC_PREF_APRV_DATE", "LOC_PREF_CHC_LIST": "LOC_PREF_CHC_LIST", "LOC_PREF_CHC_UPD_DATE": "LOC_PREF_CHC_UPD_DATE", "LOC_PREF_KEY": "LOC_PREF_KEY", "LOC_PREF_REF_SRC_CODE": "LOC_PREF_REF_SRC_CODE", "LOC_PREF_RMK_TEXT": "LOC_PREF_RMK_TEXT", "LOC_PREF_STS_CODE": "LOC_PREF_STS_CODE", "LVL_GND_IND": "LVL_GND_IND", "OTHR_PREF_IND": "OTHR_PREF_IND", "QTA_CATG_TYPE_CODE": "QTA_CATG_TYPE_CODE", "QTA_CATG_USER_KEY": "QTA_CATG_USER_KEY", "REC_CRE_DATE": "REC_CRE_DATE", "REC_CRE_USER_ID": "REC_CRE_USER_ID"}
+        _field_map = {"END_DATE": "OUT_END_DATE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 

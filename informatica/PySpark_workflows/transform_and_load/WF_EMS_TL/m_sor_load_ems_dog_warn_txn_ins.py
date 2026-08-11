@@ -102,7 +102,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"BGN_DATE": "BGN_DATE", "CUST_KEY": "CUST_KEY", "DOG_WARN_TXN_KEY": "DOG_WARN_TXN_KEY", "END_DATE": "OUT_END_DATE", "FLUP_CMPLT_DATE": "FLUP_CMPLT_DATE", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY", "INCDT_DATE": "INCDT_DATE", "INCDT_LOC_OTHR_TEXT": "INCDT_LOC_OTHR_TEXT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "INS", "OFNDR_ID_NUM": "OFNDR_ID_NUM", "OFNDR_ID_TYPE_CODE": "OFNDR_ID_TYPE_CODE", "OFNDR_NAME": "OFNDR_NAME", "RESP_OFCR_NAME": "RESP_OFCR_NAME", "RESP_OFCR_PHONE_NUM": "RESP_OFCR_PHONE_NUM", "WARN_APRV_OFCR_NAME": "WARN_APRV_OFCR_NAME", "WARN_APRV_OFCR_POST_TEXT": "WARN_APRV_OFCR_POST_TEXT", "WARN_APRV_OFCR_TYPE_CODE": "WARN_APRV_OFCR_TYPE_CODE", "WARN_CODE": "WARN_CODE", "WARN_DEL_RSN_CODE": "WARN_DEL_RSN_CODE", "WARN_DEL_RSN_RMK_TEXT": "WARN_DEL_RSN_RMK_TEXT", "WARN_FILE_REF_TEXT": "WARN_FILE_REF_TEXT", "WARN_ISS_OFCR_NAME": "WARN_ISS_OFCR_NAME", "WARN_ISS_OFCR_TYPE_CODE": "WARN_ISS_OFCR_TYPE_CODE", "WARN_ISS_OFFC_FAX_NUM": "WARN_ISS_OFFC_FAX_NUM", "WARN_ISS_OFFC_PHONE_NUM": "WARN_ISS_OFFC_PHONE_NUM", "WARN_LTR_ATTN_NAME": "WARN_LTR_ATTN_NAME", "WARN_LTR_LANG_CODE": "WARN_LTR_LANG_CODE", "WARN_LTR_MAIL_ADDR_1": "WARN_LTR_MAIL_ADDR_1", "WARN_LTR_MAIL_ADDR_2": "WARN_LTR_MAIL_ADDR_2", "WARN_LTR_MAIL_ADDR_3": "WARN_LTR_MAIL_ADDR_3", "WARN_LTR_MAIL_ADDR_4": "WARN_LTR_MAIL_ADDR_4", "WARN_LTR_MAIL_ADDR_5": "WARN_LTR_MAIL_ADDR_5", "WARN_TXN_CRE_DATE": "WARN_TXN_CRE_DATE", "WARN_TXN_CRE_USER_ID": "WARN_TXN_CRE_USER_ID", "WARN_TXN_STS_CODE": "WARN_TXN_STS_CODE"}
+        _field_map = {"END_DATE": "OUT_END_DATE", "LAST_REC_TXN_TYPE_CODE": "INS"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 
@@ -123,17 +123,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: write_SOR_EMS_DOG_WARN_TXN")
         # Write to Target: write_SOR_EMS_DOG_WARN_TXN
         df_write = df_EXP_REC_TXN_TYPE_CODE_INS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "AGMT_IND", "DOG_WARN_TXN_KEY": "DOG_WARN_TXN_KEY", "EMS_DOG_WARN_TXN_KEY": "EMS_DOG_WARN_TXN_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['DOG_WARN_TXN_KEY', 'EMS_DOG_WARN_TXN_KEY', 'AGMT_IND', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE']
         df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])

@@ -98,7 +98,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"ADTN_ROOM_IND": "ADTN_ROOM_IND", "CUST_KEY": "CUST_KEY", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE1", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "OPR_IND": "OPR_IND", "SYS_RPT_MTH": "SYS_RPT_MTH", "SYS_RPT_YEAR": "SYS_RPT_YEAR", "TNT_ADTN_RENT_AMT": "TNT_ADTN_RENT_AMT", "TNT_MKT_RENT_AMT": "TNT_MKT_RENT_AMT", "TNT_RDC_RENT_AMT": "TNT_RDC_RENT_AMT", "TNT_RENT_CODE": "TNT_RENT_CODE", "UNIT_CODE_ADDR": "HSE_UNIT_CODE_ADDR", "UNIT_GRS_RENT_AMT": "HSE_UNIT_GRS_RENT_AMT", "UNIT_KEY": "HSE_UNIT_KEY", "UNIT_TYPE_CODE": "HSE_UNIT_TYPE_CODE"}
+        _field_map = {"LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE1", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "UNIT_CODE_ADDR": "HSE_UNIT_CODE_ADDR", "UNIT_GRS_RENT_AMT": "HSE_UNIT_GRS_RENT_AMT", "UNIT_KEY": "HSE_UNIT_KEY", "UNIT_TYPE_CODE": "HSE_UNIT_TYPE_CODE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 

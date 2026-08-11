@@ -82,17 +82,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: write_SOR_EMS_PHA_APLY_STG_HIST")
         # Write to Target: write_SOR_EMS_PHA_APLY_STG_HIST
         df_write = df_SQ_SSA_EMS_PHA_APLY_STG_HIST
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "AGMT_IND", "APLY_KEY": "APLY_KEY", "APLY_STG_HIST_BK": "APLY_STG_HIST_BK", "APLY_STG_HIST_KEY": "APLY_STG_HIST_KEY", "APLY_STG_STS_CRE_DATE": "APLY_STG_STS_CRE_DATE", "APLY_STG_STS_SEQ_NUM": "APLY_STG_STS_SEQ_NUM", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Add NULL for unmapped target columns (schema parity) - excluding identity columns
         df_write = df_write.withColumn("APLY_BK", lit(None).cast(StringType()))
         df_write = df_write.withColumn("HSE_SRVC_APLY_KEY", lit(None).cast(StringType()))
@@ -117,7 +106,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"APLY_ACPT_APRV_DATE": "APLY_ACPT_APRV_DATE", "APLY_BU_DATE_1": "APLY_BU_DATE_1", "APLY_BU_DATE_2": "APLY_BU_DATE_2", "APLY_BU_DATE_3": "APLY_BU_DATE_3", "APLY_BU_DATE_4": "APLY_BU_DATE_4", "APLY_BU_DATE_5": "APLY_BU_DATE_5", "APLY_RSN_APRV_DATE": "APLY_RSN_APRV_DATE", "APLY_RSN_CODE_1": "APLY_RSN_CODE_1", "APLY_RSN_CODE_2": "APLY_RSN_CODE_2", "APLY_RSN_CODE_3": "APLY_RSN_CODE_3", "APLY_RSN_CODE_4": "APLY_RSN_CODE_4", "APLY_RSN_CODE_5": "APLY_RSN_CODE_5", "APLY_STG_CODE": "APLY_STG_CODE", "APLY_STG_HIST_KEY": "APLY_STG_HIST_KEY", "APLY_STG_STS_CHNG_ACT_CODE": "APLY_STG_STS_CHNG_ACT_CODE", "APLY_STG_STS_CHNG_DATE": "APLY_STG_STS_CHNG_DATE", "APLY_STS_CODE": "APLY_STS_CODE", "BGN_DATE": "BGN_DATE", "BRO_IND": "BRO_IND", "BRO_JOIN_DATE": "BRO_JOIN_DATE", "BRO_PHASE_CODE": "BRO_PHASE_CODE", "BRO_STS_CODE": "BRO_STS_CODE", "END_DATE": "OUT_END_DATE", "IELGBL_BYPS_IND": "IELGBL_BYPS_IND", "LAST_HIST_IND": "LAST_HIST_IND", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "OFR_RFSL_DATE": "OFR_RFSL_DATE", "OFR_RFSL_RSN_CODE": "OFR_RFSL_RSN_CODE", "RWL_BU_DATE": "RWL_BU_DATE", "RWL_RGSTR_DATE": "RWL_RGSTR_DATE"}
+        _field_map = {"END_DATE": "OUT_END_DATE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 

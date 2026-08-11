@@ -82,17 +82,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: write_SOR_EMS_HOS_CRT")
         # Write to Target: write_SOR_EMS_HOS_CRT
         df_write = df_SQ_SSA_EMS_HOS_CRT
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "AGMT_IND", "HOS_CRT_BK": "HOS_CRT_BK", "HOS_CRT_CODE": "HOS_CRT_CODE", "HOS_CRT_KEY": "HOS_CRT_KEY", "HOS_CRT_TYPE_CODE": "HOS_CRT_TYPE_CODE", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['HOS_CRT_KEY', 'HOS_CRT_BK', 'HOS_CRT_TYPE_CODE', 'HOS_CRT_CODE', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
         df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
@@ -114,7 +103,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"BGN_DATE": "BGN_DATE", "COST_CTR_CODE": "COST_CTR_CODE", "END_DATE": "OUT_END_DATE", "HOS_CRT_AREA": "HOS_CRT_AREA", "HOS_CRT_BAL_PYMT_CTF_CASH_AMT": "HOS_CRT_BAL_PYMT_CTF_CASH_AMT", "HOS_CRT_BAL_PYMT_CTF_CHQ_AMT": "HOS_CRT_BAL_PYMT_CTF_CHQ_AMT", "HOS_CRT_BAL_PYMT_CTF_CNT": "HOS_CRT_BAL_PYMT_CTF_CNT", "HOS_CRT_BAL_PYMT_CTF_DATE": "HOS_CRT_BAL_PYMT_CTF_DATE", "HOS_CRT_CNSTY_AREA": "HOS_CRT_CNSTY_AREA", "HOS_CRT_DEV_DESP": "HOS_CRT_DEV_DESP", "HOS_CRT_DPST_CTF_CASH_AMT": "HOS_CRT_DPST_CTF_CASH_AMT", "HOS_CRT_DPST_CTF_CHQ_AMT": "HOS_CRT_DPST_CTF_CHQ_AMT", "HOS_CRT_DPST_CTF_CNT": "HOS_CRT_DPST_CTF_CNT", "HOS_CRT_DPST_CTF_DATE": "HOS_CRT_DPST_CTF_DATE", "HOS_CRT_KEY": "HOS_CRT_KEY", "HOS_CRT_LES_BGN_DATE": "HOS_CRT_LES_BGN_DATE", "HOS_CRT_LES_END_DATE": "HOS_CRT_LES_END_DATE", "HOS_CRT_LOT_CODE_1": "HOS_CRT_LOT_CODE_1", "HOS_CRT_LOT_CODE_2": "HOS_CRT_LOT_CODE_2", "HOS_CRT_LOT_DESP_1": "HOS_CRT_LOT_DESP_1", "HOS_CRT_LOT_DESP_2": "HOS_CRT_LOT_DESP_2", "HOS_CRT_MGT_TYPE_CODE": "HOS_CRT_MGT_TYPE_CODE", "HOS_CRT_MGT_UNIT_CODE": "HOS_CRT_MGT_UNIT_CODE", "HOS_CRT_MGT_UNIT_TYPE_CODE": "HOS_CRT_MGT_UNIT_TYPE_CODE", "HOS_CRT_NAME": "HOS_CRT_NAME", "HOS_CRT_TOT_UNDVD_SHR_AREA_1": "HOS_CRT_TOT_UNDVD_SHR_AREA_1", "HOS_CRT_TOT_UNDVD_SHR_AREA_2": "HOS_CRT_TOT_UNDVD_SHR_AREA_2", "LAND_RGSTR_CODE": "LAND_RGSTR_CODE", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE"}
+        _field_map = {"END_DATE": "OUT_END_DATE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 

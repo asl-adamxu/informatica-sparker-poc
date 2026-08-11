@@ -102,7 +102,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"ACK_EMAIL_GNRT_BGN_DATE": "ACK_EMAIL_GNRT_BGN_DATE", "ACK_LTR_GNRT_BGN_DATE": "ACK_LTR_GNRT_BGN_DATE", "ACK_LTR_ISS_DATE": "ACK_LTR_ISS_DATE", "APLY_END_DATE": "APLY_END_DATE", "APLY_STG_END_DATE": "APLY_STG_END_DATE", "BGN_DATE": "BGN_DATE", "CHI_LTR_SCHM_NAME": "CHI_LTR_SCHM_NAME", "EFAS_FLAT_SLCT_EMAIL_ADDR": "EFAS_FLAT_SLCT_EMAIL_ADDR", "EFAS_FLAT_SLCT_INVT_EMAIL_ADDR": "EFAS_FLAT_SLCT_INVT_EMAIL_ADDR", "EFAS_OPR_CODE": "EFAS_OPR_CODE", "END_DATE": "OUT_END_DATE", "ENG_LTR_SCHM_NAME": "ENG_LTR_SCHM_NAME", "GF_CSHR_ORD_AMT": "GF_CSHR_ORD_AMT", "GF_CSHR_ORD_CHI_TEXT": "GF_CSHR_ORD_CHI_TEXT", "GF_PAGE_CNT": "GF_PAGE_CNT", "HSE_SBSCHM_CODE": "HSE_SBSCHM_CODE", "HSE_SCHM_CODE": "HSE_SCHM_CODE", "HSKP_CMPLT_DATE": "HSKP_CMPLT_DATE", "HSKP_CMPLT_IND": "HSKP_CMPLT_IND", "HSKP_RQR_IND": "HSKP_RQR_IND", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "INS", "PHASE_APLY_FEE_AMT": "PHASE_APLY_FEE_AMT", "PHASE_BGN_DATE": "PHASE_BGN_DATE", "PHASE_CHI_DESP": "PHASE_CHI_DESP", "PHASE_END_DATE": "PHASE_END_DATE", "PHASE_ENG_DESP": "PHASE_ENG_DESP", "PHASE_KEY": "PHASE_KEY", "PHASE_SALE_END_DATE": "PHASE_SALE_END_DATE", "PHASE_SALE_PRC_DSCT_PCT": "PHASE_SALE_PRC_DSCT_PCT", "PHASE_TOP_UP_FEE_AMT": "PHASE_TOP_UP_FEE_AMT", "ROW_VER_NUM": "ROW_VER_NUM", "TOT_APLY_CNT": "TOT_APLY_CNT", "TOT_APLY_HSKP_CNT": "TOT_APLY_HSKP_CNT", "TOT_APLY_RTA_CNT": "TOT_APLY_RTA_CNT", "TPS_CSHR_ORD_AMT": "TPS_CSHR_ORD_AMT", "TPS_CSHR_ORD_CHI_TEXT": "TPS_CSHR_ORD_CHI_TEXT", "WF_CSHR_ORD_AMT": "WF_CSHR_ORD_AMT", "WF_CSHR_ORD_CHI_TEXT": "WF_CSHR_ORD_CHI_TEXT", "WF_PAGE_CNT": "WF_PAGE_CNT"}
+        _field_map = {"END_DATE": "OUT_END_DATE", "LAST_REC_TXN_TYPE_CODE": "INS"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 
@@ -120,17 +120,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: write_SOR_NHS_PHASE")
         # Write to Target: write_SOR_NHS_PHASE
         df_write = df_EXP_REC_TXN_TYPE_CODE_INS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "AGMT_IND", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "NHS_PHASE_CODE": "NHS_PHASE_CODE", "PHASE_KEY": "PHASE_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['PHASE_KEY', 'NHS_PHASE_CODE', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
         df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])

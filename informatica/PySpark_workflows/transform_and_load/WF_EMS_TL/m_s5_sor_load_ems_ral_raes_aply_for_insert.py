@@ -82,17 +82,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: write_SOR_EMS_RAL_RAES_APLY")
         # Write to Target: write_SOR_EMS_RAL_RAES_APLY
         df_write = df_SQ_SSA_EMS_RAL_RAES_APLY
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "AGMT_IND", "HSE_SRVC_APLY_NUM": "HSE_SRVC_APLY_NUM", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "RAES_APLY_BK": "RAES_APLY_BK", "RAES_APLY_KEY": "RAES_APLY_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['RAES_APLY_KEY', 'RAES_APLY_BK', 'HSE_SRVC_APLY_NUM', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
         df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
@@ -114,7 +103,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"APLY_RSN_CODE": "APLY_RSN_CODE", "BGN_DATE": "BGN_DATE", "END_DATE": "OUT_END_DATE", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "QTA_CATG_TYPE_CODE": "QTA_CATG_TYPE_CODE", "RAES_ACMD_TYPE_CODE": "RAES_ACMD_TYPE_CODE", "RAES_APLY_BLDG_AGE": "RAES_APLY_BLDG_AGE", "RAES_APLY_CNCL_CODE": "RAES_APLY_CNCL_CODE", "RAES_APLY_CNTC_CHI_NAME": "RAES_APLY_CNTC_CHI_NAME", "RAES_APLY_CNTC_NAME": "RAES_APLY_CNTC_NAME", "RAES_APLY_CNTC_PHONE_NUM": "RAES_APLY_CNTC_PHONE_NUM", "RAES_APLY_CRE_DATE": "RAES_APLY_CRE_DATE", "RAES_APLY_CRSP_BLDG_NAME": "RAES_APLY_CRSP_BLDG_NAME", "RAES_APLY_CRSP_BLK_NUM": "RAES_APLY_CRSP_BLK_NUM", "RAES_APLY_CRSP_CODE_ADDR": "RAES_APLY_CRSP_CODE_ADDR", "RAES_APLY_CRSP_DSTR_CODE": "RAES_APLY_CRSP_DSTR_CODE", "RAES_APLY_CRSP_DSTR_NAME": "RAES_APLY_CRSP_DSTR_NAME", "RAES_APLY_CRSP_FLAT_NUM": "RAES_APLY_CRSP_FLAT_NUM", "RAES_APLY_CRSP_FLR_NUM": "RAES_APLY_CRSP_FLR_NUM", "RAES_APLY_CRSP_STRT_NAME": "RAES_APLY_CRSP_STRT_NAME", "RAES_APLY_CRSP_WORK_PHONE_NUM": "RAES_APLY_CRSP_WORK_PHONE_NUM", "RAES_APLY_INTVWR_CODE": "RAES_APLY_INTVWR_CODE", "RAES_APLY_INTVW_DATE": "RAES_APLY_INTVW_DATE", "RAES_APLY_KEY": "RAES_APLY_KEY", "RAES_APLY_LDLR_NAME": "RAES_APLY_LDLR_NAME", "RAES_APLY_LIFT_STOP_IND": "RAES_APLY_LIFT_STOP_IND", "RAES_APLY_LVNG_AREA": "RAES_APLY_LVNG_AREA", "RAES_APLY_RMK_TEXT": "RAES_APLY_RMK_TEXT", "RAES_APLY_ROPT_IND": "RAES_APLY_ROPT_IND", "RAES_APLY_SRVC_TEAM_NAME": "RAES_APLY_SRVC_TEAM_NAME", "RAES_APLY_STG_CODE": "RAES_APLY_STG_CODE", "RAES_APLY_STG_UPD_DATE": "RAES_APLY_STG_UPD_DATE", "RAES_APLY_STS_CODE": "RAES_APLY_STS_CODE", "RAES_APLY_STS_UPD_DATE": "RAES_APLY_STS_UPD_DATE", "RAES_APLY_UPD_DATE": "RAES_APLY_UPD_DATE"}
+        _field_map = {"END_DATE": "OUT_END_DATE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 

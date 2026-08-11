@@ -82,17 +82,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: write_SOR_EMS_RAL_RAES_AIP")
         # Write to Target: write_SOR_EMS_RAL_RAES_AIP
         df_write = df_SQ_SSA_EMS_RAL_RAES_AIP
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "AGMT_IND", "AIP_BK": "AIP_BK", "AIP_KEY": "AIP_KEY", "HSE_SRVC_APLY_NUM": "HSE_SRVC_APLY_NUM", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "RAES_APLY_KEY": "RAES_APLY_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['AIP_KEY', 'AIP_BK', 'RAES_APLY_KEY', 'HSE_SRVC_APLY_NUM', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
         df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
@@ -114,7 +103,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"AIP_END_DATE": "AIP_END_DATE", "AIP_ISS_DATE": "AIP_ISS_DATE", "AIP_KEY": "AIP_KEY", "AIP_REF_NUM": "AIP_REF_NUM", "ALWN_BGN_DATE": "ALWN_BGN_DATE", "ALWN_END_DATE": "ALWN_END_DATE", "BANK_ACCT_NUM": "BANK_ACCT_NUM", "BANK_BRCH_CODE": "BANK_BRCH_CODE", "BANK_CODE": "BANK_CODE", "BGN_DATE": "BGN_DATE", "CSSA_IND": "CSSA_IND", "CSSA_REF_NUM": "CSSA_REF_NUM", "CSSA_RNTL_SPLM_AMT": "CSSA_RNTL_SPLM_AMT", "END_DATE": "OUT_END_DATE", "HA_ALWN_AMT": "HA_ALWN_AMT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LES_APRV_DATE": "LES_APRV_DATE", "PRH_OPT_DATE": "PRH_OPT_DATE", "PYMT_APRV_DATE": "PYMT_APRV_DATE", "PYMT_MTHD_TYPE_CODE": "PYMT_MTHD_TYPE_CODE", "RAES_APRV_ACCT_HLDR_NAME_1": "RAES_APRV_ACCT_HLDR_NAME_1", "RAES_APRV_ACCT_HLDR_NAME_2": "RAES_APRV_ACCT_HLDR_NAME_2", "RAES_APRV_ACCT_HLDR_NAME_3": "RAES_APRV_ACCT_HLDR_NAME_3", "RAES_APRV_ACCT_HLDR_NAME_4": "RAES_APRV_ACCT_HLDR_NAME_4", "RAES_APRV_APLY_RENT_PYMT_AMT": "RAES_APRV_APLY_RENT_PYMT_AMT", "RAES_APRV_DATE": "RAES_APRV_DATE", "RAES_APRV_EAS_ALWN_AMT": "RAES_APRV_EAS_ALWN_AMT", "RAES_APRV_EAS_IND": "RAES_APRV_EAS_IND", "RAES_APRV_HOME_BLDG_NAME": "RAES_APRV_HOME_BLDG_NAME", "RAES_APRV_HOME_BLK_NUM": "RAES_APRV_HOME_BLK_NUM", "RAES_APRV_HOME_CODE_ADDR": "RAES_APRV_HOME_CODE_ADDR", "RAES_APRV_HOME_DSTR_CODE": "RAES_APRV_HOME_DSTR_CODE", "RAES_APRV_HOME_DSTR_NAME": "RAES_APRV_HOME_DSTR_NAME", "RAES_APRV_HOME_FLAT_NUM": "RAES_APRV_HOME_FLAT_NUM", "RAES_APRV_HOME_FLR_NUM": "RAES_APRV_HOME_FLR_NUM", "RAES_APRV_HOME_PHONE_NUM": "RAES_APRV_HOME_PHONE_NUM", "RAES_APRV_HOME_STRT_NAME": "RAES_APRV_HOME_STRT_NAME", "RAES_APRV_PRH_BU_DATE": "RAES_APRV_PRH_BU_DATE", "RAES_APRV_STS_CODE": "RAES_APRV_STS_CODE", "RMDR_LTR_BU_DATE": "RMDR_LTR_BU_DATE", "RNW_BU_DATE": "RNW_BU_DATE", "SHR_NUM": "SHR_NUM", "SPCL_GRNT_ALWN_AMT": "SPCL_GRNT_ALWN_AMT", "SPCL_GRNT_IND": "SPCL_GRNT_IND", "TA_AGNT_FEE_AMT": "TA_AGNT_FEE_AMT", "TA_CMNC_DATE": "TA_CMNC_DATE", "TA_DPST_AMT": "TA_DPST_AMT", "TA_STMP_DUTY_AMT": "TA_STMP_DUTY_AMT", "TA_TRMT_DATE": "TA_TRMT_DATE", "TOT_RENT_AMT": "TOT_RENT_AMT"}
+        _field_map = {"END_DATE": "OUT_END_DATE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 

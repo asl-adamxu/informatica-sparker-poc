@@ -82,17 +82,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: write_SOR_EMS_HHA_HOS_APLY")
         # Write to Target: write_SOR_EMS_HHA_HOS_APLY
         df_write = df_SQ_SSA_EMS_HHA_HOS_APLY
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "AGMT_IND", "HOS_APLY_BK": "HOS_APLY_BK", "HOS_APLY_KEY": "HOS_APLY_KEY", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['HOS_APLY_KEY', 'HOS_APLY_BK', 'HSE_SRVC_APLY_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
         df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
@@ -114,7 +103,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"APLY_APLY_MSS_IND": "APLY_APLY_MSS_IND", "APLY_CNCL_RSN_CODE": "APLY_CNCL_RSN_CODE", "APLY_CRT_CHC_SEQ_NUM": "APLY_CRT_CHC_SEQ_NUM", "APLY_DBL_RENT_IND": "APLY_DBL_RENT_IND", "APLY_DSBL_IND": "APLY_DSBL_IND", "APLY_FMLY_SIZE_NUM": "APLY_FMLY_SIZE_NUM", "APLY_FMLY_SPLT_IND": "APLY_FMLY_SPLT_IND", "APLY_HOME_CODE_ADDR": "APLY_HOME_CODE_ADDR", "APLY_HOME_DSTR_KEY": "APLY_HOME_DSTR_KEY", "APLY_HSHLD_INCM_AMT": "APLY_HSHLD_INCM_AMT", "APLY_MAIN_APLY_IND": "APLY_MAIN_APLY_IND", "APLY_MSS_REF_NUM": "APLY_MSS_REF_NUM", "APLY_NONUBN_IND": "APLY_NONUBN_IND", "APLY_PRIOR_DESP_1": "APLY_PRIOR_DESP_1", "APLY_PRIOR_DESP_2": "APLY_PRIOR_DESP_2", "APLY_PRIOR_DESP_3": "APLY_PRIOR_DESP_3", "APLY_PRIOR_DESP_4": "APLY_PRIOR_DESP_4", "APLY_PRIOR_DESP_5": "APLY_PRIOR_DESP_5", "APLY_PRIOR_DESP_6": "APLY_PRIOR_DESP_6", "APLY_PRIOR_NUM": "APLY_PRIOR_NUM", "APLY_PRIOR_NUM_1": "APLY_PRIOR_NUM_1", "APLY_PRIOR_NUM_2": "APLY_PRIOR_NUM_2", "APLY_PRIOR_NUM_3": "APLY_PRIOR_NUM_3", "APLY_PRIOR_NUM_4": "APLY_PRIOR_NUM_4", "APLY_PRIOR_NUM_5": "APLY_PRIOR_NUM_5", "APLY_PRIOR_NUM_6": "APLY_PRIOR_NUM_6", "APLY_PRIOR_NUM_SFX_NUM_1": "APLY_PRIOR_NUM_SFX_NUM_1", "APLY_PRIOR_NUM_SFX_NUM_2": "APLY_PRIOR_NUM_SFX_NUM_2", "APLY_PRIOR_NUM_SFX_NUM_3": "APLY_PRIOR_NUM_SFX_NUM_3", "APLY_PRIOR_NUM_SFX_NUM_4": "APLY_PRIOR_NUM_SFX_NUM_4", "APLY_PRIOR_NUM_SFX_NUM_5": "APLY_PRIOR_NUM_SFX_NUM_5", "APLY_PRIOR_NUM_SFX_NUM_6": "APLY_PRIOR_NUM_SFX_NUM_6", "APLY_PRPTY_OWNR_IND": "APLY_PRPTY_OWNR_IND", "APLY_SCHM_TYPE_CODE": "APLY_SCHM_TYPE_CODE", "BGN_DATE": "BGN_DATE", "END_DATE": "OUT_END_DATE", "EST_MGT_STS_CODE": "EST_MGT_STS_CODE", "FMLY_CPST_CODE": "FMLY_CPST_CODE", "GF_CERT_NUM": "GF_CERT_NUM", "HOS_APLY_FRZ_IND": "HOS_APLY_FRZ_IND", "HOS_APLY_KEY": "HOS_APLY_KEY", "HOS_APLY_NUM": "HOS_APLY_NUM", "HOS_APLY_STG_CODE": "HOS_APLY_STG_CODE", "HOS_APLY_STS_CODE": "HOS_APLY_STS_CODE", "HOS_APLY_STS_UPD_DATE": "HOS_APLY_STS_UPD_DATE", "HOS_APLY_TYPE_CODE": "HOS_APLY_TYPE_CODE", "HOS_PHASE_CODE": "HOS_PHASE_CODE", "HOS_RSCN_NUM": "HOS_RSCN_NUM", "INCM_ENR_CNT": "INCM_ENR_CNT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LOA_IND": "LOA_IND", "NEW_HOS_APLY_NUM": "NEW_HOS_APLY_NUM", "NEW_HOS_APLY_SFX_NUM": "NEW_HOS_APLY_SFX_NUM", "NEW_HOS_APLY_TYPE_CODE": "NEW_HOS_APLY_TYPE_CODE", "NEW_HOS_PRIOR_NUM": "NEW_HOS_PRIOR_NUM", "NEW_HOS_PRIOR_NUM_SFX_NUM": "NEW_HOS_PRIOR_NUM_SFX_NUM", "PRH_APLY_NUM": "PRH_APLY_NUM", "WFA_APLY_APRV_DATE": "WFA_APLY_APRV_DATE", "WFA_APLY_APRV_NUM": "WFA_APLY_APRV_NUM", "WFA_APLY_FRZ_RSN_CODE": "WFA_APLY_FRZ_RSN_CODE", "WFA_APLY_REJ_RSN_CODE": "WFA_APLY_REJ_RSN_CODE"}
+        _field_map = {"END_DATE": "OUT_END_DATE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 

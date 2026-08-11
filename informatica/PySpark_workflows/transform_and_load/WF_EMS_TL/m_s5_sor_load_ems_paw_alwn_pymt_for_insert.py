@@ -82,17 +82,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: write_SOR_EMS_PAW_ALWN_PYMT")
         # Write to Target: write_SOR_EMS_PAW_ALWN_PYMT
         df_write = df_SQ_SSA_EMS_PAW_ALWN_PYMT
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "AGMT_IND", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "OPR_CODE": "OPR_CODE", "PYMT_BK": "PYMT_BK", "PYMT_KEY": "PYMT_KEY", "PYMT_SCHD_SEQ_NUM": "PYMT_SCHD_SEQ_NUM", "PYMT_SCHD_SRL_NUM": "PYMT_SCHD_SRL_NUM", "PYMT_SCHD_TYPE_CODE": "PYMT_SCHD_TYPE_CODE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['PYMT_KEY', 'PYMT_BK', 'OPR_CODE', 'PYMT_SCHD_TYPE_CODE', 'PYMT_SCHD_SRL_NUM', 'PYMT_SCHD_SEQ_NUM', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
         df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
@@ -114,7 +103,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"ALWN_PYMT_APRV_USER_NAME": "ALWN_PYMT_APRV_USER_NAME", "ALWN_PYMT_APRV_USER_TTL": "ALWN_PYMT_APRV_USER_TTL", "ALWN_PYMT_BTCH_DATE": "ALWN_PYMT_BTCH_DATE", "ALWN_PYMT_BTCH_ID": "ALWN_PYMT_BTCH_ID", "ALWN_PYMT_CHK_USER_NAME": "ALWN_PYMT_CHK_USER_NAME", "ALWN_PYMT_CHK_USER_TTL": "ALWN_PYMT_CHK_USER_TTL", "APLY_FMLY_SIZE_NUM": "APLY_FMLY_SIZE_NUM", "APLY_KEY": "APLY_KEY", "BGN_DATE": "BGN_DATE", "CUST_MBR_CHI_NAME": "CUST_MBR_CHI_NAME", "CUST_MBR_ID_NUM": "CUST_MBR_ID_NUM", "CUST_MBR_ID_TYPE_CODE": "CUST_MBR_ID_TYPE_CODE", "CUST_MBR_NAME": "CUST_MBR_NAME", "END_DATE": "OUT_END_DATE", "HSE_SRVC_APLY_NUM": "HSE_SRVC_APLY_NUM", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "MANU_INPT_IND": "MANU_INPT_IND", "ORIG_CODE_ADDR": "ORIG_CODE_ADDR", "PYMT_KEY": "PYMT_KEY", "PYMT_SCHD_APRV_USER_ID": "PYMT_SCHD_APRV_USER_ID", "PYMT_SCHD_BGN_DATE": "PYMT_SCHD_BGN_DATE", "PYMT_SCHD_CHQ_AMT": "PYMT_SCHD_CHQ_AMT", "PYMT_SCHD_CHQ_DATE": "PYMT_SCHD_CHQ_DATE", "PYMT_SCHD_CHQ_NUM": "PYMT_SCHD_CHQ_NUM", "PYMT_SCHD_CHQ_RCV_DATE": "PYMT_SCHD_CHQ_RCV_DATE", "PYMT_SCHD_CHQ_RCV_USER_ID": "PYMT_SCHD_CHQ_RCV_USER_ID", "PYMT_SCHD_CHQ_RGSTR_USER_ID": "PYMT_SCHD_CHQ_RGSTR_USER_ID", "PYMT_SCHD_CHQ_STS_CODE": "PYMT_SCHD_CHQ_STS_CODE", "PYMT_SCHD_CHQ_VOID_DATE": "PYMT_SCHD_CHQ_VOID_DATE", "PYMT_SCHD_CHQ_VOID_USER_ID": "PYMT_SCHD_CHQ_VOID_USER_ID", "PYMT_SCHD_CNCL_CODE": "PYMT_SCHD_CNCL_CODE", "PYMT_SCHD_CNCL_DATE": "PYMT_SCHD_CNCL_DATE", "PYMT_SCHD_CNCL_RMK_TEXT": "PYMT_SCHD_CNCL_RMK_TEXT", "PYMT_SCHD_CNCL_USER_ID": "PYMT_SCHD_CNCL_USER_ID", "PYMT_SCHD_DUE_DATE": "PYMT_SCHD_DUE_DATE", "PYMT_SCHD_PRN_NUM": "PYMT_SCHD_PRN_NUM", "PYMT_SCHD_PRPR_DATE": "PYMT_SCHD_PRPR_DATE", "PYMT_SCHD_RQS_USER_ID": "PYMT_SCHD_RQS_USER_ID", "PYMT_SCHD_STS_CODE": "PYMT_SCHD_STS_CODE"}
+        _field_map = {"END_DATE": "OUT_END_DATE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 

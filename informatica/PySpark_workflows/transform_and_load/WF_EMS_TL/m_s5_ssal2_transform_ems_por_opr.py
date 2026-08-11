@@ -439,12 +439,16 @@ WHERE SOR_EMS_POR_OPR_STS.END_DATE = TO_DATE ('99991231', 'YYYYMMDD')"""
         logger.info("Step: rename_EXPTRANS2")
         # Expression: rename_EXPTRANS2
         df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS_input
-        df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2.drop("IN_DEL_FLAG").withColumnRenamed("IN_V_DEL_IND", "IN_DEL_FLAG")
-        df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2.drop("IN_DLK_SOR_CACHE_STATUS").withColumnRenamed("IN_V_DLKP_SOR_CACHE_STATUS", "IN_DLK_SOR_CACHE_STATUS")
-        df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2.drop("SNAPSHOT_DATE").withColumnRenamed("IN_V_SNAPSHOT_DATE", "SNAPSHOT_DATE")
-        df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2.drop("AGMT_IND").withColumnRenamed("IN_AGMT_IND", "AGMT_IND")
-        df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2.drop("TABLE_NAME").withColumnRenamed("IN_TABLE_NAME", "TABLE_NAME")
-        df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2.drop("IN_DLKP_SSA_CACHE_STATUS").withColumnRenamed("IN_V_DLKP_SSA_CACHE_STATUS", "IN_DLKP_SSA_CACHE_STATUS")
+        __expr_renames = [
+            ("IN_V_DEL_IND", "IN_DEL_FLAG"),
+            ("IN_V_DLKP_SOR_CACHE_STATUS", "IN_DLK_SOR_CACHE_STATUS"),
+            ("IN_V_SNAPSHOT_DATE", "SNAPSHOT_DATE"),
+            ("IN_AGMT_IND", "AGMT_IND"),
+            ("IN_TABLE_NAME", "TABLE_NAME"),
+            ("IN_V_DLKP_SSA_CACHE_STATUS", "IN_DLKP_SSA_CACHE_STATUS"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2", df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2)
         
         logger.info("Step: apply_MPLT_DLKP_CACHE_STATUS_EXPTRANS2")
@@ -464,9 +468,13 @@ WHERE SOR_EMS_POR_OPR_STS.END_DATE = TO_DATE ('99991231', 'YYYYMMDD')"""
         logger.info("Step: rename_EXP_SSAL2_TRANSFORM2")
         # Expression: rename_EXP_SSAL2_TRANSFORM2
         df_MPLT_DLKP_CACHE_STATUS_rename_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS_EXPTRANS2
-        df_MPLT_DLKP_CACHE_STATUS_rename_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS_rename_EXP_SSAL2_TRANSFORM2.drop("SOR_DATE").withColumnRenamed("IN_SOR_DATE", "SOR_DATE")
-        df_MPLT_DLKP_CACHE_STATUS_rename_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS_rename_EXP_SSAL2_TRANSFORM2.drop("INIT_FLAG").withColumnRenamed("IN_V_INIT_IND", "INIT_FLAG")
-        df_MPLT_DLKP_CACHE_STATUS_rename_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS_rename_EXP_SSAL2_TRANSFORM2.drop("LAST_UPDATE_DATE").withColumnRenamed("IN_V_LAST_UPDATE_DATE", "LAST_UPDATE_DATE")
+        __expr_renames = [
+            ("IN_SOR_DATE", "SOR_DATE"),
+            ("IN_V_INIT_IND", "INIT_FLAG"),
+            ("IN_V_LAST_UPDATE_DATE", "LAST_UPDATE_DATE"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_DLKP_CACHE_STATUS_rename_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS_rename_EXP_SSAL2_TRANSFORM2.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_rename_EXP_SSAL2_TRANSFORM2", df_MPLT_DLKP_CACHE_STATUS_rename_EXP_SSAL2_TRANSFORM2)
         
         logger.info("Step: apply_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2")
@@ -490,8 +498,12 @@ WHERE SOR_EMS_POR_OPR_STS.END_DATE = TO_DATE ('99991231', 'YYYYMMDD')"""
         logger.info("Step: rename_EXPTRANS")
         # Expression: rename_EXPTRANS
         df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS = df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2
-        df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS = df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS.drop("IN_AGMT_IND").withColumnRenamed("AGMT_IND", "IN_AGMT_IND")
-        df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS = df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS.drop("IN_OPR_IND").withColumnRenamed("OPR_IND", "IN_OPR_IND")
+        __expr_renames = [
+            ("AGMT_IND", "IN_AGMT_IND"),
+            ("OPR_IND", "IN_OPR_IND"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS = df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS", df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS)
         
         logger.info("Step: apply_MPLT_DLKP_CACHE_STATUS_EXPTRANS")
@@ -554,14 +566,18 @@ WHERE SOR_EMS_POR_OPR_STS.END_DATE = TO_DATE ('99991231', 'YYYYMMDD')"""
         logger.info("Step: apply_MPLT_DLKP_CACHE_STATUS")
         # Expression: apply_MPLT_DLKP_CACHE_STATUS
         df_MPLT_DLKP_CACHE_STATUS = df_MPLT_DLKP_CACHE_STATUS_merge_output_1
-        df_MPLT_DLKP_CACHE_STATUS = df_MPLT_DLKP_CACHE_STATUS.drop("OUT_V_LAST_REC_TXN_DATE").withColumnRenamed("LAST_REC_TXN_DATE", "OUT_V_LAST_REC_TXN_DATE")
-        df_MPLT_DLKP_CACHE_STATUS = df_MPLT_DLKP_CACHE_STATUS.drop("OUT_V_LAST_REC_TXN_TYPE_CODE").withColumnRenamed("LAST_REC_TXN_TYPE_CODE", "OUT_V_LAST_REC_TXN_TYPE_CODE")
-        df_MPLT_DLKP_CACHE_STATUS = df_MPLT_DLKP_CACHE_STATUS.drop("OUT_SOR_DATE").withColumnRenamed("SOR_DATE", "OUT_SOR_DATE")
-        df_MPLT_DLKP_CACHE_STATUS = df_MPLT_DLKP_CACHE_STATUS.drop("OUT_V_BGN_DATE").withColumnRenamed("BGN_DATE", "OUT_V_BGN_DATE")
-        df_MPLT_DLKP_CACHE_STATUS = df_MPLT_DLKP_CACHE_STATUS.drop("OUT_V_END_DATE").withColumnRenamed("END_DATE", "OUT_V_END_DATE")
-        df_MPLT_DLKP_CACHE_STATUS = df_MPLT_DLKP_CACHE_STATUS.drop("OUT_AGMT_IND").withColumnRenamed("AGMT_IND", "OUT_AGMT_IND")
-        df_MPLT_DLKP_CACHE_STATUS = df_MPLT_DLKP_CACHE_STATUS.drop("OUT_TABLE_NAME").withColumnRenamed("TABLE_NAME", "OUT_TABLE_NAME")
-        df_MPLT_DLKP_CACHE_STATUS = df_MPLT_DLKP_CACHE_STATUS.drop("OUT_V_UPD_STRATEGY_STATUS").withColumnRenamed("UPDATE_STRATEGY_STATUS", "OUT_V_UPD_STRATEGY_STATUS")
+        __expr_renames = [
+            ("LAST_REC_TXN_DATE", "OUT_V_LAST_REC_TXN_DATE"),
+            ("LAST_REC_TXN_TYPE_CODE", "OUT_V_LAST_REC_TXN_TYPE_CODE"),
+            ("SOR_DATE", "OUT_SOR_DATE"),
+            ("BGN_DATE", "OUT_V_BGN_DATE"),
+            ("END_DATE", "OUT_V_END_DATE"),
+            ("AGMT_IND", "OUT_AGMT_IND"),
+            ("TABLE_NAME", "OUT_TABLE_NAME"),
+            ("UPDATE_STRATEGY_STATUS", "OUT_V_UPD_STRATEGY_STATUS"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_DLKP_CACHE_STATUS = df_MPLT_DLKP_CACHE_STATUS.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_DLKP_CACHE_STATUS", df_MPLT_DLKP_CACHE_STATUS)
         
         logger.info("Step: read_LKP_DYN_SSA_EMS_POR_OPR_STS")
@@ -638,12 +654,16 @@ WHERE SOR_EMS_POR_OPR_STS.END_DATE = TO_DATE ('99991231', 'YYYYMMDD')"""
         logger.info("Step: rename_EXPTRANS2")
         # Expression: rename_EXPTRANS2
         df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS1_input
-        df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2.drop("IN_DEL_FLAG").withColumnRenamed("IN_V_DEL_IND", "IN_DEL_FLAG")
-        df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2.drop("IN_DLK_SOR_CACHE_STATUS").withColumnRenamed("IN_V_DLKP_SOR_CACHE_STATUS", "IN_DLK_SOR_CACHE_STATUS")
-        df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2.drop("SNAPSHOT_DATE").withColumnRenamed("IN_V_SNAPSHOT_DATE", "SNAPSHOT_DATE")
-        df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2.drop("AGMT_IND").withColumnRenamed("IN_AGMT_IND", "AGMT_IND")
-        df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2.drop("TABLE_NAME").withColumnRenamed("IN_TABLE_NAME", "TABLE_NAME")
-        df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2.drop("IN_DLKP_SSA_CACHE_STATUS").withColumnRenamed("IN_V_DLKP_SSA_CACHE_STATUS", "IN_DLKP_SSA_CACHE_STATUS")
+        __expr_renames = [
+            ("IN_V_DEL_IND", "IN_DEL_FLAG"),
+            ("IN_V_DLKP_SOR_CACHE_STATUS", "IN_DLK_SOR_CACHE_STATUS"),
+            ("IN_V_SNAPSHOT_DATE", "SNAPSHOT_DATE"),
+            ("IN_AGMT_IND", "AGMT_IND"),
+            ("IN_TABLE_NAME", "TABLE_NAME"),
+            ("IN_V_DLKP_SSA_CACHE_STATUS", "IN_DLKP_SSA_CACHE_STATUS"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2", df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS2)
         
         logger.info("Step: apply_MPLT_DLKP_CACHE_STATUS_EXPTRANS2")
@@ -663,9 +683,13 @@ WHERE SOR_EMS_POR_OPR_STS.END_DATE = TO_DATE ('99991231', 'YYYYMMDD')"""
         logger.info("Step: rename_EXP_SSAL2_TRANSFORM2")
         # Expression: rename_EXP_SSAL2_TRANSFORM2
         df_MPLT_DLKP_CACHE_STATUS1_rename_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS1_EXPTRANS2
-        df_MPLT_DLKP_CACHE_STATUS1_rename_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS1_rename_EXP_SSAL2_TRANSFORM2.drop("SOR_DATE").withColumnRenamed("IN_SOR_DATE", "SOR_DATE")
-        df_MPLT_DLKP_CACHE_STATUS1_rename_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS1_rename_EXP_SSAL2_TRANSFORM2.drop("INIT_FLAG").withColumnRenamed("IN_V_INIT_IND", "INIT_FLAG")
-        df_MPLT_DLKP_CACHE_STATUS1_rename_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS1_rename_EXP_SSAL2_TRANSFORM2.drop("LAST_UPDATE_DATE").withColumnRenamed("IN_V_LAST_UPDATE_DATE", "LAST_UPDATE_DATE")
+        __expr_renames = [
+            ("IN_SOR_DATE", "SOR_DATE"),
+            ("IN_V_INIT_IND", "INIT_FLAG"),
+            ("IN_V_LAST_UPDATE_DATE", "LAST_UPDATE_DATE"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_DLKP_CACHE_STATUS1_rename_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS1_rename_EXP_SSAL2_TRANSFORM2.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_DLKP_CACHE_STATUS1_rename_EXP_SSAL2_TRANSFORM2", df_MPLT_DLKP_CACHE_STATUS1_rename_EXP_SSAL2_TRANSFORM2)
         
         logger.info("Step: apply_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2")
@@ -689,8 +713,12 @@ WHERE SOR_EMS_POR_OPR_STS.END_DATE = TO_DATE ('99991231', 'YYYYMMDD')"""
         logger.info("Step: rename_EXPTRANS")
         # Expression: rename_EXPTRANS
         df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS = df_MPLT_DLKP_CACHE_STATUS1_EXP_SSAL2_TRANSFORM2
-        df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS = df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS.drop("IN_AGMT_IND").withColumnRenamed("AGMT_IND", "IN_AGMT_IND")
-        df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS = df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS.drop("IN_OPR_IND").withColumnRenamed("OPR_IND", "IN_OPR_IND")
+        __expr_renames = [
+            ("AGMT_IND", "IN_AGMT_IND"),
+            ("OPR_IND", "IN_OPR_IND"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS = df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS", df_MPLT_DLKP_CACHE_STATUS1_rename_EXPTRANS)
         
         logger.info("Step: apply_MPLT_DLKP_CACHE_STATUS_EXPTRANS")
@@ -753,14 +781,18 @@ WHERE SOR_EMS_POR_OPR_STS.END_DATE = TO_DATE ('99991231', 'YYYYMMDD')"""
         logger.info("Step: apply_MPLT_DLKP_CACHE_STATUS1")
         # Expression: apply_MPLT_DLKP_CACHE_STATUS1
         df_MPLT_DLKP_CACHE_STATUS1 = df_MPLT_DLKP_CACHE_STATUS1_merge_output_1
-        df_MPLT_DLKP_CACHE_STATUS1 = df_MPLT_DLKP_CACHE_STATUS1.drop("OUT_V_LAST_REC_TXN_DATE").withColumnRenamed("LAST_REC_TXN_DATE", "OUT_V_LAST_REC_TXN_DATE")
-        df_MPLT_DLKP_CACHE_STATUS1 = df_MPLT_DLKP_CACHE_STATUS1.drop("OUT_V_LAST_REC_TXN_TYPE_CODE").withColumnRenamed("LAST_REC_TXN_TYPE_CODE", "OUT_V_LAST_REC_TXN_TYPE_CODE")
-        df_MPLT_DLKP_CACHE_STATUS1 = df_MPLT_DLKP_CACHE_STATUS1.drop("OUT_SOR_DATE").withColumnRenamed("SOR_DATE", "OUT_SOR_DATE")
-        df_MPLT_DLKP_CACHE_STATUS1 = df_MPLT_DLKP_CACHE_STATUS1.drop("OUT_V_BGN_DATE").withColumnRenamed("BGN_DATE", "OUT_V_BGN_DATE")
-        df_MPLT_DLKP_CACHE_STATUS1 = df_MPLT_DLKP_CACHE_STATUS1.drop("OUT_V_END_DATE").withColumnRenamed("END_DATE", "OUT_V_END_DATE")
-        df_MPLT_DLKP_CACHE_STATUS1 = df_MPLT_DLKP_CACHE_STATUS1.drop("OUT_AGMT_IND").withColumnRenamed("AGMT_IND", "OUT_AGMT_IND")
-        df_MPLT_DLKP_CACHE_STATUS1 = df_MPLT_DLKP_CACHE_STATUS1.drop("OUT_TABLE_NAME").withColumnRenamed("TABLE_NAME", "OUT_TABLE_NAME")
-        df_MPLT_DLKP_CACHE_STATUS1 = df_MPLT_DLKP_CACHE_STATUS1.drop("OUT_V_UPD_STRATEGY_STATUS").withColumnRenamed("UPDATE_STRATEGY_STATUS", "OUT_V_UPD_STRATEGY_STATUS")
+        __expr_renames = [
+            ("LAST_REC_TXN_DATE", "OUT_V_LAST_REC_TXN_DATE"),
+            ("LAST_REC_TXN_TYPE_CODE", "OUT_V_LAST_REC_TXN_TYPE_CODE"),
+            ("SOR_DATE", "OUT_SOR_DATE"),
+            ("BGN_DATE", "OUT_V_BGN_DATE"),
+            ("END_DATE", "OUT_V_END_DATE"),
+            ("AGMT_IND", "OUT_AGMT_IND"),
+            ("TABLE_NAME", "OUT_TABLE_NAME"),
+            ("UPDATE_STRATEGY_STATUS", "OUT_V_UPD_STRATEGY_STATUS"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_DLKP_CACHE_STATUS1 = df_MPLT_DLKP_CACHE_STATUS1.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_DLKP_CACHE_STATUS1", df_MPLT_DLKP_CACHE_STATUS1)
         
         logger.info("Step: write_SSA_EMS_POR_OPR")
@@ -769,7 +801,7 @@ WHERE SOR_EMS_POR_OPR_STS.END_DATE = TO_DATE ('99991231', 'YYYYMMDD')"""
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "OUT_AGMT_IND", "LAST_REC_TXN_DATE": "OUT_LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "OUT_LAST_REC_TXN_TYPE_CODE", "OPR_BK": "OPR_BK", "OPR_CODE": "OPR_CODE", "OPR_IND": "OUT_OPR_IND", "OPR_KEY": "OPR_KEY"}
+        _field_map = {"AGMT_IND": "OUT_AGMT_IND", "LAST_REC_TXN_DATE": "OUT_LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "OUT_LAST_REC_TXN_TYPE_CODE", "OPR_IND": "OUT_OPR_IND"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 
@@ -824,7 +856,7 @@ WHERE SOR_EMS_POR_OPR_STS.END_DATE = TO_DATE ('99991231', 'YYYYMMDD')"""
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"ALCT_SIZE_NUM": "ALCT_SIZE_NUM", "APLY_BGN_DATE": "APLY_BGN_DATE", "APLY_DEL_GRNT_DATE": "APLY_DEL_GRNT_DATE", "APLY_END_DATE": "APLY_END_DATE", "APLY_RAS_IND": "APLY_RAS_IND", "APLY_SBMT_DLN_DATE": "APLY_SBMT_DLN_DATE", "APLY_SCND_RND_BGN_DATE": "APLY_SCND_RND_BGN_DATE", "APLY_SCND_RND_END_DATE": "APLY_SCND_RND_END_DATE", "BGN_DATE": "OUT_V_BGN_DATE", "END_DATE": "OUT_V_END_DATE", "FLAT_SLCT_SCND_RND_BGN_DATE": "FLAT_SLCT_SCND_RND_BGN_DATE", "FLAT_SLCT_SCND_RND_END_DATE": "FLAT_SLCT_SCND_RND_END_DATE", "FLAT_SLCT_SCND_RND_IND": "FLAT_SLCT_SCND_RND_IND", "LAST_REC_TXN_DATE": "OUT_LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "OUT_LAST_REC_TXN_TYPE_CODE", "LAST_REF_LTNG_DATE": "LAST_REF_LTNG_DATE", "LTR_FILE_REF_NUM": "LTR_FILE_REF_NUM", "MLTP_COST_CTR_IND": "MLTP_COST_CTR_IND", "OFFC_CODE": "OFFC_CODE", "OPR_ADVRT_BGN_DATE": "OPR_ADVRT_BGN_DATE", "OPR_ADVRT_END_DATE": "OPR_ADVRT_END_DATE", "OPR_ALWN_CALC_CODE": "OPR_ALWN_CALC_CODE", "OPR_ALWN_PRCS_IND": "OPR_ALWN_PRCS_IND", "OPR_ANC_DATE": "OPR_ANC_DATE", "OPR_APLY_EQVLN_DATE": "OPR_APLY_EQVLN_DATE", "OPR_APRV_USER_NAME": "OPR_APRV_USER_NAME", "OPR_APRV_USER_TTL_NAME": "OPR_APRV_USER_TTL_NAME", "OPR_BLT_IND": "OPR_BLT_IND", "OPR_CHK_TTL_NAME": "OPR_CHK_TTL_NAME", "OPR_CHK_USER_NAME": "OPR_CHK_USER_NAME", "OPR_CRE_DATE": "OPR_CRE_DATE", "OPR_CTRSGN_TTL_NAME": "OPR_CTRSGN_TTL_NAME", "OPR_CTRSGN_USER_NAME": "OPR_CTRSGN_USER_NAME", "OPR_DESP": "OPR_DESP", "OPR_DFN_GRP_IND": "OPR_DFN_GRP_IND", "OPR_ELGBL_CTF_DATE": "OPR_ELGBL_CTF_DATE", "OPR_FLAT_SLCT_BGN_DATE": "OPR_FLAT_SLCT_BGN_DATE", "OPR_FLAT_SLCT_END_DATE": "OPR_FLAT_SLCT_END_DATE", "OPR_FLAT_SLCT_IND": "OPR_FLAT_SLCT_IND", "OPR_FLAT_SLCT_RLS_IND": "OPR_FLAT_SLCT_RLS_IND", "OPR_INCM_EXMPT_IND": "OPR_INCM_EXMPT_IND", "OPR_IND": "OUT_OPR_IND", "OPR_KEY": "OPR_KEY", "OPR_PHASE_NUM": "OPR_PHASE_NUM", "OPR_RGSTR_CTF_DATE": "OPR_RGSTR_CTF_DATE", "OPR_RMK_TEXT": "OPR_RMK_TEXT", "OPR_SBPHS_NUM": "OPR_SBPHS_NUM", "OPR_SBTYP_CODE": "OPR_SBTYP_CODE", "OPR_STRC_PRFX_CODE": "OPR_STRC_PRFX_CODE", "OPR_TRGT_CMPLT_DATE": "OPR_TRGT_CMPLT_DATE", "OPR_TRGT_EVCT_DATE": "OPR_TRGT_EVCT_DATE", "OPR_TYPE_CODE": "OPR_TYPE_CODE", "ORG_UNIT_KEY": "ORG_UNIT_KEY", "PRNT_OPR_CODE": "PRNT_OPR_CODE", "QTA_CATG_CODE": "QTA_CATG_CODE", "QUE_PLAN_ID": "QUE_PLAN_ID", "RTR_DCS_DATE": "RTR_DCS_DATE", "SOR_DATE": "OUT_SOR_DATE"}
+        _field_map = {"BGN_DATE": "OUT_V_BGN_DATE", "END_DATE": "OUT_V_END_DATE", "LAST_REC_TXN_DATE": "OUT_LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "OUT_LAST_REC_TXN_TYPE_CODE", "OPR_IND": "OUT_OPR_IND", "SOR_DATE": "OUT_SOR_DATE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 

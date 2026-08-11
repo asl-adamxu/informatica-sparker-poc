@@ -128,7 +128,7 @@ OR SYS_RPT_YEAR>TO_NUMBER(SUBSTR('$$EMM_MRRS_RENT_CUTOFF',1,4))"""
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"ADV_MSN_PRFT_ARR_CF_BK": "ADV_MSN_PRFT_CF_BK", "ADV_MSN_PRFT_ARR_CF_KEY": "ADV_MSN_PRFT_CF_KEY", "CUR_MSN_PRFT_AMT": "CUR_MSN_PRFT_AMT", "CUST_KEY": "CUST_KEY", "FRST_ADV_MSN_PRFT_PYMT_CF_AMT": "FRST_ADV_MSN_PRFT_PYMT_CF_AMT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY", "HSE_UNIT_CODE_ADDR": "HSE_UNIT_CODE_ADDR", "HSE_UNIT_KEY": "HSE_UNIT_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "SCND_ADV_MSN_PRFT_PYMT_CF_AMT": "SCND_ADV_MSN_PRFT_PYMT_CF_AMT", "SYS_RPT_MTH": "SYS_RPT_MTH", "SYS_RPT_YEAR": "SYS_RPT_YEAR", "TEMP_ADV_MSN_PRFT_PYMT_AMT": "TEMP_ADV_MSN_PRFT_PYMT_AMT", "THRD_ADV_MSN_PRFT_PYMT_CF_AMT": "THRD_ADV_MSN_PRFT_PYMT_CF_AMT"}
+        _field_map = {"ADV_MSN_PRFT_ARR_CF_BK": "ADV_MSN_PRFT_CF_BK", "ADV_MSN_PRFT_ARR_CF_KEY": "ADV_MSN_PRFT_CF_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 
@@ -156,17 +156,6 @@ OR SYS_RPT_YEAR>TO_NUMBER(SUBSTR('$$EMM_MRRS_RENT_CUTOFF',1,4))"""
         logger.info("Step: write_SOR_EMS_MRRS_ADV_MSN_PRFT_CF1")
         # Write to Target: write_SOR_EMS_MRRS_ADV_MSN_PRFT_CF1
         df_write = df_UPDTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"SYS_RPT_MTH": "SYS_RPT_MTH", "SYS_RPT_YEAR": "SYS_RPT_YEAR"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Static DD_DELETE: composite primary-key delete of all rows
         _del_key_cols = ['ADV_MSN_PRFT_ARR_CF_KEY', 'SYS_RPT_YEAR', 'SYS_RPT_MTH']
         if not df_write.rdd.isEmpty():

@@ -109,7 +109,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: rename_EXP_NULL_BKEY")
         # Expression: rename_EXP_NULL_BKEY
         df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXP_NULL_BKEY = df_MPLT_AGMT_EMS_HSM_HOMES_BLK_input
-        df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXP_NULL_BKEY = df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXP_NULL_BKEY.drop("IN_BKEY").withColumnRenamed("IN_HOMES_BLK_BK", "IN_BKEY")
+        __expr_renames = [
+            ("IN_HOMES_BLK_BK", "IN_BKEY"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXP_NULL_BKEY = df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXP_NULL_BKEY.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXP_NULL_BKEY", df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXP_NULL_BKEY)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_HSM_HOMES_BLK_EXP_NULL_BKEY")
@@ -123,7 +127,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: rename_EXPTRANS")
         # Expression: rename_EXPTRANS
         df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXPTRANS = df_MPLT_AGMT_EMS_HSM_HOMES_BLK_EXP_NULL_BKEY
-        df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXPTRANS = df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXPTRANS.drop("IN_HOMES_BLK_BK").withColumnRenamed("OUT_BKEY", "IN_HOMES_BLK_BK")
+        __expr_renames = [
+            ("OUT_BKEY", "IN_HOMES_BLK_BK"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXPTRANS = df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXPTRANS.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXPTRANS", df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXPTRANS)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_HSM_HOMES_BLK_EXPTRANS")
@@ -182,7 +190,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: rename_EXP_SK")
         # Expression: rename_EXP_SK
         df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXP_SK = df_mplt_lkp_chain_MPLT_AGMT_EMS_HSM_HOMES_BLK_EXPTRANS
-        df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXP_SK = df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXP_SK.drop("SOR_CACHE_STATUS").withColumnRenamed("NewLookupRow_LKP_DYN_SOR_EMS_HSM_HOMES_BLK", "SOR_CACHE_STATUS")
+        __expr_renames = [
+            ("NewLookupRow_LKP_DYN_SOR_EMS_HSM_HOMES_BLK", "SOR_CACHE_STATUS"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXP_SK = df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXP_SK.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXP_SK", df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXP_SK)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_HSM_HOMES_BLK_EXP_SK")
@@ -237,8 +249,12 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: rename_EXPTRANS1")
         # Expression: rename_EXPTRANS1
         df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXPTRANS1 = df_mplt_lkp_chain_MPLT_AGMT_EMS_HSM_HOMES_BLK_EXP_SK
-        df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXPTRANS1 = df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXPTRANS1.drop("IN_DLPK_SSA_CACHE").withColumnRenamed("NewLookupRow_LKP_DYN_SSA_EMS_HSM_HOMES_BLK", "IN_DLPK_SSA_CACHE")
-        df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXPTRANS1 = df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXPTRANS1.drop("IN_DLPK_SOR_CACHE").withColumnRenamed("SOR_CACHE_STATUS", "IN_DLPK_SOR_CACHE")
+        __expr_renames = [
+            ("NewLookupRow_LKP_DYN_SSA_EMS_HSM_HOMES_BLK", "IN_DLPK_SSA_CACHE"),
+            ("SOR_CACHE_STATUS", "IN_DLPK_SOR_CACHE"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXPTRANS1 = df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXPTRANS1.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXPTRANS1", df_MPLT_AGMT_EMS_HSM_HOMES_BLK_rename_EXPTRANS1)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_HSM_HOMES_BLK_EXPTRANS1")
@@ -257,8 +273,12 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_MPLT_AGMT_EMS_HSM_HOMES_BLK")
         # Expression: apply_MPLT_AGMT_EMS_HSM_HOMES_BLK
         df_MPLT_AGMT_EMS_HSM_HOMES_BLK = df_MPLT_AGMT_EMS_HSM_HOMES_BLK_EXPTRANS1
-        df_MPLT_AGMT_EMS_HSM_HOMES_BLK = df_MPLT_AGMT_EMS_HSM_HOMES_BLK.drop("OUT_DLPK_SOR_CACHE").withColumnRenamed("IN_DLPK_SOR_CACHE", "OUT_DLPK_SOR_CACHE")
-        df_MPLT_AGMT_EMS_HSM_HOMES_BLK = df_MPLT_AGMT_EMS_HSM_HOMES_BLK.drop("OUT_AUG_IND").withColumnRenamed("V_AUG_IND", "OUT_AUG_IND")
+        __expr_renames = [
+            ("IN_DLPK_SOR_CACHE", "OUT_DLPK_SOR_CACHE"),
+            ("V_AUG_IND", "OUT_AUG_IND"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_HSM_HOMES_BLK = df_MPLT_AGMT_EMS_HSM_HOMES_BLK.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_HSM_HOMES_BLK", df_MPLT_AGMT_EMS_HSM_HOMES_BLK)
         
         logger.info("Step: apply_FILTRANS1")
@@ -273,7 +293,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "OUT_AUG_IND", "HOMES_BLK_BK": "HOMES_BLK_BK", "HOMES_BLK_ID": "HOMES_BLK_ID", "HOMES_BLK_KEY": "HOMES_BLK_KEY", "HOMES_PROJ_CODE": "HOMES_PROJ_CODE", "HOMES_PROJ_KEY": "HOMES_PROJ_KEY", "HOMES_PROJ_PHASE_CODE": "HOMES_PROJ_PHASE_CODE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "OPR_IND": "OPR_IND"}
+        _field_map = {"AGMT_IND": "OUT_AUG_IND"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 

@@ -85,7 +85,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "AGMT_IND", "CUST_KEY": "CUST_KEY", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY", "HSE_UNIT_KEY": "UNIT_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LONG_VCNCY_RENT_FREE_BK": "LONG_VCNCY_RENT_FREE_BK", "LONG_VCNCY_RENT_FREE_KEY": "LONG_VCNCY_RENT_FREE_KEY", "RENT_FREE_EXRC_KEY": "RENT_FREE_EXRC_KEY", "TNCY_AGRMT_KEY": "TNCY_AGRMT_KEY"}
+        _field_map = {"HSE_UNIT_KEY": "UNIT_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 
@@ -114,7 +114,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"BGN_DATE": "BGN_DATE", "END_DATE": "OUT_END_DATE", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LONG_VCNCY_RENT_FREE_KEY": "LONG_VCNCY_RENT_FREE_KEY", "RENT_FREE_AMT": "RENT_FREE_AMT", "RENT_FREE_BGN_DATE": "RENT_FREE_BGN_DATE", "RENT_FREE_CRE_DATE": "RENT_FREE_CRE_DATE", "RENT_FREE_CRE_USER_ID": "RENT_FREE_CRE_USER_ID", "RENT_FREE_END_DATE": "RENT_FREE_END_DATE", "RENT_FREE_RMK_TEXT": "RENT_FREE_RMK_TEXT", "RENT_FREE_STS_CODE": "RENT_FREE_STS_CODE", "RENT_FREE_TYPE_CODE": "RENT_FREE_TYPE_CODE", "ROOM_TYPE_CODE": "ROOM_TYPE_CODE"}
+        _field_map = {"END_DATE": "OUT_END_DATE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 

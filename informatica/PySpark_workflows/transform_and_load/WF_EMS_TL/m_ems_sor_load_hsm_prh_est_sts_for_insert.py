@@ -78,7 +78,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"BGN_DATE": "BGN_DATE", "DTMO_DSTR_CODE": "DTMO_DSTR_CODE", "END_DATE": "OUT_END_DATE", "EST_KEY": "EST_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "PRH_EST_EMAC_IND": "EST_EMAC_IND", "PRH_EST_TPU_NUM": "EST_TPU_NUM"}
+        _field_map = {"END_DATE": "OUT_END_DATE", "PRH_EST_EMAC_IND": "EST_EMAC_IND", "PRH_EST_TPU_NUM": "EST_TPU_NUM"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 

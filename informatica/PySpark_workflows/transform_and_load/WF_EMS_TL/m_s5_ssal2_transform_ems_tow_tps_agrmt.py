@@ -107,7 +107,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: rename_EXP_NULL_BKEY")
         # Expression: rename_EXP_NULL_BKEY
         df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_rename_EXP_NULL_BKEY = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_input
-        df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_rename_EXP_NULL_BKEY = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_rename_EXP_NULL_BKEY.drop("IN_BKEY").withColumnRenamed("IN_HSE_SRVC_APLY_BK", "IN_BKEY")
+        __expr_renames = [
+            ("IN_HSE_SRVC_APLY_BK", "IN_BKEY"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_rename_EXP_NULL_BKEY = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_rename_EXP_NULL_BKEY.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_rename_EXP_NULL_BKEY", df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_rename_EXP_NULL_BKEY)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_EXP_NULL_BKEY")
@@ -121,7 +125,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: rename_EXPTRANS")
         # Expression: rename_EXPTRANS
         df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_rename_EXPTRANS = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_EXP_NULL_BKEY
-        df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_rename_EXPTRANS = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_rename_EXPTRANS.drop("IN_HSE_SRVC_APLY_BK").withColumnRenamed("OUT_BKEY", "IN_HSE_SRVC_APLY_BK")
+        __expr_renames = [
+            ("OUT_BKEY", "IN_HSE_SRVC_APLY_BK"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_rename_EXPTRANS = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_rename_EXPTRANS.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_rename_EXPTRANS", df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_rename_EXPTRANS)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_EXPTRANS")
@@ -177,7 +185,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: rename_EXP_SK")
         # Expression: rename_EXP_SK
         df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_rename_EXP_SK = df_mplt_lkp_chain_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_EXPTRANS
-        df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_rename_EXP_SK = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_rename_EXP_SK.drop("SOR_CACHE_STATUS").withColumnRenamed("NewLookupRow_LKP_DYN_SOR_EMS_CMM_HSE_SRVC_APLY", "SOR_CACHE_STATUS")
+        __expr_renames = [
+            ("NewLookupRow_LKP_DYN_SOR_EMS_CMM_HSE_SRVC_APLY", "SOR_CACHE_STATUS"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_rename_EXP_SK = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_rename_EXP_SK.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_rename_EXP_SK", df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_rename_EXP_SK)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_EXP_SK")
@@ -232,7 +244,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: rename_EXPTRANS1")
         # Expression: rename_EXPTRANS1
         df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_rename_EXPTRANS1 = df_mplt_lkp_chain_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_EXP_SK
-        df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_rename_EXPTRANS1 = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_rename_EXPTRANS1.drop("SSA_CACHE_STATUS").withColumnRenamed("NewLookupRow_LKP_DYN_SSA_EMS_CMM_HSE_SRVC_APLY", "SSA_CACHE_STATUS")
+        __expr_renames = [
+            ("NewLookupRow_LKP_DYN_SSA_EMS_CMM_HSE_SRVC_APLY", "SSA_CACHE_STATUS"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_rename_EXPTRANS1 = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_rename_EXPTRANS1.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_rename_EXPTRANS1", df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_rename_EXPTRANS1)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_EXPTRANS1")
@@ -251,8 +267,12 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY")
         # Expression: apply_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY
         df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_EXPTRANS1
-        df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY.drop("OUT_DLPK_SOR_CACHE").withColumnRenamed("SOR_CACHE_STATUS", "OUT_DLPK_SOR_CACHE")
-        df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY.drop("OUT_AUG_IND").withColumnRenamed("V_AUG_IND", "OUT_AUG_IND")
+        __expr_renames = [
+            ("SOR_CACHE_STATUS", "OUT_DLPK_SOR_CACHE"),
+            ("V_AUG_IND", "OUT_AUG_IND"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY", df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY)
         
         logger.info("Step: input_MPLT_AGMT_EMS_CPM_CUST")
@@ -264,7 +284,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: rename_EXP_NULL_BKEY")
         # Expression: rename_EXP_NULL_BKEY
         df_MPLT_AGMT_EMS_CPM_CUST_rename_EXP_NULL_BKEY = df_MPLT_AGMT_EMS_CPM_CUST_input
-        df_MPLT_AGMT_EMS_CPM_CUST_rename_EXP_NULL_BKEY = df_MPLT_AGMT_EMS_CPM_CUST_rename_EXP_NULL_BKEY.drop("IN_BKEY").withColumnRenamed("IN_CUST_BK", "IN_BKEY")
+        __expr_renames = [
+            ("IN_CUST_BK", "IN_BKEY"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CPM_CUST_rename_EXP_NULL_BKEY = df_MPLT_AGMT_EMS_CPM_CUST_rename_EXP_NULL_BKEY.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CPM_CUST_rename_EXP_NULL_BKEY", df_MPLT_AGMT_EMS_CPM_CUST_rename_EXP_NULL_BKEY)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CPM_CUST_EXP_NULL_BKEY")
@@ -278,7 +302,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: rename_EXPTRANS")
         # Expression: rename_EXPTRANS
         df_MPLT_AGMT_EMS_CPM_CUST_rename_EXPTRANS = df_MPLT_AGMT_EMS_CPM_CUST_EXP_NULL_BKEY
-        df_MPLT_AGMT_EMS_CPM_CUST_rename_EXPTRANS = df_MPLT_AGMT_EMS_CPM_CUST_rename_EXPTRANS.drop("IN_CUST_BK").withColumnRenamed("OUT_BKEY", "IN_CUST_BK")
+        __expr_renames = [
+            ("OUT_BKEY", "IN_CUST_BK"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CPM_CUST_rename_EXPTRANS = df_MPLT_AGMT_EMS_CPM_CUST_rename_EXPTRANS.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CPM_CUST_rename_EXPTRANS", df_MPLT_AGMT_EMS_CPM_CUST_rename_EXPTRANS)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CPM_CUST_EXPTRANS")
@@ -334,7 +362,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: rename_EXP_SK")
         # Expression: rename_EXP_SK
         df_MPLT_AGMT_EMS_CPM_CUST_rename_EXP_SK = df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_EXPTRANS
-        df_MPLT_AGMT_EMS_CPM_CUST_rename_EXP_SK = df_MPLT_AGMT_EMS_CPM_CUST_rename_EXP_SK.drop("SOR_CACHE_STATUS").withColumnRenamed("NewLookupRow_LKP_DYN_SOR_EMS_CPM_CUST", "SOR_CACHE_STATUS")
+        __expr_renames = [
+            ("NewLookupRow_LKP_DYN_SOR_EMS_CPM_CUST", "SOR_CACHE_STATUS"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CPM_CUST_rename_EXP_SK = df_MPLT_AGMT_EMS_CPM_CUST_rename_EXP_SK.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CPM_CUST_rename_EXP_SK", df_MPLT_AGMT_EMS_CPM_CUST_rename_EXP_SK)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CPM_CUST_EXP_SK")
@@ -389,7 +421,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: rename_EXPTRANS1")
         # Expression: rename_EXPTRANS1
         df_MPLT_AGMT_EMS_CPM_CUST_rename_EXPTRANS1 = df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_EXP_SK
-        df_MPLT_AGMT_EMS_CPM_CUST_rename_EXPTRANS1 = df_MPLT_AGMT_EMS_CPM_CUST_rename_EXPTRANS1.drop("SSA_CACHE_STATUS").withColumnRenamed("NewLookupRow_LKP_DYN_SSA_EMS_CPM_CUST", "SSA_CACHE_STATUS")
+        __expr_renames = [
+            ("NewLookupRow_LKP_DYN_SSA_EMS_CPM_CUST", "SSA_CACHE_STATUS"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CPM_CUST_rename_EXPTRANS1 = df_MPLT_AGMT_EMS_CPM_CUST_rename_EXPTRANS1.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CPM_CUST_rename_EXPTRANS1", df_MPLT_AGMT_EMS_CPM_CUST_rename_EXPTRANS1)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CPM_CUST_EXPTRANS1")
@@ -408,8 +444,12 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_MPLT_AGMT_EMS_CPM_CUST")
         # Expression: apply_MPLT_AGMT_EMS_CPM_CUST
         df_MPLT_AGMT_EMS_CPM_CUST = df_MPLT_AGMT_EMS_CPM_CUST_EXPTRANS1
-        df_MPLT_AGMT_EMS_CPM_CUST = df_MPLT_AGMT_EMS_CPM_CUST.drop("OUT_DLPK_SOR_CACHE").withColumnRenamed("SOR_CACHE_STATUS", "OUT_DLPK_SOR_CACHE")
-        df_MPLT_AGMT_EMS_CPM_CUST = df_MPLT_AGMT_EMS_CPM_CUST.drop("OUT_AUG_IND").withColumnRenamed("V_AUG_IND", "OUT_AUG_IND")
+        __expr_renames = [
+            ("SOR_CACHE_STATUS", "OUT_DLPK_SOR_CACHE"),
+            ("V_AUG_IND", "OUT_AUG_IND"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CPM_CUST = df_MPLT_AGMT_EMS_CPM_CUST.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CPM_CUST", df_MPLT_AGMT_EMS_CPM_CUST)
         
         logger.info("Step: apply_EXPTRANS2")
@@ -425,187 +465,242 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         
         logger.info("Step: apply_RTRTRANS")
         # Router: apply_RTRTRANS - splits into multiple output groups
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY.filter(expr("OUT_DLPK_SOR_CACHE=1"))
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("OUT_DLPK_SOR_CACHE2").withColumnRenamed("OUT_DLPK_SOR_CACHE", "OUT_DLPK_SOR_CACHE2")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("OUT_AUG_IND2").withColumnRenamed("OUT_AUG_IND", "OUT_AUG_IND2")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("OPR_IND2").withColumnRenamed("OPR_IND", "OPR_IND2")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("LAST_REC_TXN_TYPE_CODE3").withColumnRenamed("LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE3")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("HSE_SRVC_APLY_KEY2").withColumnRenamed("HSE_SRVC_APLY_KEY", "HSE_SRVC_APLY_KEY2")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("HSE_SRVC_APLY_BK1").withColumnRenamed("HSE_SRVC_APLY_BK", "HSE_SRVC_APLY_BK1")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("OUT_DLPK_SOR_CACHE11").withColumnRenamed("OUT_DLPK_SOR_CACHE", "OUT_DLPK_SOR_CACHE11")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("OUT_AUG_IND11").withColumnRenamed("OUT_AUG_IND", "OUT_AUG_IND11")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("OPR_IND11").withColumnRenamed("OPR_IND", "OPR_IND11")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("LAST_REC_TXN_TYPE_CODE11").withColumnRenamed("LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE11")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("CUST_KEY2").withColumnRenamed("CUST_KEY", "CUST_KEY2")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("CUST_BK1").withColumnRenamed("CUST_BK", "CUST_BK1")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("HSE_SRVC_APLY_KEY11").withColumnRenamed("HSE_SRVC_APLY_KEY", "HSE_SRVC_APLY_KEY11")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("TPS_HSE_UNIT_KEY1").withColumnRenamed("TPS_HSE_UNIT_KEY", "TPS_HSE_UNIT_KEY1")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("TPS_AGRMT_SEQ_NUM1").withColumnRenamed("TPS_AGRMT_SEQ_NUM", "TPS_AGRMT_SEQ_NUM1")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("CUST_KEY11").withColumnRenamed("CUST_KEY", "CUST_KEY11")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("TPS_AGRMT_ASGN_DATE1").withColumnRenamed("TPS_AGRMT_ASGN_DATE", "TPS_AGRMT_ASGN_DATE1")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("TPS_AGRMT_TRMT_DATE1").withColumnRenamed("TPS_AGRMT_TRMT_DATE", "TPS_AGRMT_TRMT_DATE1")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("TPS_PCHS_FROM_CODE1").withColumnRenamed("TPS_PCHS_FROM_CODE", "TPS_PCHS_FROM_CODE1")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("TPS_TRMT_TYPE_CODE1").withColumnRenamed("TPS_TRMT_TYPE_CODE", "TPS_TRMT_TYPE_CODE1")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("TPS_AGRMT_EXOWNR_REF_CODE1").withColumnRenamed("TPS_AGRMT_EXOWNR_REF_CODE", "TPS_AGRMT_EXOWNR_REF_CODE1")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("TPS_AGRMT_HOME_PHONE_NUM_11").withColumnRenamed("TPS_AGRMT_HOME_PHONE_NUM_1", "TPS_AGRMT_HOME_PHONE_NUM_11")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("TPS_AGRMT_HOME_PHONE_NUM_21").withColumnRenamed("TPS_AGRMT_HOME_PHONE_NUM_2", "TPS_AGRMT_HOME_PHONE_NUM_21")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("TPS_AGRMT_OFFC_PHONE_NUM_11").withColumnRenamed("TPS_AGRMT_OFFC_PHONE_NUM_1", "TPS_AGRMT_OFFC_PHONE_NUM_11")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("TPS_AGRMT_OFFC_PHONE_NUM_21").withColumnRenamed("TPS_AGRMT_OFFC_PHONE_NUM_2", "TPS_AGRMT_OFFC_PHONE_NUM_21")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("TPS_AGRMT_MBL_PHONE_NUM_11").withColumnRenamed("TPS_AGRMT_MBL_PHONE_NUM_1", "TPS_AGRMT_MBL_PHONE_NUM_11")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("TPS_AGRMT_MBL_PHONE_NUM_21").withColumnRenamed("TPS_AGRMT_MBL_PHONE_NUM_2", "TPS_AGRMT_MBL_PHONE_NUM_21")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("TPS_AGRMT_RMK_TEXT1").withColumnRenamed("TPS_AGRMT_RMK_TEXT", "TPS_AGRMT_RMK_TEXT1")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("TPS_CHNG_OWNR_RMK_TEXT1").withColumnRenamed("TPS_CHNG_OWNR_RMK_TEXT", "TPS_CHNG_OWNR_RMK_TEXT1")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("TPS_MGT_FEE_DPST_AMT1").withColumnRenamed("TPS_MGT_FEE_DPST_AMT", "TPS_MGT_FEE_DPST_AMT1")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("ORIG_CUST_KEY1").withColumnRenamed("ORIG_CUST_KEY", "ORIG_CUST_KEY1")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("ORIG_HSE_SRVC_APLY_KEY1").withColumnRenamed("ORIG_HSE_SRVC_APLY_KEY", "ORIG_HSE_SRVC_APLY_KEY1")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("LAST_REC_TXN_TYPE_CODE21").withColumnRenamed("LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE21")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("LAST_REC_TXN_DATE1").withColumnRenamed("LAST_REC_TXN_DATE", "LAST_REC_TXN_DATE1")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("LAST_REC_TXN_USER_ID1").withColumnRenamed("LAST_REC_TXN_USER_ID", "LAST_REC_TXN_USER_ID1")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("TPS_APLY_TYPE_CODE1").withColumnRenamed("TPS_APLY_TYPE_CODE", "TPS_APLY_TYPE_CODE1")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("APLY_MBR_TYPE_CODE1").withColumnRenamed("APLY_MBR_TYPE_CODE", "APLY_MBR_TYPE_CODE1")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("APLY_MBR_REF_NUM1").withColumnRenamed("APLY_MBR_REF_NUM", "APLY_MBR_REF_NUM1")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("TPS_AGRMT_CRE_DATE1").withColumnRenamed("TPS_AGRMT_CRE_DATE", "TPS_AGRMT_CRE_DATE1")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("TPS_AGRMT_PHASE_CODE1").withColumnRenamed("TPS_AGRMT_PHASE_CODE", "TPS_AGRMT_PHASE_CODE1")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("TPS_AGRMT_FRST_ASGN_DATE1").withColumnRenamed("TPS_AGRMT_FRST_ASGN_DATE", "TPS_AGRMT_FRST_ASGN_DATE1")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("MBR_ACT_IND1").withColumnRenamed("MBR_ACT_IND", "MBR_ACT_IND1")
-        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop("ORIG_HSE_UNIT_TOT_IFA_AREA1").withColumnRenamed("ORIG_HSE_UNIT_TOT_IFA_AREA", "ORIG_HSE_UNIT_TOT_IFA_AREA1")
+        _feed_specs = [
+            (df_SQ_EMS_TOW_TPS_AGRMT, {
+  "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY1",
+  "CUST_KEY": "CUST_KEY1",
+  "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE2"
+}),
+            (df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY, {}),
+            (df_MPLT_AGMT_EMS_CPM_CUST, {
+  "OUT_DLPK_SOR_CACHE": "OUT_DLPK_SOR_CACHE1",
+  "OUT_AUG_IND": "OUT_AUG_IND1",
+  "OPR_IND": "OPR_IND1",
+  "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE1"
+}),
+        ]
+        _rtr_ports = []
+        for _df, _aliases in _feed_specs:
+            for _c in _df.columns:
+                _p = _aliases.get(_c, _c)
+                if _p.lower() not in [x.lower() for x in _rtr_ports]:
+                    _rtr_ports.append(_p)
+        _feed_views = []
+        for _df, _aliases in _feed_specs:
+            _rev = {_v: _k for _k, _v in _aliases.items()}
+            _sel = []
+            for _p in _rtr_ports:
+                if _p in _rev:
+                    if _rev[_p].lower() in [x.lower() for x in _df.columns]:
+                        _sel.append(col(_rev[_p]).alias(_p))
+                    else:
+                        _sel.append(lit(None).alias(_p))
+                elif _p.lower() in [x.lower() for x in _df.columns] and _p not in _aliases:
+                    _sel.append(col(_p))
+                else:
+                    _sel.append(lit(None).alias(_p))
+            _feed_views.append(_df.select(*_sel))
+        df_rtr_input = _feed_views[0]
+        df_rtr_input = df_rtr_input.unionByName(_feed_views[1])
+        df_rtr_input = df_rtr_input.unionByName(_feed_views[2])
+        ctx.register_df("df_rtr_input", df_rtr_input)
+        df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_input.filter(expr("OUT_DLPK_SOR_CACHE=1"))
+        __rtr_renames = [
+            ("OUT_DLPK_SOR_CACHE", "OUT_DLPK_SOR_CACHE2"),
+            ("OUT_AUG_IND", "OUT_AUG_IND2"),
+            ("OPR_IND", "OPR_IND2"),
+            ("LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE3"),
+            ("HSE_SRVC_APLY_KEY", "HSE_SRVC_APLY_KEY2"),
+            ("HSE_SRVC_APLY_BK", "HSE_SRVC_APLY_BK1"),
+            ("OUT_DLPK_SOR_CACHE1", "OUT_DLPK_SOR_CACHE11"),
+            ("OUT_AUG_IND1", "OUT_AUG_IND11"),
+            ("OPR_IND1", "OPR_IND11"),
+            ("LAST_REC_TXN_TYPE_CODE1", "LAST_REC_TXN_TYPE_CODE11"),
+            ("CUST_KEY", "CUST_KEY2"),
+            ("CUST_BK", "CUST_BK1"),
+            ("HSE_SRVC_APLY_KEY1", "HSE_SRVC_APLY_KEY11"),
+            ("TPS_HSE_UNIT_KEY", "TPS_HSE_UNIT_KEY1"),
+            ("TPS_AGRMT_SEQ_NUM", "TPS_AGRMT_SEQ_NUM1"),
+            ("CUST_KEY1", "CUST_KEY11"),
+            ("TPS_AGRMT_ASGN_DATE", "TPS_AGRMT_ASGN_DATE1"),
+            ("TPS_AGRMT_TRMT_DATE", "TPS_AGRMT_TRMT_DATE1"),
+            ("TPS_PCHS_FROM_CODE", "TPS_PCHS_FROM_CODE1"),
+            ("TPS_TRMT_TYPE_CODE", "TPS_TRMT_TYPE_CODE1"),
+            ("TPS_AGRMT_EXOWNR_REF_CODE", "TPS_AGRMT_EXOWNR_REF_CODE1"),
+            ("TPS_AGRMT_HOME_PHONE_NUM_1", "TPS_AGRMT_HOME_PHONE_NUM_11"),
+            ("TPS_AGRMT_HOME_PHONE_NUM_2", "TPS_AGRMT_HOME_PHONE_NUM_21"),
+            ("TPS_AGRMT_OFFC_PHONE_NUM_1", "TPS_AGRMT_OFFC_PHONE_NUM_11"),
+            ("TPS_AGRMT_OFFC_PHONE_NUM_2", "TPS_AGRMT_OFFC_PHONE_NUM_21"),
+            ("TPS_AGRMT_MBL_PHONE_NUM_1", "TPS_AGRMT_MBL_PHONE_NUM_11"),
+            ("TPS_AGRMT_MBL_PHONE_NUM_2", "TPS_AGRMT_MBL_PHONE_NUM_21"),
+            ("TPS_AGRMT_RMK_TEXT", "TPS_AGRMT_RMK_TEXT1"),
+            ("TPS_CHNG_OWNR_RMK_TEXT", "TPS_CHNG_OWNR_RMK_TEXT1"),
+            ("TPS_MGT_FEE_DPST_AMT", "TPS_MGT_FEE_DPST_AMT1"),
+            ("ORIG_CUST_KEY", "ORIG_CUST_KEY1"),
+            ("ORIG_HSE_SRVC_APLY_KEY", "ORIG_HSE_SRVC_APLY_KEY1"),
+            ("LAST_REC_TXN_TYPE_CODE2", "LAST_REC_TXN_TYPE_CODE21"),
+            ("LAST_REC_TXN_DATE", "LAST_REC_TXN_DATE1"),
+            ("LAST_REC_TXN_USER_ID", "LAST_REC_TXN_USER_ID1"),
+            ("TPS_APLY_TYPE_CODE", "TPS_APLY_TYPE_CODE1"),
+            ("APLY_MBR_TYPE_CODE", "APLY_MBR_TYPE_CODE1"),
+            ("APLY_MBR_REF_NUM", "APLY_MBR_REF_NUM1"),
+            ("TPS_AGRMT_CRE_DATE", "TPS_AGRMT_CRE_DATE1"),
+            ("TPS_AGRMT_PHASE_CODE", "TPS_AGRMT_PHASE_CODE1"),
+            ("TPS_AGRMT_FRST_ASGN_DATE", "TPS_AGRMT_FRST_ASGN_DATE1"),
+            ("MBR_ACT_IND", "MBR_ACT_IND1"),
+            ("ORIG_HSE_UNIT_TOT_IFA_AREA", "ORIG_HSE_UNIT_TOT_IFA_AREA1"),
+        ]
+        for _old, _new in __rtr_renames:
+            df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY", df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY)
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY.filter(expr("OUT_DLPK_SOR_CACHE1=1"))
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("OUT_DLPK_SOR_CACHE4").withColumnRenamed("OUT_DLPK_SOR_CACHE", "OUT_DLPK_SOR_CACHE4")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("OUT_AUG_IND4").withColumnRenamed("OUT_AUG_IND", "OUT_AUG_IND4")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("OPR_IND4").withColumnRenamed("OPR_IND", "OPR_IND4")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("LAST_REC_TXN_TYPE_CODE5").withColumnRenamed("LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE5")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("HSE_SRVC_APLY_KEY4").withColumnRenamed("HSE_SRVC_APLY_KEY", "HSE_SRVC_APLY_KEY4")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("HSE_SRVC_APLY_BK3").withColumnRenamed("HSE_SRVC_APLY_BK", "HSE_SRVC_APLY_BK3")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("OUT_DLPK_SOR_CACHE13").withColumnRenamed("OUT_DLPK_SOR_CACHE", "OUT_DLPK_SOR_CACHE13")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("OUT_AUG_IND13").withColumnRenamed("OUT_AUG_IND", "OUT_AUG_IND13")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("OPR_IND13").withColumnRenamed("OPR_IND", "OPR_IND13")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("LAST_REC_TXN_TYPE_CODE13").withColumnRenamed("LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE13")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("CUST_KEY4").withColumnRenamed("CUST_KEY", "CUST_KEY4")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("CUST_BK3").withColumnRenamed("CUST_BK", "CUST_BK3")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("HSE_SRVC_APLY_KEY13").withColumnRenamed("HSE_SRVC_APLY_KEY", "HSE_SRVC_APLY_KEY13")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("TPS_HSE_UNIT_KEY3").withColumnRenamed("TPS_HSE_UNIT_KEY", "TPS_HSE_UNIT_KEY3")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("TPS_AGRMT_SEQ_NUM3").withColumnRenamed("TPS_AGRMT_SEQ_NUM", "TPS_AGRMT_SEQ_NUM3")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("CUST_KEY13").withColumnRenamed("CUST_KEY", "CUST_KEY13")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("TPS_AGRMT_ASGN_DATE3").withColumnRenamed("TPS_AGRMT_ASGN_DATE", "TPS_AGRMT_ASGN_DATE3")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("TPS_AGRMT_TRMT_DATE3").withColumnRenamed("TPS_AGRMT_TRMT_DATE", "TPS_AGRMT_TRMT_DATE3")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("TPS_PCHS_FROM_CODE3").withColumnRenamed("TPS_PCHS_FROM_CODE", "TPS_PCHS_FROM_CODE3")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("TPS_TRMT_TYPE_CODE3").withColumnRenamed("TPS_TRMT_TYPE_CODE", "TPS_TRMT_TYPE_CODE3")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("TPS_AGRMT_EXOWNR_REF_CODE3").withColumnRenamed("TPS_AGRMT_EXOWNR_REF_CODE", "TPS_AGRMT_EXOWNR_REF_CODE3")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("TPS_AGRMT_HOME_PHONE_NUM_13").withColumnRenamed("TPS_AGRMT_HOME_PHONE_NUM_1", "TPS_AGRMT_HOME_PHONE_NUM_13")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("TPS_AGRMT_HOME_PHONE_NUM_23").withColumnRenamed("TPS_AGRMT_HOME_PHONE_NUM_2", "TPS_AGRMT_HOME_PHONE_NUM_23")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("TPS_AGRMT_OFFC_PHONE_NUM_13").withColumnRenamed("TPS_AGRMT_OFFC_PHONE_NUM_1", "TPS_AGRMT_OFFC_PHONE_NUM_13")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("TPS_AGRMT_OFFC_PHONE_NUM_23").withColumnRenamed("TPS_AGRMT_OFFC_PHONE_NUM_2", "TPS_AGRMT_OFFC_PHONE_NUM_23")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("TPS_AGRMT_MBL_PHONE_NUM_13").withColumnRenamed("TPS_AGRMT_MBL_PHONE_NUM_1", "TPS_AGRMT_MBL_PHONE_NUM_13")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("TPS_AGRMT_MBL_PHONE_NUM_23").withColumnRenamed("TPS_AGRMT_MBL_PHONE_NUM_2", "TPS_AGRMT_MBL_PHONE_NUM_23")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("TPS_AGRMT_RMK_TEXT3").withColumnRenamed("TPS_AGRMT_RMK_TEXT", "TPS_AGRMT_RMK_TEXT3")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("TPS_CHNG_OWNR_RMK_TEXT3").withColumnRenamed("TPS_CHNG_OWNR_RMK_TEXT", "TPS_CHNG_OWNR_RMK_TEXT3")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("TPS_MGT_FEE_DPST_AMT3").withColumnRenamed("TPS_MGT_FEE_DPST_AMT", "TPS_MGT_FEE_DPST_AMT3")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("ORIG_CUST_KEY3").withColumnRenamed("ORIG_CUST_KEY", "ORIG_CUST_KEY3")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("ORIG_HSE_SRVC_APLY_KEY3").withColumnRenamed("ORIG_HSE_SRVC_APLY_KEY", "ORIG_HSE_SRVC_APLY_KEY3")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("LAST_REC_TXN_TYPE_CODE23").withColumnRenamed("LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE23")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("LAST_REC_TXN_DATE3").withColumnRenamed("LAST_REC_TXN_DATE", "LAST_REC_TXN_DATE3")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("LAST_REC_TXN_USER_ID3").withColumnRenamed("LAST_REC_TXN_USER_ID", "LAST_REC_TXN_USER_ID3")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("TPS_APLY_TYPE_CODE3").withColumnRenamed("TPS_APLY_TYPE_CODE", "TPS_APLY_TYPE_CODE3")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("APLY_MBR_TYPE_CODE3").withColumnRenamed("APLY_MBR_TYPE_CODE", "APLY_MBR_TYPE_CODE3")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("APLY_MBR_REF_NUM3").withColumnRenamed("APLY_MBR_REF_NUM", "APLY_MBR_REF_NUM3")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("TPS_AGRMT_CRE_DATE3").withColumnRenamed("TPS_AGRMT_CRE_DATE", "TPS_AGRMT_CRE_DATE3")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("TPS_AGRMT_PHASE_CODE3").withColumnRenamed("TPS_AGRMT_PHASE_CODE", "TPS_AGRMT_PHASE_CODE3")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("TPS_AGRMT_FRST_ASGN_DATE3").withColumnRenamed("TPS_AGRMT_FRST_ASGN_DATE", "TPS_AGRMT_FRST_ASGN_DATE3")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("MBR_ACT_IND3").withColumnRenamed("MBR_ACT_IND", "MBR_ACT_IND3")
-        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop("ORIG_HSE_UNIT_TOT_IFA_AREA3").withColumnRenamed("ORIG_HSE_UNIT_TOT_IFA_AREA", "ORIG_HSE_UNIT_TOT_IFA_AREA3")
+        df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_input.filter(~(expr("OUT_DLPK_SOR_CACHE=1")) & expr("OUT_DLPK_SOR_CACHE1=1"))
+        __rtr_renames = [
+            ("OUT_DLPK_SOR_CACHE", "OUT_DLPK_SOR_CACHE4"),
+            ("OUT_AUG_IND", "OUT_AUG_IND4"),
+            ("OPR_IND", "OPR_IND4"),
+            ("LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE5"),
+            ("HSE_SRVC_APLY_KEY", "HSE_SRVC_APLY_KEY4"),
+            ("HSE_SRVC_APLY_BK", "HSE_SRVC_APLY_BK3"),
+            ("OUT_DLPK_SOR_CACHE1", "OUT_DLPK_SOR_CACHE13"),
+            ("OUT_AUG_IND1", "OUT_AUG_IND13"),
+            ("OPR_IND1", "OPR_IND13"),
+            ("LAST_REC_TXN_TYPE_CODE1", "LAST_REC_TXN_TYPE_CODE13"),
+            ("CUST_KEY", "CUST_KEY4"),
+            ("CUST_BK", "CUST_BK3"),
+            ("HSE_SRVC_APLY_KEY1", "HSE_SRVC_APLY_KEY13"),
+            ("TPS_HSE_UNIT_KEY", "TPS_HSE_UNIT_KEY3"),
+            ("TPS_AGRMT_SEQ_NUM", "TPS_AGRMT_SEQ_NUM3"),
+            ("CUST_KEY1", "CUST_KEY13"),
+            ("TPS_AGRMT_ASGN_DATE", "TPS_AGRMT_ASGN_DATE3"),
+            ("TPS_AGRMT_TRMT_DATE", "TPS_AGRMT_TRMT_DATE3"),
+            ("TPS_PCHS_FROM_CODE", "TPS_PCHS_FROM_CODE3"),
+            ("TPS_TRMT_TYPE_CODE", "TPS_TRMT_TYPE_CODE3"),
+            ("TPS_AGRMT_EXOWNR_REF_CODE", "TPS_AGRMT_EXOWNR_REF_CODE3"),
+            ("TPS_AGRMT_HOME_PHONE_NUM_1", "TPS_AGRMT_HOME_PHONE_NUM_13"),
+            ("TPS_AGRMT_HOME_PHONE_NUM_2", "TPS_AGRMT_HOME_PHONE_NUM_23"),
+            ("TPS_AGRMT_OFFC_PHONE_NUM_1", "TPS_AGRMT_OFFC_PHONE_NUM_13"),
+            ("TPS_AGRMT_OFFC_PHONE_NUM_2", "TPS_AGRMT_OFFC_PHONE_NUM_23"),
+            ("TPS_AGRMT_MBL_PHONE_NUM_1", "TPS_AGRMT_MBL_PHONE_NUM_13"),
+            ("TPS_AGRMT_MBL_PHONE_NUM_2", "TPS_AGRMT_MBL_PHONE_NUM_23"),
+            ("TPS_AGRMT_RMK_TEXT", "TPS_AGRMT_RMK_TEXT3"),
+            ("TPS_CHNG_OWNR_RMK_TEXT", "TPS_CHNG_OWNR_RMK_TEXT3"),
+            ("TPS_MGT_FEE_DPST_AMT", "TPS_MGT_FEE_DPST_AMT3"),
+            ("ORIG_CUST_KEY", "ORIG_CUST_KEY3"),
+            ("ORIG_HSE_SRVC_APLY_KEY", "ORIG_HSE_SRVC_APLY_KEY3"),
+            ("LAST_REC_TXN_TYPE_CODE2", "LAST_REC_TXN_TYPE_CODE23"),
+            ("LAST_REC_TXN_DATE", "LAST_REC_TXN_DATE3"),
+            ("LAST_REC_TXN_USER_ID", "LAST_REC_TXN_USER_ID3"),
+            ("TPS_APLY_TYPE_CODE", "TPS_APLY_TYPE_CODE3"),
+            ("APLY_MBR_TYPE_CODE", "APLY_MBR_TYPE_CODE3"),
+            ("APLY_MBR_REF_NUM", "APLY_MBR_REF_NUM3"),
+            ("TPS_AGRMT_CRE_DATE", "TPS_AGRMT_CRE_DATE3"),
+            ("TPS_AGRMT_PHASE_CODE", "TPS_AGRMT_PHASE_CODE3"),
+            ("TPS_AGRMT_FRST_ASGN_DATE", "TPS_AGRMT_FRST_ASGN_DATE3"),
+            ("MBR_ACT_IND", "MBR_ACT_IND3"),
+            ("ORIG_HSE_UNIT_TOT_IFA_AREA", "ORIG_HSE_UNIT_TOT_IFA_AREA3"),
+        ]
+        for _old, _new in __rtr_renames:
+            df_rtr_RTRTRANS_AGMT_CPM_CUST = df_rtr_RTRTRANS_AGMT_CPM_CUST.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_rtr_RTRTRANS_AGMT_CPM_CUST", df_rtr_RTRTRANS_AGMT_CPM_CUST)
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY.filter(expr("TRUE"))
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("OUT_DLPK_SOR_CACHE5").withColumnRenamed("OUT_DLPK_SOR_CACHE", "OUT_DLPK_SOR_CACHE5")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("OUT_AUG_IND5").withColumnRenamed("OUT_AUG_IND", "OUT_AUG_IND5")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("OPR_IND5").withColumnRenamed("OPR_IND", "OPR_IND5")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("LAST_REC_TXN_TYPE_CODE6").withColumnRenamed("LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE6")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("HSE_SRVC_APLY_KEY5").withColumnRenamed("HSE_SRVC_APLY_KEY", "HSE_SRVC_APLY_KEY5")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("HSE_SRVC_APLY_BK4").withColumnRenamed("HSE_SRVC_APLY_BK", "HSE_SRVC_APLY_BK4")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("OUT_DLPK_SOR_CACHE14").withColumnRenamed("OUT_DLPK_SOR_CACHE", "OUT_DLPK_SOR_CACHE14")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("OUT_AUG_IND14").withColumnRenamed("OUT_AUG_IND", "OUT_AUG_IND14")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("OPR_IND14").withColumnRenamed("OPR_IND", "OPR_IND14")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("LAST_REC_TXN_TYPE_CODE14").withColumnRenamed("LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE14")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("CUST_KEY5").withColumnRenamed("CUST_KEY", "CUST_KEY5")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("CUST_BK4").withColumnRenamed("CUST_BK", "CUST_BK4")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("HSE_SRVC_APLY_KEY14").withColumnRenamed("HSE_SRVC_APLY_KEY", "HSE_SRVC_APLY_KEY14")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("TPS_HSE_UNIT_KEY4").withColumnRenamed("TPS_HSE_UNIT_KEY", "TPS_HSE_UNIT_KEY4")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("TPS_AGRMT_SEQ_NUM4").withColumnRenamed("TPS_AGRMT_SEQ_NUM", "TPS_AGRMT_SEQ_NUM4")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("CUST_KEY14").withColumnRenamed("CUST_KEY", "CUST_KEY14")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("TPS_AGRMT_ASGN_DATE4").withColumnRenamed("TPS_AGRMT_ASGN_DATE", "TPS_AGRMT_ASGN_DATE4")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("TPS_AGRMT_TRMT_DATE4").withColumnRenamed("TPS_AGRMT_TRMT_DATE", "TPS_AGRMT_TRMT_DATE4")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("TPS_PCHS_FROM_CODE4").withColumnRenamed("TPS_PCHS_FROM_CODE", "TPS_PCHS_FROM_CODE4")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("TPS_TRMT_TYPE_CODE4").withColumnRenamed("TPS_TRMT_TYPE_CODE", "TPS_TRMT_TYPE_CODE4")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("TPS_AGRMT_EXOWNR_REF_CODE4").withColumnRenamed("TPS_AGRMT_EXOWNR_REF_CODE", "TPS_AGRMT_EXOWNR_REF_CODE4")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("TPS_AGRMT_HOME_PHONE_NUM_14").withColumnRenamed("TPS_AGRMT_HOME_PHONE_NUM_1", "TPS_AGRMT_HOME_PHONE_NUM_14")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("TPS_AGRMT_HOME_PHONE_NUM_24").withColumnRenamed("TPS_AGRMT_HOME_PHONE_NUM_2", "TPS_AGRMT_HOME_PHONE_NUM_24")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("TPS_AGRMT_OFFC_PHONE_NUM_14").withColumnRenamed("TPS_AGRMT_OFFC_PHONE_NUM_1", "TPS_AGRMT_OFFC_PHONE_NUM_14")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("TPS_AGRMT_OFFC_PHONE_NUM_24").withColumnRenamed("TPS_AGRMT_OFFC_PHONE_NUM_2", "TPS_AGRMT_OFFC_PHONE_NUM_24")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("TPS_AGRMT_MBL_PHONE_NUM_14").withColumnRenamed("TPS_AGRMT_MBL_PHONE_NUM_1", "TPS_AGRMT_MBL_PHONE_NUM_14")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("TPS_AGRMT_MBL_PHONE_NUM_24").withColumnRenamed("TPS_AGRMT_MBL_PHONE_NUM_2", "TPS_AGRMT_MBL_PHONE_NUM_24")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("TPS_AGRMT_RMK_TEXT4").withColumnRenamed("TPS_AGRMT_RMK_TEXT", "TPS_AGRMT_RMK_TEXT4")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("TPS_CHNG_OWNR_RMK_TEXT4").withColumnRenamed("TPS_CHNG_OWNR_RMK_TEXT", "TPS_CHNG_OWNR_RMK_TEXT4")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("TPS_MGT_FEE_DPST_AMT4").withColumnRenamed("TPS_MGT_FEE_DPST_AMT", "TPS_MGT_FEE_DPST_AMT4")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("ORIG_CUST_KEY4").withColumnRenamed("ORIG_CUST_KEY", "ORIG_CUST_KEY4")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("ORIG_HSE_SRVC_APLY_KEY4").withColumnRenamed("ORIG_HSE_SRVC_APLY_KEY", "ORIG_HSE_SRVC_APLY_KEY4")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("LAST_REC_TXN_TYPE_CODE24").withColumnRenamed("LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE24")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("LAST_REC_TXN_DATE4").withColumnRenamed("LAST_REC_TXN_DATE", "LAST_REC_TXN_DATE4")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("LAST_REC_TXN_USER_ID4").withColumnRenamed("LAST_REC_TXN_USER_ID", "LAST_REC_TXN_USER_ID4")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("TPS_APLY_TYPE_CODE4").withColumnRenamed("TPS_APLY_TYPE_CODE", "TPS_APLY_TYPE_CODE4")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("APLY_MBR_TYPE_CODE4").withColumnRenamed("APLY_MBR_TYPE_CODE", "APLY_MBR_TYPE_CODE4")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("APLY_MBR_REF_NUM4").withColumnRenamed("APLY_MBR_REF_NUM", "APLY_MBR_REF_NUM4")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("TPS_AGRMT_CRE_DATE4").withColumnRenamed("TPS_AGRMT_CRE_DATE", "TPS_AGRMT_CRE_DATE4")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("TPS_AGRMT_PHASE_CODE4").withColumnRenamed("TPS_AGRMT_PHASE_CODE", "TPS_AGRMT_PHASE_CODE4")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("TPS_AGRMT_FRST_ASGN_DATE4").withColumnRenamed("TPS_AGRMT_FRST_ASGN_DATE", "TPS_AGRMT_FRST_ASGN_DATE4")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("MBR_ACT_IND4").withColumnRenamed("MBR_ACT_IND", "MBR_ACT_IND4")
-        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop("ORIG_HSE_UNIT_TOT_IFA_AREA4").withColumnRenamed("ORIG_HSE_UNIT_TOT_IFA_AREA", "ORIG_HSE_UNIT_TOT_IFA_AREA4")
+        df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_input.filter(~(expr("OUT_DLPK_SOR_CACHE=1")) & ~(expr("OUT_DLPK_SOR_CACHE1=1")))
+        __rtr_renames = [
+            ("OUT_DLPK_SOR_CACHE", "OUT_DLPK_SOR_CACHE5"),
+            ("OUT_AUG_IND", "OUT_AUG_IND5"),
+            ("OPR_IND", "OPR_IND5"),
+            ("LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE6"),
+            ("HSE_SRVC_APLY_KEY", "HSE_SRVC_APLY_KEY5"),
+            ("HSE_SRVC_APLY_BK", "HSE_SRVC_APLY_BK4"),
+            ("OUT_DLPK_SOR_CACHE1", "OUT_DLPK_SOR_CACHE14"),
+            ("OUT_AUG_IND1", "OUT_AUG_IND14"),
+            ("OPR_IND1", "OPR_IND14"),
+            ("LAST_REC_TXN_TYPE_CODE1", "LAST_REC_TXN_TYPE_CODE14"),
+            ("CUST_KEY", "CUST_KEY5"),
+            ("CUST_BK", "CUST_BK4"),
+            ("HSE_SRVC_APLY_KEY1", "HSE_SRVC_APLY_KEY14"),
+            ("TPS_HSE_UNIT_KEY", "TPS_HSE_UNIT_KEY4"),
+            ("TPS_AGRMT_SEQ_NUM", "TPS_AGRMT_SEQ_NUM4"),
+            ("CUST_KEY1", "CUST_KEY14"),
+            ("TPS_AGRMT_ASGN_DATE", "TPS_AGRMT_ASGN_DATE4"),
+            ("TPS_AGRMT_TRMT_DATE", "TPS_AGRMT_TRMT_DATE4"),
+            ("TPS_PCHS_FROM_CODE", "TPS_PCHS_FROM_CODE4"),
+            ("TPS_TRMT_TYPE_CODE", "TPS_TRMT_TYPE_CODE4"),
+            ("TPS_AGRMT_EXOWNR_REF_CODE", "TPS_AGRMT_EXOWNR_REF_CODE4"),
+            ("TPS_AGRMT_HOME_PHONE_NUM_1", "TPS_AGRMT_HOME_PHONE_NUM_14"),
+            ("TPS_AGRMT_HOME_PHONE_NUM_2", "TPS_AGRMT_HOME_PHONE_NUM_24"),
+            ("TPS_AGRMT_OFFC_PHONE_NUM_1", "TPS_AGRMT_OFFC_PHONE_NUM_14"),
+            ("TPS_AGRMT_OFFC_PHONE_NUM_2", "TPS_AGRMT_OFFC_PHONE_NUM_24"),
+            ("TPS_AGRMT_MBL_PHONE_NUM_1", "TPS_AGRMT_MBL_PHONE_NUM_14"),
+            ("TPS_AGRMT_MBL_PHONE_NUM_2", "TPS_AGRMT_MBL_PHONE_NUM_24"),
+            ("TPS_AGRMT_RMK_TEXT", "TPS_AGRMT_RMK_TEXT4"),
+            ("TPS_CHNG_OWNR_RMK_TEXT", "TPS_CHNG_OWNR_RMK_TEXT4"),
+            ("TPS_MGT_FEE_DPST_AMT", "TPS_MGT_FEE_DPST_AMT4"),
+            ("ORIG_CUST_KEY", "ORIG_CUST_KEY4"),
+            ("ORIG_HSE_SRVC_APLY_KEY", "ORIG_HSE_SRVC_APLY_KEY4"),
+            ("LAST_REC_TXN_TYPE_CODE2", "LAST_REC_TXN_TYPE_CODE24"),
+            ("LAST_REC_TXN_DATE", "LAST_REC_TXN_DATE4"),
+            ("LAST_REC_TXN_USER_ID", "LAST_REC_TXN_USER_ID4"),
+            ("TPS_APLY_TYPE_CODE", "TPS_APLY_TYPE_CODE4"),
+            ("APLY_MBR_TYPE_CODE", "APLY_MBR_TYPE_CODE4"),
+            ("APLY_MBR_REF_NUM", "APLY_MBR_REF_NUM4"),
+            ("TPS_AGRMT_CRE_DATE", "TPS_AGRMT_CRE_DATE4"),
+            ("TPS_AGRMT_PHASE_CODE", "TPS_AGRMT_PHASE_CODE4"),
+            ("TPS_AGRMT_FRST_ASGN_DATE", "TPS_AGRMT_FRST_ASGN_DATE4"),
+            ("MBR_ACT_IND", "MBR_ACT_IND4"),
+            ("ORIG_HSE_UNIT_TOT_IFA_AREA", "ORIG_HSE_UNIT_TOT_IFA_AREA4"),
+        ]
+        for _old, _new in __rtr_renames:
+            df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2 = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2", df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2)
-        df_rtr_RTRTRANS_DEFAULT = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY.filter(~(expr("OUT_DLPK_SOR_CACHE=1")) & ~(expr("OUT_DLPK_SOR_CACHE1=1")) & ~(expr("TRUE")))
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("OUT_DLPK_SOR_CACHE3").withColumnRenamed("OUT_DLPK_SOR_CACHE", "OUT_DLPK_SOR_CACHE3")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("OUT_AUG_IND3").withColumnRenamed("OUT_AUG_IND", "OUT_AUG_IND3")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("OPR_IND3").withColumnRenamed("OPR_IND", "OPR_IND3")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("LAST_REC_TXN_TYPE_CODE4").withColumnRenamed("LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE4")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("HSE_SRVC_APLY_KEY3").withColumnRenamed("HSE_SRVC_APLY_KEY", "HSE_SRVC_APLY_KEY3")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("HSE_SRVC_APLY_BK2").withColumnRenamed("HSE_SRVC_APLY_BK", "HSE_SRVC_APLY_BK2")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("OUT_DLPK_SOR_CACHE12").withColumnRenamed("OUT_DLPK_SOR_CACHE", "OUT_DLPK_SOR_CACHE12")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("OUT_AUG_IND12").withColumnRenamed("OUT_AUG_IND", "OUT_AUG_IND12")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("OPR_IND12").withColumnRenamed("OPR_IND", "OPR_IND12")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("LAST_REC_TXN_TYPE_CODE12").withColumnRenamed("LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE12")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("CUST_KEY3").withColumnRenamed("CUST_KEY", "CUST_KEY3")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("CUST_BK2").withColumnRenamed("CUST_BK", "CUST_BK2")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("HSE_SRVC_APLY_KEY12").withColumnRenamed("HSE_SRVC_APLY_KEY", "HSE_SRVC_APLY_KEY12")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("TPS_HSE_UNIT_KEY2").withColumnRenamed("TPS_HSE_UNIT_KEY", "TPS_HSE_UNIT_KEY2")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("TPS_AGRMT_SEQ_NUM2").withColumnRenamed("TPS_AGRMT_SEQ_NUM", "TPS_AGRMT_SEQ_NUM2")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("CUST_KEY12").withColumnRenamed("CUST_KEY", "CUST_KEY12")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("TPS_AGRMT_ASGN_DATE2").withColumnRenamed("TPS_AGRMT_ASGN_DATE", "TPS_AGRMT_ASGN_DATE2")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("TPS_AGRMT_TRMT_DATE2").withColumnRenamed("TPS_AGRMT_TRMT_DATE", "TPS_AGRMT_TRMT_DATE2")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("TPS_PCHS_FROM_CODE2").withColumnRenamed("TPS_PCHS_FROM_CODE", "TPS_PCHS_FROM_CODE2")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("TPS_TRMT_TYPE_CODE2").withColumnRenamed("TPS_TRMT_TYPE_CODE", "TPS_TRMT_TYPE_CODE2")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("TPS_AGRMT_EXOWNR_REF_CODE2").withColumnRenamed("TPS_AGRMT_EXOWNR_REF_CODE", "TPS_AGRMT_EXOWNR_REF_CODE2")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("TPS_AGRMT_HOME_PHONE_NUM_12").withColumnRenamed("TPS_AGRMT_HOME_PHONE_NUM_1", "TPS_AGRMT_HOME_PHONE_NUM_12")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("TPS_AGRMT_HOME_PHONE_NUM_22").withColumnRenamed("TPS_AGRMT_HOME_PHONE_NUM_2", "TPS_AGRMT_HOME_PHONE_NUM_22")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("TPS_AGRMT_OFFC_PHONE_NUM_12").withColumnRenamed("TPS_AGRMT_OFFC_PHONE_NUM_1", "TPS_AGRMT_OFFC_PHONE_NUM_12")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("TPS_AGRMT_OFFC_PHONE_NUM_22").withColumnRenamed("TPS_AGRMT_OFFC_PHONE_NUM_2", "TPS_AGRMT_OFFC_PHONE_NUM_22")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("TPS_AGRMT_MBL_PHONE_NUM_12").withColumnRenamed("TPS_AGRMT_MBL_PHONE_NUM_1", "TPS_AGRMT_MBL_PHONE_NUM_12")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("TPS_AGRMT_MBL_PHONE_NUM_22").withColumnRenamed("TPS_AGRMT_MBL_PHONE_NUM_2", "TPS_AGRMT_MBL_PHONE_NUM_22")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("TPS_AGRMT_RMK_TEXT2").withColumnRenamed("TPS_AGRMT_RMK_TEXT", "TPS_AGRMT_RMK_TEXT2")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("TPS_CHNG_OWNR_RMK_TEXT2").withColumnRenamed("TPS_CHNG_OWNR_RMK_TEXT", "TPS_CHNG_OWNR_RMK_TEXT2")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("TPS_MGT_FEE_DPST_AMT2").withColumnRenamed("TPS_MGT_FEE_DPST_AMT", "TPS_MGT_FEE_DPST_AMT2")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("ORIG_CUST_KEY2").withColumnRenamed("ORIG_CUST_KEY", "ORIG_CUST_KEY2")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("ORIG_HSE_SRVC_APLY_KEY2").withColumnRenamed("ORIG_HSE_SRVC_APLY_KEY", "ORIG_HSE_SRVC_APLY_KEY2")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("LAST_REC_TXN_TYPE_CODE22").withColumnRenamed("LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE22")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("LAST_REC_TXN_DATE2").withColumnRenamed("LAST_REC_TXN_DATE", "LAST_REC_TXN_DATE2")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("LAST_REC_TXN_USER_ID2").withColumnRenamed("LAST_REC_TXN_USER_ID", "LAST_REC_TXN_USER_ID2")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("TPS_APLY_TYPE_CODE2").withColumnRenamed("TPS_APLY_TYPE_CODE", "TPS_APLY_TYPE_CODE2")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("APLY_MBR_TYPE_CODE2").withColumnRenamed("APLY_MBR_TYPE_CODE", "APLY_MBR_TYPE_CODE2")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("APLY_MBR_REF_NUM2").withColumnRenamed("APLY_MBR_REF_NUM", "APLY_MBR_REF_NUM2")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("TPS_AGRMT_CRE_DATE2").withColumnRenamed("TPS_AGRMT_CRE_DATE", "TPS_AGRMT_CRE_DATE2")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("TPS_AGRMT_PHASE_CODE2").withColumnRenamed("TPS_AGRMT_PHASE_CODE", "TPS_AGRMT_PHASE_CODE2")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("TPS_AGRMT_FRST_ASGN_DATE2").withColumnRenamed("TPS_AGRMT_FRST_ASGN_DATE", "TPS_AGRMT_FRST_ASGN_DATE2")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("MBR_ACT_IND2").withColumnRenamed("MBR_ACT_IND", "MBR_ACT_IND2")
-        df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop("ORIG_HSE_UNIT_TOT_IFA_AREA2").withColumnRenamed("ORIG_HSE_UNIT_TOT_IFA_AREA", "ORIG_HSE_UNIT_TOT_IFA_AREA2")
+        df_rtr_RTRTRANS_DEFAULT = df_rtr_input.filter(lit(False))
+        __rtr_renames = [
+            ("OUT_DLPK_SOR_CACHE", "OUT_DLPK_SOR_CACHE3"),
+            ("OUT_AUG_IND", "OUT_AUG_IND3"),
+            ("OPR_IND", "OPR_IND3"),
+            ("LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE4"),
+            ("HSE_SRVC_APLY_KEY", "HSE_SRVC_APLY_KEY3"),
+            ("HSE_SRVC_APLY_BK", "HSE_SRVC_APLY_BK2"),
+            ("OUT_DLPK_SOR_CACHE1", "OUT_DLPK_SOR_CACHE12"),
+            ("OUT_AUG_IND1", "OUT_AUG_IND12"),
+            ("OPR_IND1", "OPR_IND12"),
+            ("LAST_REC_TXN_TYPE_CODE1", "LAST_REC_TXN_TYPE_CODE12"),
+            ("CUST_KEY", "CUST_KEY3"),
+            ("CUST_BK", "CUST_BK2"),
+            ("HSE_SRVC_APLY_KEY1", "HSE_SRVC_APLY_KEY12"),
+            ("TPS_HSE_UNIT_KEY", "TPS_HSE_UNIT_KEY2"),
+            ("TPS_AGRMT_SEQ_NUM", "TPS_AGRMT_SEQ_NUM2"),
+            ("CUST_KEY1", "CUST_KEY12"),
+            ("TPS_AGRMT_ASGN_DATE", "TPS_AGRMT_ASGN_DATE2"),
+            ("TPS_AGRMT_TRMT_DATE", "TPS_AGRMT_TRMT_DATE2"),
+            ("TPS_PCHS_FROM_CODE", "TPS_PCHS_FROM_CODE2"),
+            ("TPS_TRMT_TYPE_CODE", "TPS_TRMT_TYPE_CODE2"),
+            ("TPS_AGRMT_EXOWNR_REF_CODE", "TPS_AGRMT_EXOWNR_REF_CODE2"),
+            ("TPS_AGRMT_HOME_PHONE_NUM_1", "TPS_AGRMT_HOME_PHONE_NUM_12"),
+            ("TPS_AGRMT_HOME_PHONE_NUM_2", "TPS_AGRMT_HOME_PHONE_NUM_22"),
+            ("TPS_AGRMT_OFFC_PHONE_NUM_1", "TPS_AGRMT_OFFC_PHONE_NUM_12"),
+            ("TPS_AGRMT_OFFC_PHONE_NUM_2", "TPS_AGRMT_OFFC_PHONE_NUM_22"),
+            ("TPS_AGRMT_MBL_PHONE_NUM_1", "TPS_AGRMT_MBL_PHONE_NUM_12"),
+            ("TPS_AGRMT_MBL_PHONE_NUM_2", "TPS_AGRMT_MBL_PHONE_NUM_22"),
+            ("TPS_AGRMT_RMK_TEXT", "TPS_AGRMT_RMK_TEXT2"),
+            ("TPS_CHNG_OWNR_RMK_TEXT", "TPS_CHNG_OWNR_RMK_TEXT2"),
+            ("TPS_MGT_FEE_DPST_AMT", "TPS_MGT_FEE_DPST_AMT2"),
+            ("ORIG_CUST_KEY", "ORIG_CUST_KEY2"),
+            ("ORIG_HSE_SRVC_APLY_KEY", "ORIG_HSE_SRVC_APLY_KEY2"),
+            ("LAST_REC_TXN_TYPE_CODE2", "LAST_REC_TXN_TYPE_CODE22"),
+            ("LAST_REC_TXN_DATE", "LAST_REC_TXN_DATE2"),
+            ("LAST_REC_TXN_USER_ID", "LAST_REC_TXN_USER_ID2"),
+            ("TPS_APLY_TYPE_CODE", "TPS_APLY_TYPE_CODE2"),
+            ("APLY_MBR_TYPE_CODE", "APLY_MBR_TYPE_CODE2"),
+            ("APLY_MBR_REF_NUM", "APLY_MBR_REF_NUM2"),
+            ("TPS_AGRMT_CRE_DATE", "TPS_AGRMT_CRE_DATE2"),
+            ("TPS_AGRMT_PHASE_CODE", "TPS_AGRMT_PHASE_CODE2"),
+            ("TPS_AGRMT_FRST_ASGN_DATE", "TPS_AGRMT_FRST_ASGN_DATE2"),
+            ("MBR_ACT_IND", "MBR_ACT_IND2"),
+            ("ORIG_HSE_UNIT_TOT_IFA_AREA", "ORIG_HSE_UNIT_TOT_IFA_AREA2"),
+        ]
+        for _old, _new in __rtr_renames:
+            df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_rtr_RTRTRANS_DEFAULT", df_rtr_RTRTRANS_DEFAULT)
-        
+
         logger.info("Step: input_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1")
         # Expression: input_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1
         df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_input = df_EXPTRANS2
@@ -615,7 +710,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: rename_EXP_NULL_BKEY")
         # Expression: rename_EXP_NULL_BKEY
         df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_rename_EXP_NULL_BKEY = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_input
-        df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_rename_EXP_NULL_BKEY = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_rename_EXP_NULL_BKEY.drop("IN_BKEY").withColumnRenamed("IN_HSE_SRVC_APLY_BK", "IN_BKEY")
+        __expr_renames = [
+            ("IN_HSE_SRVC_APLY_BK", "IN_BKEY"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_rename_EXP_NULL_BKEY = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_rename_EXP_NULL_BKEY.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_rename_EXP_NULL_BKEY", df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_rename_EXP_NULL_BKEY)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_EXP_NULL_BKEY")
@@ -629,7 +728,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: rename_EXPTRANS")
         # Expression: rename_EXPTRANS
         df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_rename_EXPTRANS = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_EXP_NULL_BKEY
-        df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_rename_EXPTRANS = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_rename_EXPTRANS.drop("IN_HSE_SRVC_APLY_BK").withColumnRenamed("OUT_BKEY", "IN_HSE_SRVC_APLY_BK")
+        __expr_renames = [
+            ("OUT_BKEY", "IN_HSE_SRVC_APLY_BK"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_rename_EXPTRANS = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_rename_EXPTRANS.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_rename_EXPTRANS", df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_rename_EXPTRANS)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_EXPTRANS")
@@ -685,7 +788,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: rename_EXP_SK")
         # Expression: rename_EXP_SK
         df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_rename_EXP_SK = df_mplt_lkp_chain_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_EXPTRANS
-        df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_rename_EXP_SK = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_rename_EXP_SK.drop("SOR_CACHE_STATUS").withColumnRenamed("NewLookupRow_LKP_DYN_SOR_EMS_CMM_HSE_SRVC_APLY", "SOR_CACHE_STATUS")
+        __expr_renames = [
+            ("NewLookupRow_LKP_DYN_SOR_EMS_CMM_HSE_SRVC_APLY", "SOR_CACHE_STATUS"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_rename_EXP_SK = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_rename_EXP_SK.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_rename_EXP_SK", df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_rename_EXP_SK)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_EXP_SK")
@@ -740,7 +847,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: rename_EXPTRANS1")
         # Expression: rename_EXPTRANS1
         df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_rename_EXPTRANS1 = df_mplt_lkp_chain_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_EXP_SK
-        df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_rename_EXPTRANS1 = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_rename_EXPTRANS1.drop("SSA_CACHE_STATUS").withColumnRenamed("NewLookupRow_LKP_DYN_SSA_EMS_CMM_HSE_SRVC_APLY", "SSA_CACHE_STATUS")
+        __expr_renames = [
+            ("NewLookupRow_LKP_DYN_SSA_EMS_CMM_HSE_SRVC_APLY", "SSA_CACHE_STATUS"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_rename_EXPTRANS1 = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_rename_EXPTRANS1.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_rename_EXPTRANS1", df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_rename_EXPTRANS1)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY_EXPTRANS1")
@@ -759,8 +870,12 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1")
         # Expression: apply_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1
         df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1 = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1_EXPTRANS1
-        df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1 = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1.drop("OUT_DLPK_SOR_CACHE").withColumnRenamed("SOR_CACHE_STATUS", "OUT_DLPK_SOR_CACHE")
-        df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1 = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1.drop("OUT_AUG_IND").withColumnRenamed("V_AUG_IND", "OUT_AUG_IND")
+        __expr_renames = [
+            ("SOR_CACHE_STATUS", "OUT_DLPK_SOR_CACHE"),
+            ("V_AUG_IND", "OUT_AUG_IND"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1 = df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1", df_MPLT_AGMT_EMS_CMM_HSE_SRVC_APLY1)
         
         logger.info("Step: input_MPLT_AGMT_EMS_CPM_CUST1")
@@ -772,7 +887,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: rename_EXP_NULL_BKEY")
         # Expression: rename_EXP_NULL_BKEY
         df_MPLT_AGMT_EMS_CPM_CUST1_rename_EXP_NULL_BKEY = df_MPLT_AGMT_EMS_CPM_CUST1_input
-        df_MPLT_AGMT_EMS_CPM_CUST1_rename_EXP_NULL_BKEY = df_MPLT_AGMT_EMS_CPM_CUST1_rename_EXP_NULL_BKEY.drop("IN_BKEY").withColumnRenamed("IN_CUST_BK", "IN_BKEY")
+        __expr_renames = [
+            ("IN_CUST_BK", "IN_BKEY"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CPM_CUST1_rename_EXP_NULL_BKEY = df_MPLT_AGMT_EMS_CPM_CUST1_rename_EXP_NULL_BKEY.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CPM_CUST1_rename_EXP_NULL_BKEY", df_MPLT_AGMT_EMS_CPM_CUST1_rename_EXP_NULL_BKEY)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CPM_CUST_EXP_NULL_BKEY")
@@ -786,7 +905,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: rename_EXPTRANS")
         # Expression: rename_EXPTRANS
         df_MPLT_AGMT_EMS_CPM_CUST1_rename_EXPTRANS = df_MPLT_AGMT_EMS_CPM_CUST1_EXP_NULL_BKEY
-        df_MPLT_AGMT_EMS_CPM_CUST1_rename_EXPTRANS = df_MPLT_AGMT_EMS_CPM_CUST1_rename_EXPTRANS.drop("IN_CUST_BK").withColumnRenamed("OUT_BKEY", "IN_CUST_BK")
+        __expr_renames = [
+            ("OUT_BKEY", "IN_CUST_BK"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CPM_CUST1_rename_EXPTRANS = df_MPLT_AGMT_EMS_CPM_CUST1_rename_EXPTRANS.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CPM_CUST1_rename_EXPTRANS", df_MPLT_AGMT_EMS_CPM_CUST1_rename_EXPTRANS)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CPM_CUST_EXPTRANS")
@@ -842,7 +965,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: rename_EXP_SK")
         # Expression: rename_EXP_SK
         df_MPLT_AGMT_EMS_CPM_CUST1_rename_EXP_SK = df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST1_EXPTRANS
-        df_MPLT_AGMT_EMS_CPM_CUST1_rename_EXP_SK = df_MPLT_AGMT_EMS_CPM_CUST1_rename_EXP_SK.drop("SOR_CACHE_STATUS").withColumnRenamed("NewLookupRow_LKP_DYN_SOR_EMS_CPM_CUST", "SOR_CACHE_STATUS")
+        __expr_renames = [
+            ("NewLookupRow_LKP_DYN_SOR_EMS_CPM_CUST", "SOR_CACHE_STATUS"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CPM_CUST1_rename_EXP_SK = df_MPLT_AGMT_EMS_CPM_CUST1_rename_EXP_SK.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CPM_CUST1_rename_EXP_SK", df_MPLT_AGMT_EMS_CPM_CUST1_rename_EXP_SK)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CPM_CUST_EXP_SK")
@@ -897,7 +1024,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: rename_EXPTRANS1")
         # Expression: rename_EXPTRANS1
         df_MPLT_AGMT_EMS_CPM_CUST1_rename_EXPTRANS1 = df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST1_EXP_SK
-        df_MPLT_AGMT_EMS_CPM_CUST1_rename_EXPTRANS1 = df_MPLT_AGMT_EMS_CPM_CUST1_rename_EXPTRANS1.drop("SSA_CACHE_STATUS").withColumnRenamed("NewLookupRow_LKP_DYN_SSA_EMS_CPM_CUST", "SSA_CACHE_STATUS")
+        __expr_renames = [
+            ("NewLookupRow_LKP_DYN_SSA_EMS_CPM_CUST", "SSA_CACHE_STATUS"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CPM_CUST1_rename_EXPTRANS1 = df_MPLT_AGMT_EMS_CPM_CUST1_rename_EXPTRANS1.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CPM_CUST1_rename_EXPTRANS1", df_MPLT_AGMT_EMS_CPM_CUST1_rename_EXPTRANS1)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CPM_CUST_EXPTRANS1")
@@ -916,10 +1047,83 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_MPLT_AGMT_EMS_CPM_CUST1")
         # Expression: apply_MPLT_AGMT_EMS_CPM_CUST1
         df_MPLT_AGMT_EMS_CPM_CUST1 = df_MPLT_AGMT_EMS_CPM_CUST1_EXPTRANS1
-        df_MPLT_AGMT_EMS_CPM_CUST1 = df_MPLT_AGMT_EMS_CPM_CUST1.drop("OUT_DLPK_SOR_CACHE").withColumnRenamed("SOR_CACHE_STATUS", "OUT_DLPK_SOR_CACHE")
-        df_MPLT_AGMT_EMS_CPM_CUST1 = df_MPLT_AGMT_EMS_CPM_CUST1.drop("OUT_AUG_IND").withColumnRenamed("V_AUG_IND", "OUT_AUG_IND")
+        __expr_renames = [
+            ("SOR_CACHE_STATUS", "OUT_DLPK_SOR_CACHE"),
+            ("V_AUG_IND", "OUT_AUG_IND"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CPM_CUST1 = df_MPLT_AGMT_EMS_CPM_CUST1.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CPM_CUST1", df_MPLT_AGMT_EMS_CPM_CUST1)
         
+        logger.info("Step: write_SSA_EMS_CMM_HSE_SRVC_APLY")
+        # Write to Target: write_SSA_EMS_CMM_HSE_SRVC_APLY
+        df_write = df_rtr_RTRTRANS_AGMT_CMM_HSE_SRVC_APLY
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
+        _field_map = {"AGMT_IND": "OUT_AUG_IND2", "HSE_SRVC_APLY_BK": "HSE_SRVC_APLY_BK1", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY2", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE3", "OPR_IND": "OPR_IND2"}
+        for _tgt_col, _src_col in _field_map.items():
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
+                # Drop any column that would conflict case-insensitively with the target name 
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
+                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
+        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
+        df_write = df_write.withColumn("LAST_REC_TXN_DATE", lit(None).cast(StringType()))
+        df_write = df_write.withColumn("SOR_DATE", lit(None).cast(StringType()))
+        # Select only target-defined columns (field_map already handled name alignment)
+        _target_cols = ['HSE_SRVC_APLY_KEY', 'HSE_SRVC_APLY_BK', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'OPR_IND', 'SOR_DATE']
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
+        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
+        lib.write_table(df_write, conn_target, "SSA_EMS_CMM_HSE_SRVC_APLY", mode="append")
+
+        logger.info("write_SSA_EMS_CMM_HSE_SRVC_APLY write completed")
+        logger.info("Step: write_SSA_EMS_CPM_CUST")
+        # Write to Target: write_SSA_EMS_CPM_CUST
+        df_write = df_rtr_RTRTRANS_AGMT_CPM_CUST
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
+        _field_map = {"AGMT_IND": "OUT_AUG_IND13", "CUST_BK": "CUST_BK3", "CUST_KEY": "CUST_KEY4", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE13", "OPR_IND": "OPR_IND13"}
+        for _tgt_col, _src_col in _field_map.items():
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
+                # Drop any column that would conflict case-insensitively with the target name 
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
+                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
+        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
+        df_write = df_write.withColumn("LAST_REC_TXN_DATE", lit(None).cast(StringType()))
+        df_write = df_write.withColumn("SOR_DATE", lit(None).cast(StringType()))
+        # Select only target-defined columns (field_map already handled name alignment)
+        _target_cols = ['CUST_KEY', 'CUST_BK', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'OPR_IND', 'SOR_DATE']
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
+        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
+        lib.write_table(df_write, conn_target, "SSA_EMS_CPM_CUST", mode="append")
+
+        logger.info("write_SSA_EMS_CPM_CUST write completed")
+        logger.info("Step: write_EMS_TOW_TPS_AGRMT_L21")
+        # Write to Target: write_EMS_TOW_TPS_AGRMT_L21
+        df_write = df_rtr_RTRTRANS_TOW_TPS_AGRMT_L2
+        # Map source columns to target columns using connector field map (handles name
+        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
+        # column names in batch_update/batch_delete.
+        _field_map = {"APLY_MBR_REF_NUM": "APLY_MBR_REF_NUM4", "APLY_MBR_TYPE_CODE": "APLY_MBR_TYPE_CODE4", "CUST_KEY": "CUST_KEY14", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY14", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE4", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE24", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID4", "MBR_ACT_IND": "MBR_ACT_IND4", "ORIG_CUST_KEY": "ORIG_CUST_KEY4", "ORIG_CUST_KEY_LKP": "CUST_KEY5", "ORIG_HSE_SRVC_APLY_KEY": "ORIG_HSE_SRVC_APLY_KEY4", "ORIG_HSE_SRVC_APLY_KEY_LKP": "HSE_SRVC_APLY_KEY5", "ORIG_HSE_UNIT_TOT_IFA_AREA": "ORIG_HSE_UNIT_TOT_IFA_AREA4", "TPS_AGRMT_ASGN_DATE": "TPS_AGRMT_ASGN_DATE4", "TPS_AGRMT_CRE_DATE": "TPS_AGRMT_CRE_DATE4", "TPS_AGRMT_EXOWNR_REF_CODE": "TPS_AGRMT_EXOWNR_REF_CODE4", "TPS_AGRMT_FRST_ASGN_DATE": "TPS_AGRMT_FRST_ASGN_DATE4", "TPS_AGRMT_HOME_PHONE_NUM_1": "TPS_AGRMT_HOME_PHONE_NUM_14", "TPS_AGRMT_HOME_PHONE_NUM_2": "TPS_AGRMT_HOME_PHONE_NUM_24", "TPS_AGRMT_MBL_PHONE_NUM_1": "TPS_AGRMT_MBL_PHONE_NUM_14", "TPS_AGRMT_MBL_PHONE_NUM_2": "TPS_AGRMT_MBL_PHONE_NUM_24", "TPS_AGRMT_OFFC_PHONE_NUM_1": "TPS_AGRMT_OFFC_PHONE_NUM_14", "TPS_AGRMT_OFFC_PHONE_NUM_2": "TPS_AGRMT_OFFC_PHONE_NUM_24", "TPS_AGRMT_PHASE_CODE": "TPS_AGRMT_PHASE_CODE4", "TPS_AGRMT_RMK_TEXT": "TPS_AGRMT_RMK_TEXT4", "TPS_AGRMT_SEQ_NUM": "TPS_AGRMT_SEQ_NUM4", "TPS_AGRMT_TRMT_DATE": "TPS_AGRMT_TRMT_DATE4", "TPS_APLY_TYPE_CODE": "TPS_APLY_TYPE_CODE4", "TPS_CHNG_OWNR_RMK_TEXT": "TPS_CHNG_OWNR_RMK_TEXT4", "TPS_HSE_UNIT_KEY": "TPS_HSE_UNIT_KEY4", "TPS_MGT_FEE_DPST_AMT": "TPS_MGT_FEE_DPST_AMT4", "TPS_PCHS_FROM_CODE": "TPS_PCHS_FROM_CODE4", "TPS_TRMT_TYPE_CODE": "TPS_TRMT_TYPE_CODE4"}
+        for _tgt_col, _src_col in _field_map.items():
+            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
+                # Drop any column that would conflict case-insensitively with the target name 
+                for _c in list(df_write.columns):
+                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                        df_write = df_write.drop(_c)
+                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
+        # Select only target-defined columns (field_map already handled name alignment)
+        _target_cols = ['HSE_SRVC_APLY_KEY', 'TPS_HSE_UNIT_KEY', 'TPS_AGRMT_SEQ_NUM', 'CUST_KEY', 'TPS_AGRMT_ASGN_DATE', 'TPS_AGRMT_TRMT_DATE', 'TPS_PCHS_FROM_CODE', 'TPS_TRMT_TYPE_CODE', 'TPS_AGRMT_EXOWNR_REF_CODE', 'TPS_AGRMT_HOME_PHONE_NUM_1', 'TPS_AGRMT_HOME_PHONE_NUM_2', 'TPS_AGRMT_OFFC_PHONE_NUM_1', 'TPS_AGRMT_OFFC_PHONE_NUM_2', 'TPS_AGRMT_MBL_PHONE_NUM_1', 'TPS_AGRMT_MBL_PHONE_NUM_2', 'TPS_AGRMT_RMK_TEXT', 'TPS_CHNG_OWNR_RMK_TEXT', 'TPS_MGT_FEE_DPST_AMT', 'ORIG_CUST_KEY', 'ORIG_HSE_SRVC_APLY_KEY', 'ORIG_CUST_KEY_LKP', 'ORIG_HSE_SRVC_APLY_KEY_LKP', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'TPS_APLY_TYPE_CODE', 'APLY_MBR_TYPE_CODE', 'APLY_MBR_REF_NUM', 'TPS_AGRMT_CRE_DATE', 'TPS_AGRMT_PHASE_CODE', 'TPS_AGRMT_FRST_ASGN_DATE', 'MBR_ACT_IND', 'ORIG_HSE_UNIT_TOT_IFA_AREA']
+        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
+        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
+        lib.write_table(df_write, conn_target, "EMS_TOW_TPS_AGRMT_L2", mode="append")
+
+        logger.info("write_EMS_TOW_TPS_AGRMT_L21 write completed")
         logger.info("Step: read_LKP_DYN_SOR_EMS_TOW_TPS_AGRMT")
         # Reading Data From Source - read_LKP_DYN_SOR_EMS_TOW_TPS_AGRMT
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -1006,7 +1210,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "OUT_AUG_IND", "HSE_SRVC_APLY_BK": "HSE_SRVC_APLY_BK", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "OPR_IND": "OPR_IND"}
+        _field_map = {"AGMT_IND": "OUT_AUG_IND"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 
@@ -1030,7 +1234,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "OUT_AUG_IND", "CUST_BK": "CUST_BK", "CUST_KEY": "CUST_KEY", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "OPR_IND": "OPR_IND"}
+        _field_map = {"AGMT_IND": "OUT_AUG_IND"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 
@@ -1130,12 +1334,16 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: rename_EXPTRANS2")
         # Expression: rename_EXPTRANS2
         df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS_input
-        df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2.drop("IN_DEL_FLAG").withColumnRenamed("IN_V_DEL_IND", "IN_DEL_FLAG")
-        df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2.drop("IN_DLK_SOR_CACHE_STATUS").withColumnRenamed("IN_V_DLKP_SOR_CACHE_STATUS", "IN_DLK_SOR_CACHE_STATUS")
-        df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2.drop("SNAPSHOT_DATE").withColumnRenamed("IN_V_SNAPSHOT_DATE", "SNAPSHOT_DATE")
-        df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2.drop("AGMT_IND").withColumnRenamed("IN_AGMT_IND", "AGMT_IND")
-        df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2.drop("TABLE_NAME").withColumnRenamed("IN_TABLE_NAME", "TABLE_NAME")
-        df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2.drop("IN_DLKP_SSA_CACHE_STATUS").withColumnRenamed("IN_V_DLKP_SSA_CACHE_STATUS", "IN_DLKP_SSA_CACHE_STATUS")
+        __expr_renames = [
+            ("IN_V_DEL_IND", "IN_DEL_FLAG"),
+            ("IN_V_DLKP_SOR_CACHE_STATUS", "IN_DLK_SOR_CACHE_STATUS"),
+            ("IN_V_SNAPSHOT_DATE", "SNAPSHOT_DATE"),
+            ("IN_AGMT_IND", "AGMT_IND"),
+            ("IN_TABLE_NAME", "TABLE_NAME"),
+            ("IN_V_DLKP_SSA_CACHE_STATUS", "IN_DLKP_SSA_CACHE_STATUS"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2 = df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2", df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS2)
         
         logger.info("Step: apply_MPLT_DLKP_CACHE_STATUS_EXPTRANS2")
@@ -1155,9 +1363,13 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: rename_EXP_SSAL2_TRANSFORM2")
         # Expression: rename_EXP_SSAL2_TRANSFORM2
         df_MPLT_DLKP_CACHE_STATUS_rename_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS_EXPTRANS2
-        df_MPLT_DLKP_CACHE_STATUS_rename_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS_rename_EXP_SSAL2_TRANSFORM2.drop("SOR_DATE").withColumnRenamed("IN_SOR_DATE", "SOR_DATE")
-        df_MPLT_DLKP_CACHE_STATUS_rename_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS_rename_EXP_SSAL2_TRANSFORM2.drop("INIT_FLAG").withColumnRenamed("IN_V_INIT_IND", "INIT_FLAG")
-        df_MPLT_DLKP_CACHE_STATUS_rename_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS_rename_EXP_SSAL2_TRANSFORM2.drop("LAST_UPDATE_DATE").withColumnRenamed("IN_V_LAST_UPDATE_DATE", "LAST_UPDATE_DATE")
+        __expr_renames = [
+            ("IN_SOR_DATE", "SOR_DATE"),
+            ("IN_V_INIT_IND", "INIT_FLAG"),
+            ("IN_V_LAST_UPDATE_DATE", "LAST_UPDATE_DATE"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_DLKP_CACHE_STATUS_rename_EXP_SSAL2_TRANSFORM2 = df_MPLT_DLKP_CACHE_STATUS_rename_EXP_SSAL2_TRANSFORM2.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_rename_EXP_SSAL2_TRANSFORM2", df_MPLT_DLKP_CACHE_STATUS_rename_EXP_SSAL2_TRANSFORM2)
         
         logger.info("Step: apply_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2")
@@ -1181,8 +1393,12 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: rename_EXPTRANS")
         # Expression: rename_EXPTRANS
         df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS = df_MPLT_DLKP_CACHE_STATUS_EXP_SSAL2_TRANSFORM2
-        df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS = df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS.drop("IN_AGMT_IND").withColumnRenamed("AGMT_IND", "IN_AGMT_IND")
-        df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS = df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS.drop("IN_OPR_IND").withColumnRenamed("OPR_IND", "IN_OPR_IND")
+        __expr_renames = [
+            ("AGMT_IND", "IN_AGMT_IND"),
+            ("OPR_IND", "IN_OPR_IND"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS = df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS", df_MPLT_DLKP_CACHE_STATUS_rename_EXPTRANS)
         
         logger.info("Step: apply_MPLT_DLKP_CACHE_STATUS_EXPTRANS")
@@ -1245,14 +1461,18 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_MPLT_DLKP_CACHE_STATUS")
         # Expression: apply_MPLT_DLKP_CACHE_STATUS
         df_MPLT_DLKP_CACHE_STATUS = df_MPLT_DLKP_CACHE_STATUS_merge_output_1
-        df_MPLT_DLKP_CACHE_STATUS = df_MPLT_DLKP_CACHE_STATUS.drop("OUT_V_LAST_REC_TXN_DATE").withColumnRenamed("LAST_REC_TXN_DATE", "OUT_V_LAST_REC_TXN_DATE")
-        df_MPLT_DLKP_CACHE_STATUS = df_MPLT_DLKP_CACHE_STATUS.drop("OUT_V_LAST_REC_TXN_TYPE_CODE").withColumnRenamed("LAST_REC_TXN_TYPE_CODE", "OUT_V_LAST_REC_TXN_TYPE_CODE")
-        df_MPLT_DLKP_CACHE_STATUS = df_MPLT_DLKP_CACHE_STATUS.drop("OUT_SOR_DATE").withColumnRenamed("SOR_DATE", "OUT_SOR_DATE")
-        df_MPLT_DLKP_CACHE_STATUS = df_MPLT_DLKP_CACHE_STATUS.drop("OUT_V_BGN_DATE").withColumnRenamed("BGN_DATE", "OUT_V_BGN_DATE")
-        df_MPLT_DLKP_CACHE_STATUS = df_MPLT_DLKP_CACHE_STATUS.drop("OUT_V_END_DATE").withColumnRenamed("END_DATE", "OUT_V_END_DATE")
-        df_MPLT_DLKP_CACHE_STATUS = df_MPLT_DLKP_CACHE_STATUS.drop("OUT_AGMT_IND").withColumnRenamed("AGMT_IND", "OUT_AGMT_IND")
-        df_MPLT_DLKP_CACHE_STATUS = df_MPLT_DLKP_CACHE_STATUS.drop("OUT_TABLE_NAME").withColumnRenamed("TABLE_NAME", "OUT_TABLE_NAME")
-        df_MPLT_DLKP_CACHE_STATUS = df_MPLT_DLKP_CACHE_STATUS.drop("OUT_V_UPD_STRATEGY_STATUS").withColumnRenamed("UPDATE_STRATEGY_STATUS", "OUT_V_UPD_STRATEGY_STATUS")
+        __expr_renames = [
+            ("LAST_REC_TXN_DATE", "OUT_V_LAST_REC_TXN_DATE"),
+            ("LAST_REC_TXN_TYPE_CODE", "OUT_V_LAST_REC_TXN_TYPE_CODE"),
+            ("SOR_DATE", "OUT_SOR_DATE"),
+            ("BGN_DATE", "OUT_V_BGN_DATE"),
+            ("END_DATE", "OUT_V_END_DATE"),
+            ("AGMT_IND", "OUT_AGMT_IND"),
+            ("TABLE_NAME", "OUT_TABLE_NAME"),
+            ("UPDATE_STRATEGY_STATUS", "OUT_V_UPD_STRATEGY_STATUS"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_DLKP_CACHE_STATUS = df_MPLT_DLKP_CACHE_STATUS.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_DLKP_CACHE_STATUS", df_MPLT_DLKP_CACHE_STATUS)
         
         logger.info("Step: apply_UPD_SSAL2_MSTR1")
@@ -1273,7 +1493,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "OUT_AGMT_IND", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY", "LAST_REC_TXN_DATE": "OUT_LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "OUT_LAST_REC_TXN_TYPE_CODE", "OPR_IND": "OUT_OPR_IND", "TPS_AGRMT_BK": "TPS_AGRMT_BK", "TPS_AGRMT_KEY": "TPS_AGRMT_KEY"}
+        _field_map = {"AGMT_IND": "OUT_AGMT_IND", "LAST_REC_TXN_DATE": "OUT_LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "OUT_LAST_REC_TXN_TYPE_CODE", "OPR_IND": "OUT_OPR_IND"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 

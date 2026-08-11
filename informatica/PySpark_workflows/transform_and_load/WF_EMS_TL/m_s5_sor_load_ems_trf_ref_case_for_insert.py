@@ -82,17 +82,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: write_SOR_EMS_TRF_REF_CASE")
         # Write to Target: write_SOR_EMS_TRF_REF_CASE
         df_write = df_SQ_SSA_EMS_TRF_REF_CASE
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "AGMT_IND", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "REF_CASE_BK": "REF_CASE_BK", "REF_CASE_KEY": "REF_CASE_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['REF_CASE_KEY', 'REF_CASE_BK', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
         df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
@@ -114,7 +103,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"APRV_DSTR_CHC_CODE": "APRV_DSTR_CHC_CODE", "BGN_DATE": "BGN_DATE", "CMT_PASS_IND": "CMT_PASS_IND", "CMT_RQR_IND": "CMT_RQR_IND", "CRSP_ADDR_1": "CRSP_ADDR_1", "CRSP_ADDR_2": "CRSP_ADDR_2", "CRSP_ADDR_3": "CRSP_ADDR_3", "CRSP_ADDR_4": "CRSP_ADDR_4", "CRSP_ADDR_5": "CRSP_ADDR_5", "CRS_DSTR_ELGBL_IND": "CRS_DSTR_ELGBL_IND", "CSSA_IND": "CSSA_IND", "CUST_PRMY_CNTC_PHONE_NUM": "CUST_PRMY_CNTC_PHONE_NUM", "CUST_SCND_CNTC_PHONE_NUM": "CUST_SCND_CNTC_PHONE_NUM", "DPO_IND": "DPO_IND", "DPT_RQR_IND": "DPT_RQR_IND", "EFAS_TFR_DBR_END_DATE": "EFAS_TFR_DBR_END_DATE", "EFAS_TFR_DBR_IND": "EFAS_TFR_DBR_IND", "ELDR_MBR_ID_NUM": "ELDR_MBR_ID_NUM", "ELDR_MBR_ID_TYPE_CODE": "ELDR_MBR_ID_TYPE_CODE", "ELDR_MBR_UNIT_KEY": "ELDR_MBR_UNIT_KEY", "END_DATE": "OUT_END_DATE", "EXPCT_CHILD_NUM": "EXPCT_CHILD_NUM", "EXPCT_DLVR_DATE": "EXPCT_DLVR_DATE", "EXTM_URG_CASE_IND": "EXTM_URG_CASE_IND", "FRST_LU_SBMT_DATE": "FRST_LU_SBMT_DATE", "FTR_IFA_FROM_AREA": "FTR_IFA_FROM_AREA", "FTR_IFA_TO_AREA": "FTR_IFA_TO_AREA", "GRD_UP_CNT": "GRD_UP_CNT", "HSHLD_AST_AMT": "HSHLD_AST_AMT", "HSHLD_AST_OVER_IND": "HSHLD_AST_OVER_IND", "HSHLD_INCM_AMT": "HSHLD_INCM_AMT", "HSHLD_INCM_OVER_IND": "HSHLD_INCM_OVER_IND", "IH_INTK_DATE": "IH_INTK_DATE", "INCM_LMT_IND": "INCM_LMT_IND", "LANG_PREF_CODE": "LANG_PREF_CODE", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LIFT_STOP_IND": "LIFT_STOP_IND", "LU_SBMT_DATE": "LU_SBMT_DATE", "LU_STS_CODE": "LU_STS_CODE", "MARK_SCHM_PNT_NUM": "MARK_SCHM_PNT_NUM", "NOT_ACPT_FLAT_IND": "NOT_ACPT_FLAT_IND", "OPR_KEY": "OPR_KEY", "OR_TYPE_CODE": "OR_TYPE_CODE", "OTHR_GRD_UP_RMK_TEXT": "OTHR_GRD_UP_RMK_TEXT", "PAY_MORE_IND": "PAY_MORE_IND", "PAY_MORE_RATE": "PAY_MORE_RATE", "PRH_APLY_SBMT_DATE": "PRH_APLY_SBMT_DATE", "RCMD_RENT_FCTR_CODE": "RCMD_RENT_FCTR_CODE", "RCMD_RENT_RVW_CATG_CODE": "RCMD_RENT_RVW_CATG_CODE", "REF_CASE_APRV_LVL_CODE": "REF_CASE_APRV_LVL_CODE", "REF_CASE_CNFRM_BY_USER_ID": "REF_CASE_CNFRM_BY_USER_ID", "REF_CASE_CNFRM_USER_POST_NAME": "REF_CASE_CNFRM_USER_POST_NAME", "REF_CASE_CRE_DATE": "REF_CASE_CRE_DATE", "REF_CASE_CRE_USER_ID": "REF_CASE_CRE_USER_ID", "REF_CASE_CRE_USER_POST_NAME": "REF_CASE_CRE_USER_POST_NAME", "REF_CASE_KEY": "REF_CASE_KEY", "REF_CASE_STS_CODE": "REF_CASE_STS_CODE", "REF_CASE_STS_UPD_DATE": "REF_CASE_STS_UPD_DATE", "REF_CASE_TYPE_CODE": "REF_CASE_TYPE_CODE", "RENT_EXMPT_IND": "RENT_EXMPT_IND", "RNTBL_AMT": "RNTBL_AMT", "RR_FLFL_IND": "RR_FLFL_IND", "SBMT_TO_USER_ID": "SBMT_TO_USER_ID", "SBMT_TO_USER_POST_NAME": "SBMT_TO_USER_POST_NAME", "SWD_RCMD_IND": "SWD_RCMD_IND", "TFR_NFA_RSN_CODE": "TFR_NFA_RSN_CODE", "TFR_NFA_RSN_TEXT": "TFR_NFA_RSN_TEXT", "TFR_RSN_CODE": "TFR_RSN_CODE", "TFR_RSN_TEXT": "TFR_RSN_TEXT", "TFR_TYPE_CODE": "TFR_TYPE_CODE", "TNCY_AGRMT_KEY": "TNCY_AGRMT_KEY", "UNIT_KEY": "UNIT_KEY"}
+        _field_map = {"END_DATE": "OUT_END_DATE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 

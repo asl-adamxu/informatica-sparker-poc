@@ -94,7 +94,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"AUCT_STL_AMT": "AUCT_STL_AMT", "CUST_KEY": "CUST_KEY", "CUST_MTH_MSN_PRFT_AMT": "CUST_MTH_MSN_PRFT_AMT", "EXCUST_OSTD_DEBT_RMK_TEXT": "EXCUST_OSTD_DEBT_RMK_TEXT", "EXCUST_OSTD_DEBT_STL_AMT": "EXCUST_OSTD_DEBT_STL_AMT", "EXCUST_OSTD_DEBT_STL_DATE": "EXCUST_OSTD_DEBT_STL_DATE", "FRST_EXCUST_OSTD_DEBT_AMT": "FRST_EXCUST_OSTD_DEBT_AMT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY", "HSE_UNIT_KEY": "HSE_UNIT_KEY", "HSE_UNIT_VOID_BGN_DATE": "HSE_UNIT_VOID_BGN_DATE", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE1", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "OPR_IND": "OPR_IND", "SCND_EXCUST_OSTD_DEBT_AMT": "SCND_EXCUST_OSTD_DEBT_AMT", "SYS_RPT_MTH": "SYS_RPT_MTH", "SYS_RPT_YEAR": "SYS_RPT_YEAR", "THRD_EXCUST_OSTD_DEBT_AMT": "THRD_EXCUST_OSTD_DEBT_AMT"}
+        _field_map = {"LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE1"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 

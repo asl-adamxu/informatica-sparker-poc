@@ -149,7 +149,7 @@ OR SYS_RPT_YEAR>TO_NUMBER(SUBSTR('$$EMM_MRRS_RENT_CUTOFF',1,4))"""
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"ADTN_ROOM_IND": "ADTN_ROOM_IND", "CUST_KEY": "CUST_KEY", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE1", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "SYS_RPT_MTH": "SYS_RPT_MTH", "SYS_RPT_YEAR": "SYS_RPT_YEAR", "TNT_ADTN_RENT_AMT": "TNT_ADTN_RENT_AMT", "TNT_MKT_RENT_AMT": "TNT_MKT_RENT_AMT", "TNT_RDC_RENT_AMT": "TNT_RDC_RENT_AMT", "TNT_RENT_CODE": "TNT_RENT_CODE", "UNIT_CODE_ADDR": "UNIT_CODE_ADDR", "UNIT_GRS_RENT_AMT": "UNIT_GRS_RENT_AMT", "UNIT_KEY": "UNIT_KEY", "UNIT_TYPE_CODE": "UNIT_TYPE_CODE"}
+        _field_map = {"LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE1"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 
@@ -169,17 +169,6 @@ OR SYS_RPT_YEAR>TO_NUMBER(SUBSTR('$$EMM_MRRS_RENT_CUTOFF',1,4))"""
         logger.info("Step: write_SOR_EMS_SRP_MRRS_RENT_RCV2")
         # Write to Target: write_SOR_EMS_SRP_MRRS_RENT_RCV2
         df_write = df_UPDTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"SYS_RPT_MTH": "SYS_RPT_MTH", "SYS_RPT_YEAR": "SYS_RPT_YEAR"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Static DD_DELETE: composite primary-key delete of all rows
         _del_key_cols = ['UNIT_KEY', 'SYS_RPT_YEAR', 'SYS_RPT_MTH']
         if not df_write.rdd.isEmpty():

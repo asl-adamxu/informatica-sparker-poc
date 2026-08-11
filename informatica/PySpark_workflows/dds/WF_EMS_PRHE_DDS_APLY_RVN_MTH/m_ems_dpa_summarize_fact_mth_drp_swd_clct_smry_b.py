@@ -270,7 +270,7 @@ where  u.blk_key = b.blk_key"""
         _lkp_input = _lkp_input.withColumn("HSE_UNIT_KEY1", col("UNIT_KEY"))
         # Join condition: HSE_UNIT_KEY1=HSE_UNIT_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = _lkp_input.alias("_main").join(
+        df_lkp_merge_DRP = _lkp_input.alias("_main").join(
             broadcast(df_LKP_EST_KEY_UNIT2).alias("_lkp"),
             (col("_main.HSE_UNIT_KEY1") == col("_lkp.HSE_UNIT_KEY")),
             "left"
@@ -278,7 +278,7 @@ where  u.blk_key = b.blk_key"""
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_EST_KEY_UNIT2[c] for c in df_LKP_EST_KEY_UNIT2.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
+        ctx.register_df("df_lkp_merge_DRP", df_lkp_merge_DRP)        
         logger.info("Step: apply_EXPTRANS411")
         # Expression: apply_EXPTRANS411
         df_EXPTRANS411 = df_DIR_EXCP
@@ -316,7 +316,7 @@ where  u.blk_key = b.blk_key"""
         _lkp_input = _lkp_input.withColumn("HSE_UNIT_KEY1", col("HSE_UNIT_KEY"))
         # Join condition: HSE_UNIT_KEY1=HSE_UNIT_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_2 = _lkp_input.alias("_main").join(
+        df_lkp_merge_DIR = _lkp_input.alias("_main").join(
             broadcast(df_LKP_EST_KEY_UNIT1).alias("_lkp"),
             (col("_main.HSE_UNIT_KEY1") == col("_lkp.HSE_UNIT_KEY")),
             "left"
@@ -324,7 +324,7 @@ where  u.blk_key = b.blk_key"""
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_EST_KEY_UNIT1[c] for c in df_LKP_EST_KEY_UNIT1.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)        
+        ctx.register_df("df_lkp_merge_DIR", df_lkp_merge_DIR)        
         logger.info("Step: read_LKP_EST_KEY_UNIT")
         # Reading Data From Source - read_LKP_EST_KEY_UNIT
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -346,7 +346,7 @@ where  u.blk_key = b.blk_key"""
         _lkp_input = df_EXPTRANS
         # Join condition: HSE_UNIT_KEY1=HSE_UNIT_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_3 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS = _lkp_input.alias("_main").join(
             broadcast(df_LKP_EST_KEY_UNIT).alias("_lkp"),
             (col("_main.HSE_UNIT_KEY1") == col("_lkp.HSE_UNIT_KEY")),
             "left"
@@ -354,10 +354,10 @@ where  u.blk_key = b.blk_key"""
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_EST_KEY_UNIT[c] for c in df_LKP_EST_KEY_UNIT.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_3", df_lkp_merge_3)        
+        ctx.register_df("df_lkp_merge_EXPTRANS", df_lkp_merge_EXPTRANS)        
         logger.info("Step: apply_EXPTRANS42")
         # Expression: apply_EXPTRANS42
-        df_EXPTRANS42 = df_lkp_merge_1
+        df_EXPTRANS42 = df_lkp_merge_DRP
         df_EXPTRANS42 = df_EXPTRANS42.withColumn("MONTH_DATE", expr("date_trunc('MONTH', DRP_TXN_VAL_DATE)"))
         df_EXPTRANS42 = df_EXPTRANS42.withColumn("EXCP_AMT", expr("0"))
         df_EXPTRANS42 = df_EXPTRANS42.withColumn("TXN_NO", expr("'0'"))
@@ -371,25 +371,33 @@ where  u.blk_key = b.blk_key"""
         
         logger.info("Step: apply_RTRTRANS")
         # Router: apply_RTRTRANS - splits into multiple output groups
-        df_rtr_valid_type_4 = df_EXPTRANS411.filter(expr("PRPL_CSSA_APLY_ID_TYPE_CODE = 'BC' OR PRPL_CSSA_APLY_ID_TYPE_CODE = 'IC'"))
-        df_rtr_valid_type_4 = df_rtr_valid_type_4.drop("PRPL_CSSA_APLY_ID_TYPE_CODE1").withColumnRenamed("PRPL_CSSA_APLY_ID_TYPE_CODE", "PRPL_CSSA_APLY_ID_TYPE_CODE1")
-        df_rtr_valid_type_4 = df_rtr_valid_type_4.drop("PRPL_CSSA_APLY_ID_NUM1").withColumnRenamed("PRPL_CSSA_APLY_ID_NUM_OUT", "PRPL_CSSA_APLY_ID_NUM1")
-        df_rtr_valid_type_4 = df_rtr_valid_type_4.drop("MONTH_DATE1").withColumnRenamed("MONTH_DATE", "MONTH_DATE1")
-        df_rtr_valid_type_4 = df_rtr_valid_type_4.drop("SWD_DIR_PYMT_AMT1").withColumnRenamed("SWD_DIR_PYMT_AMT", "SWD_DIR_PYMT_AMT1")
-        df_rtr_valid_type_4 = df_rtr_valid_type_4.drop("NEWFIELD1").withColumnRenamed("NEWFIELD", "NEWFIELD1")
-        ctx.register_df("df_rtr_valid_type_4", df_rtr_valid_type_4)
-        df_rtr_default_5 = df_EXPTRANS411.filter(~(expr("PRPL_CSSA_APLY_ID_TYPE_CODE = 'BC' OR PRPL_CSSA_APLY_ID_TYPE_CODE = 'IC'")))
-        df_rtr_default_5 = df_rtr_default_5.drop("PRPL_CSSA_APLY_ID_TYPE_CODE2").withColumnRenamed("PRPL_CSSA_APLY_ID_TYPE_CODE", "PRPL_CSSA_APLY_ID_TYPE_CODE2")
-        df_rtr_default_5 = df_rtr_default_5.drop("PRPL_CSSA_APLY_ID_NUM2").withColumnRenamed("PRPL_CSSA_APLY_ID_NUM_OUT", "PRPL_CSSA_APLY_ID_NUM2")
-        df_rtr_default_5 = df_rtr_default_5.drop("DIR_PYMT_EXCP_KEY2").withColumnRenamed("DIR_PYMT_EXCP_KEY1", "DIR_PYMT_EXCP_KEY2")
-        df_rtr_default_5 = df_rtr_default_5.drop("MONTH_DATE2").withColumnRenamed("MONTH_DATE", "MONTH_DATE2")
-        df_rtr_default_5 = df_rtr_default_5.drop("SWD_DIR_PYMT_AMT2").withColumnRenamed("SWD_DIR_PYMT_AMT", "SWD_DIR_PYMT_AMT2")
-        df_rtr_default_5 = df_rtr_default_5.drop("NEWFIELD2").withColumnRenamed("NEWFIELD", "NEWFIELD2")
-        ctx.register_df("df_rtr_default_5", df_rtr_default_5)
-        
+        df_rtr_RTRTRANS_VALID_TYPE = df_EXPTRANS411.filter(expr("PRPL_CSSA_APLY_ID_TYPE_CODE = 'BC' OR PRPL_CSSA_APLY_ID_TYPE_CODE = 'IC'"))
+        __rtr_renames = [
+            ("PRPL_CSSA_APLY_ID_TYPE_CODE", "PRPL_CSSA_APLY_ID_TYPE_CODE1"),
+            ("PRPL_CSSA_APLY_ID_NUM_OUT", "PRPL_CSSA_APLY_ID_NUM1"),
+            ("MONTH_DATE", "MONTH_DATE1"),
+            ("SWD_DIR_PYMT_AMT", "SWD_DIR_PYMT_AMT1"),
+            ("NEWFIELD", "NEWFIELD1"),
+        ]
+        for _old, _new in __rtr_renames:
+            df_rtr_RTRTRANS_VALID_TYPE = df_rtr_RTRTRANS_VALID_TYPE.drop(_new).withColumnRenamed(_old, _new)
+        ctx.register_df("df_rtr_RTRTRANS_VALID_TYPE", df_rtr_RTRTRANS_VALID_TYPE)
+        df_rtr_RTRTRANS_DEFAULT = df_EXPTRANS411.filter(~(expr("PRPL_CSSA_APLY_ID_TYPE_CODE = 'BC' OR PRPL_CSSA_APLY_ID_TYPE_CODE = 'IC'")))
+        __rtr_renames = [
+            ("PRPL_CSSA_APLY_ID_TYPE_CODE", "PRPL_CSSA_APLY_ID_TYPE_CODE2"),
+            ("PRPL_CSSA_APLY_ID_NUM_OUT", "PRPL_CSSA_APLY_ID_NUM2"),
+            ("DIR_PYMT_EXCP_KEY1", "DIR_PYMT_EXCP_KEY2"),
+            ("MONTH_DATE", "MONTH_DATE2"),
+            ("SWD_DIR_PYMT_AMT", "SWD_DIR_PYMT_AMT2"),
+            ("NEWFIELD", "NEWFIELD2"),
+        ]
+        for _old, _new in __rtr_renames:
+            df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop(_new).withColumnRenamed(_old, _new)
+        ctx.register_df("df_rtr_RTRTRANS_DEFAULT", df_rtr_RTRTRANS_DEFAULT)
+
         logger.info("Step: apply_EXPTRANS41")
         # Expression: apply_EXPTRANS41
-        df_EXPTRANS41 = df_lkp_merge_2
+        df_EXPTRANS41 = df_lkp_merge_DIR
         df_EXPTRANS41 = df_EXPTRANS41.withColumn("MONTH_DATE", expr("date_trunc('MONTH', SWD_DIR_PYMT_INTF_DATE)"))
         df_EXPTRANS41 = df_EXPTRANS41.withColumn("EXCP_AMT", expr("0"))
         df_EXPTRANS41 = df_EXPTRANS41.withColumn("DIR_PYMT_KEY1", expr("cast(DIR_PYMT_KEY as string)"))
@@ -404,7 +412,7 @@ where  u.blk_key = b.blk_key"""
         
         logger.info("Step: apply_EXPTRANS4")
         # Expression: apply_EXPTRANS4
-        df_EXPTRANS4 = df_lkp_merge_3
+        df_EXPTRANS4 = df_lkp_merge_EXPTRANS
         df_EXPTRANS4 = df_EXPTRANS4.withColumn("EST_KEY1", expr("CASE WHEN (EST_KEY IS NULL) THEN 0 ELSE EST_KEY END"))
         df_EXPTRANS4 = df_EXPTRANS4.withColumn("MONTH_DATE", expr("date_trunc('MONTH', DRP_TXN_VAL_DATE)"))
         df_EXPTRANS4 = df_EXPTRANS4.withColumn("EXCP_PYMT_TXN_KEY_OUT", expr("cast(EXCP_PYMT_TXN_KEY as string)"))
@@ -418,7 +426,7 @@ where  u.blk_key = b.blk_key"""
         
         logger.info("Step: apply_EXPTRANS5")
         # Expression: apply_EXPTRANS5
-        df_EXPTRANS5 = df_rtr_default_5
+        df_EXPTRANS5 = df_rtr_RTRTRANS_DEFAULT
         df_EXPTRANS5 = df_EXPTRANS5.withColumn("EST_KEY", expr("0"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         # Keep all upstream columns + computed columns (no select filtering)
@@ -453,10 +461,10 @@ and ADD_MONTHS(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'), 1)-1 BETWEEN SOR_EMS_TA
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_EST_KEY_MBR_ID = df_LKP_EST_KEY_MBR_ID.dropDuplicates(subset=["CUST_MBR_ID_TYPE_CODE", "CUST_MBR_ID_NUM"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_rtr_valid_type_4
+        _lkp_input = df_rtr_RTRTRANS_VALID_TYPE
         # Join condition: PRPL_CSSA_APLY_ID_TYPE_CODE1=CUST_MBR_ID_TYPE_CODE AND PRPL_CSSA_APLY_ID_NUM1=CUST_MBR_ID_NUM
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_6 = _lkp_input.alias("_main").join(
+        df_lkp_merge_RTRTRANS = _lkp_input.alias("_main").join(
             broadcast(df_LKP_EST_KEY_MBR_ID).alias("_lkp"),
             (col("_main.PRPL_CSSA_APLY_ID_TYPE_CODE1") == col("_lkp.CUST_MBR_ID_TYPE_CODE")) &
             (col("_main.PRPL_CSSA_APLY_ID_NUM1") == col("_lkp.CUST_MBR_ID_NUM")),
@@ -465,10 +473,10 @@ and ADD_MONTHS(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'), 1)-1 BETWEEN SOR_EMS_TA
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_EST_KEY_MBR_ID[c] for c in df_LKP_EST_KEY_MBR_ID.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_6", df_lkp_merge_6)        
+        ctx.register_df("df_lkp_merge_RTRTRANS", df_lkp_merge_RTRTRANS)        
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
-        df_EXPTRANS1 = df_lkp_merge_6
+        df_EXPTRANS1 = df_lkp_merge_RTRTRANS
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("EST_KEY1", expr("CASE WHEN (EST_KEY IS NULL) THEN 0 ELSE EST_KEY END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         # Keep all upstream columns + computed columns (no select filtering)
@@ -478,40 +486,40 @@ and ADD_MONTHS(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'), 1)-1 BETWEEN SOR_EMS_TA
         # Union: apply_Union_Transformation1
         # Select + rename upstream columns per input, then union
         df_Union_Transformation1_drp_excp = df_EXPTRANS4.select(
-            col("MONTH_DATE").alias("MONTH_DATE"),
-            col("EST_KEY1").alias("EST_KEY"),
-            col("SWD_CASE_FILE_REF_NUM").alias("CASE_NO"),
-            col("DRP_PYMT_AMT").alias("EXCP_AMT"),
-            col("EXCP_PYMT_TXN_KEY_OUT").alias("TXN_NO"),
-            col("NEWFIELD").alias("SOURCE")        )
+col("MONTH_DATE"),
+col("EST_KEY1").alias("EST_KEY"),
+col("SWD_CASE_FILE_REF_NUM").alias("CASE_NO"),
+col("DRP_PYMT_AMT").alias("EXCP_AMT"),
+col("EXCP_PYMT_TXN_KEY_OUT").alias("TXN_NO"),
+col("NEWFIELD").alias("SOURCE")        )
         df_Union_Transformation1_drp = df_EXPTRANS42.select(
-            col("MONTH_DATE").alias("MONTH_DATE"),
-            col("EST_KEY").alias("EST_KEY"),
-            col("SWD_CASE_FILE_REF_NUM").alias("CASE_NO"),
-            col("EXCP_AMT").alias("EXCP_AMT"),
-            col("TXN_NO").alias("TXN_NO"),
-            col("NEWFIELD").alias("SOURCE")        )
+col("MONTH_DATE"),
+col("EST_KEY"),
+col("SWD_CASE_FILE_REF_NUM").alias("CASE_NO"),
+col("EXCP_AMT"),
+col("TXN_NO"),
+col("NEWFIELD").alias("SOURCE")        )
         df_Union_Transformation1_dir_excp_no_id = df_EXPTRANS5.select(
-            col("MONTH_DATE2").alias("MONTH_DATE"),
-            col("EST_KEY").alias("EST_KEY"),
-            col("DIR_PYMT_EXCP_KEY2").alias("CASE_NO"),
-            col("SWD_DIR_PYMT_AMT2").alias("EXCP_AMT"),
-            col("DIR_PYMT_EXCP_KEY2").alias("TXN_NO"),
-            col("NEWFIELD2").alias("SOURCE")        )
+col("MONTH_DATE2").alias("MONTH_DATE"),
+col("EST_KEY"),
+col("DIR_PYMT_EXCP_KEY2").alias("CASE_NO"),
+col("SWD_DIR_PYMT_AMT2").alias("EXCP_AMT"),
+col("DIR_PYMT_EXCP_KEY2").alias("TXN_NO"),
+col("NEWFIELD2").alias("SOURCE")        )
         df_Union_Transformation1_dir = df_EXPTRANS41.select(
-            col("MONTH_DATE").alias("MONTH_DATE"),
-            col("EST_KEY").alias("EST_KEY"),
-            col("DIR_PYMT_KEY1").alias("CASE_NO"),
-            col("EXCP_AMT").alias("EXCP_AMT"),
-            col("TXN_NO").alias("TXN_NO"),
-            col("NEWFIELD").alias("SOURCE")        )
+col("MONTH_DATE"),
+col("EST_KEY"),
+col("DIR_PYMT_KEY1").alias("CASE_NO"),
+col("EXCP_AMT"),
+col("TXN_NO"),
+col("NEWFIELD").alias("SOURCE")        )
         df_Union_Transformation1_dir_excp_with_id = df_EXPTRANS1.select(
-            col("MONTH_DATE1").alias("MONTH_DATE"),
-            col("EST_KEY1").alias("EST_KEY"),
-            col("DIR_PYMT_EXCP_KEY1").alias("CASE_NO"),
-            col("SWD_DIR_PYMT_AMT1").alias("EXCP_AMT"),
-            col("DIR_PYMT_EXCP_KEY1").alias("TXN_NO"),
-            col("NEWFIELD1").alias("SOURCE")        )
+col("MONTH_DATE1").alias("MONTH_DATE"),
+col("EST_KEY1").alias("EST_KEY"),
+col("DIR_PYMT_EXCP_KEY1").alias("CASE_NO"),
+col("SWD_DIR_PYMT_AMT1").alias("EXCP_AMT"),
+col("DIR_PYMT_EXCP_KEY1").alias("TXN_NO"),
+col("NEWFIELD1").alias("SOURCE")        )
         df_Union_Transformation1 = df_Union_Transformation1_drp_excp
         df_Union_Transformation1 = df_Union_Transformation1.unionByName(df_Union_Transformation1_drp, allowMissingColumns=True)
         df_Union_Transformation1 = df_Union_Transformation1.unionByName(df_Union_Transformation1_dir_excp_no_id, allowMissingColumns=True)
@@ -580,7 +588,7 @@ WHERE TRUNC(TIME_DMNS_KEY/100000000) =2"""
         _lkp_input = df_GROUPBY_EST
         # Join condition: MONTH_DATE=TIME_VAL_DATE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_7 = _lkp_input.alias("_main").join(
+        df_lkp_merge_GROUPBY_EST = _lkp_input.alias("_main").join(
             broadcast(df_LKP_TIME_DMNS_KEY).alias("_lkp"),
             (col("_main.MONTH_DATE") == col("_lkp.TIME_VAL_DATE")),
             "left"
@@ -588,7 +596,7 @@ WHERE TRUNC(TIME_DMNS_KEY/100000000) =2"""
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_TIME_DMNS_KEY[c] for c in df_LKP_TIME_DMNS_KEY.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_7", df_lkp_merge_7)        
+        ctx.register_df("df_lkp_merge_GROUPBY_EST", df_lkp_merge_GROUPBY_EST)        
         logger.info("Step: read_LKP_RVN_TXN_MODE_DMNS_KEY")
         # Reading Data From Source - read_LKP_RVN_TXN_MODE_DMNS_KEY
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -600,11 +608,11 @@ WHERE TRUNC(TIME_DMNS_KEY/100000000) =2"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_RVN_TXN_MODE_DMNS_KEY = df_LKP_RVN_TXN_MODE_DMNS_KEY.dropDuplicates(subset=["RVN_TXN_MODE_CODE"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_7
+        _lkp_input = df_lkp_merge_GROUPBY_EST
         _lkp_input = _lkp_input.withColumn("TXN_MTHD_TYPE_CODE1", col("RVN_TXN_MODE_CODE"))
         # Join condition: TXN_MTHD_TYPE_CODE1=RVN_TXN_MODE_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_7 = _lkp_input.alias("_main").join(
+        df_lkp_merge_GROUPBY_EST = _lkp_input.alias("_main").join(
             broadcast(df_LKP_RVN_TXN_MODE_DMNS_KEY).alias("_lkp"),
             (col("_main.TXN_MTHD_TYPE_CODE1") == col("_lkp.RVN_TXN_MODE_CODE")),
             "left"
@@ -630,11 +638,11 @@ where ADD_MONTHS(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'), 1)-1 between bgn_date
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_EST_SCD_KEY = df_LKP_EST_SCD_KEY.dropDuplicates(subset=["EST_KEY"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_7
+        _lkp_input = df_lkp_merge_GROUPBY_EST
         _lkp_input = _lkp_input.withColumn("EST_KEY1", col("EST_KEY"))
         # Join condition: EST_KEY1=EST_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_7 = _lkp_input.alias("_main").join(
+        df_lkp_merge_GROUPBY_EST = _lkp_input.alias("_main").join(
             broadcast(df_LKP_EST_SCD_KEY).alias("_lkp"),
             (col("_main.EST_KEY1") == col("_lkp.EST_KEY")),
             "left"
@@ -645,7 +653,7 @@ where ADD_MONTHS(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'), 1)-1 between bgn_date
         
         logger.info("Step: apply_EXPTRANS3")
         # Expression: apply_EXPTRANS3
-        df_EXPTRANS3 = df_lkp_merge_7
+        df_EXPTRANS3 = df_lkp_merge_GROUPBY_EST
         df_EXPTRANS3 = df_EXPTRANS3.withColumn("EST_SCD_KEY1", expr("CASE WHEN (EST_SCD_KEY IS NULL) THEN 0 ELSE EST_SCD_KEY END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         # Keep all upstream columns + computed columns (no select filtering)
@@ -657,11 +665,10 @@ where ADD_MONTHS(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'), 1)-1 between bgn_date
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"DRP_CASE_CNT": "CASE_CNT", "DRP_REJ_TXN_CNT": "TXN_CNT", "DRP_REJ_TXN_PYMT_ITEM_AMT": "EXCP_AMT", "EST_SCD_KEY": "EST_SCD_KEY1", "RVN_TXN_MODE_DMNS_KEY": "RVN_TXN_MODE_DMNS_KEY", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
+        _field_map = {"DRP_CASE_CNT": "CASE_CNT", "DRP_REJ_TXN_CNT": "TXN_CNT", "DRP_REJ_TXN_PYMT_ITEM_AMT": "EXCP_AMT", "EST_SCD_KEY": "EST_SCD_KEY1"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

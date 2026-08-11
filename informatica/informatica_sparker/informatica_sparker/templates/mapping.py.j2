@@ -276,11 +276,15 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         {% set filter_renames = step.params.get('filter_renames', []) %}
         {% if filter_renames %}
         __fil_input = {{ step.df_input }}
+        __fil_renames = [
         {% for r in filter_renames %}
-        {% if r.from != r.to %}
-        __fil_input = __fil_input.drop("{{ r.to }}").withColumnRenamed("{{ r.from }}", "{{ r.to }}")
+        {% if r.from | lower != r.to | lower %}
+            ("{{ r.from }}", "{{ r.to }}"),
         {% endif %}
         {% endfor %}
+        ]
+        for _old, _new in __fil_renames:
+            __fil_input = __fil_input.drop(_new).withColumnRenamed(_old, _new)
         {% else %}
         __fil_input = {{ step.df_input }}
         {% endif %}
@@ -330,12 +334,19 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
             "left"
         ).drop({% for jp in lkp_join.join_predicates %}"_lkp_jk_{{ jp.lookup_col }}"{% if not loop.last %}, {% endif %}{% endfor %})
         {% endfor %}
-        {% for rc in step.params.get('rename_columns', []) %}
+        {% set rename_columns = step.params.get('rename_columns', []) %}
+        {% if rename_columns %}
+        __expr_renames = [
+        {% for rc in rename_columns %}
         {% set _src, _tgt = rc %}
-        {% if _src != _tgt %}
-        {{ step.df_output }} = {{ step.df_output }}.drop("{{ _tgt }}").withColumnRenamed("{{ _src }}", "{{ _tgt }}")
+        {% if _src | lower != _tgt | lower %}
+            ("{{ _src }}", "{{ _tgt }}"),
         {% endif %}
         {% endfor %}
+        ]
+        for _old, _new in __expr_renames:
+            {{ step.df_output }} = {{ step.df_output }}.drop(_new).withColumnRenamed(_old, _new)
+        {% endif %}
         {% set pass_through_cols = [] %}
         {% for col in step.params.get('computed_columns', []) %}
         {% set expr_str = col.get('expression', 'NULL') %}
@@ -672,11 +683,15 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         {% set sort_cols = step.params.get('sort_columns', []) %}
         {% if sorter_renames %}
         __srt_input = {{ step.df_input }}
+        __srt_renames = [
         {% for r in sorter_renames %}
-        {% if r.from != r.to %}
-        __srt_input = __srt_input.drop("{{ r.to }}").withColumnRenamed("{{ r.from }}", "{{ r.to }}")
+        {% if r.from | lower != r.to | lower %}
+            ("{{ r.from }}", "{{ r.to }}"),
         {% endif %}
         {% endfor %}
+        ]
+        for _old, _new in __srt_renames:
+            __srt_input = __srt_input.drop(_new).withColumnRenamed(_old, _new)
         {% else %}
         __srt_input = {{ step.df_input }}
         {% endif %}
@@ -716,8 +731,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Select + rename upstream columns per input, then union
         {% for us in union_selects %}
         {{ us.intermediate_var }} = {{ us.df_input }}.select(
-            {% for s in us.selects %}
-            col("{{ s.from }}").alias("{{ s.to }}"){% if not loop.last %},{{ '\n' }}{% endif %}{% endfor %}
+            {% for s in us.selects %}{% if s.from | lower == s.to | lower %}col("{{ s.from }}"){% else %}col("{{ s.from }}").alias("{{ s.to }}"){% endif %}{% if not loop.last %},{{ '\n' }}{% endif %}{% endfor %}
         )
         {% endfor %}
         {{ step.df_output }} = {{ union_selects[0].intermediate_var }}
@@ -754,6 +768,58 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         {{ _rtr_var }} = {{ _rtr_var }}.replace("{{ var_name }}", {{ clean_name }}){{ '\n' }}{% endfor %}
         {% endif %}
         {% endfor %}
+        {% if step.params.get('multi_feed') %}
+        {# Multi-input router: build the input as a UNION of all upstream
+           feeds, NULL-filled per Router INPUT port (port aliases from the XML
+           connectors), then apply the ORDERED group split (first match wins) #}
+        _feed_specs = [
+        {% for _feed in step.params.get('feeds', []) %}
+            ({{ _feed[0] }}, {{ _feed[1] | topython }}),
+        {% endfor %}
+        ]
+        _rtr_ports = []
+        for _df, _aliases in _feed_specs:
+            for _c in _df.columns:
+                _p = _aliases.get(_c, _c)
+                if _p.lower() not in [x.lower() for x in _rtr_ports]:
+                    _rtr_ports.append(_p)
+        _feed_views = []
+        for _df, _aliases in _feed_specs:
+            _rev = {_v: _k for _k, _v in _aliases.items()}
+            _sel = []
+            for _p in _rtr_ports:
+                if _p in _rev:
+                    if _rev[_p].lower() in [x.lower() for x in _df.columns]:
+                        _sel.append(col(_rev[_p]).alias(_p))
+                    else:
+                        _sel.append(lit(None).alias(_p))
+                elif _p.lower() in [x.lower() for x in _df.columns] and _p not in _aliases:
+                    _sel.append(col(_p))
+                else:
+                    _sel.append(lit(None).alias(_p))
+            _feed_views.append(_df.select(*_sel))
+        df_rtr_input = _feed_views[0]
+        {% for _i in range(1, step.params.get('feeds', []) | length) %}
+        df_rtr_input = df_rtr_input.unionByName(_feed_views[{{ _i }}])
+        {% endfor %}
+        ctx.register_df("df_rtr_input", df_rtr_input)
+        {% for group in step.params.get('groups', []) %}
+        {{ group.get('df_output', 'df_group') }} = df_rtr_input.filter({{ group.get('condition', 'expr("TRUE")') }})
+        {% set group_renames = group.get('renames', []) %}
+        {% if group_renames %}
+        __rtr_renames = [
+        {% for rename in group_renames %}
+        {% if rename.from | lower != rename.to | lower %}
+            ("{{ rename.from }}", "{{ rename.to }}"),
+        {% endif %}
+        {% endfor %}
+        ]
+        for _old, _new in __rtr_renames:
+            {{ group.get('df_output', 'df_group') }} = {{ group.get('df_output', 'df_group') }}.drop(_new).withColumnRenamed(_old, _new)
+        {% endif %}
+        ctx.register_df("{{ group.get('df_output', 'df_group') }}", {{ group.get('df_output', 'df_group') }})
+        {% endfor %}
+        {% else %}
         {# Second pass: render each group using the predefined variables #}
         {% for group in step.params.get('groups', []) %}
         {% if mapping_variables and group.get('filter_inner') and '$$' in group.get('filter_inner') %}
@@ -769,14 +835,22 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         {% else %}
         {{ group.get('df_output', 'df_group') }} = {{ step.df_input }}  # Default group
         {% endif %}
-        {% for rename in group.get('renames', []) %}
-        {% if rename.from != rename.to %}
-        {{ group.get('df_output', 'df_group') }} = {{ group.get('df_output', 'df_group') }}.drop("{{ rename.to }}").withColumnRenamed("{{ rename.from }}", "{{ rename.to }}")
+        {% set group_renames = group.get('renames', []) %}
+        {% if group_renames %}
+        __rtr_renames = [
+        {% for rename in group_renames %}
+        {% if rename.from | lower != rename.to | lower %}
+            ("{{ rename.from }}", "{{ rename.to }}"),
         {% endif %}
         {% endfor %}
+        ]
+        for _old, _new in __rtr_renames:
+            {{ group.get('df_output', 'df_group') }} = {{ group.get('df_output', 'df_group') }}.drop(_new).withColumnRenamed(_old, _new)
+        {% endif %}
         ctx.register_df("{{ group.get('df_output', 'df_group') }}", {{ group.get('df_output', 'df_group') }})
         {% endfor %}
-        
+        {% endif %}
+
         {% elif step.step_type == IRStepType.APPLY_SEQUENCE %}
         # Sequence Generator: {{ step.step_name }}
         {{ step.df_output }} = {{ step.df_input }}.withColumn(

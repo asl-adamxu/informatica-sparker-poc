@@ -102,7 +102,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"ASGN_SLCTR_ID": "ASGN_SLCTR_ID", "BGN_DATE": "BGN_DATE", "END_DATE": "OUT_END_DATE", "HOS_OWN_KEY": "HOS_OWN_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "INS", "OVRD_INTRST_AMT": "OVRD_INTRST_AMT", "PCHSR_SLCTR_ENG_NAME": "PCHSR_SLCTR_ENG_NAME", "PCHS_STL_BANK_RCV_DATE": "PCHS_STL_BANK_RCV_DATE", "PCHS_STL_DATE": "PCHS_STL_DATE", "PCHS_STL_KEY": "PCHS_STL_KEY", "PCHS_STL_OSTD_AMT": "PCHS_STL_OSTD_AMT", "PCHS_STL_RSCN_DATE": "PCHS_STL_RSCN_DATE", "PCHS_STL_VRFY_DATE": "PCHS_STL_VRFY_DATE", "ROW_VER_NUM": "ROW_VER_NUM", "SLCTR_INPT_BSNS_DATE": "SLCTR_INPT_BSNS_DATE"}
+        _field_map = {"END_DATE": "OUT_END_DATE", "LAST_REC_TXN_TYPE_CODE": "INS"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 
@@ -123,17 +123,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: write_SOR_NHS_PCHS_STL")
         # Write to Target: write_SOR_NHS_PCHS_STL
         df_write = df_EXP_REC_TXN_TYPE_CODE_INS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "AGMT_IND", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "NHS_PCHS_STL_KEY": "NHS_PCHS_STL_KEY", "PCHS_STL_KEY": "PCHS_STL_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['PCHS_STL_KEY', 'NHS_PCHS_STL_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
         df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])

@@ -125,17 +125,6 @@ OR SYS_RPT_YEAR>TO_NUMBER(SUBSTR('$$EMM_MRRS_RENT_CUTOFF',1,4))"""
         logger.info("Step: write_SOR_EMS_SRP_MRRS_VOID_RENT")
         # Write to Target: write_SOR_EMS_SRP_MRRS_VOID_RENT
         df_write = df_SQ_SSA_EMS_SRP_MRRS_VOID_RENT
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"CRP_VOID_RENT_AMT": "CRP_VOID_RENT_AMT", "CUST_KEY": "CUST_KEY", "FIT_OUT_BGN_DATE": "FIT_OUT_BGN_DATE", "FIT_OUT_END_DATE": "FIT_OUT_END_DATE", "FIT_OUT_RENT_WVE_AMT": "FIT_OUT_RENT_WVE_AMT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY", "HSE_UNIT_CODE_ADDR": "HSE_UNIT_CODE_ADDR", "HSE_UNIT_KEY": "HSE_UNIT_KEY", "HSE_UNIT_MTH_RENT_AMT": "HSE_UNIT_MTH_RENT_AMT", "HSE_UNIT_RLET_DATE": "HSE_UNIT_RLET_DATE", "HSE_UNIT_VOID_BGN_DATE": "HSE_UNIT_VOID_BGN_DATE", "IEFCT_EA_HSE_IND": "IEFCT_EA_HSE_IND", "IEFCT_EA_QTR_IND": "IEFCT_EA_QTR_IND", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "NONCRP_RENT_VOID_AMT": "NONCRP_RENT_VOID_AMT", "SYS_RPT_MTH": "SYS_RPT_MTH", "SYS_RPT_YEAR": "SYS_RPT_YEAR", "TPS_VOID_RENT_AMT": "TPS_VOID_RENT_AMT", "VCNT_RENT_AMT": "VCNT_RENT_AMT", "VOID_RENT_BK": "VOID_RENT_BK", "VOID_RENT_KEY": "VOID_RENT_KEY", "VOID_RENT_RMK_TEXT": "VOID_RENT_RMK_TEXT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Add NULL for unmapped target columns (schema parity) - excluding identity columns
         df_write = df_write.withColumn("TNCY_AGRMT_KEY", lit(None).cast(StringType()))
         # Select only target-defined columns (field_map already handled name alignment)
@@ -156,17 +145,6 @@ OR SYS_RPT_YEAR>TO_NUMBER(SUBSTR('$$EMM_MRRS_RENT_CUTOFF',1,4))"""
         logger.info("Step: write_SOR_EMS_SRP_MRRS_VOID_RENT1")
         # Write to Target: write_SOR_EMS_SRP_MRRS_VOID_RENT1
         df_write = df_UPDTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"SYS_RPT_MTH": "SYS_RPT_MTH", "SYS_RPT_YEAR": "SYS_RPT_YEAR"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Static DD_DELETE: composite primary-key delete of all rows
         _del_key_cols = ['VOID_RENT_KEY', 'SYS_RPT_YEAR', 'SYS_RPT_MTH']
         if not df_write.rdd.isEmpty():

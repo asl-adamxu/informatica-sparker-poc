@@ -126,17 +126,6 @@ OR SYS_RPT_YEAR>TO_NUMBER(SUBSTR('$$EMM_MRRS_RENT_CUTOFF',1,4))"""
         logger.info("Step: write_SOR_EMS_MRRS_EXTNT_OSTD_DEBT")
         # Write to Target: write_SOR_EMS_MRRS_EXTNT_OSTD_DEBT
         df_write = df_SQ_SSA_EMS_MRRS_EXTNT_OSTD_DEBT
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AUCT_STL_AMT": "AUCT_STL_AMT", "CUST_KEY": "CUST_KEY", "CUST_MTH_RENT_AMT": "CUST_MTH_RENT_AMT", "EXTNT_OSTD_DEBT_BK": "EXTNT_OSTD_DEBT_BK", "EXTNT_OSTD_DEBT_KEY": "EXTNT_OSTD_DEBT_KEY", "EXTNT_OSTD_DEBT_RMK_TEXT": "EXTNT_OSTD_DEBT_RMK_TEXT", "EXTNT_OSTD_DEBT_STL_AMT": "EXTNT_OSTD_DEBT_STL_AMT", "EXTNT_OSTD_DEBT_STL_DATE": "EXTNT_OSTD_DEBT_STL_DATE", "FRST_EXTNT_OSTD_DEBT_AMT": "FRST_EXTNT_OSTD_DEBT_AMT", "FRTH_EXTNT_OSTD_DEBT_AMT": "FRTH_EXTNT_OSTD_DEBT_AMT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY", "HSE_UNIT_CODE_ADDR": "HSE_UNIT_CODE_ADDR", "HSE_UNIT_KEY": "HSE_UNIT_KEY", "HSE_UNIT_VOID_BGN_DATE": "HSE_UNIT_VOID_BGN_DATE", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "SCND_EXTNT_OSTD_DEBT_AMT": "SCND_EXTNT_OSTD_DEBT_AMT", "SYS_RPT_MTH": "SYS_RPT_MTH", "SYS_RPT_YEAR": "SYS_RPT_YEAR", "THRD_EXTNT_OSTD_DEBT_AMT": "THRD_EXTNT_OSTD_DEBT_AMT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Add NULL for unmapped target columns (schema parity) - excluding identity columns
         df_write = df_write.withColumn("TNCY_AGRMT_KEY", lit(None).cast(StringType()))
         # Select only target-defined columns (field_map already handled name alignment)
@@ -157,17 +146,6 @@ OR SYS_RPT_YEAR>TO_NUMBER(SUBSTR('$$EMM_MRRS_RENT_CUTOFF',1,4))"""
         logger.info("Step: write_SOR_EMS_MRRS_EXTNT_OSTD_DEBT2")
         # Write to Target: write_SOR_EMS_MRRS_EXTNT_OSTD_DEBT2
         df_write = df_UPDTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"SYS_RPT_MTH": "SYS_RPT_MTH", "SYS_RPT_YEAR": "SYS_RPT_YEAR"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Static DD_DELETE: composite primary-key delete of all rows
         _del_key_cols = ['EXTNT_OSTD_DEBT_KEY', 'SYS_RPT_YEAR', 'SYS_RPT_MTH']
         if not df_write.rdd.isEmpty():

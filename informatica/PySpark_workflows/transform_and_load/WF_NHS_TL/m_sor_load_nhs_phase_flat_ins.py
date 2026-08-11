@@ -102,7 +102,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"ASGN_SLCTR_ID": "ASGN_SLCTR_ID", "BGN_DATE": "BGN_DATE", "END_DATE": "OUT_END_DATE", "FLAT_TYPE_CODE": "FLAT_TYPE_CODE", "FLAT_TYPE_DESP": "FLAT_TYPE_DESP", "FRST_ASGN_DATE": "FRST_ASGN_DATE", "GSH_IND": "GSH_IND", "INFLT_PCT_1": "INFLT_PCT_1", "INFLT_PCT_2": "INFLT_PCT_2", "INTL_MKT_VAL_AMT": "INTL_MKT_VAL_AMT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "INS", "LIST_PRC_AMT": "LIST_PRC_AMT", "PHASE_FLAT_KEY": "PHASE_FLAT_KEY", "PRMY_ENV_CHI_DESP": "PRMY_ENV_CHI_DESP", "PRMY_ENV_CODE": "PRMY_ENV_CODE", "PRMY_ENV_ENG_DESP": "PRMY_ENV_ENG_DESP", "ROW_VER_NUM": "ROW_VER_NUM", "SALE_PRC_AMT": "SALE_PRC_AMT", "SCND_ENV_CHI_DESP_1": "SCND_ENV_CHI_DESP_1", "SCND_ENV_CHI_DESP_2": "SCND_ENV_CHI_DESP_2", "SCND_ENV_CHI_DESP_3": "SCND_ENV_CHI_DESP_3", "SCND_ENV_CHI_DESP_4": "SCND_ENV_CHI_DESP_4", "SCND_ENV_CODE_1": "SCND_ENV_CODE_1", "SCND_ENV_CODE_2": "SCND_ENV_CODE_2", "SCND_ENV_CODE_3": "SCND_ENV_CODE_3", "SCND_ENV_CODE_4": "SCND_ENV_CODE_4", "SCND_ENV_ENG_DESP_1": "SCND_ENV_ENG_DESP_1", "SCND_ENV_ENG_DESP_2": "SCND_ENV_ENG_DESP_2", "SCND_ENV_ENG_DESP_3": "SCND_ENV_ENG_DESP_3", "SCND_ENV_ENG_DESP_4": "SCND_ENV_ENG_DESP_4", "SDV_AMT": "SDV_AMT", "STMP_DUTY_AMT_1": "STMP_DUTY_AMT_1", "STMP_DUTY_AMT_2": "STMP_DUTY_AMT_2", "STMP_DUTY_AMT_3": "STMP_DUTY_AMT_3"}
+        _field_map = {"END_DATE": "OUT_END_DATE", "LAST_REC_TXN_TYPE_CODE": "INS"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 
@@ -124,17 +124,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: write_SOR_NHS_PHASE_FLAT")
         # Write to Target: write_SOR_NHS_PHASE_FLAT
         df_write = df_EXP_REC_TXN_TYPE_CODE_INS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "AGMT_IND", "HOS_FLAT_KEY": "HOS_FLAT_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "NHS_PHASE_CODE": "NHS_PHASE_CODE", "PHASE_FLAT_KEY": "PHASE_FLAT_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Add NULL for unmapped target columns (schema parity) - excluding identity columns
         df_write = df_write.withColumn("PHASE_KEY", lit(None).cast(StringType()))
         # Select only target-defined columns (field_map already handled name alignment)

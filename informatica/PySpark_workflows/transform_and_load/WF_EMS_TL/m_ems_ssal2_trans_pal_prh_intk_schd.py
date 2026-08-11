@@ -444,7 +444,11 @@ SELECT SSA_EMS_SRF_RENT_FCTR_CODE.RENT_FCTR_KEY as RENT_FCTR_KEY, SSA_EMS_SRF_RE
         logger.info("Step: rename_EXP_NULL_BKEY")
         # Expression: rename_EXP_NULL_BKEY
         df_MPLT_AGMT_EMS_RENT_FCTR_rename_EXP_NULL_BKEY = df_MPLT_AGMT_EMS_RENT_FCTR_input
-        df_MPLT_AGMT_EMS_RENT_FCTR_rename_EXP_NULL_BKEY = df_MPLT_AGMT_EMS_RENT_FCTR_rename_EXP_NULL_BKEY.drop("IN_BKEY").withColumnRenamed("IN_BK", "IN_BKEY")
+        __expr_renames = [
+            ("IN_BK", "IN_BKEY"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_RENT_FCTR_rename_EXP_NULL_BKEY = df_MPLT_AGMT_EMS_RENT_FCTR_rename_EXP_NULL_BKEY.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_RENT_FCTR_rename_EXP_NULL_BKEY", df_MPLT_AGMT_EMS_RENT_FCTR_rename_EXP_NULL_BKEY)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_RENT_FCTR_EXP_NULL_BKEY")
@@ -458,7 +462,11 @@ SELECT SSA_EMS_SRF_RENT_FCTR_CODE.RENT_FCTR_KEY as RENT_FCTR_KEY, SSA_EMS_SRF_RE
         logger.info("Step: rename_EXPTRANS")
         # Expression: rename_EXPTRANS
         df_MPLT_AGMT_EMS_RENT_FCTR_rename_EXPTRANS = df_MPLT_AGMT_EMS_RENT_FCTR_EXP_NULL_BKEY
-        df_MPLT_AGMT_EMS_RENT_FCTR_rename_EXPTRANS = df_MPLT_AGMT_EMS_RENT_FCTR_rename_EXPTRANS.drop("IN_CUST_BK").withColumnRenamed("OUT_BKEY", "IN_CUST_BK")
+        __expr_renames = [
+            ("OUT_BKEY", "IN_CUST_BK"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_RENT_FCTR_rename_EXPTRANS = df_MPLT_AGMT_EMS_RENT_FCTR_rename_EXPTRANS.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_RENT_FCTR_rename_EXPTRANS", df_MPLT_AGMT_EMS_RENT_FCTR_rename_EXPTRANS)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_RENT_FCTR_EXPTRANS")
@@ -514,7 +522,11 @@ SELECT SSA_EMS_SRF_RENT_FCTR_CODE.RENT_FCTR_KEY as RENT_FCTR_KEY, SSA_EMS_SRF_RE
         logger.info("Step: rename_EXP_SK")
         # Expression: rename_EXP_SK
         df_MPLT_AGMT_EMS_RENT_FCTR_rename_EXP_SK = df_mplt_lkp_chain_MPLT_AGMT_EMS_RENT_FCTR_EXPTRANS
-        df_MPLT_AGMT_EMS_RENT_FCTR_rename_EXP_SK = df_MPLT_AGMT_EMS_RENT_FCTR_rename_EXP_SK.drop("SOR_CACHE_STATUS").withColumnRenamed("NewLookupRow_LKP_DYN_SOR_EMS_SRF_RENT_FCTR_CODE", "SOR_CACHE_STATUS")
+        __expr_renames = [
+            ("NewLookupRow_LKP_DYN_SOR_EMS_SRF_RENT_FCTR_CODE", "SOR_CACHE_STATUS"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_RENT_FCTR_rename_EXP_SK = df_MPLT_AGMT_EMS_RENT_FCTR_rename_EXP_SK.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_RENT_FCTR_rename_EXP_SK", df_MPLT_AGMT_EMS_RENT_FCTR_rename_EXP_SK)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_RENT_FCTR_EXP_SK")
@@ -569,7 +581,11 @@ SELECT SSA_EMS_SRF_RENT_FCTR_CODE.RENT_FCTR_KEY as RENT_FCTR_KEY, SSA_EMS_SRF_RE
         logger.info("Step: rename_EXPTRANS1")
         # Expression: rename_EXPTRANS1
         df_MPLT_AGMT_EMS_RENT_FCTR_rename_EXPTRANS1 = df_mplt_lkp_chain_MPLT_AGMT_EMS_RENT_FCTR_EXP_SK
-        df_MPLT_AGMT_EMS_RENT_FCTR_rename_EXPTRANS1 = df_MPLT_AGMT_EMS_RENT_FCTR_rename_EXPTRANS1.drop("SSA_CACHE_STATUS").withColumnRenamed("NewLookupRow_LKP_DYN_SSA_EMS_SRF_RENT_FCTR_CODE", "SSA_CACHE_STATUS")
+        __expr_renames = [
+            ("NewLookupRow_LKP_DYN_SSA_EMS_SRF_RENT_FCTR_CODE", "SSA_CACHE_STATUS"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_RENT_FCTR_rename_EXPTRANS1 = df_MPLT_AGMT_EMS_RENT_FCTR_rename_EXPTRANS1.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_RENT_FCTR_rename_EXPTRANS1", df_MPLT_AGMT_EMS_RENT_FCTR_rename_EXPTRANS1)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_RENT_FCTR_EXPTRANS1")
@@ -588,8 +604,12 @@ SELECT SSA_EMS_SRF_RENT_FCTR_CODE.RENT_FCTR_KEY as RENT_FCTR_KEY, SSA_EMS_SRF_RE
         logger.info("Step: apply_MPLT_AGMT_EMS_RENT_FCTR")
         # Expression: apply_MPLT_AGMT_EMS_RENT_FCTR
         df_MPLT_AGMT_EMS_RENT_FCTR = df_MPLT_AGMT_EMS_RENT_FCTR_EXPTRANS1
-        df_MPLT_AGMT_EMS_RENT_FCTR = df_MPLT_AGMT_EMS_RENT_FCTR.drop("OUT_DLPK_SOR_CACHE").withColumnRenamed("SOR_CACHE_STATUS", "OUT_DLPK_SOR_CACHE")
-        df_MPLT_AGMT_EMS_RENT_FCTR = df_MPLT_AGMT_EMS_RENT_FCTR.drop("OUT_AUG_IND").withColumnRenamed("V_AUG_IND", "OUT_AUG_IND")
+        __expr_renames = [
+            ("SOR_CACHE_STATUS", "OUT_DLPK_SOR_CACHE"),
+            ("V_AUG_IND", "OUT_AUG_IND"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_RENT_FCTR = df_MPLT_AGMT_EMS_RENT_FCTR.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_RENT_FCTR", df_MPLT_AGMT_EMS_RENT_FCTR)
         
         logger.info("Step: input_MPLT_AGMT_EMS_RENT_RVW_CATG")
@@ -601,7 +621,11 @@ SELECT SSA_EMS_SRF_RENT_FCTR_CODE.RENT_FCTR_KEY as RENT_FCTR_KEY, SSA_EMS_SRF_RE
         logger.info("Step: rename_EXP_NULL_BKEY")
         # Expression: rename_EXP_NULL_BKEY
         df_MPLT_AGMT_EMS_RENT_RVW_CATG_rename_EXP_NULL_BKEY = df_MPLT_AGMT_EMS_RENT_RVW_CATG_input
-        df_MPLT_AGMT_EMS_RENT_RVW_CATG_rename_EXP_NULL_BKEY = df_MPLT_AGMT_EMS_RENT_RVW_CATG_rename_EXP_NULL_BKEY.drop("IN_BKEY").withColumnRenamed("IN_BK", "IN_BKEY")
+        __expr_renames = [
+            ("IN_BK", "IN_BKEY"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_RENT_RVW_CATG_rename_EXP_NULL_BKEY = df_MPLT_AGMT_EMS_RENT_RVW_CATG_rename_EXP_NULL_BKEY.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_RENT_RVW_CATG_rename_EXP_NULL_BKEY", df_MPLT_AGMT_EMS_RENT_RVW_CATG_rename_EXP_NULL_BKEY)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_RENT_RVW_CATG_EXP_NULL_BKEY")
@@ -665,7 +689,11 @@ SELECT SSA_EMS_SRF_RENT_FCTR_CODE.RENT_FCTR_KEY as RENT_FCTR_KEY, SSA_EMS_SRF_RE
         logger.info("Step: rename_EXP_SK")
         # Expression: rename_EXP_SK
         df_MPLT_AGMT_EMS_RENT_RVW_CATG_rename_EXP_SK = df_mplt_lkp_chain_MPLT_AGMT_EMS_RENT_RVW_CATG_EXPTRANS
-        df_MPLT_AGMT_EMS_RENT_RVW_CATG_rename_EXP_SK = df_MPLT_AGMT_EMS_RENT_RVW_CATG_rename_EXP_SK.drop("SOR_CACHE_STATUS").withColumnRenamed("NewLookupRow_LKP_DYN_SOR_EMS_RENT_RVW_CATG_CODE", "SOR_CACHE_STATUS")
+        __expr_renames = [
+            ("NewLookupRow_LKP_DYN_SOR_EMS_RENT_RVW_CATG_CODE", "SOR_CACHE_STATUS"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_RENT_RVW_CATG_rename_EXP_SK = df_MPLT_AGMT_EMS_RENT_RVW_CATG_rename_EXP_SK.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_RENT_RVW_CATG_rename_EXP_SK", df_MPLT_AGMT_EMS_RENT_RVW_CATG_rename_EXP_SK)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_RENT_RVW_CATG_EXP_SK")
@@ -720,7 +748,11 @@ SELECT SSA_EMS_SRF_RENT_FCTR_CODE.RENT_FCTR_KEY as RENT_FCTR_KEY, SSA_EMS_SRF_RE
         logger.info("Step: rename_EXPTRANS1")
         # Expression: rename_EXPTRANS1
         df_MPLT_AGMT_EMS_RENT_RVW_CATG_rename_EXPTRANS1 = df_mplt_lkp_chain_MPLT_AGMT_EMS_RENT_RVW_CATG_EXP_SK
-        df_MPLT_AGMT_EMS_RENT_RVW_CATG_rename_EXPTRANS1 = df_MPLT_AGMT_EMS_RENT_RVW_CATG_rename_EXPTRANS1.drop("SSA_CACHE_STATUS").withColumnRenamed("NewLookupRow_LKP_DYN_SSA_EMS_RENT_RVW_CATG_CODE", "SSA_CACHE_STATUS")
+        __expr_renames = [
+            ("NewLookupRow_LKP_DYN_SSA_EMS_RENT_RVW_CATG_CODE", "SSA_CACHE_STATUS"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_RENT_RVW_CATG_rename_EXPTRANS1 = df_MPLT_AGMT_EMS_RENT_RVW_CATG_rename_EXPTRANS1.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_RENT_RVW_CATG_rename_EXPTRANS1", df_MPLT_AGMT_EMS_RENT_RVW_CATG_rename_EXPTRANS1)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_RENT_RVW_CATG_EXPTRANS1")
@@ -739,8 +771,12 @@ SELECT SSA_EMS_SRF_RENT_FCTR_CODE.RENT_FCTR_KEY as RENT_FCTR_KEY, SSA_EMS_SRF_RE
         logger.info("Step: apply_MPLT_AGMT_EMS_RENT_RVW_CATG")
         # Expression: apply_MPLT_AGMT_EMS_RENT_RVW_CATG
         df_MPLT_AGMT_EMS_RENT_RVW_CATG = df_MPLT_AGMT_EMS_RENT_RVW_CATG_EXPTRANS1
-        df_MPLT_AGMT_EMS_RENT_RVW_CATG = df_MPLT_AGMT_EMS_RENT_RVW_CATG.drop("OUT_DLPK_SOR_CACHE").withColumnRenamed("SOR_CACHE_STATUS", "OUT_DLPK_SOR_CACHE")
-        df_MPLT_AGMT_EMS_RENT_RVW_CATG = df_MPLT_AGMT_EMS_RENT_RVW_CATG.drop("OUT_AUG_IND").withColumnRenamed("V_AUG_IND", "OUT_AUG_IND")
+        __expr_renames = [
+            ("SOR_CACHE_STATUS", "OUT_DLPK_SOR_CACHE"),
+            ("V_AUG_IND", "OUT_AUG_IND"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_RENT_RVW_CATG = df_MPLT_AGMT_EMS_RENT_RVW_CATG.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_RENT_RVW_CATG", df_MPLT_AGMT_EMS_RENT_RVW_CATG)
         
         logger.info("Step: apply_FILTRANS32")
@@ -770,7 +806,11 @@ SELECT SSA_EMS_SRF_RENT_FCTR_CODE.RENT_FCTR_KEY as RENT_FCTR_KEY, SSA_EMS_SRF_RE
         logger.info("Step: rename_EXP_NULL_BKEY")
         # Expression: rename_EXP_NULL_BKEY
         df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXP_NULL_BKEY = df_MPLT_AGMT_EMS_CPM_CUST_APLY_input
-        df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXP_NULL_BKEY = df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXP_NULL_BKEY.drop("IN_BKEY").withColumnRenamed("IN_CUST_APLY_BK", "IN_BKEY")
+        __expr_renames = [
+            ("IN_CUST_APLY_BK", "IN_BKEY"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXP_NULL_BKEY = df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXP_NULL_BKEY.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXP_NULL_BKEY", df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXP_NULL_BKEY)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CPM_CUST_APLY_EXP_NULL_BKEY")
@@ -784,7 +824,11 @@ SELECT SSA_EMS_SRF_RENT_FCTR_CODE.RENT_FCTR_KEY as RENT_FCTR_KEY, SSA_EMS_SRF_RE
         logger.info("Step: rename_EXPTRANS")
         # Expression: rename_EXPTRANS
         df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXPTRANS = df_MPLT_AGMT_EMS_CPM_CUST_APLY_EXP_NULL_BKEY
-        df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXPTRANS = df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXPTRANS.drop("IN_CUST_APLY_BK").withColumnRenamed("OUT_BKEY", "IN_CUST_APLY_BK")
+        __expr_renames = [
+            ("OUT_BKEY", "IN_CUST_APLY_BK"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXPTRANS = df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXPTRANS.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXPTRANS", df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXPTRANS)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CPM_CUST_APLY_EXPTRANS")
@@ -839,7 +883,11 @@ SELECT SSA_EMS_SRF_RENT_FCTR_CODE.RENT_FCTR_KEY as RENT_FCTR_KEY, SSA_EMS_SRF_RE
         logger.info("Step: rename_EXP_SK")
         # Expression: rename_EXP_SK
         df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXP_SK = df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_APLY_EXPTRANS
-        df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXP_SK = df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXP_SK.drop("SOR_CACHE_STATUS").withColumnRenamed("NewLookupRow_LKP_DYN_SOR_EMS_CPM_CUST_APLY", "SOR_CACHE_STATUS")
+        __expr_renames = [
+            ("NewLookupRow_LKP_DYN_SOR_EMS_CPM_CUST_APLY", "SOR_CACHE_STATUS"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXP_SK = df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXP_SK.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXP_SK", df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXP_SK)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CPM_CUST_APLY_EXP_SK")
@@ -894,7 +942,11 @@ SELECT SSA_EMS_SRF_RENT_FCTR_CODE.RENT_FCTR_KEY as RENT_FCTR_KEY, SSA_EMS_SRF_RE
         logger.info("Step: rename_EXPTRANS1")
         # Expression: rename_EXPTRANS1
         df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXPTRANS1 = df_mplt_lkp_chain_MPLT_AGMT_EMS_CPM_CUST_APLY_EXP_SK
-        df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXPTRANS1 = df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXPTRANS1.drop("SSA_CACHE_STATUS").withColumnRenamed("NewLookupRow_LKP_DYN_SSA_EMS_CPM_CUST_APLY", "SSA_CACHE_STATUS")
+        __expr_renames = [
+            ("NewLookupRow_LKP_DYN_SSA_EMS_CPM_CUST_APLY", "SSA_CACHE_STATUS"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXPTRANS1 = df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXPTRANS1.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXPTRANS1", df_MPLT_AGMT_EMS_CPM_CUST_APLY_rename_EXPTRANS1)
         
         logger.info("Step: apply_MPLT_AGMT_EMS_CPM_CUST_APLY_EXPTRANS1")
@@ -913,8 +965,12 @@ SELECT SSA_EMS_SRF_RENT_FCTR_CODE.RENT_FCTR_KEY as RENT_FCTR_KEY, SSA_EMS_SRF_RE
         logger.info("Step: apply_MPLT_AGMT_EMS_CPM_CUST_APLY")
         # Expression: apply_MPLT_AGMT_EMS_CPM_CUST_APLY
         df_MPLT_AGMT_EMS_CPM_CUST_APLY = df_MPLT_AGMT_EMS_CPM_CUST_APLY_EXPTRANS1
-        df_MPLT_AGMT_EMS_CPM_CUST_APLY = df_MPLT_AGMT_EMS_CPM_CUST_APLY.drop("OUT_DLPK_SOR_CACHE").withColumnRenamed("SOR_CACHE_STATUS", "OUT_DLPK_SOR_CACHE")
-        df_MPLT_AGMT_EMS_CPM_CUST_APLY = df_MPLT_AGMT_EMS_CPM_CUST_APLY.drop("OUT_AUG_IND").withColumnRenamed("V_AUG_IND", "OUT_AUG_IND")
+        __expr_renames = [
+            ("SOR_CACHE_STATUS", "OUT_DLPK_SOR_CACHE"),
+            ("V_AUG_IND", "OUT_AUG_IND"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_AGMT_EMS_CPM_CUST_APLY = df_MPLT_AGMT_EMS_CPM_CUST_APLY.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_AGMT_EMS_CPM_CUST_APLY", df_MPLT_AGMT_EMS_CPM_CUST_APLY)
         
         logger.info("Step: apply_EXPTRANS21")
@@ -951,7 +1007,7 @@ SELECT SSA_EMS_SRF_RENT_FCTR_CODE.RENT_FCTR_KEY as RENT_FCTR_KEY, SSA_EMS_SRF_RE
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "OUT_AUG_IND", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "OPR_IND": "OPR_IND", "RENT_FCTR_CODE": "RENT_FCTR_CODE", "RENT_FCTR_KEY": "RENT_FCTR_KEY"}
+        _field_map = {"AGMT_IND": "OUT_AUG_IND"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 
@@ -974,7 +1030,7 @@ SELECT SSA_EMS_SRF_RENT_FCTR_CODE.RENT_FCTR_KEY as RENT_FCTR_KEY, SSA_EMS_SRF_RE
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "OUT_AUG_IND", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "OPR_IND": "OPR_IND", "RENT_RVW_CATG_CODE": "RENT_RVW_CATG_CODE", "RENT_RVW_CATG_KEY": "RENT_RVW_CATG_KEY"}
+        _field_map = {"AGMT_IND": "OUT_AUG_IND"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 
@@ -1008,7 +1064,7 @@ SELECT SSA_EMS_SRF_RENT_FCTR_CODE.RENT_FCTR_KEY as RENT_FCTR_KEY, SSA_EMS_SRF_RE
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "OUT_AUG_IND", "CUST_APLY_BK": "CUST_APLY_BK", "CUST_APLY_KEY": "CUST_APLY_KEY", "CUST_KEY": "CUST_KEY", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "OPR_IND": "OPR_IND"}
+        _field_map = {"AGMT_IND": "OUT_AUG_IND"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 

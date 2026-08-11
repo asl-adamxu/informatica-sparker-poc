@@ -102,7 +102,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"ASGN_SLCTR_ID": "ASGN_SLCTR_ID", "ASP_CNCL_DATE": "ASP_CNCL_DATE", "ASP_CNCL_IND": "ASP_CNCL_IND", "ASP_CRE_TS": "ASP_CRE_TS", "ASP_CRE_USER_ID": "ASP_CRE_USER_ID", "ASP_SIGN_DATE": "ASP_SIGN_DATE", "ASP_TMPL_ID": "ASP_TMPL_ID", "BGN_DATE": "BGN_DATE", "CHQ_PAID_AMT": "CHQ_PAID_AMT", "CNCL_RMK_TEXT": "CNCL_RMK_TEXT", "CRT_TYPE_CODE": "CRT_TYPE_CODE", "CSHR_ORD_NUM_1": "CSHR_ORD_NUM_1", "CSHR_ORD_NUM_2": "CSHR_ORD_NUM_2", "CSHR_ORD_NUM_3": "CSHR_ORD_NUM_3", "CSHR_ORD_PAID_AMT": "CSHR_ORD_PAID_AMT", "EFAS_PRIOR_NUM_SFX_NUM": "EFAS_PRIOR_NUM_SFX_NUM", "ELCT_SRVC_APLY_IND": "ELCT_SRVC_APLY_IND", "ELDR_MBR_IND_1": "ELDR_MBR_IND_1", "ELDR_MBR_IND_2": "ELDR_MBR_IND_2", "ELDR_MBR_IND_3": "ELDR_MBR_IND_3", "END_DATE": "OUT_END_DATE", "FLAT_SLCT_KEY": "FLAT_SLCT_KEY", "FRST_ASGN_DATE": "FRST_ASGN_DATE", "HOS_APLY_KEY": "HOS_APLY_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "INS", "MBR_ID_CERT_NUM_1": "MBR_ID_CERT_NUM_1", "MBR_ID_CERT_NUM_2": "MBR_ID_CERT_NUM_2", "MBR_ID_CERT_NUM_3": "MBR_ID_CERT_NUM_3", "MBR_ID_NUM_1": "MBR_ID_NUM_1", "MBR_ID_NUM_2": "MBR_ID_NUM_2", "MBR_ID_NUM_3": "MBR_ID_NUM_3", "MBR_ID_TYPE_CODE_1": "MBR_ID_TYPE_CODE_1", "MBR_ID_TYPE_CODE_2": "MBR_ID_TYPE_CODE_2", "MBR_ID_TYPE_CODE_3": "MBR_ID_TYPE_CODE_3", "PAID_AMT": "PAID_AMT", "PCHSR_DUE_DATE": "PCHSR_DUE_DATE", "PHASE_ASP_KEY": "PHASE_ASP_KEY", "PHASE_CODE": "PHASE_CODE", "PRIOR_CATG_GRP_CODE": "PRIOR_CATG_GRP_CODE", "PRIOR_NUM": "PRIOR_NUM", "PYMT_DUE_DATE": "PYMT_DUE_DATE", "ROW_VER_NUM": "ROW_VER_NUM", "RSCN_DATE": "RSCN_DATE", "TPS_UNIT_ADDR": "TPS_UNIT_ADDR", "VDR_DUE_DATE": "VDR_DUE_DATE", "WSD_SRVC_APLY_IND": "WSD_SRVC_APLY_IND"}
+        _field_map = {"END_DATE": "OUT_END_DATE", "LAST_REC_TXN_TYPE_CODE": "INS"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 
@@ -124,17 +124,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: write_SOR_NHS_PHASE_ASP")
         # Write to Target: write_SOR_NHS_PHASE_ASP
         df_write = df_EXP_REC_TXN_TYPE_CODE_INS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "AGMT_IND", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "NHS_PHASE_ASP_ID": "NHS_PHASE_ASP_ID", "PHASE_ASP_KEY": "PHASE_ASP_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Add NULL for unmapped target columns (schema parity) - excluding identity columns
         df_write = df_write.withColumn("PHASE_KEY", lit(None).cast(StringType()))
         df_write = df_write.withColumn("NHS_PHASE_CODE", lit(None).cast(StringType()))

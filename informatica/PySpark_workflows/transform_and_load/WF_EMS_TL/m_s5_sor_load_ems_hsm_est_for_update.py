@@ -67,17 +67,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: write_SOR_HSM_EST")
         # Write to Target: write_SOR_HSM_EST
         df_write = df_SQ_SSA_HSM_EST
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "AGMT_IND", "DLP_IND": "DLP_IND", "EMMS_EST_KEY": "EMMS_EST_KEY", "EST_AREA": "EST_AREA", "EST_CHI_NAME": "EST_CHI_NAME", "EST_CODE": "EST_CODE", "EST_INTM_HSE_IND": "EST_INTM_HSE_IND", "EST_KEY": "EST_KEY", "EST_NAME": "EST_NAME", "EST_TYPE_CODE": "EST_TYPE_CODE", "HSE_EST_CNSTY_AREA_CODE": "HSE_EST_CNSTY_AREA_CODE", "HSE_EST_LOT_CODE_1": "HSE_EST_LOT_CODE_1", "HSE_EST_LOT_CODE_2": "HSE_EST_LOT_CODE_2", "HSE_EST_LOT_DESP_1": "HSE_EST_LOT_DESP_1", "HSE_EST_LOT_DESP_2": "HSE_EST_LOT_DESP_2", "HSE_EST_TOT_UNDVD_SHR_AREA_1": "HSE_EST_TOT_UNDVD_SHR_AREA_1", "HSE_EST_TOT_UNDVD_SHR_AREA_2": "HSE_EST_TOT_UNDVD_SHR_AREA_2", "LAND_RGSTR_CODE": "LAND_RGSTR_CODE", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "ORG_KEY": "ORG_KEY", "PMA_IND": "PMA_IND", "TPS_IND": "TPS_IND"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['EST_KEY', 'EST_TYPE_CODE', 'EST_NAME', 'EST_CHI_NAME', 'EST_AREA', 'EST_CODE', 'EST_INTM_HSE_IND', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'EMMS_EST_KEY', 'TPS_IND', 'PMA_IND', 'DLP_IND', 'ORG_KEY', 'HSE_EST_CNSTY_AREA_CODE', 'HSE_EST_LOT_CODE_1', 'HSE_EST_LOT_CODE_2', 'HSE_EST_LOT_DESP_1', 'HSE_EST_LOT_DESP_2', 'HSE_EST_TOT_UNDVD_SHR_AREA_1', 'HSE_EST_TOT_UNDVD_SHR_AREA_2', 'LAND_RGSTR_CODE']
         df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])

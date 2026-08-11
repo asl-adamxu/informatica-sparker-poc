@@ -90,17 +90,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: write_SOR_EMS_WTP_DCLR")
         # Write to Target: write_SOR_EMS_WTP_DCLR
         df_write = df_SQ_SSA_EMS_WTP_DCLR
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "AGMT_IND", "EMS_WTP_REC_KEY": "EMS_WTP_REC_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "WTP_DCLR_REC_KEY": "WTP_DCLR_REC_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Add NULL for unmapped target columns (schema parity) - excluding identity columns
         df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
         # Select only target-defined columns (field_map already handled name alignment)
@@ -116,7 +105,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"BGN_DATE": "BGN_DATE", "CMT_SBTYP_CODE": "CMT_SBTYP_CODE", "CUST_KEY": "CUST_KEY", "END_DATE": "OUT_END_DATE", "FMLY_SIZE_NUM": "FMLY_SIZE_NUM", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY", "HSHLD_AST_AMT": "HSHLD_AST_AMT", "HSHLD_INCM_AMT": "HSHLD_INCM_AMT", "INT37_PRN_DATE": "INT37_PRN_DATE", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "ORIG_HSE_SRVC_APLY_KEY": "ORIG_HSE_SRVC_APLY_KEY", "RENT_BGN_DATE": "RENT_BGN_DATE", "RENT_CHNG_RSN_CODE": "RENT_CHNG_RSN_CODE", "RENT_CHNG_RSN_TEXT": "RENT_CHNG_RSN_TEXT", "RENT_END_DATE": "RENT_END_DATE", "RENT_FCTR_CODE": "RENT_FCTR_CODE", "UNIT_KEY": "UNIT_KEY", "WTP25_PRN_DATE": "WTP25_PRN_DATE", "WTP26_PRN_DATE": "WTP26_PRN_DATE", "WTP28_PRN_DATE": "WTP28_PRN_DATE", "WTP29_PRN_DATE": "WTP29_PRN_DATE", "WTP30_PRN_DATE": "WTP30_PRN_DATE", "WTP31_PRN_DATE": "WTP31_PRN_DATE", "WTP32_PRN_DATE": "WTP32_PRN_DATE", "WTP33_PRN_DATE": "WTP33_PRN_DATE", "WTP34_PRN_DATE": "WTP34_PRN_DATE", "WTP35_PRN_DATE": "WTP35_PRN_DATE", "WTP36_PRN_DATE": "WTP36_PRN_DATE", "WTP37_PRN_DATE": "WTP37_PRN_DATE", "WTP38_PRN_DATE": "WTP38_PRN_DATE", "WTP_CYCL_YEAR_MTH_KEY": "WTP_CYCL_YEAR_MTH_KEY", "WTP_DCLR_FORM_RCV_IND": "WTP_DCLR_FORM_RCV_IND", "WTP_DCLR_REC_KEY": "WTP_DCLR_REC_KEY", "WTP_DSBL_ALWN_RCPT_IND": "WTP_DSBL_ALWN_RCPT_IND", "WTP_EXTRC_DATE": "WTP_EXTRC_DATE", "WTP_HK_DPO_IND": "WTP_HK_DPO_IND", "WTP_HSHLD_AST_OVER_IND": "WTP_HSHLD_AST_OVER_IND", "WTP_HSHLD_INCM_OVER_IND": "WTP_HSHLD_INCM_OVER_IND", "WTP_OPT_NOT_DCLR_IND": "WTP_OPT_NOT_DCLR_IND", "WTP_REF_PHRM_IND": "WTP_REF_PHRM_IND", "WTP_RMK_TEXT": "WTP_RMK_TEXT", "WTP_STS_CODE": "WTP_STS_CODE"}
+        _field_map = {"END_DATE": "OUT_END_DATE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 

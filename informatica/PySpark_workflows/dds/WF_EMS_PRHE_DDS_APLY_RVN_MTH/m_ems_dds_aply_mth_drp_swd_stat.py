@@ -165,7 +165,7 @@ and u.unit_key = ta2.unit_key"""
         _lkp_input = _lkp_input.withColumn("TNCY_AGRMT_BK1", col("TNCY_AGRMT_BK"))
         # Join condition: TNCY_AGRMT_BK1=TNCY_AGRMT_BK
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS2 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_UNIT_ADDR_CODE).alias("_lkp"),
             (col("_main.TNCY_AGRMT_BK1") == col("_lkp.TNCY_AGRMT_BK")),
             "left"
@@ -173,7 +173,7 @@ and u.unit_key = ta2.unit_key"""
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_UNIT_ADDR_CODE[c] for c in df_LKP_UNIT_ADDR_CODE.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
+        ctx.register_df("df_lkp_merge_EXPTRANS2", df_lkp_merge_EXPTRANS2)        
         logger.info("Step: read_LKP_CUST_EXPCT_CHILD_NUM")
         # Reading Data From Source - read_LKP_CUST_EXPCT_CHILD_NUM
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -195,11 +195,11 @@ and ADD_MONTHS(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'), 1)-1 between SOR_EMS_CP
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_CUST_EXPCT_CHILD_NUM = df_LKP_CUST_EXPCT_CHILD_NUM.dropDuplicates(subset=["CUST_APLY_BK"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_1
+        _lkp_input = df_lkp_merge_EXPTRANS2
         _lkp_input = _lkp_input.withColumn("CUST_APLY_BK_IN", col("TNCY_AGRMT_BK"))
         # Join condition: CUST_APLY_BK_IN=CUST_APLY_BK
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS2 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_CUST_EXPCT_CHILD_NUM).alias("_lkp"),
             (col("_main.CUST_APLY_BK_IN") == col("_lkp.CUST_APLY_BK")),
             "left"
@@ -250,11 +250,13 @@ GROUP BY
         
         logger.info("Step: apply_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_LKP_ELD_MTH")
         # Lookup: apply_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_LKP_ELD_MTH
+        # Use First Value / Use Any Value: dedup by join keys
+        df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_LKP_ELD_MTH = df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_LKP_ELD_MTH.dropDuplicates(subset=["TNCY_AGRMT_BK"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_1
+        _lkp_input = df_lkp_merge_EXPTRANS2
         # Join condition: TNCY_AGRMT_BK=TNCY_AGRMT_BK
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_2 = _lkp_input.alias("_main").join(
+        df_mplt_lkp_chain_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_lkp_merge_EXPTRANS2 = _lkp_input.alias("_main").join(
             broadcast(df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_LKP_ELD_MTH).alias("_lkp"),
             (col("_main.TNCY_AGRMT_BK") == col("_lkp.TNCY_AGRMT_BK")),
             "left"
@@ -262,10 +264,10 @@ GROUP BY
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_LKP_ELD_MTH[c] for c in df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_LKP_ELD_MTH.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_mplt_lkp_chain_2", df_mplt_lkp_chain_2)        
+        ctx.register_df("df_mplt_lkp_chain_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_lkp_merge_EXPTRANS2", df_mplt_lkp_chain_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_lkp_merge_EXPTRANS2)        
         logger.info("Step: apply_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31")
         # Expression: apply_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31
-        df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31 = df_mplt_lkp_chain_2
+        df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31 = df_mplt_lkp_chain_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_lkp_merge_EXPTRANS2
         df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31 = df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31.withColumn("ELD_IND", expr("CASE WHEN NOT ((ELD_CNT IS NULL)) AND ELD_CNT > 0 THEN 'Y' ELSE 'N' END"))
         df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31 = df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31.withColumn("AEM_IND", expr("CASE WHEN NOT ((ELD_CNT IS NULL)) AND ELD_CNT = HSHLD_SIZE THEN 'Y' ELSE 'N' END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
@@ -278,39 +280,24 @@ GROUP BY
         logger.info("Step: apply_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY")
         # Expression: apply_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY
         df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY = df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY_EXPTRANS31
-        df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY = df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY.drop("EDR_IND").withColumnRenamed("ELD_IND", "EDR_IND")
+        __expr_renames = [
+            ("ELD_IND", "EDR_IND"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY = df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY", df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY)
-        
-        logger.info("Step: merge_EXPTRANS1_0")
-        # Lookup: merge_EXPTRANS1_0
-        # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
-        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
-        _cc = list(dict.fromkeys(c for c in df_lkp_merge_1.columns if c.lower() in [x.lower() for x in df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY.columns]))
-        if _cc:
-            __lkp_dup = [c for c in df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY.columns if c.lower() in [x.lower() for x in df_lkp_merge_1.columns] and c.lower() not in [x.lower() for x in _cc]]
-            df_merge_3 = df_lkp_merge_1.join(
-                df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY.drop(*__lkp_dup) if __lkp_dup else df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY,
-                on=_cc, how="left"
-            )
-        else:
-            logger.warning("No common columns between df_lkp_merge_1 and df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY — using synthetic key join")
-            df_merge_3 = df_lkp_merge_1.withColumn("_join_key", lit(1)).join(
-                df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY.withColumn("_join_key", lit(1)),
-                on="_join_key", how="left").drop("_join_key")
-        ctx.register_df("df_merge_3", df_merge_3)
         
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
-        df_EXPTRANS1 = df_merge_3
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("TXN_DATE1", expr("date_format(TXN_DATE, 'yyyymmdd')"))
+        df_EXPTRANS1 = df_MPLT_EMS_GET_MTHLY_AEM_BY_TNCY_AGRMT_KEY
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("TXN_DATE1", expr("date_format(TXN_DATE, 'yyyyMMdd')"))
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("DRP_AMT1", expr("lpad(cast(cast(cast(TXN_PYMT_ITEM_AMT as string) as decimal) as string),9,' ')"))
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("HSHLD_SIZE1", expr("lpad(cast(CASE WHEN (HSHLD_SIZE IS NULL) THEN 0 ELSE HSHLD_SIZE END as string),2,'0')"))
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("CUST_EXPCT_CHILD_NUM1", expr("CASE WHEN (CUST_EXPCT_CHILD_NUM IS NULL) THEN '0' ELSE cast(CUST_EXPCT_CHILD_NUM as string) END"))
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("DRP_PYMT_SEQ_NUM_OUT", expr("lpad(cast(DRP_PYMT_SEQ_NUM as string),6)"))
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("SWD_CASE_FILE_REF_NUM_OUT", expr("lpad(SWD_CASE_FILE_REF_NUM,15)"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("DRP_PYMT_FROM_DATE_OUT", expr("date_format(DRP_PYMT_FROM_DATE, 'yyyymmdd')"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("DRP_PYMT_TO_DATE_OUT", expr("date_format(DRP_PYMT_TO_DATE, 'yyyymmdd')"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("DRP_PYMT_FROM_DATE_OUT", expr("date_format(DRP_PYMT_FROM_DATE, 'yyyyMMdd')"))
+        df_EXPTRANS1 = df_EXPTRANS1.withColumn("DRP_PYMT_TO_DATE_OUT", expr("date_format(DRP_PYMT_TO_DATE, 'yyyyMMdd')"))
         df_EXPTRANS1 = df_EXPTRANS1.withColumn("DRP_CUST_CNT_OUT", expr("lpad(cast(DRP_CUST_CNT as string),2)"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["UNIT_ADDR_CODE", "TXN_MTHD_CODE", "AEM_IND"]:
@@ -325,11 +312,10 @@ GROUP BY
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"DRP_CUST_CNT": "DRP_CUST_CNT_OUT", "DRP_PYMT_FROM_DATE": "DRP_PYMT_FROM_DATE_OUT", "DRP_PYMT_SEQ_NUM": "DRP_PYMT_SEQ_NUM_OUT", "DRP_PYMT_TO_DATE": "DRP_PYMT_TO_DATE_OUT", "EXPCT_CHILD_CNT": "CUST_EXPCT_CHILD_NUM1", "FMLY_MBR_CNT": "HSHLD_SIZE1", "HSHLD_AEM_IND": "AEM_IND", "RVN_TXN_MODE_CODE": "TXN_MTHD_CODE", "SWD_CASE_FILE_REF_NUM": "SWD_CASE_FILE_REF_NUM_OUT", "TXN_DATE": "TXN_DATE1", "TXN_PYMT_ITEM_AMT": "DRP_AMT1", "UNIT_ADDR_CODE": "UNIT_ADDR_CODE"}
+        _field_map = {"DRP_CUST_CNT": "DRP_CUST_CNT_OUT", "DRP_PYMT_FROM_DATE": "DRP_PYMT_FROM_DATE_OUT", "DRP_PYMT_SEQ_NUM": "DRP_PYMT_SEQ_NUM_OUT", "DRP_PYMT_TO_DATE": "DRP_PYMT_TO_DATE_OUT", "EXPCT_CHILD_CNT": "CUST_EXPCT_CHILD_NUM1", "FMLY_MBR_CNT": "HSHLD_SIZE1", "HSHLD_AEM_IND": "AEM_IND", "RVN_TXN_MODE_CODE": "TXN_MTHD_CODE", "SWD_CASE_FILE_REF_NUM": "SWD_CASE_FILE_REF_NUM_OUT", "TXN_DATE": "TXN_DATE1", "TXN_PYMT_ITEM_AMT": "DRP_AMT1"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

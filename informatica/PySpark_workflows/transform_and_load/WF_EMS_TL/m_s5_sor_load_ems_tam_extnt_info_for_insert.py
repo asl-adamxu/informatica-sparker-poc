@@ -82,17 +82,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: write_SOR_EMS_TAM_EXTNT_INFO")
         # Write to Target: write_SOR_EMS_TAM_EXTNT_INFO
         df_write = df_SQ_SSA_EMS_TAM_EXTNT_INFO
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "AGMT_IND", "EXTNT_INFO_BK": "EXTNT_INFO_BK", "EXTNT_INFO_KEY": "EXTNT_INFO_KEY", "EXTNT_PRPL_ID_NUM": "EXTNT_PRPL_ID_NUM", "EXTNT_PRPL_ID_TYPE_CODE": "EXTNT_PRPL_ID_TYPE_CODE", "EXTNT_REC_CRE_DATE": "EXTNT_REC_CRE_DATE", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "UNIT_KEY": "UNIT_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['EXTNT_INFO_KEY', 'EXTNT_INFO_BK', 'UNIT_KEY', 'EXTNT_REC_CRE_DATE', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'EXTNT_PRPL_ID_TYPE_CODE', 'EXTNT_PRPL_ID_NUM']
         df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
@@ -114,7 +103,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"AMND_FLAT_RCVR_DATE": "AMND_FLAT_RCVR_DATE", "AMND_FWD_ADDR": "AMND_FWD_ADDR", "AMND_TNCY_AGRMT_TRMT_DATE": "AMND_TNCY_AGRMT_TRMT_DATE", "BGN_DATE": "BGN_DATE", "CUST_KEY": "CUST_KEY", "END_DATE": "OUT_END_DATE", "EXTNT_INFO_KEY": "EXTNT_INFO_KEY", "EXTNT_PRPL_CHI_NAME": "EXTNT_PRPL_CHI_NAME", "EXTNT_PRPL_NAME": "EXTNT_PRPL_NAME", "EXTNT_REC_PRN_IND": "EXTNT_REC_PRN_IND", "EXTNT_REC_RMK_TEXT": "EXTNT_REC_RMK_TEXT", "FMLY_SIZE_NUM": "FMLY_SIZE_NUM", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY", "HSHLD_SCORE_NUM": "HSHLD_SCORE_NUM", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "MAIN_ROOM_UNIT_KEY": "MAIN_ROOM_UNIT_KEY", "ORIG_FLAT_RCVR_DATE": "ORIG_FLAT_RCVR_DATE", "ORIG_FWD_ADDR": "ORIG_FWD_ADDR", "ORIG_TNCY_AGRMT_TRMT_DATE": "ORIG_TNCY_AGRMT_TRMT_DATE", "RENT_FCTR_CODE": "RENT_FCTR_CODE", "TNCY_AGRMT_CMNC_DATE": "TNCY_AGRMT_CMNC_DATE", "TNCY_CNCL_CODE": "TNCY_CNCL_CODE", "TNCY_CNCL_RMK_TEXT": "TNCY_CNCL_RMK_TEXT", "UNIT_CRE_DATE": "UNIT_CRE_DATE", "UNIT_DMLH_DATE": "UNIT_DMLH_DATE", "UNIT_DMLH_RSN_TEXT": "UNIT_DMLH_RSN_TEXT", "UNIT_HIST_KEY": "UNIT_HIST_KEY", "WARN_ACTV_IND": "WARN_ACTV_IND"}
+        _field_map = {"END_DATE": "OUT_END_DATE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 

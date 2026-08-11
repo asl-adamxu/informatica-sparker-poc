@@ -82,17 +82,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: write_SOR_EMS_RVN_CLCT_OFFC")
         # Write to Target: write_SOR_EMS_RVN_CLCT_OFFC
         df_write = df_SQ_SSA_EMS_RVN_CLCT_OFFC
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "AGMT_IND", "CLCT_OFFC_KEY": "CLCT_OFFC_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "RVN_CLCT_OFFC_KEY": "RVN_CLCT_OFFC_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['CLCT_OFFC_KEY', 'RVN_CLCT_OFFC_KEY', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'AGMT_IND']
         df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
@@ -114,7 +103,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"ADTN_CASH_RFND_LMT_BAL_AMT": "ADTN_CASH_RFND_LMT_BAL_AMT", "BANK_LVL_AMT": "BNK_LVL_AMT", "BGN_DATE": "BEGIN_DATE", "CLCT_OFCR_IN_CHRG_ENG_NAME": "CLCT_OFCR_IN_CHRG_ENG_NAME", "CLCT_OFFC_BSNS_ACTV_CODE": "CLCT_OFFC_BSNS_ACTV_CODE", "CLCT_OFFC_COST_CTR_CODE": "CLCT_OFFC_COST_CTR_CODE", "CLCT_OFFC_COST_CTR_KEY": "CLCT_OFFC_COST_CTR_KEY", "CLCT_OFFC_KEY": "CLCT_OFFC_KEY", "CLCT_OFFC_PHONE_NUM": "CLCT_OFFC_PHONE_NUM", "DLY_CASH_RFND_LMT_AMT": "DLY_CASH_RFND_LMT_AMT", "DLY_CASH_RFND_LMT_BAL_AMT": "DLY_CASH_RFND_LMT_BAL_AMT", "DLY_CASH_RFND_LMT_BGN_DATE": "DLY_CASH_RFND_LMT_BGN_DATE", "DLY_CASH_RFND_LMT_END_DATE": "DLY_CASH_RFND_LMT_END_DATE", "DLY_CASH_RFND_LMT_RQS_USER_ID": "DLY_CASH_RFND_LMT_RQS_USER_ID", "DLY_CASH_RFND_LMT_STS_CODE": "DLY_CASH_RFND_LMT_STS_CODE", "DLY_RCPT_SEQ_NUM": "DLY_RCPT_SEQ_NUM", "DLY_RVN_TXN_ADJ_SEQ_NUM": "DLY_RVN_TXN_ADJ_SEQ_NUM", "DLY_RVN_TXN_SEQ_NUM": "DLY_RVN_TXN_SEQ_NUM", "END_DATE": "OUT_END_DATE", "GUD_CMPY_KEY": "GUD_CMPY_KEY", "HAFIS_ACCT_CODE": "HAFIS_ACCT_CODE", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "PAPRV_CASH_RFND_LMT_AMT": "PAPRV_CASH_RFND_LMT_AMT", "RCU_TEAM_NUM": "RCU_TEAM_NUM", "RVN_CLCT_OFFC_ADDR": "RVN_CLCT_OFFC_ADDR", "RVN_CLCT_OFFC_CHI_ADDR_1": "RVN_CLCT_OFFC_CHI_ADDR_1", "RVN_CLCT_OFFC_CHI_ADDR_2": "RVN_CLCT_OFFC_CHI_ADDR_2", "RVN_CLCT_OFFC_CHI_ADDR_3": "RVN_CLCT_OFFC_CHI_ADDR_3", "RVN_CLCT_OFFC_CHI_ADDR_4": "RVN_CLCT_OFFC_CHI_ADDR_4", "RVN_CLCT_OFFC_CHI_ADDR_5": "RVN_CLCT_OFFC_CHI_ADDR_5", "RVN_CLCT_OFFC_CHI_NAME": "RVN_CLCT_OFFC_CHI_NAME", "RVN_CLCT_OFFC_ENG_ADDR_1": "RVN_CLCT_OFFC_ENG_ADDR_1", "RVN_CLCT_OFFC_ENG_ADDR_2": "RVN_CLCT_OFFC_ENG_ADDR_2", "RVN_CLCT_OFFC_ENG_ADDR_3": "RVN_CLCT_OFFC_ENG_ADDR_3", "RVN_CLCT_OFFC_ENG_ADDR_4": "RVN_CLCT_OFFC_ENG_ADDR_4", "RVN_CLCT_OFFC_ENG_NAME": "RVN_CLCT_OFFC_ENG_NAME"}
+        _field_map = {"BANK_LVL_AMT": "BNK_LVL_AMT", "BGN_DATE": "BEGIN_DATE", "END_DATE": "OUT_END_DATE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 

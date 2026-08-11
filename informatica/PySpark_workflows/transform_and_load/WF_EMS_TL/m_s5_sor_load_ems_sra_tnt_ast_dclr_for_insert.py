@@ -82,17 +82,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: write_SOR_EMS_SRA_TNT_AST_DCLR")
         # Write to Target: write_SOR_EMS_SRA_TNT_AST_DCLR
         df_write = df_SQ_SSA_EMS_SRA_TNT_AST_DCLR
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "AGMT_IND", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "SRA_REC_KEY": "SRA_REC_KEY", "TNT_AST_DCLR_BK": "TNT_AST_DCLR_BK", "TNT_AST_DCLR_KEY": "TNT_AST_DCLR_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['TNT_AST_DCLR_KEY', 'TNT_AST_DCLR_BK', 'SRA_REC_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
         df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
@@ -114,7 +103,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"ACPT_PHRM_IND": "ACPT_PHRM_IND", "AD_FORM_STS_CODE": "AD_FORM_STS_CODE", "AST_LMT_AMT": "AST_LMT_AMT", "BGN_DATE": "BGN_DATE", "BSNS_AST_VAL_AMT": "BSNS_AST_VAL_AMT", "CASH_AST_VAL_AMT": "CASH_AST_VAL_AMT", "CMPST_AST_VAL_AMT": "CMPST_AST_VAL_AMT", "CUST_FMLY_SIZE_NUM": "CUST_FMLY_SIZE_NUM", "DPST_AST_VAL_AMT": "DPST_AST_VAL_AMT", "END_DATE": "OUT_END_DATE", "INVST_AST_VAL_AMT": "INVST_AST_VAL_AMT", "LAND_AST_VAL_AMT": "LAND_AST_VAL_AMT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "NET_AST_AMT": "NET_AST_AMT", "ORIG_HSE_SRVC_APLY_KEY": "ORIG_HSE_SRVC_APLY_KEY", "ORIG_TNCY_AGRMT_CMNC_DATE": "ORIG_TNCY_AGRMT_CMNC_DATE", "PHRM_ACK_DATE": "PHRM_ACK_DATE", "PHRM_AEM_IND": "PHRM_AEM_IND", "PRPTY_AST_VAL_AMT": "PRPTY_AST_VAL_AMT", "RCMD_RENT_FCTR_CODE": "RCMD_RENT_FCTR_CODE", "RENT_BGN_DATE": "RENT_BGN_DATE", "RENT_END_DATE": "RENT_END_DATE", "RENT_FCTR_CODE": "RENT_FCTR_CODE", "RENT_RVW_CATG_BGN_DATE": "RENT_RVW_CATG_BGN_DATE", "RENT_RVW_CATG_CODE": "RENT_RVW_CATG_CODE", "SRA_CNCL_RSN_CODE": "SRA_CNCL_RSN_CODE", "SRA_CNCL_RSN_TEXT": "SRA_CNCL_RSN_TEXT", "SRA_EXTRC_DATE": "SRA_EXTRC_DATE", "SRA_FRZ_RSN_CODE": "SRA_FRZ_RSN_CODE", "SRA_FRZ_RSN_TEXT": "SRA_FRZ_RSN_TEXT", "SRA_REJ_RSN_CODE": "SRA_REJ_RSN_CODE", "SRA_REJ_RSN_TEXT": "SRA_REJ_RSN_TEXT", "SRA_RENT_BGN_DATE": "SRA_RENT_BGN_DATE", "SRA_RENT_CHNG_RSN_CODE": "SRA_RENT_CHNG_RSN_CODE", "SRA_RENT_CHNG_RSN_TEXT": "SRA_RENT_CHNG_RSN_TEXT", "SRA_RENT_END_DATE": "SRA_RENT_END_DATE", "SRA_RENT_FCTR_CODE": "SRA_RENT_FCTR_CODE", "SRA_RENT_RVW_CATG_CODE": "SRA_RENT_RVW_CATG_CODE", "SRA_RMK_TEXT": "SRA_RMK_TEXT", "SRA_RVW_YEAR": "SRA_RVW_YEAR", "SRA_STG_CODE": "SRA_STG_CODE", "SRA_STS_CODE": "SRA_STS_CODE", "TAXI_AST_VAL_AMT": "TAXI_AST_VAL_AMT", "TNCY_AGRMT_CMNC_DATE": "TNCY_AGRMT_CMNC_DATE", "TNCY_AGRMT_KEY": "TNCY_AGRMT_KEY", "TNT_AST_DCLR_KEY": "TNT_AST_DCLR_KEY", "UNIT_KEY": "UNIT_KEY", "VHCL_AST_VAL_AMT": "VHCL_AST_VAL_AMT"}
+        _field_map = {"END_DATE": "OUT_END_DATE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 

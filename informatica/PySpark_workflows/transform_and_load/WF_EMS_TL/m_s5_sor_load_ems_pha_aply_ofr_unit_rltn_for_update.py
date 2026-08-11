@@ -67,17 +67,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: write_SOR_EMS_PHA_APLY_OFR_UNIT_RLTN")
         # Write to Target: write_SOR_EMS_PHA_APLY_OFR_UNIT_RLTN
         df_write = df_SQ_SSA_EMS_PHA_APLY_OFR_UNIT_RLTN
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"ADTN_ROOM_IND": "ADTN_ROOM_IND", "BGN_DATE": "BGN_DATE", "END_DATE": "END_DATE", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "OFR_KEY": "OFR_KEY", "UNIT_KEY": "UNIT_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['OFR_KEY', 'UNIT_KEY', 'ADTN_ROOM_IND', 'BGN_DATE', 'END_DATE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
         df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])

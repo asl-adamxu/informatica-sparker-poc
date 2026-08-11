@@ -102,7 +102,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"BAY_WNDW_SLBL_AREA": "BAY_WNDW_SLBL_AREA", "BGN_DATE": "BGN_DATE", "BLCY_SLBL_AREA": "BLCY_SLBL_AREA", "CNV_UNIT_NAME": "CNV_UNIT_NAME", "END_DATE": "OUT_END_DATE", "FLAT_NUM": "FLAT_NUM", "FLAT_NUM_DESP": "FLAT_NUM_DESP", "FLAT_STS_CODE": "FLAT_STS_CODE", "FLAT_WING_DESP": "FLAT_WING_DESP", "FLR_NUM": "FLR_NUM", "FLR_NUM_CHI_DESP": "FLR_NUM_CHI_DESP", "FLR_NUM_ENG_DESP": "FLR_NUM_ENG_DESP", "FLR_SEQ_NUM": "FLR_SEQ_NUM", "FRST_ASGN_DATE": "FRST_ASGN_DATE", "FRST_SALE_PHASE_CODE": "FRST_SALE_PHASE_CODE", "HOS_BLK_KEY": "HOS_BLK_KEY", "HOS_FLAT_KEY": "HOS_FLAT_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "INS", "LIFT_STOP_IND": "LIFT_STOP_IND", "MSHP_INCDT_DESP": "MSHP_INCDT_DESP", "ORIG_PRC_AMT": "ORIG_PRC_AMT", "ORNT_CODE": "ORNT_CODE", "ROW_VER_NUM": "ROW_VER_NUM", "SHR_UNIT_NAME": "SHR_UNIT_NAME", "SLBL_AREA": "SLBL_AREA", "UNDVD_SHR_NUM": "UNDVD_SHR_NUM", "UNIT_CODE_ADDR": "UNIT_CODE_ADDR", "UTL_PLFM_SLBL_AREA": "UTL_PLFM_SLBL_AREA", "VOID_BGN_DATE": "VOID_BGN_DATE"}
+        _field_map = {"END_DATE": "OUT_END_DATE", "LAST_REC_TXN_TYPE_CODE": "INS"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 
@@ -120,17 +120,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: write_SOR_NHS_HOS_FLAT")
         # Write to Target: write_SOR_NHS_HOS_FLAT
         df_write = df_EXP_REC_TXN_TYPE_CODE_INS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "AGMT_IND", "HOS_FLAT_KEY": "HOS_FLAT_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "NHS_HOS_FLAT_ID": "NHS_HOS_FLAT_ID"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['HOS_FLAT_KEY', 'NHS_HOS_FLAT_ID', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
         df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])

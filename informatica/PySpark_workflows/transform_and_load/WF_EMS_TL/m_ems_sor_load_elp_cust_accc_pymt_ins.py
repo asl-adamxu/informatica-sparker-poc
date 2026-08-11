@@ -99,17 +99,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: write_SOR_EMS_ELP_CUST_ACCC_PYMT")
         # Write to Target: write_SOR_EMS_ELP_CUST_ACCC_PYMT
         df_write = df_EXP_REC_TXN_TYPE_CODE_INS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"ACCC_FILE_SEQ_NUM": "ACCC_FILE_SEQ_NUM", "AGMT_IND": "AGMT_IND", "CUST_ACCC_PYMT_KEY": "CUST_ACCC_PYMT_KEY", "CUST_ACCC_TXN_AMT": "CUST_ACCC_TXN_AMT", "CUST_ACCC_TXN_CHNL_CODE": "CUST_ACCC_TXN_CHNL_CODE", "CUST_ACCC_TXN_MCHN_NUM": "CUST_ACCC_TXN_MCHN_NUM", "CUST_ACCC_TXN_MODE_CODE": "CUST_ACCC_TXN_MODE_CODE", "CUST_ACCC_TXN_RCPT_NUM": "CUST_ACCC_TXN_RCPT_NUM", "CUST_ACCC_TXN_SHOP_CODE": "CUST_ACCC_TXN_SHOP_CODE", "CUST_TNT_CODE": "CUST_TNT_CODE", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['CUST_ACCC_PYMT_KEY', 'CUST_ACCC_TXN_SHOP_CODE', 'CUST_ACCC_TXN_MCHN_NUM', 'CUST_ACCC_TXN_RCPT_NUM', 'ACCC_FILE_SEQ_NUM', 'CUST_ACCC_TXN_CHNL_CODE', 'CUST_ACCC_TXN_MODE_CODE', 'CUST_TNT_CODE', 'CUST_ACCC_TXN_AMT', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
         df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
@@ -123,7 +112,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"ACCC_TXN_CTF_DATE": "ACCC_TXN_CTF_DATE", "ACCC_TXN_INTF_INPT_DATE": "ACCC_TXN_INTF_INPT_DATE", "ACCC_TXN_INTF_PRCS_DATE": "ACCC_TXN_INTF_PRCS_DATE", "BGN_DATE": "BGN_DATE", "BILL_ACCT_NUM": "BILL_ACCT_NUM", "BILL_TYPE_CODE": "BILL_TYPE_CODE", "CUST_ACCC_PYMT_KEY": "CUST_ACCC_PYMT_KEY", "CUST_ACCC_TXN_CHQ_DTL_TEXT": "CUST_ACCC_TXN_CHQ_DTL_TEXT", "CUST_ACCC_TXN_DATE": "CUST_ACCC_TXN_DATE", "CUST_ACCC_TXN_PRCS_DATE": "CUST_ACCC_TXN_PRCS_DATE", "CUST_ACCC_TXN_PRCS_STS_CODE": "CUST_ACCC_TXN_PRCS_STS_CODE", "CUST_ACCC_TXN_REJ_CODE": "CUST_ACCC_TXN_REJ_CODE", "CUST_HSE_UNIT_CODE_ADDR": "CUST_HSE_UNIT_CODE_ADDR", "CUST_HSE_UNIT_KEY": "CUST_HSE_UNIT_KEY", "CUST_KEY": "CUST_KEY", "CUST_PYB_ITEM_BSNS_ACTV_CODE": "CUST_PYB_ITEM_BSNS_ACTV_CODE", "CUST_PYB_ITEM_COST_CTR_CODE": "CUST_PYB_ITEM_COST_CTR_CODE", "CUST_PYB_ITEM_KEY": "CUST_PYB_ITEM_KEY", "END_DATE": "OUT_END_DATE", "HA_SPCL_CUST_KEY": "HA_SPCL_CUST_KEY", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY", "LAST_CUST_ACCC_TXN_UPD_DATE": "LAST_CUST_ACCC_TXN_UPD_DATE", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "INS", "RVN_TXN_NUM": "RVN_TXN_NUM"}
+        _field_map = {"END_DATE": "OUT_END_DATE", "LAST_REC_TXN_TYPE_CODE": "INS"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 

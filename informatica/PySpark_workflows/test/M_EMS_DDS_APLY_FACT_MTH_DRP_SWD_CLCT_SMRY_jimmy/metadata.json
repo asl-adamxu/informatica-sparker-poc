@@ -1,0 +1,18 @@
+{
+  "metadata_version": "1.0",
+  "workflow": "dds",
+  "mappings": [
+    {
+      "mapping": "M_EMS_DDS_APLY_FACT_MTH_DRP_SWD_CLCT_SMRY_jimmy",
+      "targets": [
+        {
+          "table": "JYM_EMP_TMP",
+          "connection": "target_db"
+        }
+      ]
+    }
+  ],
+  "output": {
+    "script": "dds.py"
+  }
+}

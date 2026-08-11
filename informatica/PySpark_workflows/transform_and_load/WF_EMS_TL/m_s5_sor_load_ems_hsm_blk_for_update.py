@@ -70,7 +70,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "AGMT_IND", "BLK_ACCS_CODE": "BLK_ACCS_CODE", "BLK_ACTL_CMPLT_DATE": "BLK_ACTL_CMPLT_DATE", "BLK_CHI_NAME": "BLK_CHI_NAME", "BLK_CMPLNC_CERT_IND": "BLK_CMPLNC_CERT_IND", "BLK_CODE": "BLK_CODE", "BLK_DOM_STRY_CNT": "BLK_DOM_STRY_CNT", "BLK_DSG_CODE": "BLK_DESIGN_CODE", "BLK_HOVR_DATE": "BLK_HOVR_DATE", "BLK_IFA_TOT_AREA": "BLK_IFA_TOT_AREA", "BLK_KEY": "BLK_KEY", "BLK_MARK_TYPE_CODE": "BLK_MARK_TYPE_CODE", "BLK_NAME": "BLK_NAME", "BLK_PUT_UP_SALE_DATE": "BLK_PUT_UP_SALE_DATE", "BLK_SELF_CNTAED_IND": "BLK_SELF_CNTAED_IND", "BLK_STRY_TOT_CNT": "BLK_STRY_TOT_CNT", "BLK_TYPE_CODE": "BLK_TYPE_CODE", "BLK_UNIT_TOT_CNT": "BLK_UNIT_TOT_CNT", "EMMS_BLK_KEY": "EMMS_BLK_KEY", "EST_KEY": "EST_KEY", "ISHM_BK": "ISHM_BK", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE"}
+        _field_map = {"BLK_DSG_CODE": "BLK_DESIGN_CODE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 

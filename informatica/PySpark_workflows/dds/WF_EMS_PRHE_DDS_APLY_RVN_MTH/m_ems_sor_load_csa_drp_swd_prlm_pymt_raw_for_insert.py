@@ -89,43 +89,44 @@ FROM SOR_EMS_CSA_DRP_PRLM_PYMT_RAW"""
         
         logger.info("Step: apply_LKPTRANS")
         # Lookup: apply_LKPTRANS
-        # Report Error on multiple match: check for duplicate join keys
-        _dup_cnt = df_LKPTRANS.groupBy(col("PRLM_FILE_REC_KEY1")).count().filter(col("count") > 1).count()
-        if _dup_cnt > 0:
-            raise RuntimeError(f"Lookup apply_LKPTRANS: {_dup_cnt} duplicate keys found — Report Error policy")
-        # Rename upstream columns to match lookup input port names before join
+        # Dynamic lookup (applyInPandas state machine; RDD fallback when pyarrow
+        # is unavailable). NewLookupRow: 1 = insert, 2 = update, 0 = no change.
         _lkp_input = df_EXPTRANS1
         _lkp_input = _lkp_input.withColumn("PRLM_FILE_REC_KEY1_IN", col("PRLM_FILE_REC_KEY1"))
-        # Join condition: PRLM_FILE_REC_KEY1_IN=PRLM_FILE_REC_KEY1
-        # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = _lkp_input.alias("_main").join(
-            broadcast(df_LKPTRANS).alias("_lkp"),
-            (col("_main.PRLM_FILE_REC_KEY1_IN") == col("_lkp.PRLM_FILE_REC_KEY1")),
-            "left"
-        ).select(
-            *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_LKPTRANS[c] for c in df_LKPTRANS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
+        df_lkp_merge_EXPTRANS1 = lib.dynamic_lookup(
+            spark=spark,
+            input_df=_lkp_input,
+            lookup_df=df_LKPTRANS,
+            name='LKPTRANS',
+            join_predicates=[{'source_col': 'PRLM_FILE_REC_KEY1_IN', 'lookup_col': 'PRLM_FILE_REC_KEY1'}],
+            output_columns=['PRLM_FILE_REC_KEY', 'PRLM_FILE_REC_KEY1'],
+            lookup_output_fields=[
+                {'name': 'PRLM_FILE_REC_KEY', 'ref_field': 'Sequence-Id', 'ignore_in_compare': False, 'ignore_null_inputs': False, 'datatype': 'integer'},
+                {'name': 'PRLM_FILE_REC_KEY1', 'ref_field': 'PRLM_FILE_REC_KEY1', 'ignore_in_compare': True, 'ignore_null_inputs': False, 'datatype': 'integer'}
+            ],
+            new_lookup_row_col='NewLookupRow',
+            sequence_config={'output_col': 'PRLM_FILE_REC_KEY'},
+            insert_else_update=False,
+            update_else_insert=False,
+            update_condition='TRUE',
+            output_old_value_on_update=False,
+            case_sensitive_string_comparison=False,
+            lookup_policy='Report Error',
+            order_by_columns=[],
+            config=config,
         )
-        # Dynamic lookup NewLookupRow: 0 = no match (left join miss), >0 = match.
-        # Judge via a lookup column that survived the merge select (not shadowed
-        # by a same-named main column) — a NULL there means the lookup missed.
-        _nlr_lkp_cols = [c for c in df_LKPTRANS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
-        if _nlr_lkp_cols:
-            df_lkp_merge_1 = df_lkp_merge_1.withColumn("NewLookupRow", expr("CASE WHEN `" + _nlr_lkp_cols[0] + "` IS NULL THEN 0 ELSE 1 END"))
-        else:
-            df_lkp_merge_1 = df_lkp_merge_1.withColumn("NewLookupRow", lit(1))
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
+        ctx.register_df("df_lkp_merge_EXPTRANS1", df_lkp_merge_EXPTRANS1)
+        
         logger.info("Step: write_SOR_EMS_CSA_DRP_PRLM_PYMT_RAW")
         # Write to Target: write_SOR_EMS_CSA_DRP_PRLM_PYMT_RAW
-        df_write = df_lkp_merge_1
+        df_write = df_lkp_merge_EXPTRANS1
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"ASGN_OFCR_CODE": "ASGN_STF", "CUST_CNT": "CUST_CNT", "CUST_ENG_NAME_1": "CUST_ENG_NAME_1", "CUST_ENG_NAME_10": "CUST_ENG_NAME_10", "CUST_ENG_NAME_11": "CUST_ENG_NAME_11", "CUST_ENG_NAME_12": "CUST_ENG_NAME_12", "CUST_ENG_NAME_13": "CUST_ENG_NAME_13", "CUST_ENG_NAME_14": "CUST_ENG_NAME_14", "CUST_ENG_NAME_15": "CUST_ENG_NAME_15", "CUST_ENG_NAME_16": "CUST_ENG_NAME_16", "CUST_ENG_NAME_17": "CUST_ENG_NAME_17", "CUST_ENG_NAME_18": "CUST_ENG_NAME_18", "CUST_ENG_NAME_19": "CUST_ENG_NAME_19", "CUST_ENG_NAME_2": "CUST_ENG_NAME_2", "CUST_ENG_NAME_20": "CUST_ENG_NAME_20", "CUST_ENG_NAME_3": "CUST_ENG_NAME_3", "CUST_ENG_NAME_4": "CUST_ENG_NAME_4", "CUST_ENG_NAME_5": "CUST_ENG_NAME_5", "CUST_ENG_NAME_6": "CUST_ENG_NAME_6", "CUST_ENG_NAME_7": "CUST_ENG_NAME_7", "CUST_ENG_NAME_8": "CUST_ENG_NAME_8", "CUST_ENG_NAME_9": "CUST_ENG_NAME_9", "CUST_ID_NUM_1": "CUST_ID_NUM_1", "CUST_ID_NUM_10": "CUST_ID_NUM_10", "CUST_ID_NUM_11": "CUST_ID_NUM_11", "CUST_ID_NUM_12": "CUST_ID_NUM_12", "CUST_ID_NUM_13": "CUST_ID_NUM_13", "CUST_ID_NUM_14": "CUST_ID_NUM_14", "CUST_ID_NUM_15": "CUST_ID_NUM_15", "CUST_ID_NUM_16": "CUST_ID_NUM_16", "CUST_ID_NUM_17": "CUST_ID_NUM_17", "CUST_ID_NUM_18": "CUST_ID_NUM_18", "CUST_ID_NUM_19": "CUST_ID_NUM_19", "CUST_ID_NUM_2": "CUST_ID_NUM_2", "CUST_ID_NUM_20": "CUST_ID_NUM_20", "CUST_ID_NUM_3": "CUST_ID_NUM_3", "CUST_ID_NUM_4": "CUST_ID_NUM_4", "CUST_ID_NUM_5": "CUST_ID_NUM_5", "CUST_ID_NUM_6": "CUST_ID_NUM_6", "CUST_ID_NUM_7": "CUST_ID_NUM_7", "CUST_ID_NUM_8": "CUST_ID_NUM_8", "CUST_ID_NUM_9": "CUST_ID_NUM_9", "CUST_ID_TYPE_CODE_1": "CUST_ID_TYPE_1", "CUST_ID_TYPE_CODE_10": "CUST_ID_TYPE_10", "CUST_ID_TYPE_CODE_11": "CUST_ID_TYPE_11", "CUST_ID_TYPE_CODE_12": "CUST_ID_TYPE_12", "CUST_ID_TYPE_CODE_13": "CUST_ID_TYPE_13", "CUST_ID_TYPE_CODE_14": "CUST_ID_TYPE_14", "CUST_ID_TYPE_CODE_15": "CUST_ID_TYPE_15", "CUST_ID_TYPE_CODE_16": "CUST_ID_TYPE_16", "CUST_ID_TYPE_CODE_17": "CUST_ID_TYPE_17", "CUST_ID_TYPE_CODE_18": "CUST_ID_TYPE_18", "CUST_ID_TYPE_CODE_19": "CUST_ID_TYPE_19", "CUST_ID_TYPE_CODE_2": "CUST_ID_TYPE_2", "CUST_ID_TYPE_CODE_20": "CUST_ID_TYPE_20", "CUST_ID_TYPE_CODE_3": "CUST_ID_TYPE_3", "CUST_ID_TYPE_CODE_4": "CUST_ID_TYPE_4", "CUST_ID_TYPE_CODE_5": "CUST_ID_TYPE_5", "CUST_ID_TYPE_CODE_6": "CUST_ID_TYPE_6", "CUST_ID_TYPE_CODE_7": "CUST_ID_TYPE_7", "CUST_ID_TYPE_CODE_8": "CUST_ID_TYPE_8", "CUST_ID_TYPE_CODE_9": "CUST_ID_TYPE_9", "CUST_ROLE_CODE_1": "CUST_ROLE_1", "CUST_ROLE_CODE_10": "CUST_ROLE_10", "CUST_ROLE_CODE_11": "CUST_ROLE_11", "CUST_ROLE_CODE_12": "CUST_ROLE_12", "CUST_ROLE_CODE_13": "CUST_ROLE_13", "CUST_ROLE_CODE_14": "CUST_ROLE_14", "CUST_ROLE_CODE_15": "CUST_ROLE_15", "CUST_ROLE_CODE_16": "CUST_ROLE_16", "CUST_ROLE_CODE_17": "CUST_ROLE_17", "CUST_ROLE_CODE_18": "CUST_ROLE_18", "CUST_ROLE_CODE_19": "CUST_ROLE_19", "CUST_ROLE_CODE_2": "CUST_ROLE_2", "CUST_ROLE_CODE_20": "CUST_ROLE_20", "CUST_ROLE_CODE_3": "CUST_ROLE_3", "CUST_ROLE_CODE_4": "CUST_ROLE_4", "CUST_ROLE_CODE_5": "CUST_ROLE_5", "CUST_ROLE_CODE_6": "CUST_ROLE_6", "CUST_ROLE_CODE_7": "CUST_ROLE_7", "CUST_ROLE_CODE_8": "CUST_ROLE_8", "CUST_ROLE_CODE_9": "CUST_ROLE_9", "DRP_AMT": "DRP_PYMT_AMT", "DRP_TXN_VAL_DATE": "VALUE_DATE", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "PRLM_FILE_REC_KEY": "PRLM_FILE_REC_KEY", "PYMT_FROM_DATE": "PYMT_FROM_DATE", "PYMT_MTH": "FILE_MTH", "PYMT_TO_DATE": "PYMT_TO_DATE", "REC_TYPE_CODE": "REC_TYPE", "SWD_CASE_FILE_REF_NUM": "SWD_CASE_FILE_REF_NUM", "SWD_HSE_UNIT_BLK_CODE": "ADDR_BLK", "SWD_HSE_UNIT_EST_CODE": "ADDR_EST", "SWD_HSE_UNIT_FLT_NUM": "ADDR_ROOM", "SWD_PYMT_SEQ_NUM": "SEQ_NUM"}
+        _field_map = {"ASGN_OFCR_CODE": "ASGN_STF", "CUST_ID_TYPE_CODE_1": "CUST_ID_TYPE_1", "CUST_ID_TYPE_CODE_10": "CUST_ID_TYPE_10", "CUST_ID_TYPE_CODE_11": "CUST_ID_TYPE_11", "CUST_ID_TYPE_CODE_12": "CUST_ID_TYPE_12", "CUST_ID_TYPE_CODE_13": "CUST_ID_TYPE_13", "CUST_ID_TYPE_CODE_14": "CUST_ID_TYPE_14", "CUST_ID_TYPE_CODE_15": "CUST_ID_TYPE_15", "CUST_ID_TYPE_CODE_16": "CUST_ID_TYPE_16", "CUST_ID_TYPE_CODE_17": "CUST_ID_TYPE_17", "CUST_ID_TYPE_CODE_18": "CUST_ID_TYPE_18", "CUST_ID_TYPE_CODE_19": "CUST_ID_TYPE_19", "CUST_ID_TYPE_CODE_2": "CUST_ID_TYPE_2", "CUST_ID_TYPE_CODE_20": "CUST_ID_TYPE_20", "CUST_ID_TYPE_CODE_3": "CUST_ID_TYPE_3", "CUST_ID_TYPE_CODE_4": "CUST_ID_TYPE_4", "CUST_ID_TYPE_CODE_5": "CUST_ID_TYPE_5", "CUST_ID_TYPE_CODE_6": "CUST_ID_TYPE_6", "CUST_ID_TYPE_CODE_7": "CUST_ID_TYPE_7", "CUST_ID_TYPE_CODE_8": "CUST_ID_TYPE_8", "CUST_ID_TYPE_CODE_9": "CUST_ID_TYPE_9", "CUST_ROLE_CODE_1": "CUST_ROLE_1", "CUST_ROLE_CODE_10": "CUST_ROLE_10", "CUST_ROLE_CODE_11": "CUST_ROLE_11", "CUST_ROLE_CODE_12": "CUST_ROLE_12", "CUST_ROLE_CODE_13": "CUST_ROLE_13", "CUST_ROLE_CODE_14": "CUST_ROLE_14", "CUST_ROLE_CODE_15": "CUST_ROLE_15", "CUST_ROLE_CODE_16": "CUST_ROLE_16", "CUST_ROLE_CODE_17": "CUST_ROLE_17", "CUST_ROLE_CODE_18": "CUST_ROLE_18", "CUST_ROLE_CODE_19": "CUST_ROLE_19", "CUST_ROLE_CODE_2": "CUST_ROLE_2", "CUST_ROLE_CODE_20": "CUST_ROLE_20", "CUST_ROLE_CODE_3": "CUST_ROLE_3", "CUST_ROLE_CODE_4": "CUST_ROLE_4", "CUST_ROLE_CODE_5": "CUST_ROLE_5", "CUST_ROLE_CODE_6": "CUST_ROLE_6", "CUST_ROLE_CODE_7": "CUST_ROLE_7", "CUST_ROLE_CODE_8": "CUST_ROLE_8", "CUST_ROLE_CODE_9": "CUST_ROLE_9", "DRP_AMT": "DRP_PYMT_AMT", "DRP_TXN_VAL_DATE": "VALUE_DATE", "PYMT_MTH": "FILE_MTH", "REC_TYPE_CODE": "REC_TYPE", "SWD_HSE_UNIT_BLK_CODE": "ADDR_BLK", "SWD_HSE_UNIT_EST_CODE": "ADDR_EST", "SWD_HSE_UNIT_FLT_NUM": "ADDR_ROOM", "SWD_PYMT_SEQ_NUM": "SEQ_NUM"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

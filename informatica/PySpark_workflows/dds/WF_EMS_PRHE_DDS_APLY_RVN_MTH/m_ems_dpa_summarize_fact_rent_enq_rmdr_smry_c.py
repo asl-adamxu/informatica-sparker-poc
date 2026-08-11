@@ -118,61 +118,73 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         
         logger.info("Step: apply_RTRTRANS1")
         # Router: apply_RTRTRANS1 - splits into multiple output groups
-        df_rtr_wo1_1 = df_EXPTRANS1.filter(expr("EST_NAME = 'WOCHEESTATE(KINGWOHOUSE)'"))
-        df_rtr_wo1_1 = df_rtr_wo1_1.drop("EST_NAME1").withColumnRenamed("EST_NAME", "EST_NAME1")
-        df_rtr_wo1_1 = df_rtr_wo1_1.drop("SYS_RPT_YEAR1").withColumnRenamed("SYS_RPT_YEAR", "SYS_RPT_YEAR1")
-        df_rtr_wo1_1 = df_rtr_wo1_1.drop("SYS_RPT_MTH1").withColumnRenamed("SYS_RPT_MTH", "SYS_RPT_MTH1")
-        df_rtr_wo1_1 = df_rtr_wo1_1.drop("PHONE_CNT11").withColumnRenamed("PHONE_CNT1", "PHONE_CNT11")
-        df_rtr_wo1_1 = df_rtr_wo1_1.drop("PHONE_SUCC_CNT11").withColumnRenamed("PHONE_SUCC_CNT1", "PHONE_SUCC_CNT11")
-        df_rtr_wo1_1 = df_rtr_wo1_1.drop("PHONE_PND_CNT11").withColumnRenamed("PHONE_PND_CNT1", "PHONE_PND_CNT11")
-        df_rtr_wo1_1 = df_rtr_wo1_1.drop("PHONE_LANG_CTN_CNT11").withColumnRenamed("PHONE_LANG_CTN_CNT1", "PHONE_LANG_CTN_CNT11")
-        df_rtr_wo1_1 = df_rtr_wo1_1.drop("PHONE_LANG_PTH_CNT11").withColumnRenamed("PHONE_LANG_PTH_CNT1", "PHONE_LANG_PTH_CNT11")
-        df_rtr_wo1_1 = df_rtr_wo1_1.drop("PHONE_LANG_ENG_CNT11").withColumnRenamed("PHONE_LANG_ENG_CNT1", "PHONE_LANG_ENG_CNT11")
-        df_rtr_wo1_1 = df_rtr_wo1_1.drop("PHONE_UNSUCC_CNT11").withColumnRenamed("PHONE_UNSUCC_CNT1", "PHONE_UNSUCC_CNT11")
-        df_rtr_wo1_1 = df_rtr_wo1_1.drop("PHONE_INVLD_TONE_UNSUCC_CNT11").withColumnRenamed("PHONE_INVLD_TONE_UNSUCC_CNT1", "PHONE_INVLD_TONE_UNSUCC_CNT11")
-        df_rtr_wo1_1 = df_rtr_wo1_1.drop("PHONE_NO_ANS_UNSUCC_CNT11").withColumnRenamed("PHONE_NO_ANS_UNSUCC_CNT1", "PHONE_NO_ANS_UNSUCC_CNT11")
-        df_rtr_wo1_1 = df_rtr_wo1_1.drop("PHONE_BUSY_UNSUCC_CNT11").withColumnRenamed("PHONE_BUSY_UNSUCC_CNT1", "PHONE_BUSY_UNSUCC_CNT11")
-        df_rtr_wo1_1 = df_rtr_wo1_1.drop("SMS_CNT11").withColumnRenamed("SMS_CNT1", "SMS_CNT11")
-        df_rtr_wo1_1 = df_rtr_wo1_1.drop("SMS_SUCC_CNT11").withColumnRenamed("SMS_SUCC_CNT1", "SMS_SUCC_CNT11")
-        df_rtr_wo1_1 = df_rtr_wo1_1.drop("SMS_UNSUCC_CNT11").withColumnRenamed("SMS_UNSUCC_CNT1", "SMS_UNSUCC_CNT11")
-        ctx.register_df("df_rtr_wo1_1", df_rtr_wo1_1)
-        df_rtr_non_wo1_2 = df_EXPTRANS1.filter(expr("EST_NAME != 'WOCHEESTATE(KINGWOHOUSE)'"))
-        df_rtr_non_wo1_2 = df_rtr_non_wo1_2.drop("EST_NAME3").withColumnRenamed("EST_NAME", "EST_NAME3")
-        df_rtr_non_wo1_2 = df_rtr_non_wo1_2.drop("SYS_RPT_YEAR3").withColumnRenamed("SYS_RPT_YEAR", "SYS_RPT_YEAR3")
-        df_rtr_non_wo1_2 = df_rtr_non_wo1_2.drop("SYS_RPT_MTH3").withColumnRenamed("SYS_RPT_MTH", "SYS_RPT_MTH3")
-        df_rtr_non_wo1_2 = df_rtr_non_wo1_2.drop("PHONE_CNT13").withColumnRenamed("PHONE_CNT1", "PHONE_CNT13")
-        df_rtr_non_wo1_2 = df_rtr_non_wo1_2.drop("PHONE_SUCC_CNT13").withColumnRenamed("PHONE_SUCC_CNT1", "PHONE_SUCC_CNT13")
-        df_rtr_non_wo1_2 = df_rtr_non_wo1_2.drop("PHONE_PND_CNT13").withColumnRenamed("PHONE_PND_CNT1", "PHONE_PND_CNT13")
-        df_rtr_non_wo1_2 = df_rtr_non_wo1_2.drop("PHONE_LANG_CTN_CNT13").withColumnRenamed("PHONE_LANG_CTN_CNT1", "PHONE_LANG_CTN_CNT13")
-        df_rtr_non_wo1_2 = df_rtr_non_wo1_2.drop("PHONE_LANG_PTH_CNT13").withColumnRenamed("PHONE_LANG_PTH_CNT1", "PHONE_LANG_PTH_CNT13")
-        df_rtr_non_wo1_2 = df_rtr_non_wo1_2.drop("PHONE_LANG_ENG_CNT13").withColumnRenamed("PHONE_LANG_ENG_CNT1", "PHONE_LANG_ENG_CNT13")
-        df_rtr_non_wo1_2 = df_rtr_non_wo1_2.drop("PHONE_UNSUCC_CNT13").withColumnRenamed("PHONE_UNSUCC_CNT1", "PHONE_UNSUCC_CNT13")
-        df_rtr_non_wo1_2 = df_rtr_non_wo1_2.drop("PHONE_INVLD_TONE_UNSUCC_CNT13").withColumnRenamed("PHONE_INVLD_TONE_UNSUCC_CNT1", "PHONE_INVLD_TONE_UNSUCC_CNT13")
-        df_rtr_non_wo1_2 = df_rtr_non_wo1_2.drop("PHONE_NO_ANS_UNSUCC_CNT13").withColumnRenamed("PHONE_NO_ANS_UNSUCC_CNT1", "PHONE_NO_ANS_UNSUCC_CNT13")
-        df_rtr_non_wo1_2 = df_rtr_non_wo1_2.drop("PHONE_BUSY_UNSUCC_CNT13").withColumnRenamed("PHONE_BUSY_UNSUCC_CNT1", "PHONE_BUSY_UNSUCC_CNT13")
-        df_rtr_non_wo1_2 = df_rtr_non_wo1_2.drop("SMS_CNT13").withColumnRenamed("SMS_CNT1", "SMS_CNT13")
-        df_rtr_non_wo1_2 = df_rtr_non_wo1_2.drop("SMS_SUCC_CNT13").withColumnRenamed("SMS_SUCC_CNT1", "SMS_SUCC_CNT13")
-        df_rtr_non_wo1_2 = df_rtr_non_wo1_2.drop("SMS_UNSUCC_CNT13").withColumnRenamed("SMS_UNSUCC_CNT1", "SMS_UNSUCC_CNT13")
-        ctx.register_df("df_rtr_non_wo1_2", df_rtr_non_wo1_2)
-        df_rtr_default_3 = df_EXPTRANS1.filter(~(expr("EST_NAME = 'WOCHEESTATE(KINGWOHOUSE)'")) & ~(expr("EST_NAME != 'WOCHEESTATE(KINGWOHOUSE)'")))
-        df_rtr_default_3 = df_rtr_default_3.drop("EST_NAME2").withColumnRenamed("EST_NAME", "EST_NAME2")
-        df_rtr_default_3 = df_rtr_default_3.drop("SYS_RPT_YEAR2").withColumnRenamed("SYS_RPT_YEAR", "SYS_RPT_YEAR2")
-        df_rtr_default_3 = df_rtr_default_3.drop("SYS_RPT_MTH2").withColumnRenamed("SYS_RPT_MTH", "SYS_RPT_MTH2")
-        df_rtr_default_3 = df_rtr_default_3.drop("PHONE_CNT12").withColumnRenamed("PHONE_CNT1", "PHONE_CNT12")
-        df_rtr_default_3 = df_rtr_default_3.drop("PHONE_SUCC_CNT12").withColumnRenamed("PHONE_SUCC_CNT1", "PHONE_SUCC_CNT12")
-        df_rtr_default_3 = df_rtr_default_3.drop("PHONE_PND_CNT12").withColumnRenamed("PHONE_PND_CNT1", "PHONE_PND_CNT12")
-        df_rtr_default_3 = df_rtr_default_3.drop("PHONE_LANG_CTN_CNT12").withColumnRenamed("PHONE_LANG_CTN_CNT1", "PHONE_LANG_CTN_CNT12")
-        df_rtr_default_3 = df_rtr_default_3.drop("PHONE_LANG_PTH_CNT12").withColumnRenamed("PHONE_LANG_PTH_CNT1", "PHONE_LANG_PTH_CNT12")
-        df_rtr_default_3 = df_rtr_default_3.drop("PHONE_LANG_ENG_CNT12").withColumnRenamed("PHONE_LANG_ENG_CNT1", "PHONE_LANG_ENG_CNT12")
-        df_rtr_default_3 = df_rtr_default_3.drop("PHONE_UNSUCC_CNT12").withColumnRenamed("PHONE_UNSUCC_CNT1", "PHONE_UNSUCC_CNT12")
-        df_rtr_default_3 = df_rtr_default_3.drop("PHONE_INVLD_TONE_UNSUCC_CNT12").withColumnRenamed("PHONE_INVLD_TONE_UNSUCC_CNT1", "PHONE_INVLD_TONE_UNSUCC_CNT12")
-        df_rtr_default_3 = df_rtr_default_3.drop("PHONE_NO_ANS_UNSUCC_CNT12").withColumnRenamed("PHONE_NO_ANS_UNSUCC_CNT1", "PHONE_NO_ANS_UNSUCC_CNT12")
-        df_rtr_default_3 = df_rtr_default_3.drop("PHONE_BUSY_UNSUCC_CNT12").withColumnRenamed("PHONE_BUSY_UNSUCC_CNT1", "PHONE_BUSY_UNSUCC_CNT12")
-        df_rtr_default_3 = df_rtr_default_3.drop("SMS_CNT12").withColumnRenamed("SMS_CNT1", "SMS_CNT12")
-        df_rtr_default_3 = df_rtr_default_3.drop("SMS_SUCC_CNT12").withColumnRenamed("SMS_SUCC_CNT1", "SMS_SUCC_CNT12")
-        df_rtr_default_3 = df_rtr_default_3.drop("SMS_UNSUCC_CNT12").withColumnRenamed("SMS_UNSUCC_CNT1", "SMS_UNSUCC_CNT12")
-        ctx.register_df("df_rtr_default_3", df_rtr_default_3)
-        
+        df_rtr_RTRTRANS1_WO1 = df_EXPTRANS1.filter(expr("EST_NAME = 'WOCHEESTATE(KINGWOHOUSE)'"))
+        __rtr_renames = [
+            ("EST_NAME", "EST_NAME1"),
+            ("SYS_RPT_YEAR", "SYS_RPT_YEAR1"),
+            ("SYS_RPT_MTH", "SYS_RPT_MTH1"),
+            ("PHONE_CNT1", "PHONE_CNT11"),
+            ("PHONE_SUCC_CNT1", "PHONE_SUCC_CNT11"),
+            ("PHONE_PND_CNT1", "PHONE_PND_CNT11"),
+            ("PHONE_LANG_CTN_CNT1", "PHONE_LANG_CTN_CNT11"),
+            ("PHONE_LANG_PTH_CNT1", "PHONE_LANG_PTH_CNT11"),
+            ("PHONE_LANG_ENG_CNT1", "PHONE_LANG_ENG_CNT11"),
+            ("PHONE_UNSUCC_CNT1", "PHONE_UNSUCC_CNT11"),
+            ("PHONE_INVLD_TONE_UNSUCC_CNT1", "PHONE_INVLD_TONE_UNSUCC_CNT11"),
+            ("PHONE_NO_ANS_UNSUCC_CNT1", "PHONE_NO_ANS_UNSUCC_CNT11"),
+            ("PHONE_BUSY_UNSUCC_CNT1", "PHONE_BUSY_UNSUCC_CNT11"),
+            ("SMS_CNT1", "SMS_CNT11"),
+            ("SMS_SUCC_CNT1", "SMS_SUCC_CNT11"),
+            ("SMS_UNSUCC_CNT1", "SMS_UNSUCC_CNT11"),
+        ]
+        for _old, _new in __rtr_renames:
+            df_rtr_RTRTRANS1_WO1 = df_rtr_RTRTRANS1_WO1.drop(_new).withColumnRenamed(_old, _new)
+        ctx.register_df("df_rtr_RTRTRANS1_WO1", df_rtr_RTRTRANS1_WO1)
+        df_rtr_RTRTRANS1_NON_WO1 = df_EXPTRANS1.filter(expr("EST_NAME != 'WOCHEESTATE(KINGWOHOUSE)'"))
+        __rtr_renames = [
+            ("EST_NAME", "EST_NAME3"),
+            ("SYS_RPT_YEAR", "SYS_RPT_YEAR3"),
+            ("SYS_RPT_MTH", "SYS_RPT_MTH3"),
+            ("PHONE_CNT1", "PHONE_CNT13"),
+            ("PHONE_SUCC_CNT1", "PHONE_SUCC_CNT13"),
+            ("PHONE_PND_CNT1", "PHONE_PND_CNT13"),
+            ("PHONE_LANG_CTN_CNT1", "PHONE_LANG_CTN_CNT13"),
+            ("PHONE_LANG_PTH_CNT1", "PHONE_LANG_PTH_CNT13"),
+            ("PHONE_LANG_ENG_CNT1", "PHONE_LANG_ENG_CNT13"),
+            ("PHONE_UNSUCC_CNT1", "PHONE_UNSUCC_CNT13"),
+            ("PHONE_INVLD_TONE_UNSUCC_CNT1", "PHONE_INVLD_TONE_UNSUCC_CNT13"),
+            ("PHONE_NO_ANS_UNSUCC_CNT1", "PHONE_NO_ANS_UNSUCC_CNT13"),
+            ("PHONE_BUSY_UNSUCC_CNT1", "PHONE_BUSY_UNSUCC_CNT13"),
+            ("SMS_CNT1", "SMS_CNT13"),
+            ("SMS_SUCC_CNT1", "SMS_SUCC_CNT13"),
+            ("SMS_UNSUCC_CNT1", "SMS_UNSUCC_CNT13"),
+        ]
+        for _old, _new in __rtr_renames:
+            df_rtr_RTRTRANS1_NON_WO1 = df_rtr_RTRTRANS1_NON_WO1.drop(_new).withColumnRenamed(_old, _new)
+        ctx.register_df("df_rtr_RTRTRANS1_NON_WO1", df_rtr_RTRTRANS1_NON_WO1)
+        df_rtr_RTRTRANS1_DEFAULT = df_EXPTRANS1.filter(~(expr("EST_NAME = 'WOCHEESTATE(KINGWOHOUSE)'")) & ~(expr("EST_NAME != 'WOCHEESTATE(KINGWOHOUSE)'")))
+        __rtr_renames = [
+            ("EST_NAME", "EST_NAME2"),
+            ("SYS_RPT_YEAR", "SYS_RPT_YEAR2"),
+            ("SYS_RPT_MTH", "SYS_RPT_MTH2"),
+            ("PHONE_CNT1", "PHONE_CNT12"),
+            ("PHONE_SUCC_CNT1", "PHONE_SUCC_CNT12"),
+            ("PHONE_PND_CNT1", "PHONE_PND_CNT12"),
+            ("PHONE_LANG_CTN_CNT1", "PHONE_LANG_CTN_CNT12"),
+            ("PHONE_LANG_PTH_CNT1", "PHONE_LANG_PTH_CNT12"),
+            ("PHONE_LANG_ENG_CNT1", "PHONE_LANG_ENG_CNT12"),
+            ("PHONE_UNSUCC_CNT1", "PHONE_UNSUCC_CNT12"),
+            ("PHONE_INVLD_TONE_UNSUCC_CNT1", "PHONE_INVLD_TONE_UNSUCC_CNT12"),
+            ("PHONE_NO_ANS_UNSUCC_CNT1", "PHONE_NO_ANS_UNSUCC_CNT12"),
+            ("PHONE_BUSY_UNSUCC_CNT1", "PHONE_BUSY_UNSUCC_CNT12"),
+            ("SMS_CNT1", "SMS_CNT12"),
+            ("SMS_SUCC_CNT1", "SMS_SUCC_CNT12"),
+            ("SMS_UNSUCC_CNT1", "SMS_UNSUCC_CNT12"),
+        ]
+        for _old, _new in __rtr_renames:
+            df_rtr_RTRTRANS1_DEFAULT = df_rtr_RTRTRANS1_DEFAULT.drop(_new).withColumnRenamed(_old, _new)
+        ctx.register_df("df_rtr_RTRTRANS1_DEFAULT", df_rtr_RTRTRANS1_DEFAULT)
+
         logger.info("Step: read_LKP_EST_KEY")
         # Reading Data From Source - read_LKP_EST_KEY
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -195,11 +207,11 @@ AND  LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','YYYYMMDD')) BETWEEN BGN_DATE AND EN
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_EST_KEY = df_LKP_EST_KEY.dropDuplicates(subset=["EST_NAME"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_rtr_non_wo1_2
+        _lkp_input = df_rtr_RTRTRANS1_NON_WO1
         _lkp_input = _lkp_input.withColumn("EST_NAME_IN", col("EST_NAME3"))
         # Join condition: EST_NAME_IN=EST_NAME
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_4 = _lkp_input.alias("_main").join(
+        df_lkp_merge_RTRTRANS1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_EST_KEY).alias("_lkp"),
             (col("_main.EST_NAME_IN") == col("_lkp.EST_NAME")),
             "left"
@@ -207,10 +219,10 @@ AND  LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','YYYYMMDD')) BETWEEN BGN_DATE AND EN
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_EST_KEY[c] for c in df_LKP_EST_KEY.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_4", df_lkp_merge_4)        
+        ctx.register_df("df_lkp_merge_RTRTRANS1", df_lkp_merge_RTRTRANS1)        
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_rtr_wo1_1
+        df_EXPTRANS = df_rtr_RTRTRANS1_WO1
         df_EXPTRANS = df_EXPTRANS.withColumn("EST_CODE", expr("'WC1'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["SYS_RPT_YEAR1", "SYS_RPT_MTH1", "PHONE_CNT11", "PHONE_SUCC_CNT11", "PHONE_PND_CNT11", "PHONE_LANG_CTN_CNT11", "PHONE_LANG_PTH_CNT11", "PHONE_LANG_ENG_CNT11", "PHONE_UNSUCC_CNT11", "PHONE_INVLD_TONE_UNSUCC_CNT11", "PHONE_NO_ANS_UNSUCC_CNT11", "PHONE_BUSY_UNSUCC_CNT11", "SMS_CNT11", "SMS_SUCC_CNT11", "SMS_UNSUCC_CNT11"]:
@@ -244,7 +256,7 @@ AND  LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','YYYYMMDD')) BETWEEN BGN_DATE AND EN
         _lkp_input = _lkp_input.withColumn("EST_CODE_IN", col("EST_CODE"))
         # Join condition: EST_CODE_IN=EST_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_5 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS = _lkp_input.alias("_main").join(
             broadcast(df_LKP_EST_KEY_BY_CODE).alias("_lkp"),
             (col("_main.EST_CODE_IN") == col("_lkp.EST_CODE")),
             "left"
@@ -252,44 +264,44 @@ AND  LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','YYYYMMDD')) BETWEEN BGN_DATE AND EN
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_EST_KEY_BY_CODE[c] for c in df_LKP_EST_KEY_BY_CODE.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_5", df_lkp_merge_5)        
+        ctx.register_df("df_lkp_merge_EXPTRANS", df_lkp_merge_EXPTRANS)        
         logger.info("Step: apply_Union_Transformation1")
         # Union: apply_Union_Transformation1
         # Select + rename upstream columns per input, then union
-        df_Union_Transformation1_wo_che_blk = df_lkp_merge_5.select(
-            col("EST_KEY").alias("EST_KEY"),
-            col("SYS_RPT_YEAR1").alias("SYS_RPT_YEAR3"),
-            col("SYS_RPT_MTH1").alias("SYS_RPT_MTH3"),
-            col("PHONE_CNT11").alias("PHONE_CNT13"),
-            col("PHONE_SUCC_CNT11").alias("PHONE_SUCC_CNT13"),
-            col("PHONE_PND_CNT11").alias("PHONE_PND_CNT13"),
-            col("PHONE_LANG_CTN_CNT11").alias("PHONE_LANG_CTN_CNT13"),
-            col("PHONE_LANG_PTH_CNT11").alias("PHONE_LANG_PTH_CNT13"),
-            col("PHONE_LANG_ENG_CNT11").alias("PHONE_LANG_ENG_CNT13"),
-            col("PHONE_UNSUCC_CNT11").alias("PHONE_UNSUCC_CNT13"),
-            col("PHONE_INVLD_TONE_UNSUCC_CNT11").alias("PHONE_INVLD_TONE_UNSUCC_CNT13"),
-            col("PHONE_NO_ANS_UNSUCC_CNT11").alias("PHONE_NO_ANS_UNSUCC_CNT13"),
-            col("PHONE_BUSY_UNSUCC_CNT11").alias("PHONE_BUSY_UNSUCC_CNT13"),
-            col("SMS_CNT11").alias("SMS_CNT13"),
-            col("SMS_SUCC_CNT11").alias("SMS_SUCC_CNT13"),
-            col("SMS_UNSUCC_CNT11").alias("SMS_UNSUCC_CNT13")        )
-        df_Union_Transformation1_non_wo_che_blk = df_lkp_merge_4.select(
-            col("EST_KEY").alias("EST_KEY"),
-            col("SYS_RPT_YEAR3").alias("SYS_RPT_YEAR3"),
-            col("SYS_RPT_MTH3").alias("SYS_RPT_MTH3"),
-            col("PHONE_CNT13").alias("PHONE_CNT13"),
-            col("PHONE_SUCC_CNT13").alias("PHONE_SUCC_CNT13"),
-            col("PHONE_PND_CNT13").alias("PHONE_PND_CNT13"),
-            col("PHONE_LANG_CTN_CNT13").alias("PHONE_LANG_CTN_CNT13"),
-            col("PHONE_LANG_PTH_CNT13").alias("PHONE_LANG_PTH_CNT13"),
-            col("PHONE_LANG_ENG_CNT13").alias("PHONE_LANG_ENG_CNT13"),
-            col("PHONE_UNSUCC_CNT13").alias("PHONE_UNSUCC_CNT13"),
-            col("PHONE_INVLD_TONE_UNSUCC_CNT13").alias("PHONE_INVLD_TONE_UNSUCC_CNT13"),
-            col("PHONE_NO_ANS_UNSUCC_CNT13").alias("PHONE_NO_ANS_UNSUCC_CNT13"),
-            col("PHONE_BUSY_UNSUCC_CNT13").alias("PHONE_BUSY_UNSUCC_CNT13"),
-            col("SMS_CNT13").alias("SMS_CNT13"),
-            col("SMS_SUCC_CNT13").alias("SMS_SUCC_CNT13"),
-            col("SMS_UNSUCC_CNT13").alias("SMS_UNSUCC_CNT13")        )
+        df_Union_Transformation1_wo_che_blk = df_lkp_merge_EXPTRANS.select(
+col("EST_KEY"),
+col("SYS_RPT_YEAR1").alias("SYS_RPT_YEAR3"),
+col("SYS_RPT_MTH1").alias("SYS_RPT_MTH3"),
+col("PHONE_CNT11").alias("PHONE_CNT13"),
+col("PHONE_SUCC_CNT11").alias("PHONE_SUCC_CNT13"),
+col("PHONE_PND_CNT11").alias("PHONE_PND_CNT13"),
+col("PHONE_LANG_CTN_CNT11").alias("PHONE_LANG_CTN_CNT13"),
+col("PHONE_LANG_PTH_CNT11").alias("PHONE_LANG_PTH_CNT13"),
+col("PHONE_LANG_ENG_CNT11").alias("PHONE_LANG_ENG_CNT13"),
+col("PHONE_UNSUCC_CNT11").alias("PHONE_UNSUCC_CNT13"),
+col("PHONE_INVLD_TONE_UNSUCC_CNT11").alias("PHONE_INVLD_TONE_UNSUCC_CNT13"),
+col("PHONE_NO_ANS_UNSUCC_CNT11").alias("PHONE_NO_ANS_UNSUCC_CNT13"),
+col("PHONE_BUSY_UNSUCC_CNT11").alias("PHONE_BUSY_UNSUCC_CNT13"),
+col("SMS_CNT11").alias("SMS_CNT13"),
+col("SMS_SUCC_CNT11").alias("SMS_SUCC_CNT13"),
+col("SMS_UNSUCC_CNT11").alias("SMS_UNSUCC_CNT13")        )
+        df_Union_Transformation1_non_wo_che_blk = df_lkp_merge_RTRTRANS1.select(
+col("EST_KEY"),
+col("SYS_RPT_YEAR3"),
+col("SYS_RPT_MTH3"),
+col("PHONE_CNT13"),
+col("PHONE_SUCC_CNT13"),
+col("PHONE_PND_CNT13"),
+col("PHONE_LANG_CTN_CNT13"),
+col("PHONE_LANG_PTH_CNT13"),
+col("PHONE_LANG_ENG_CNT13"),
+col("PHONE_UNSUCC_CNT13"),
+col("PHONE_INVLD_TONE_UNSUCC_CNT13"),
+col("PHONE_NO_ANS_UNSUCC_CNT13"),
+col("PHONE_BUSY_UNSUCC_CNT13"),
+col("SMS_CNT13"),
+col("SMS_SUCC_CNT13"),
+col("SMS_UNSUCC_CNT13")        )
         df_Union_Transformation1 = df_Union_Transformation1_wo_che_blk
         df_Union_Transformation1 = df_Union_Transformation1.unionByName(df_Union_Transformation1_non_wo_che_blk, allowMissingColumns=True)
         # Select only union output columns (add lit(None) for any missing)
@@ -301,265 +313,325 @@ AND  LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','YYYYMMDD')) BETWEEN BGN_DATE AND EN
         
         logger.info("Step: apply_RTRTRANS")
         # Router: apply_RTRTRANS - splits into multiple output groups
-        df_rtr_newgroup_6 = df_Union_Transformation1.filter(expr("TRUE"))
-        df_rtr_newgroup_6 = df_rtr_newgroup_6.drop("EST_KEY2").withColumnRenamed("EST_KEY", "EST_KEY2")
-        df_rtr_newgroup_6 = df_rtr_newgroup_6.drop("SYS_RPT_YEAR2").withColumnRenamed("SYS_RPT_YEAR3", "SYS_RPT_YEAR2")
-        df_rtr_newgroup_6 = df_rtr_newgroup_6.drop("SYS_RPT_MTH2").withColumnRenamed("SYS_RPT_MTH3", "SYS_RPT_MTH2")
-        df_rtr_newgroup_6 = df_rtr_newgroup_6.drop("PHONE_CNT2").withColumnRenamed("PHONE_CNT13", "PHONE_CNT2")
-        df_rtr_newgroup_6 = df_rtr_newgroup_6.drop("PHONE_SUCC_CNT2").withColumnRenamed("PHONE_SUCC_CNT13", "PHONE_SUCC_CNT2")
-        df_rtr_newgroup_6 = df_rtr_newgroup_6.drop("PHONE_PND_CNT2").withColumnRenamed("PHONE_PND_CNT13", "PHONE_PND_CNT2")
-        df_rtr_newgroup_6 = df_rtr_newgroup_6.drop("PHONE_LANG_CTN_CNT2").withColumnRenamed("PHONE_LANG_CTN_CNT13", "PHONE_LANG_CTN_CNT2")
-        df_rtr_newgroup_6 = df_rtr_newgroup_6.drop("PHONE_LANG_PTH_CNT2").withColumnRenamed("PHONE_LANG_PTH_CNT13", "PHONE_LANG_PTH_CNT2")
-        df_rtr_newgroup_6 = df_rtr_newgroup_6.drop("PHONE_LANG_ENG_CNT2").withColumnRenamed("PHONE_LANG_ENG_CNT13", "PHONE_LANG_ENG_CNT2")
-        df_rtr_newgroup_6 = df_rtr_newgroup_6.drop("PHONE_UNSUCC_CNT2").withColumnRenamed("PHONE_UNSUCC_CNT13", "PHONE_UNSUCC_CNT2")
-        df_rtr_newgroup_6 = df_rtr_newgroup_6.drop("PHONE_INVLD_TONE_UNSUCC_CNT2").withColumnRenamed("PHONE_INVLD_TONE_UNSUCC_CNT13", "PHONE_INVLD_TONE_UNSUCC_CNT2")
-        df_rtr_newgroup_6 = df_rtr_newgroup_6.drop("PHONE_NO_ANS_UNSUCC_CNT2").withColumnRenamed("PHONE_NO_ANS_UNSUCC_CNT13", "PHONE_NO_ANS_UNSUCC_CNT2")
-        df_rtr_newgroup_6 = df_rtr_newgroup_6.drop("PHONE_BUSY_UNSUCC_CNT2").withColumnRenamed("PHONE_BUSY_UNSUCC_CNT13", "PHONE_BUSY_UNSUCC_CNT2")
-        df_rtr_newgroup_6 = df_rtr_newgroup_6.drop("SMS_CNT2").withColumnRenamed("SMS_CNT13", "SMS_CNT2")
-        df_rtr_newgroup_6 = df_rtr_newgroup_6.drop("SMS_SUCC_CNT2").withColumnRenamed("SMS_SUCC_CNT13", "SMS_SUCC_CNT2")
-        df_rtr_newgroup_6 = df_rtr_newgroup_6.drop("SMS_UNSUCC_CNT2").withColumnRenamed("SMS_UNSUCC_CNT13", "SMS_UNSUCC_CNT2")
-        ctx.register_df("df_rtr_newgroup_6", df_rtr_newgroup_6)
-        df_rtr_newgroup1_7 = df_Union_Transformation1.filter(expr("TRUE"))
-        df_rtr_newgroup1_7 = df_rtr_newgroup1_7.drop("EST_KEY3").withColumnRenamed("EST_KEY", "EST_KEY3")
-        df_rtr_newgroup1_7 = df_rtr_newgroup1_7.drop("PHONE_CNT3").withColumnRenamed("PHONE_CNT13", "PHONE_CNT3")
-        df_rtr_newgroup1_7 = df_rtr_newgroup1_7.drop("PHONE_SUCC_CNT3").withColumnRenamed("PHONE_SUCC_CNT13", "PHONE_SUCC_CNT3")
-        df_rtr_newgroup1_7 = df_rtr_newgroup1_7.drop("PHONE_PND_CNT3").withColumnRenamed("PHONE_PND_CNT13", "PHONE_PND_CNT3")
-        df_rtr_newgroup1_7 = df_rtr_newgroup1_7.drop("PHONE_LANG_CTN_CNT3").withColumnRenamed("PHONE_LANG_CTN_CNT13", "PHONE_LANG_CTN_CNT3")
-        df_rtr_newgroup1_7 = df_rtr_newgroup1_7.drop("PHONE_LANG_PTH_CNT3").withColumnRenamed("PHONE_LANG_PTH_CNT13", "PHONE_LANG_PTH_CNT3")
-        df_rtr_newgroup1_7 = df_rtr_newgroup1_7.drop("PHONE_LANG_ENG_CNT3").withColumnRenamed("PHONE_LANG_ENG_CNT13", "PHONE_LANG_ENG_CNT3")
-        df_rtr_newgroup1_7 = df_rtr_newgroup1_7.drop("PHONE_UNSUCC_CNT3").withColumnRenamed("PHONE_UNSUCC_CNT13", "PHONE_UNSUCC_CNT3")
-        df_rtr_newgroup1_7 = df_rtr_newgroup1_7.drop("PHONE_INVLD_TONE_UNSUCC_CNT3").withColumnRenamed("PHONE_INVLD_TONE_UNSUCC_CNT13", "PHONE_INVLD_TONE_UNSUCC_CNT3")
-        df_rtr_newgroup1_7 = df_rtr_newgroup1_7.drop("PHONE_NO_ANS_UNSUCC_CNT3").withColumnRenamed("PHONE_NO_ANS_UNSUCC_CNT13", "PHONE_NO_ANS_UNSUCC_CNT3")
-        df_rtr_newgroup1_7 = df_rtr_newgroup1_7.drop("PHONE_BUSY_UNSUCC_CNT3").withColumnRenamed("PHONE_BUSY_UNSUCC_CNT13", "PHONE_BUSY_UNSUCC_CNT3")
-        df_rtr_newgroup1_7 = df_rtr_newgroup1_7.drop("SMS_CNT3").withColumnRenamed("SMS_CNT13", "SMS_CNT3")
-        df_rtr_newgroup1_7 = df_rtr_newgroup1_7.drop("SMS_SUCC_CNT3").withColumnRenamed("SMS_SUCC_CNT13", "SMS_SUCC_CNT3")
-        df_rtr_newgroup1_7 = df_rtr_newgroup1_7.drop("SMS_UNSUCC_CNT3").withColumnRenamed("SMS_UNSUCC_CNT13", "SMS_UNSUCC_CNT3")
-        ctx.register_df("df_rtr_newgroup1_7", df_rtr_newgroup1_7)
-        df_rtr_newgroup2_8 = df_Union_Transformation1.filter(expr("TRUE"))
-        df_rtr_newgroup2_8 = df_rtr_newgroup2_8.drop("EST_KEY4").withColumnRenamed("EST_KEY", "EST_KEY4")
-        df_rtr_newgroup2_8 = df_rtr_newgroup2_8.drop("SYS_RPT_YEAR4").withColumnRenamed("SYS_RPT_YEAR3", "SYS_RPT_YEAR4")
-        df_rtr_newgroup2_8 = df_rtr_newgroup2_8.drop("SYS_RPT_MTH4").withColumnRenamed("SYS_RPT_MTH3", "SYS_RPT_MTH4")
-        df_rtr_newgroup2_8 = df_rtr_newgroup2_8.drop("PHONE_CNT4").withColumnRenamed("PHONE_CNT13", "PHONE_CNT4")
-        df_rtr_newgroup2_8 = df_rtr_newgroup2_8.drop("PHONE_SUCC_CNT4").withColumnRenamed("PHONE_SUCC_CNT13", "PHONE_SUCC_CNT4")
-        df_rtr_newgroup2_8 = df_rtr_newgroup2_8.drop("PHONE_PND_CNT4").withColumnRenamed("PHONE_PND_CNT13", "PHONE_PND_CNT4")
-        df_rtr_newgroup2_8 = df_rtr_newgroup2_8.drop("PHONE_LANG_CTN_CNT4").withColumnRenamed("PHONE_LANG_CTN_CNT13", "PHONE_LANG_CTN_CNT4")
-        df_rtr_newgroup2_8 = df_rtr_newgroup2_8.drop("PHONE_LANG_PTH_CNT4").withColumnRenamed("PHONE_LANG_PTH_CNT13", "PHONE_LANG_PTH_CNT4")
-        df_rtr_newgroup2_8 = df_rtr_newgroup2_8.drop("PHONE_LANG_ENG_CNT4").withColumnRenamed("PHONE_LANG_ENG_CNT13", "PHONE_LANG_ENG_CNT4")
-        df_rtr_newgroup2_8 = df_rtr_newgroup2_8.drop("PHONE_UNSUCC_CNT4").withColumnRenamed("PHONE_UNSUCC_CNT13", "PHONE_UNSUCC_CNT4")
-        df_rtr_newgroup2_8 = df_rtr_newgroup2_8.drop("PHONE_INVLD_TONE_UNSUCC_CNT4").withColumnRenamed("PHONE_INVLD_TONE_UNSUCC_CNT13", "PHONE_INVLD_TONE_UNSUCC_CNT4")
-        df_rtr_newgroup2_8 = df_rtr_newgroup2_8.drop("PHONE_NO_ANS_UNSUCC_CNT4").withColumnRenamed("PHONE_NO_ANS_UNSUCC_CNT13", "PHONE_NO_ANS_UNSUCC_CNT4")
-        df_rtr_newgroup2_8 = df_rtr_newgroup2_8.drop("PHONE_BUSY_UNSUCC_CNT4").withColumnRenamed("PHONE_BUSY_UNSUCC_CNT13", "PHONE_BUSY_UNSUCC_CNT4")
-        df_rtr_newgroup2_8 = df_rtr_newgroup2_8.drop("SMS_CNT4").withColumnRenamed("SMS_CNT13", "SMS_CNT4")
-        df_rtr_newgroup2_8 = df_rtr_newgroup2_8.drop("SMS_SUCC_CNT4").withColumnRenamed("SMS_SUCC_CNT13", "SMS_SUCC_CNT4")
-        df_rtr_newgroup2_8 = df_rtr_newgroup2_8.drop("SMS_UNSUCC_CNT4").withColumnRenamed("SMS_UNSUCC_CNT13", "SMS_UNSUCC_CNT4")
-        ctx.register_df("df_rtr_newgroup2_8", df_rtr_newgroup2_8)
-        df_rtr_newgroup3_9 = df_Union_Transformation1.filter(expr("TRUE"))
-        df_rtr_newgroup3_9 = df_rtr_newgroup3_9.drop("EST_KEY5").withColumnRenamed("EST_KEY", "EST_KEY5")
-        df_rtr_newgroup3_9 = df_rtr_newgroup3_9.drop("SYS_RPT_YEAR5").withColumnRenamed("SYS_RPT_YEAR3", "SYS_RPT_YEAR5")
-        df_rtr_newgroup3_9 = df_rtr_newgroup3_9.drop("SYS_RPT_MTH5").withColumnRenamed("SYS_RPT_MTH3", "SYS_RPT_MTH5")
-        df_rtr_newgroup3_9 = df_rtr_newgroup3_9.drop("PHONE_CNT5").withColumnRenamed("PHONE_CNT13", "PHONE_CNT5")
-        df_rtr_newgroup3_9 = df_rtr_newgroup3_9.drop("PHONE_SUCC_CNT5").withColumnRenamed("PHONE_SUCC_CNT13", "PHONE_SUCC_CNT5")
-        df_rtr_newgroup3_9 = df_rtr_newgroup3_9.drop("PHONE_PND_CNT5").withColumnRenamed("PHONE_PND_CNT13", "PHONE_PND_CNT5")
-        df_rtr_newgroup3_9 = df_rtr_newgroup3_9.drop("PHONE_LANG_CTN_CNT5").withColumnRenamed("PHONE_LANG_CTN_CNT13", "PHONE_LANG_CTN_CNT5")
-        df_rtr_newgroup3_9 = df_rtr_newgroup3_9.drop("PHONE_LANG_PTH_CNT5").withColumnRenamed("PHONE_LANG_PTH_CNT13", "PHONE_LANG_PTH_CNT5")
-        df_rtr_newgroup3_9 = df_rtr_newgroup3_9.drop("PHONE_LANG_ENG_CNT5").withColumnRenamed("PHONE_LANG_ENG_CNT13", "PHONE_LANG_ENG_CNT5")
-        df_rtr_newgroup3_9 = df_rtr_newgroup3_9.drop("PHONE_UNSUCC_CNT5").withColumnRenamed("PHONE_UNSUCC_CNT13", "PHONE_UNSUCC_CNT5")
-        df_rtr_newgroup3_9 = df_rtr_newgroup3_9.drop("PHONE_INVLD_TONE_UNSUCC_CNT5").withColumnRenamed("PHONE_INVLD_TONE_UNSUCC_CNT13", "PHONE_INVLD_TONE_UNSUCC_CNT5")
-        df_rtr_newgroup3_9 = df_rtr_newgroup3_9.drop("PHONE_NO_ANS_UNSUCC_CNT5").withColumnRenamed("PHONE_NO_ANS_UNSUCC_CNT13", "PHONE_NO_ANS_UNSUCC_CNT5")
-        df_rtr_newgroup3_9 = df_rtr_newgroup3_9.drop("PHONE_BUSY_UNSUCC_CNT5").withColumnRenamed("PHONE_BUSY_UNSUCC_CNT13", "PHONE_BUSY_UNSUCC_CNT5")
-        df_rtr_newgroup3_9 = df_rtr_newgroup3_9.drop("SMS_CNT5").withColumnRenamed("SMS_CNT13", "SMS_CNT5")
-        df_rtr_newgroup3_9 = df_rtr_newgroup3_9.drop("SMS_SUCC_CNT5").withColumnRenamed("SMS_SUCC_CNT13", "SMS_SUCC_CNT5")
-        df_rtr_newgroup3_9 = df_rtr_newgroup3_9.drop("SMS_UNSUCC_CNT5").withColumnRenamed("SMS_UNSUCC_CNT13", "SMS_UNSUCC_CNT5")
-        ctx.register_df("df_rtr_newgroup3_9", df_rtr_newgroup3_9)
-        df_rtr_newgroup4_10 = df_Union_Transformation1.filter(expr("TRUE"))
-        df_rtr_newgroup4_10 = df_rtr_newgroup4_10.drop("EST_KEY6").withColumnRenamed("EST_KEY", "EST_KEY6")
-        df_rtr_newgroup4_10 = df_rtr_newgroup4_10.drop("SYS_RPT_YEAR6").withColumnRenamed("SYS_RPT_YEAR3", "SYS_RPT_YEAR6")
-        df_rtr_newgroup4_10 = df_rtr_newgroup4_10.drop("SYS_RPT_MTH6").withColumnRenamed("SYS_RPT_MTH3", "SYS_RPT_MTH6")
-        df_rtr_newgroup4_10 = df_rtr_newgroup4_10.drop("PHONE_CNT6").withColumnRenamed("PHONE_CNT13", "PHONE_CNT6")
-        df_rtr_newgroup4_10 = df_rtr_newgroup4_10.drop("PHONE_SUCC_CNT6").withColumnRenamed("PHONE_SUCC_CNT13", "PHONE_SUCC_CNT6")
-        df_rtr_newgroup4_10 = df_rtr_newgroup4_10.drop("PHONE_PND_CNT6").withColumnRenamed("PHONE_PND_CNT13", "PHONE_PND_CNT6")
-        df_rtr_newgroup4_10 = df_rtr_newgroup4_10.drop("PHONE_LANG_CTN_CNT6").withColumnRenamed("PHONE_LANG_CTN_CNT13", "PHONE_LANG_CTN_CNT6")
-        df_rtr_newgroup4_10 = df_rtr_newgroup4_10.drop("PHONE_LANG_PTH_CNT6").withColumnRenamed("PHONE_LANG_PTH_CNT13", "PHONE_LANG_PTH_CNT6")
-        df_rtr_newgroup4_10 = df_rtr_newgroup4_10.drop("PHONE_LANG_ENG_CNT6").withColumnRenamed("PHONE_LANG_ENG_CNT13", "PHONE_LANG_ENG_CNT6")
-        df_rtr_newgroup4_10 = df_rtr_newgroup4_10.drop("PHONE_UNSUCC_CNT6").withColumnRenamed("PHONE_UNSUCC_CNT13", "PHONE_UNSUCC_CNT6")
-        df_rtr_newgroup4_10 = df_rtr_newgroup4_10.drop("PHONE_INVLD_TONE_UNSUCC_CNT6").withColumnRenamed("PHONE_INVLD_TONE_UNSUCC_CNT13", "PHONE_INVLD_TONE_UNSUCC_CNT6")
-        df_rtr_newgroup4_10 = df_rtr_newgroup4_10.drop("PHONE_NO_ANS_UNSUCC_CNT6").withColumnRenamed("PHONE_NO_ANS_UNSUCC_CNT13", "PHONE_NO_ANS_UNSUCC_CNT6")
-        df_rtr_newgroup4_10 = df_rtr_newgroup4_10.drop("PHONE_BUSY_UNSUCC_CNT6").withColumnRenamed("PHONE_BUSY_UNSUCC_CNT13", "PHONE_BUSY_UNSUCC_CNT6")
-        df_rtr_newgroup4_10 = df_rtr_newgroup4_10.drop("SMS_CNT6").withColumnRenamed("SMS_CNT13", "SMS_CNT6")
-        df_rtr_newgroup4_10 = df_rtr_newgroup4_10.drop("SMS_SUCC_CNT6").withColumnRenamed("SMS_SUCC_CNT13", "SMS_SUCC_CNT6")
-        df_rtr_newgroup4_10 = df_rtr_newgroup4_10.drop("SMS_UNSUCC_CNT6").withColumnRenamed("SMS_UNSUCC_CNT13", "SMS_UNSUCC_CNT6")
-        ctx.register_df("df_rtr_newgroup4_10", df_rtr_newgroup4_10)
-        df_rtr_newgroup5_11 = df_Union_Transformation1.filter(expr("TRUE"))
-        df_rtr_newgroup5_11 = df_rtr_newgroup5_11.drop("EST_KEY7").withColumnRenamed("EST_KEY", "EST_KEY7")
-        df_rtr_newgroup5_11 = df_rtr_newgroup5_11.drop("SYS_RPT_YEAR7").withColumnRenamed("SYS_RPT_YEAR3", "SYS_RPT_YEAR7")
-        df_rtr_newgroup5_11 = df_rtr_newgroup5_11.drop("SYS_RPT_MTH7").withColumnRenamed("SYS_RPT_MTH3", "SYS_RPT_MTH7")
-        df_rtr_newgroup5_11 = df_rtr_newgroup5_11.drop("PHONE_CNT7").withColumnRenamed("PHONE_CNT13", "PHONE_CNT7")
-        df_rtr_newgroup5_11 = df_rtr_newgroup5_11.drop("PHONE_SUCC_CNT7").withColumnRenamed("PHONE_SUCC_CNT13", "PHONE_SUCC_CNT7")
-        df_rtr_newgroup5_11 = df_rtr_newgroup5_11.drop("PHONE_PND_CNT7").withColumnRenamed("PHONE_PND_CNT13", "PHONE_PND_CNT7")
-        df_rtr_newgroup5_11 = df_rtr_newgroup5_11.drop("PHONE_LANG_CTN_CNT7").withColumnRenamed("PHONE_LANG_CTN_CNT13", "PHONE_LANG_CTN_CNT7")
-        df_rtr_newgroup5_11 = df_rtr_newgroup5_11.drop("PHONE_LANG_PTH_CNT7").withColumnRenamed("PHONE_LANG_PTH_CNT13", "PHONE_LANG_PTH_CNT7")
-        df_rtr_newgroup5_11 = df_rtr_newgroup5_11.drop("PHONE_LANG_ENG_CNT7").withColumnRenamed("PHONE_LANG_ENG_CNT13", "PHONE_LANG_ENG_CNT7")
-        df_rtr_newgroup5_11 = df_rtr_newgroup5_11.drop("PHONE_UNSUCC_CNT7").withColumnRenamed("PHONE_UNSUCC_CNT13", "PHONE_UNSUCC_CNT7")
-        df_rtr_newgroup5_11 = df_rtr_newgroup5_11.drop("PHONE_INVLD_TONE_UNSUCC_CNT7").withColumnRenamed("PHONE_INVLD_TONE_UNSUCC_CNT13", "PHONE_INVLD_TONE_UNSUCC_CNT7")
-        df_rtr_newgroup5_11 = df_rtr_newgroup5_11.drop("PHONE_NO_ANS_UNSUCC_CNT7").withColumnRenamed("PHONE_NO_ANS_UNSUCC_CNT13", "PHONE_NO_ANS_UNSUCC_CNT7")
-        df_rtr_newgroup5_11 = df_rtr_newgroup5_11.drop("PHONE_BUSY_UNSUCC_CNT7").withColumnRenamed("PHONE_BUSY_UNSUCC_CNT13", "PHONE_BUSY_UNSUCC_CNT7")
-        df_rtr_newgroup5_11 = df_rtr_newgroup5_11.drop("SMS_CNT7").withColumnRenamed("SMS_CNT13", "SMS_CNT7")
-        df_rtr_newgroup5_11 = df_rtr_newgroup5_11.drop("SMS_SUCC_CNT7").withColumnRenamed("SMS_SUCC_CNT13", "SMS_SUCC_CNT7")
-        df_rtr_newgroup5_11 = df_rtr_newgroup5_11.drop("SMS_UNSUCC_CNT7").withColumnRenamed("SMS_UNSUCC_CNT13", "SMS_UNSUCC_CNT7")
-        ctx.register_df("df_rtr_newgroup5_11", df_rtr_newgroup5_11)
-        df_rtr_newgroup6_12 = df_Union_Transformation1.filter(expr("TRUE"))
-        df_rtr_newgroup6_12 = df_rtr_newgroup6_12.drop("EST_KEY8").withColumnRenamed("EST_KEY", "EST_KEY8")
-        df_rtr_newgroup6_12 = df_rtr_newgroup6_12.drop("SYS_RPT_YEAR8").withColumnRenamed("SYS_RPT_YEAR3", "SYS_RPT_YEAR8")
-        df_rtr_newgroup6_12 = df_rtr_newgroup6_12.drop("SYS_RPT_MTH8").withColumnRenamed("SYS_RPT_MTH3", "SYS_RPT_MTH8")
-        df_rtr_newgroup6_12 = df_rtr_newgroup6_12.drop("PHONE_CNT8").withColumnRenamed("PHONE_CNT13", "PHONE_CNT8")
-        df_rtr_newgroup6_12 = df_rtr_newgroup6_12.drop("PHONE_SUCC_CNT8").withColumnRenamed("PHONE_SUCC_CNT13", "PHONE_SUCC_CNT8")
-        df_rtr_newgroup6_12 = df_rtr_newgroup6_12.drop("PHONE_PND_CNT8").withColumnRenamed("PHONE_PND_CNT13", "PHONE_PND_CNT8")
-        df_rtr_newgroup6_12 = df_rtr_newgroup6_12.drop("PHONE_LANG_CTN_CNT8").withColumnRenamed("PHONE_LANG_CTN_CNT13", "PHONE_LANG_CTN_CNT8")
-        df_rtr_newgroup6_12 = df_rtr_newgroup6_12.drop("PHONE_LANG_PTH_CNT8").withColumnRenamed("PHONE_LANG_PTH_CNT13", "PHONE_LANG_PTH_CNT8")
-        df_rtr_newgroup6_12 = df_rtr_newgroup6_12.drop("PHONE_LANG_ENG_CNT8").withColumnRenamed("PHONE_LANG_ENG_CNT13", "PHONE_LANG_ENG_CNT8")
-        df_rtr_newgroup6_12 = df_rtr_newgroup6_12.drop("PHONE_UNSUCC_CNT8").withColumnRenamed("PHONE_UNSUCC_CNT13", "PHONE_UNSUCC_CNT8")
-        df_rtr_newgroup6_12 = df_rtr_newgroup6_12.drop("PHONE_INVLD_TONE_UNSUCC_CNT8").withColumnRenamed("PHONE_INVLD_TONE_UNSUCC_CNT13", "PHONE_INVLD_TONE_UNSUCC_CNT8")
-        df_rtr_newgroup6_12 = df_rtr_newgroup6_12.drop("PHONE_NO_ANS_UNSUCC_CNT8").withColumnRenamed("PHONE_NO_ANS_UNSUCC_CNT13", "PHONE_NO_ANS_UNSUCC_CNT8")
-        df_rtr_newgroup6_12 = df_rtr_newgroup6_12.drop("PHONE_BUSY_UNSUCC_CNT8").withColumnRenamed("PHONE_BUSY_UNSUCC_CNT13", "PHONE_BUSY_UNSUCC_CNT8")
-        df_rtr_newgroup6_12 = df_rtr_newgroup6_12.drop("SMS_CNT8").withColumnRenamed("SMS_CNT13", "SMS_CNT8")
-        df_rtr_newgroup6_12 = df_rtr_newgroup6_12.drop("SMS_SUCC_CNT8").withColumnRenamed("SMS_SUCC_CNT13", "SMS_SUCC_CNT8")
-        df_rtr_newgroup6_12 = df_rtr_newgroup6_12.drop("SMS_UNSUCC_CNT8").withColumnRenamed("SMS_UNSUCC_CNT13", "SMS_UNSUCC_CNT8")
-        ctx.register_df("df_rtr_newgroup6_12", df_rtr_newgroup6_12)
-        df_rtr_newgroup7_13 = df_Union_Transformation1.filter(expr("TRUE"))
-        df_rtr_newgroup7_13 = df_rtr_newgroup7_13.drop("EST_KEY9").withColumnRenamed("EST_KEY", "EST_KEY9")
-        df_rtr_newgroup7_13 = df_rtr_newgroup7_13.drop("SYS_RPT_YEAR9").withColumnRenamed("SYS_RPT_YEAR3", "SYS_RPT_YEAR9")
-        df_rtr_newgroup7_13 = df_rtr_newgroup7_13.drop("SYS_RPT_MTH9").withColumnRenamed("SYS_RPT_MTH3", "SYS_RPT_MTH9")
-        df_rtr_newgroup7_13 = df_rtr_newgroup7_13.drop("PHONE_CNT9").withColumnRenamed("PHONE_CNT13", "PHONE_CNT9")
-        df_rtr_newgroup7_13 = df_rtr_newgroup7_13.drop("PHONE_SUCC_CNT9").withColumnRenamed("PHONE_SUCC_CNT13", "PHONE_SUCC_CNT9")
-        df_rtr_newgroup7_13 = df_rtr_newgroup7_13.drop("PHONE_PND_CNT9").withColumnRenamed("PHONE_PND_CNT13", "PHONE_PND_CNT9")
-        df_rtr_newgroup7_13 = df_rtr_newgroup7_13.drop("PHONE_LANG_CTN_CNT9").withColumnRenamed("PHONE_LANG_CTN_CNT13", "PHONE_LANG_CTN_CNT9")
-        df_rtr_newgroup7_13 = df_rtr_newgroup7_13.drop("PHONE_LANG_PTH_CNT9").withColumnRenamed("PHONE_LANG_PTH_CNT13", "PHONE_LANG_PTH_CNT9")
-        df_rtr_newgroup7_13 = df_rtr_newgroup7_13.drop("PHONE_LANG_ENG_CNT9").withColumnRenamed("PHONE_LANG_ENG_CNT13", "PHONE_LANG_ENG_CNT9")
-        df_rtr_newgroup7_13 = df_rtr_newgroup7_13.drop("PHONE_UNSUCC_CNT9").withColumnRenamed("PHONE_UNSUCC_CNT13", "PHONE_UNSUCC_CNT9")
-        df_rtr_newgroup7_13 = df_rtr_newgroup7_13.drop("PHONE_INVLD_TONE_UNSUCC_CNT9").withColumnRenamed("PHONE_INVLD_TONE_UNSUCC_CNT13", "PHONE_INVLD_TONE_UNSUCC_CNT9")
-        df_rtr_newgroup7_13 = df_rtr_newgroup7_13.drop("PHONE_NO_ANS_UNSUCC_CNT9").withColumnRenamed("PHONE_NO_ANS_UNSUCC_CNT13", "PHONE_NO_ANS_UNSUCC_CNT9")
-        df_rtr_newgroup7_13 = df_rtr_newgroup7_13.drop("PHONE_BUSY_UNSUCC_CNT9").withColumnRenamed("PHONE_BUSY_UNSUCC_CNT13", "PHONE_BUSY_UNSUCC_CNT9")
-        df_rtr_newgroup7_13 = df_rtr_newgroup7_13.drop("SMS_CNT9").withColumnRenamed("SMS_CNT13", "SMS_CNT9")
-        df_rtr_newgroup7_13 = df_rtr_newgroup7_13.drop("SMS_SUCC_CNT9").withColumnRenamed("SMS_SUCC_CNT13", "SMS_SUCC_CNT9")
-        df_rtr_newgroup7_13 = df_rtr_newgroup7_13.drop("SMS_UNSUCC_CNT9").withColumnRenamed("SMS_UNSUCC_CNT13", "SMS_UNSUCC_CNT9")
-        ctx.register_df("df_rtr_newgroup7_13", df_rtr_newgroup7_13)
-        df_rtr_newgroup8_14 = df_Union_Transformation1.filter(expr("TRUE"))
-        df_rtr_newgroup8_14 = df_rtr_newgroup8_14.drop("EST_KEY10").withColumnRenamed("EST_KEY", "EST_KEY10")
-        df_rtr_newgroup8_14 = df_rtr_newgroup8_14.drop("SYS_RPT_YEAR10").withColumnRenamed("SYS_RPT_YEAR3", "SYS_RPT_YEAR10")
-        df_rtr_newgroup8_14 = df_rtr_newgroup8_14.drop("SYS_RPT_MTH10").withColumnRenamed("SYS_RPT_MTH3", "SYS_RPT_MTH10")
-        df_rtr_newgroup8_14 = df_rtr_newgroup8_14.drop("PHONE_CNT10").withColumnRenamed("PHONE_CNT13", "PHONE_CNT10")
-        df_rtr_newgroup8_14 = df_rtr_newgroup8_14.drop("PHONE_SUCC_CNT10").withColumnRenamed("PHONE_SUCC_CNT13", "PHONE_SUCC_CNT10")
-        df_rtr_newgroup8_14 = df_rtr_newgroup8_14.drop("PHONE_PND_CNT10").withColumnRenamed("PHONE_PND_CNT13", "PHONE_PND_CNT10")
-        df_rtr_newgroup8_14 = df_rtr_newgroup8_14.drop("PHONE_LANG_CTN_CNT10").withColumnRenamed("PHONE_LANG_CTN_CNT13", "PHONE_LANG_CTN_CNT10")
-        df_rtr_newgroup8_14 = df_rtr_newgroup8_14.drop("PHONE_LANG_PTH_CNT10").withColumnRenamed("PHONE_LANG_PTH_CNT13", "PHONE_LANG_PTH_CNT10")
-        df_rtr_newgroup8_14 = df_rtr_newgroup8_14.drop("PHONE_LANG_ENG_CNT10").withColumnRenamed("PHONE_LANG_ENG_CNT13", "PHONE_LANG_ENG_CNT10")
-        df_rtr_newgroup8_14 = df_rtr_newgroup8_14.drop("PHONE_UNSUCC_CNT10").withColumnRenamed("PHONE_UNSUCC_CNT13", "PHONE_UNSUCC_CNT10")
-        df_rtr_newgroup8_14 = df_rtr_newgroup8_14.drop("PHONE_INVLD_TONE_UNSUCC_CNT10").withColumnRenamed("PHONE_INVLD_TONE_UNSUCC_CNT13", "PHONE_INVLD_TONE_UNSUCC_CNT10")
-        df_rtr_newgroup8_14 = df_rtr_newgroup8_14.drop("PHONE_NO_ANS_UNSUCC_CNT10").withColumnRenamed("PHONE_NO_ANS_UNSUCC_CNT13", "PHONE_NO_ANS_UNSUCC_CNT10")
-        df_rtr_newgroup8_14 = df_rtr_newgroup8_14.drop("PHONE_BUSY_UNSUCC_CNT10").withColumnRenamed("PHONE_BUSY_UNSUCC_CNT13", "PHONE_BUSY_UNSUCC_CNT10")
-        df_rtr_newgroup8_14 = df_rtr_newgroup8_14.drop("SMS_CNT10").withColumnRenamed("SMS_CNT13", "SMS_CNT10")
-        df_rtr_newgroup8_14 = df_rtr_newgroup8_14.drop("SMS_SUCC_CNT10").withColumnRenamed("SMS_SUCC_CNT13", "SMS_SUCC_CNT10")
-        df_rtr_newgroup8_14 = df_rtr_newgroup8_14.drop("SMS_UNSUCC_CNT10").withColumnRenamed("SMS_UNSUCC_CNT13", "SMS_UNSUCC_CNT10")
-        ctx.register_df("df_rtr_newgroup8_14", df_rtr_newgroup8_14)
-        df_rtr_newgroup9_15 = df_Union_Transformation1.filter(expr("TRUE"))
-        df_rtr_newgroup9_15 = df_rtr_newgroup9_15.drop("EST_KEY11").withColumnRenamed("EST_KEY", "EST_KEY11")
-        df_rtr_newgroup9_15 = df_rtr_newgroup9_15.drop("SYS_RPT_YEAR11").withColumnRenamed("SYS_RPT_YEAR3", "SYS_RPT_YEAR11")
-        df_rtr_newgroup9_15 = df_rtr_newgroup9_15.drop("SYS_RPT_MTH11").withColumnRenamed("SYS_RPT_MTH3", "SYS_RPT_MTH11")
-        df_rtr_newgroup9_15 = df_rtr_newgroup9_15.drop("PHONE_CNT11").withColumnRenamed("PHONE_CNT13", "PHONE_CNT11")
-        df_rtr_newgroup9_15 = df_rtr_newgroup9_15.drop("PHONE_SUCC_CNT11").withColumnRenamed("PHONE_SUCC_CNT13", "PHONE_SUCC_CNT11")
-        df_rtr_newgroup9_15 = df_rtr_newgroup9_15.drop("PHONE_PND_CNT11").withColumnRenamed("PHONE_PND_CNT13", "PHONE_PND_CNT11")
-        df_rtr_newgroup9_15 = df_rtr_newgroup9_15.drop("PHONE_LANG_CTN_CNT11").withColumnRenamed("PHONE_LANG_CTN_CNT13", "PHONE_LANG_CTN_CNT11")
-        df_rtr_newgroup9_15 = df_rtr_newgroup9_15.drop("PHONE_LANG_PTH_CNT11").withColumnRenamed("PHONE_LANG_PTH_CNT13", "PHONE_LANG_PTH_CNT11")
-        df_rtr_newgroup9_15 = df_rtr_newgroup9_15.drop("PHONE_LANG_ENG_CNT11").withColumnRenamed("PHONE_LANG_ENG_CNT13", "PHONE_LANG_ENG_CNT11")
-        df_rtr_newgroup9_15 = df_rtr_newgroup9_15.drop("PHONE_UNSUCC_CNT11").withColumnRenamed("PHONE_UNSUCC_CNT13", "PHONE_UNSUCC_CNT11")
-        df_rtr_newgroup9_15 = df_rtr_newgroup9_15.drop("PHONE_INVLD_TONE_UNSUCC_CNT11").withColumnRenamed("PHONE_INVLD_TONE_UNSUCC_CNT13", "PHONE_INVLD_TONE_UNSUCC_CNT11")
-        df_rtr_newgroup9_15 = df_rtr_newgroup9_15.drop("PHONE_NO_ANS_UNSUCC_CNT11").withColumnRenamed("PHONE_NO_ANS_UNSUCC_CNT13", "PHONE_NO_ANS_UNSUCC_CNT11")
-        df_rtr_newgroup9_15 = df_rtr_newgroup9_15.drop("PHONE_BUSY_UNSUCC_CNT11").withColumnRenamed("PHONE_BUSY_UNSUCC_CNT13", "PHONE_BUSY_UNSUCC_CNT11")
-        df_rtr_newgroup9_15 = df_rtr_newgroup9_15.drop("SMS_CNT11").withColumnRenamed("SMS_CNT13", "SMS_CNT11")
-        df_rtr_newgroup9_15 = df_rtr_newgroup9_15.drop("SMS_SUCC_CNT11").withColumnRenamed("SMS_SUCC_CNT13", "SMS_SUCC_CNT11")
-        df_rtr_newgroup9_15 = df_rtr_newgroup9_15.drop("SMS_UNSUCC_CNT11").withColumnRenamed("SMS_UNSUCC_CNT13", "SMS_UNSUCC_CNT11")
-        ctx.register_df("df_rtr_newgroup9_15", df_rtr_newgroup9_15)
-        df_rtr_newgroup10_16 = df_Union_Transformation1.filter(expr("TRUE"))
-        df_rtr_newgroup10_16 = df_rtr_newgroup10_16.drop("EST_KEY12").withColumnRenamed("EST_KEY", "EST_KEY12")
-        df_rtr_newgroup10_16 = df_rtr_newgroup10_16.drop("SYS_RPT_YEAR12").withColumnRenamed("SYS_RPT_YEAR3", "SYS_RPT_YEAR12")
-        df_rtr_newgroup10_16 = df_rtr_newgroup10_16.drop("SYS_RPT_MTH12").withColumnRenamed("SYS_RPT_MTH3", "SYS_RPT_MTH12")
-        df_rtr_newgroup10_16 = df_rtr_newgroup10_16.drop("PHONE_CNT12").withColumnRenamed("PHONE_CNT13", "PHONE_CNT12")
-        df_rtr_newgroup10_16 = df_rtr_newgroup10_16.drop("PHONE_SUCC_CNT12").withColumnRenamed("PHONE_SUCC_CNT13", "PHONE_SUCC_CNT12")
-        df_rtr_newgroup10_16 = df_rtr_newgroup10_16.drop("PHONE_PND_CNT12").withColumnRenamed("PHONE_PND_CNT13", "PHONE_PND_CNT12")
-        df_rtr_newgroup10_16 = df_rtr_newgroup10_16.drop("PHONE_LANG_CTN_CNT12").withColumnRenamed("PHONE_LANG_CTN_CNT13", "PHONE_LANG_CTN_CNT12")
-        df_rtr_newgroup10_16 = df_rtr_newgroup10_16.drop("PHONE_LANG_PTH_CNT12").withColumnRenamed("PHONE_LANG_PTH_CNT13", "PHONE_LANG_PTH_CNT12")
-        df_rtr_newgroup10_16 = df_rtr_newgroup10_16.drop("PHONE_LANG_ENG_CNT12").withColumnRenamed("PHONE_LANG_ENG_CNT13", "PHONE_LANG_ENG_CNT12")
-        df_rtr_newgroup10_16 = df_rtr_newgroup10_16.drop("PHONE_UNSUCC_CNT12").withColumnRenamed("PHONE_UNSUCC_CNT13", "PHONE_UNSUCC_CNT12")
-        df_rtr_newgroup10_16 = df_rtr_newgroup10_16.drop("PHONE_INVLD_TONE_UNSUCC_CNT12").withColumnRenamed("PHONE_INVLD_TONE_UNSUCC_CNT13", "PHONE_INVLD_TONE_UNSUCC_CNT12")
-        df_rtr_newgroup10_16 = df_rtr_newgroup10_16.drop("PHONE_NO_ANS_UNSUCC_CNT12").withColumnRenamed("PHONE_NO_ANS_UNSUCC_CNT13", "PHONE_NO_ANS_UNSUCC_CNT12")
-        df_rtr_newgroup10_16 = df_rtr_newgroup10_16.drop("PHONE_BUSY_UNSUCC_CNT12").withColumnRenamed("PHONE_BUSY_UNSUCC_CNT13", "PHONE_BUSY_UNSUCC_CNT12")
-        df_rtr_newgroup10_16 = df_rtr_newgroup10_16.drop("SMS_CNT12").withColumnRenamed("SMS_CNT13", "SMS_CNT12")
-        df_rtr_newgroup10_16 = df_rtr_newgroup10_16.drop("SMS_SUCC_CNT12").withColumnRenamed("SMS_SUCC_CNT13", "SMS_SUCC_CNT12")
-        df_rtr_newgroup10_16 = df_rtr_newgroup10_16.drop("SMS_UNSUCC_CNT12").withColumnRenamed("SMS_UNSUCC_CNT13", "SMS_UNSUCC_CNT12")
-        ctx.register_df("df_rtr_newgroup10_16", df_rtr_newgroup10_16)
-        df_rtr_newgroup11_17 = df_Union_Transformation1.filter(expr("TRUE"))
-        df_rtr_newgroup11_17 = df_rtr_newgroup11_17.drop("EST_KEY13").withColumnRenamed("EST_KEY", "EST_KEY13")
-        df_rtr_newgroup11_17 = df_rtr_newgroup11_17.drop("SYS_RPT_YEAR13").withColumnRenamed("SYS_RPT_YEAR3", "SYS_RPT_YEAR13")
-        df_rtr_newgroup11_17 = df_rtr_newgroup11_17.drop("SYS_RPT_MTH13").withColumnRenamed("SYS_RPT_MTH3", "SYS_RPT_MTH13")
-        ctx.register_df("df_rtr_newgroup11_17", df_rtr_newgroup11_17)
-        df_rtr_newgroup12_18 = df_Union_Transformation1.filter(expr("TRUE"))
-        df_rtr_newgroup12_18 = df_rtr_newgroup12_18.drop("EST_KEY14").withColumnRenamed("EST_KEY", "EST_KEY14")
-        df_rtr_newgroup12_18 = df_rtr_newgroup12_18.drop("SYS_RPT_YEAR14").withColumnRenamed("SYS_RPT_YEAR3", "SYS_RPT_YEAR14")
-        df_rtr_newgroup12_18 = df_rtr_newgroup12_18.drop("SYS_RPT_MTH14").withColumnRenamed("SYS_RPT_MTH3", "SYS_RPT_MTH14")
-        df_rtr_newgroup12_18 = df_rtr_newgroup12_18.drop("PHONE_CNT14").withColumnRenamed("PHONE_CNT13", "PHONE_CNT14")
-        df_rtr_newgroup12_18 = df_rtr_newgroup12_18.drop("PHONE_SUCC_CNT14").withColumnRenamed("PHONE_SUCC_CNT13", "PHONE_SUCC_CNT14")
-        df_rtr_newgroup12_18 = df_rtr_newgroup12_18.drop("PHONE_PND_CNT14").withColumnRenamed("PHONE_PND_CNT13", "PHONE_PND_CNT14")
-        df_rtr_newgroup12_18 = df_rtr_newgroup12_18.drop("PHONE_LANG_CTN_CNT14").withColumnRenamed("PHONE_LANG_CTN_CNT13", "PHONE_LANG_CTN_CNT14")
-        df_rtr_newgroup12_18 = df_rtr_newgroup12_18.drop("PHONE_LANG_PTH_CNT14").withColumnRenamed("PHONE_LANG_PTH_CNT13", "PHONE_LANG_PTH_CNT14")
-        df_rtr_newgroup12_18 = df_rtr_newgroup12_18.drop("PHONE_LANG_ENG_CNT14").withColumnRenamed("PHONE_LANG_ENG_CNT13", "PHONE_LANG_ENG_CNT14")
-        df_rtr_newgroup12_18 = df_rtr_newgroup12_18.drop("PHONE_UNSUCC_CNT14").withColumnRenamed("PHONE_UNSUCC_CNT13", "PHONE_UNSUCC_CNT14")
-        df_rtr_newgroup12_18 = df_rtr_newgroup12_18.drop("PHONE_INVLD_TONE_UNSUCC_CNT14").withColumnRenamed("PHONE_INVLD_TONE_UNSUCC_CNT13", "PHONE_INVLD_TONE_UNSUCC_CNT14")
-        df_rtr_newgroup12_18 = df_rtr_newgroup12_18.drop("PHONE_NO_ANS_UNSUCC_CNT14").withColumnRenamed("PHONE_NO_ANS_UNSUCC_CNT13", "PHONE_NO_ANS_UNSUCC_CNT14")
-        df_rtr_newgroup12_18 = df_rtr_newgroup12_18.drop("PHONE_BUSY_UNSUCC_CNT14").withColumnRenamed("PHONE_BUSY_UNSUCC_CNT13", "PHONE_BUSY_UNSUCC_CNT14")
-        df_rtr_newgroup12_18 = df_rtr_newgroup12_18.drop("SMS_CNT14").withColumnRenamed("SMS_CNT13", "SMS_CNT14")
-        df_rtr_newgroup12_18 = df_rtr_newgroup12_18.drop("SMS_SUCC_CNT14").withColumnRenamed("SMS_SUCC_CNT13", "SMS_SUCC_CNT14")
-        df_rtr_newgroup12_18 = df_rtr_newgroup12_18.drop("SMS_UNSUCC_CNT14").withColumnRenamed("SMS_UNSUCC_CNT13", "SMS_UNSUCC_CNT14")
-        ctx.register_df("df_rtr_newgroup12_18", df_rtr_newgroup12_18)
-        df_rtr_newgroup13_19 = df_Union_Transformation1.filter(expr("TRUE"))
-        df_rtr_newgroup13_19 = df_rtr_newgroup13_19.drop("EST_KEY15").withColumnRenamed("EST_KEY", "EST_KEY15")
-        df_rtr_newgroup13_19 = df_rtr_newgroup13_19.drop("SYS_RPT_YEAR15").withColumnRenamed("SYS_RPT_YEAR3", "SYS_RPT_YEAR15")
-        df_rtr_newgroup13_19 = df_rtr_newgroup13_19.drop("SYS_RPT_MTH15").withColumnRenamed("SYS_RPT_MTH3", "SYS_RPT_MTH15")
-        df_rtr_newgroup13_19 = df_rtr_newgroup13_19.drop("PHONE_CNT15").withColumnRenamed("PHONE_CNT13", "PHONE_CNT15")
-        df_rtr_newgroup13_19 = df_rtr_newgroup13_19.drop("PHONE_SUCC_CNT15").withColumnRenamed("PHONE_SUCC_CNT13", "PHONE_SUCC_CNT15")
-        df_rtr_newgroup13_19 = df_rtr_newgroup13_19.drop("PHONE_PND_CNT15").withColumnRenamed("PHONE_PND_CNT13", "PHONE_PND_CNT15")
-        df_rtr_newgroup13_19 = df_rtr_newgroup13_19.drop("PHONE_LANG_CTN_CNT15").withColumnRenamed("PHONE_LANG_CTN_CNT13", "PHONE_LANG_CTN_CNT15")
-        df_rtr_newgroup13_19 = df_rtr_newgroup13_19.drop("PHONE_LANG_PTH_CNT15").withColumnRenamed("PHONE_LANG_PTH_CNT13", "PHONE_LANG_PTH_CNT15")
-        df_rtr_newgroup13_19 = df_rtr_newgroup13_19.drop("PHONE_LANG_ENG_CNT15").withColumnRenamed("PHONE_LANG_ENG_CNT13", "PHONE_LANG_ENG_CNT15")
-        df_rtr_newgroup13_19 = df_rtr_newgroup13_19.drop("PHONE_UNSUCC_CNT15").withColumnRenamed("PHONE_UNSUCC_CNT13", "PHONE_UNSUCC_CNT15")
-        df_rtr_newgroup13_19 = df_rtr_newgroup13_19.drop("PHONE_INVLD_TONE_UNSUCC_CNT15").withColumnRenamed("PHONE_INVLD_TONE_UNSUCC_CNT13", "PHONE_INVLD_TONE_UNSUCC_CNT15")
-        df_rtr_newgroup13_19 = df_rtr_newgroup13_19.drop("PHONE_NO_ANS_UNSUCC_CNT15").withColumnRenamed("PHONE_NO_ANS_UNSUCC_CNT13", "PHONE_NO_ANS_UNSUCC_CNT15")
-        df_rtr_newgroup13_19 = df_rtr_newgroup13_19.drop("PHONE_BUSY_UNSUCC_CNT15").withColumnRenamed("PHONE_BUSY_UNSUCC_CNT13", "PHONE_BUSY_UNSUCC_CNT15")
-        df_rtr_newgroup13_19 = df_rtr_newgroup13_19.drop("SMS_CNT15").withColumnRenamed("SMS_CNT13", "SMS_CNT15")
-        df_rtr_newgroup13_19 = df_rtr_newgroup13_19.drop("SMS_SUCC_CNT15").withColumnRenamed("SMS_SUCC_CNT13", "SMS_SUCC_CNT15")
-        df_rtr_newgroup13_19 = df_rtr_newgroup13_19.drop("SMS_UNSUCC_CNT15").withColumnRenamed("SMS_UNSUCC_CNT13", "SMS_UNSUCC_CNT15")
-        ctx.register_df("df_rtr_newgroup13_19", df_rtr_newgroup13_19)
-        df_rtr_default_20 = df_Union_Transformation1.filter(~(expr("TRUE")) & ~(expr("TRUE")) & ~(expr("TRUE")) & ~(expr("TRUE")) & ~(expr("TRUE")) & ~(expr("TRUE")) & ~(expr("TRUE")) & ~(expr("TRUE")) & ~(expr("TRUE")) & ~(expr("TRUE")) & ~(expr("TRUE")) & ~(expr("TRUE")) & ~(expr("TRUE")) & ~(expr("TRUE")))
-        df_rtr_default_20 = df_rtr_default_20.drop("EST_KEY1").withColumnRenamed("EST_KEY", "EST_KEY1")
-        df_rtr_default_20 = df_rtr_default_20.drop("SYS_RPT_YEAR1").withColumnRenamed("SYS_RPT_YEAR3", "SYS_RPT_YEAR1")
-        df_rtr_default_20 = df_rtr_default_20.drop("SYS_RPT_MTH1").withColumnRenamed("SYS_RPT_MTH3", "SYS_RPT_MTH1")
-        df_rtr_default_20 = df_rtr_default_20.drop("PHONE_CNT1").withColumnRenamed("PHONE_CNT13", "PHONE_CNT1")
-        df_rtr_default_20 = df_rtr_default_20.drop("PHONE_SUCC_CNT1").withColumnRenamed("PHONE_SUCC_CNT13", "PHONE_SUCC_CNT1")
-        df_rtr_default_20 = df_rtr_default_20.drop("PHONE_PND_CNT1").withColumnRenamed("PHONE_PND_CNT13", "PHONE_PND_CNT1")
-        df_rtr_default_20 = df_rtr_default_20.drop("PHONE_LANG_CTN_CNT1").withColumnRenamed("PHONE_LANG_CTN_CNT13", "PHONE_LANG_CTN_CNT1")
-        df_rtr_default_20 = df_rtr_default_20.drop("PHONE_LANG_PTH_CNT1").withColumnRenamed("PHONE_LANG_PTH_CNT13", "PHONE_LANG_PTH_CNT1")
-        df_rtr_default_20 = df_rtr_default_20.drop("PHONE_LANG_ENG_CNT1").withColumnRenamed("PHONE_LANG_ENG_CNT13", "PHONE_LANG_ENG_CNT1")
-        df_rtr_default_20 = df_rtr_default_20.drop("PHONE_UNSUCC_CNT1").withColumnRenamed("PHONE_UNSUCC_CNT13", "PHONE_UNSUCC_CNT1")
-        df_rtr_default_20 = df_rtr_default_20.drop("PHONE_INVLD_TONE_UNSUCC_CNT1").withColumnRenamed("PHONE_INVLD_TONE_UNSUCC_CNT13", "PHONE_INVLD_TONE_UNSUCC_CNT1")
-        df_rtr_default_20 = df_rtr_default_20.drop("PHONE_NO_ANS_UNSUCC_CNT1").withColumnRenamed("PHONE_NO_ANS_UNSUCC_CNT13", "PHONE_NO_ANS_UNSUCC_CNT1")
-        df_rtr_default_20 = df_rtr_default_20.drop("PHONE_BUSY_UNSUCC_CNT1").withColumnRenamed("PHONE_BUSY_UNSUCC_CNT13", "PHONE_BUSY_UNSUCC_CNT1")
-        df_rtr_default_20 = df_rtr_default_20.drop("SMS_CNT1").withColumnRenamed("SMS_CNT13", "SMS_CNT1")
-        df_rtr_default_20 = df_rtr_default_20.drop("SMS_SUCC_CNT1").withColumnRenamed("SMS_SUCC_CNT13", "SMS_SUCC_CNT1")
-        df_rtr_default_20 = df_rtr_default_20.drop("SMS_UNSUCC_CNT1").withColumnRenamed("SMS_UNSUCC_CNT13", "SMS_UNSUCC_CNT1")
-        ctx.register_df("df_rtr_default_20", df_rtr_default_20)
-        
+        df_rtr_RTRTRANS_NEWGROUP = df_Union_Transformation1.filter(expr("TRUE"))
+        __rtr_renames = [
+            ("EST_KEY", "EST_KEY2"),
+            ("SYS_RPT_YEAR3", "SYS_RPT_YEAR2"),
+            ("SYS_RPT_MTH3", "SYS_RPT_MTH2"),
+            ("PHONE_CNT13", "PHONE_CNT2"),
+            ("PHONE_SUCC_CNT13", "PHONE_SUCC_CNT2"),
+            ("PHONE_PND_CNT13", "PHONE_PND_CNT2"),
+            ("PHONE_LANG_CTN_CNT13", "PHONE_LANG_CTN_CNT2"),
+            ("PHONE_LANG_PTH_CNT13", "PHONE_LANG_PTH_CNT2"),
+            ("PHONE_LANG_ENG_CNT13", "PHONE_LANG_ENG_CNT2"),
+            ("PHONE_UNSUCC_CNT13", "PHONE_UNSUCC_CNT2"),
+            ("PHONE_INVLD_TONE_UNSUCC_CNT13", "PHONE_INVLD_TONE_UNSUCC_CNT2"),
+            ("PHONE_NO_ANS_UNSUCC_CNT13", "PHONE_NO_ANS_UNSUCC_CNT2"),
+            ("PHONE_BUSY_UNSUCC_CNT13", "PHONE_BUSY_UNSUCC_CNT2"),
+            ("SMS_CNT13", "SMS_CNT2"),
+            ("SMS_SUCC_CNT13", "SMS_SUCC_CNT2"),
+            ("SMS_UNSUCC_CNT13", "SMS_UNSUCC_CNT2"),
+        ]
+        for _old, _new in __rtr_renames:
+            df_rtr_RTRTRANS_NEWGROUP = df_rtr_RTRTRANS_NEWGROUP.drop(_new).withColumnRenamed(_old, _new)
+        ctx.register_df("df_rtr_RTRTRANS_NEWGROUP", df_rtr_RTRTRANS_NEWGROUP)
+        df_rtr_RTRTRANS_NEWGROUP1 = df_Union_Transformation1.filter(expr("TRUE"))
+        __rtr_renames = [
+            ("EST_KEY", "EST_KEY3"),
+            ("PHONE_CNT13", "PHONE_CNT3"),
+            ("PHONE_SUCC_CNT13", "PHONE_SUCC_CNT3"),
+            ("PHONE_PND_CNT13", "PHONE_PND_CNT3"),
+            ("PHONE_LANG_CTN_CNT13", "PHONE_LANG_CTN_CNT3"),
+            ("PHONE_LANG_PTH_CNT13", "PHONE_LANG_PTH_CNT3"),
+            ("PHONE_LANG_ENG_CNT13", "PHONE_LANG_ENG_CNT3"),
+            ("PHONE_UNSUCC_CNT13", "PHONE_UNSUCC_CNT3"),
+            ("PHONE_INVLD_TONE_UNSUCC_CNT13", "PHONE_INVLD_TONE_UNSUCC_CNT3"),
+            ("PHONE_NO_ANS_UNSUCC_CNT13", "PHONE_NO_ANS_UNSUCC_CNT3"),
+            ("PHONE_BUSY_UNSUCC_CNT13", "PHONE_BUSY_UNSUCC_CNT3"),
+            ("SMS_CNT13", "SMS_CNT3"),
+            ("SMS_SUCC_CNT13", "SMS_SUCC_CNT3"),
+            ("SMS_UNSUCC_CNT13", "SMS_UNSUCC_CNT3"),
+        ]
+        for _old, _new in __rtr_renames:
+            df_rtr_RTRTRANS_NEWGROUP1 = df_rtr_RTRTRANS_NEWGROUP1.drop(_new).withColumnRenamed(_old, _new)
+        ctx.register_df("df_rtr_RTRTRANS_NEWGROUP1", df_rtr_RTRTRANS_NEWGROUP1)
+        df_rtr_RTRTRANS_NEWGROUP2 = df_Union_Transformation1.filter(expr("TRUE"))
+        __rtr_renames = [
+            ("EST_KEY", "EST_KEY4"),
+            ("SYS_RPT_YEAR3", "SYS_RPT_YEAR4"),
+            ("SYS_RPT_MTH3", "SYS_RPT_MTH4"),
+            ("PHONE_CNT13", "PHONE_CNT4"),
+            ("PHONE_SUCC_CNT13", "PHONE_SUCC_CNT4"),
+            ("PHONE_PND_CNT13", "PHONE_PND_CNT4"),
+            ("PHONE_LANG_CTN_CNT13", "PHONE_LANG_CTN_CNT4"),
+            ("PHONE_LANG_PTH_CNT13", "PHONE_LANG_PTH_CNT4"),
+            ("PHONE_LANG_ENG_CNT13", "PHONE_LANG_ENG_CNT4"),
+            ("PHONE_UNSUCC_CNT13", "PHONE_UNSUCC_CNT4"),
+            ("PHONE_INVLD_TONE_UNSUCC_CNT13", "PHONE_INVLD_TONE_UNSUCC_CNT4"),
+            ("PHONE_NO_ANS_UNSUCC_CNT13", "PHONE_NO_ANS_UNSUCC_CNT4"),
+            ("PHONE_BUSY_UNSUCC_CNT13", "PHONE_BUSY_UNSUCC_CNT4"),
+            ("SMS_CNT13", "SMS_CNT4"),
+            ("SMS_SUCC_CNT13", "SMS_SUCC_CNT4"),
+            ("SMS_UNSUCC_CNT13", "SMS_UNSUCC_CNT4"),
+        ]
+        for _old, _new in __rtr_renames:
+            df_rtr_RTRTRANS_NEWGROUP2 = df_rtr_RTRTRANS_NEWGROUP2.drop(_new).withColumnRenamed(_old, _new)
+        ctx.register_df("df_rtr_RTRTRANS_NEWGROUP2", df_rtr_RTRTRANS_NEWGROUP2)
+        df_rtr_RTRTRANS_NEWGROUP3 = df_Union_Transformation1.filter(expr("TRUE"))
+        __rtr_renames = [
+            ("EST_KEY", "EST_KEY5"),
+            ("SYS_RPT_YEAR3", "SYS_RPT_YEAR5"),
+            ("SYS_RPT_MTH3", "SYS_RPT_MTH5"),
+            ("PHONE_CNT13", "PHONE_CNT5"),
+            ("PHONE_SUCC_CNT13", "PHONE_SUCC_CNT5"),
+            ("PHONE_PND_CNT13", "PHONE_PND_CNT5"),
+            ("PHONE_LANG_CTN_CNT13", "PHONE_LANG_CTN_CNT5"),
+            ("PHONE_LANG_PTH_CNT13", "PHONE_LANG_PTH_CNT5"),
+            ("PHONE_LANG_ENG_CNT13", "PHONE_LANG_ENG_CNT5"),
+            ("PHONE_UNSUCC_CNT13", "PHONE_UNSUCC_CNT5"),
+            ("PHONE_INVLD_TONE_UNSUCC_CNT13", "PHONE_INVLD_TONE_UNSUCC_CNT5"),
+            ("PHONE_NO_ANS_UNSUCC_CNT13", "PHONE_NO_ANS_UNSUCC_CNT5"),
+            ("PHONE_BUSY_UNSUCC_CNT13", "PHONE_BUSY_UNSUCC_CNT5"),
+            ("SMS_CNT13", "SMS_CNT5"),
+            ("SMS_SUCC_CNT13", "SMS_SUCC_CNT5"),
+            ("SMS_UNSUCC_CNT13", "SMS_UNSUCC_CNT5"),
+        ]
+        for _old, _new in __rtr_renames:
+            df_rtr_RTRTRANS_NEWGROUP3 = df_rtr_RTRTRANS_NEWGROUP3.drop(_new).withColumnRenamed(_old, _new)
+        ctx.register_df("df_rtr_RTRTRANS_NEWGROUP3", df_rtr_RTRTRANS_NEWGROUP3)
+        df_rtr_RTRTRANS_NEWGROUP4 = df_Union_Transformation1.filter(expr("TRUE"))
+        __rtr_renames = [
+            ("EST_KEY", "EST_KEY6"),
+            ("SYS_RPT_YEAR3", "SYS_RPT_YEAR6"),
+            ("SYS_RPT_MTH3", "SYS_RPT_MTH6"),
+            ("PHONE_CNT13", "PHONE_CNT6"),
+            ("PHONE_SUCC_CNT13", "PHONE_SUCC_CNT6"),
+            ("PHONE_PND_CNT13", "PHONE_PND_CNT6"),
+            ("PHONE_LANG_CTN_CNT13", "PHONE_LANG_CTN_CNT6"),
+            ("PHONE_LANG_PTH_CNT13", "PHONE_LANG_PTH_CNT6"),
+            ("PHONE_LANG_ENG_CNT13", "PHONE_LANG_ENG_CNT6"),
+            ("PHONE_UNSUCC_CNT13", "PHONE_UNSUCC_CNT6"),
+            ("PHONE_INVLD_TONE_UNSUCC_CNT13", "PHONE_INVLD_TONE_UNSUCC_CNT6"),
+            ("PHONE_NO_ANS_UNSUCC_CNT13", "PHONE_NO_ANS_UNSUCC_CNT6"),
+            ("PHONE_BUSY_UNSUCC_CNT13", "PHONE_BUSY_UNSUCC_CNT6"),
+            ("SMS_CNT13", "SMS_CNT6"),
+            ("SMS_SUCC_CNT13", "SMS_SUCC_CNT6"),
+            ("SMS_UNSUCC_CNT13", "SMS_UNSUCC_CNT6"),
+        ]
+        for _old, _new in __rtr_renames:
+            df_rtr_RTRTRANS_NEWGROUP4 = df_rtr_RTRTRANS_NEWGROUP4.drop(_new).withColumnRenamed(_old, _new)
+        ctx.register_df("df_rtr_RTRTRANS_NEWGROUP4", df_rtr_RTRTRANS_NEWGROUP4)
+        df_rtr_RTRTRANS_NEWGROUP5 = df_Union_Transformation1.filter(expr("TRUE"))
+        __rtr_renames = [
+            ("EST_KEY", "EST_KEY7"),
+            ("SYS_RPT_YEAR3", "SYS_RPT_YEAR7"),
+            ("SYS_RPT_MTH3", "SYS_RPT_MTH7"),
+            ("PHONE_CNT13", "PHONE_CNT7"),
+            ("PHONE_SUCC_CNT13", "PHONE_SUCC_CNT7"),
+            ("PHONE_PND_CNT13", "PHONE_PND_CNT7"),
+            ("PHONE_LANG_CTN_CNT13", "PHONE_LANG_CTN_CNT7"),
+            ("PHONE_LANG_PTH_CNT13", "PHONE_LANG_PTH_CNT7"),
+            ("PHONE_LANG_ENG_CNT13", "PHONE_LANG_ENG_CNT7"),
+            ("PHONE_UNSUCC_CNT13", "PHONE_UNSUCC_CNT7"),
+            ("PHONE_INVLD_TONE_UNSUCC_CNT13", "PHONE_INVLD_TONE_UNSUCC_CNT7"),
+            ("PHONE_NO_ANS_UNSUCC_CNT13", "PHONE_NO_ANS_UNSUCC_CNT7"),
+            ("PHONE_BUSY_UNSUCC_CNT13", "PHONE_BUSY_UNSUCC_CNT7"),
+            ("SMS_CNT13", "SMS_CNT7"),
+            ("SMS_SUCC_CNT13", "SMS_SUCC_CNT7"),
+            ("SMS_UNSUCC_CNT13", "SMS_UNSUCC_CNT7"),
+        ]
+        for _old, _new in __rtr_renames:
+            df_rtr_RTRTRANS_NEWGROUP5 = df_rtr_RTRTRANS_NEWGROUP5.drop(_new).withColumnRenamed(_old, _new)
+        ctx.register_df("df_rtr_RTRTRANS_NEWGROUP5", df_rtr_RTRTRANS_NEWGROUP5)
+        df_rtr_RTRTRANS_NEWGROUP6 = df_Union_Transformation1.filter(expr("TRUE"))
+        __rtr_renames = [
+            ("EST_KEY", "EST_KEY8"),
+            ("SYS_RPT_YEAR3", "SYS_RPT_YEAR8"),
+            ("SYS_RPT_MTH3", "SYS_RPT_MTH8"),
+            ("PHONE_CNT13", "PHONE_CNT8"),
+            ("PHONE_SUCC_CNT13", "PHONE_SUCC_CNT8"),
+            ("PHONE_PND_CNT13", "PHONE_PND_CNT8"),
+            ("PHONE_LANG_CTN_CNT13", "PHONE_LANG_CTN_CNT8"),
+            ("PHONE_LANG_PTH_CNT13", "PHONE_LANG_PTH_CNT8"),
+            ("PHONE_LANG_ENG_CNT13", "PHONE_LANG_ENG_CNT8"),
+            ("PHONE_UNSUCC_CNT13", "PHONE_UNSUCC_CNT8"),
+            ("PHONE_INVLD_TONE_UNSUCC_CNT13", "PHONE_INVLD_TONE_UNSUCC_CNT8"),
+            ("PHONE_NO_ANS_UNSUCC_CNT13", "PHONE_NO_ANS_UNSUCC_CNT8"),
+            ("PHONE_BUSY_UNSUCC_CNT13", "PHONE_BUSY_UNSUCC_CNT8"),
+            ("SMS_CNT13", "SMS_CNT8"),
+            ("SMS_SUCC_CNT13", "SMS_SUCC_CNT8"),
+            ("SMS_UNSUCC_CNT13", "SMS_UNSUCC_CNT8"),
+        ]
+        for _old, _new in __rtr_renames:
+            df_rtr_RTRTRANS_NEWGROUP6 = df_rtr_RTRTRANS_NEWGROUP6.drop(_new).withColumnRenamed(_old, _new)
+        ctx.register_df("df_rtr_RTRTRANS_NEWGROUP6", df_rtr_RTRTRANS_NEWGROUP6)
+        df_rtr_RTRTRANS_NEWGROUP7 = df_Union_Transformation1.filter(expr("TRUE"))
+        __rtr_renames = [
+            ("EST_KEY", "EST_KEY9"),
+            ("SYS_RPT_YEAR3", "SYS_RPT_YEAR9"),
+            ("SYS_RPT_MTH3", "SYS_RPT_MTH9"),
+            ("PHONE_CNT13", "PHONE_CNT9"),
+            ("PHONE_SUCC_CNT13", "PHONE_SUCC_CNT9"),
+            ("PHONE_PND_CNT13", "PHONE_PND_CNT9"),
+            ("PHONE_LANG_CTN_CNT13", "PHONE_LANG_CTN_CNT9"),
+            ("PHONE_LANG_PTH_CNT13", "PHONE_LANG_PTH_CNT9"),
+            ("PHONE_LANG_ENG_CNT13", "PHONE_LANG_ENG_CNT9"),
+            ("PHONE_UNSUCC_CNT13", "PHONE_UNSUCC_CNT9"),
+            ("PHONE_INVLD_TONE_UNSUCC_CNT13", "PHONE_INVLD_TONE_UNSUCC_CNT9"),
+            ("PHONE_NO_ANS_UNSUCC_CNT13", "PHONE_NO_ANS_UNSUCC_CNT9"),
+            ("PHONE_BUSY_UNSUCC_CNT13", "PHONE_BUSY_UNSUCC_CNT9"),
+            ("SMS_CNT13", "SMS_CNT9"),
+            ("SMS_SUCC_CNT13", "SMS_SUCC_CNT9"),
+            ("SMS_UNSUCC_CNT13", "SMS_UNSUCC_CNT9"),
+        ]
+        for _old, _new in __rtr_renames:
+            df_rtr_RTRTRANS_NEWGROUP7 = df_rtr_RTRTRANS_NEWGROUP7.drop(_new).withColumnRenamed(_old, _new)
+        ctx.register_df("df_rtr_RTRTRANS_NEWGROUP7", df_rtr_RTRTRANS_NEWGROUP7)
+        df_rtr_RTRTRANS_NEWGROUP8 = df_Union_Transformation1.filter(expr("TRUE"))
+        __rtr_renames = [
+            ("EST_KEY", "EST_KEY10"),
+            ("SYS_RPT_YEAR3", "SYS_RPT_YEAR10"),
+            ("SYS_RPT_MTH3", "SYS_RPT_MTH10"),
+            ("PHONE_CNT13", "PHONE_CNT10"),
+            ("PHONE_SUCC_CNT13", "PHONE_SUCC_CNT10"),
+            ("PHONE_PND_CNT13", "PHONE_PND_CNT10"),
+            ("PHONE_LANG_CTN_CNT13", "PHONE_LANG_CTN_CNT10"),
+            ("PHONE_LANG_PTH_CNT13", "PHONE_LANG_PTH_CNT10"),
+            ("PHONE_LANG_ENG_CNT13", "PHONE_LANG_ENG_CNT10"),
+            ("PHONE_UNSUCC_CNT13", "PHONE_UNSUCC_CNT10"),
+            ("PHONE_INVLD_TONE_UNSUCC_CNT13", "PHONE_INVLD_TONE_UNSUCC_CNT10"),
+            ("PHONE_NO_ANS_UNSUCC_CNT13", "PHONE_NO_ANS_UNSUCC_CNT10"),
+            ("PHONE_BUSY_UNSUCC_CNT13", "PHONE_BUSY_UNSUCC_CNT10"),
+            ("SMS_CNT13", "SMS_CNT10"),
+            ("SMS_SUCC_CNT13", "SMS_SUCC_CNT10"),
+            ("SMS_UNSUCC_CNT13", "SMS_UNSUCC_CNT10"),
+        ]
+        for _old, _new in __rtr_renames:
+            df_rtr_RTRTRANS_NEWGROUP8 = df_rtr_RTRTRANS_NEWGROUP8.drop(_new).withColumnRenamed(_old, _new)
+        ctx.register_df("df_rtr_RTRTRANS_NEWGROUP8", df_rtr_RTRTRANS_NEWGROUP8)
+        df_rtr_RTRTRANS_NEWGROUP9 = df_Union_Transformation1.filter(expr("TRUE"))
+        __rtr_renames = [
+            ("EST_KEY", "EST_KEY11"),
+            ("SYS_RPT_YEAR3", "SYS_RPT_YEAR11"),
+            ("SYS_RPT_MTH3", "SYS_RPT_MTH11"),
+            ("PHONE_CNT13", "PHONE_CNT11"),
+            ("PHONE_SUCC_CNT13", "PHONE_SUCC_CNT11"),
+            ("PHONE_PND_CNT13", "PHONE_PND_CNT11"),
+            ("PHONE_LANG_CTN_CNT13", "PHONE_LANG_CTN_CNT11"),
+            ("PHONE_LANG_PTH_CNT13", "PHONE_LANG_PTH_CNT11"),
+            ("PHONE_LANG_ENG_CNT13", "PHONE_LANG_ENG_CNT11"),
+            ("PHONE_UNSUCC_CNT13", "PHONE_UNSUCC_CNT11"),
+            ("PHONE_INVLD_TONE_UNSUCC_CNT13", "PHONE_INVLD_TONE_UNSUCC_CNT11"),
+            ("PHONE_NO_ANS_UNSUCC_CNT13", "PHONE_NO_ANS_UNSUCC_CNT11"),
+            ("PHONE_BUSY_UNSUCC_CNT13", "PHONE_BUSY_UNSUCC_CNT11"),
+            ("SMS_CNT13", "SMS_CNT11"),
+            ("SMS_SUCC_CNT13", "SMS_SUCC_CNT11"),
+            ("SMS_UNSUCC_CNT13", "SMS_UNSUCC_CNT11"),
+        ]
+        for _old, _new in __rtr_renames:
+            df_rtr_RTRTRANS_NEWGROUP9 = df_rtr_RTRTRANS_NEWGROUP9.drop(_new).withColumnRenamed(_old, _new)
+        ctx.register_df("df_rtr_RTRTRANS_NEWGROUP9", df_rtr_RTRTRANS_NEWGROUP9)
+        df_rtr_RTRTRANS_NEWGROUP10 = df_Union_Transformation1.filter(expr("TRUE"))
+        __rtr_renames = [
+            ("EST_KEY", "EST_KEY12"),
+            ("SYS_RPT_YEAR3", "SYS_RPT_YEAR12"),
+            ("SYS_RPT_MTH3", "SYS_RPT_MTH12"),
+            ("PHONE_CNT13", "PHONE_CNT12"),
+            ("PHONE_SUCC_CNT13", "PHONE_SUCC_CNT12"),
+            ("PHONE_PND_CNT13", "PHONE_PND_CNT12"),
+            ("PHONE_LANG_CTN_CNT13", "PHONE_LANG_CTN_CNT12"),
+            ("PHONE_LANG_PTH_CNT13", "PHONE_LANG_PTH_CNT12"),
+            ("PHONE_LANG_ENG_CNT13", "PHONE_LANG_ENG_CNT12"),
+            ("PHONE_UNSUCC_CNT13", "PHONE_UNSUCC_CNT12"),
+            ("PHONE_INVLD_TONE_UNSUCC_CNT13", "PHONE_INVLD_TONE_UNSUCC_CNT12"),
+            ("PHONE_NO_ANS_UNSUCC_CNT13", "PHONE_NO_ANS_UNSUCC_CNT12"),
+            ("PHONE_BUSY_UNSUCC_CNT13", "PHONE_BUSY_UNSUCC_CNT12"),
+            ("SMS_CNT13", "SMS_CNT12"),
+            ("SMS_SUCC_CNT13", "SMS_SUCC_CNT12"),
+            ("SMS_UNSUCC_CNT13", "SMS_UNSUCC_CNT12"),
+        ]
+        for _old, _new in __rtr_renames:
+            df_rtr_RTRTRANS_NEWGROUP10 = df_rtr_RTRTRANS_NEWGROUP10.drop(_new).withColumnRenamed(_old, _new)
+        ctx.register_df("df_rtr_RTRTRANS_NEWGROUP10", df_rtr_RTRTRANS_NEWGROUP10)
+        df_rtr_RTRTRANS_NEWGROUP11 = df_Union_Transformation1.filter(expr("TRUE"))
+        __rtr_renames = [
+            ("EST_KEY", "EST_KEY13"),
+            ("SYS_RPT_YEAR3", "SYS_RPT_YEAR13"),
+            ("SYS_RPT_MTH3", "SYS_RPT_MTH13"),
+        ]
+        for _old, _new in __rtr_renames:
+            df_rtr_RTRTRANS_NEWGROUP11 = df_rtr_RTRTRANS_NEWGROUP11.drop(_new).withColumnRenamed(_old, _new)
+        ctx.register_df("df_rtr_RTRTRANS_NEWGROUP11", df_rtr_RTRTRANS_NEWGROUP11)
+        df_rtr_RTRTRANS_NEWGROUP12 = df_Union_Transformation1.filter(expr("TRUE"))
+        __rtr_renames = [
+            ("EST_KEY", "EST_KEY14"),
+            ("SYS_RPT_YEAR3", "SYS_RPT_YEAR14"),
+            ("SYS_RPT_MTH3", "SYS_RPT_MTH14"),
+            ("PHONE_CNT13", "PHONE_CNT14"),
+            ("PHONE_SUCC_CNT13", "PHONE_SUCC_CNT14"),
+            ("PHONE_PND_CNT13", "PHONE_PND_CNT14"),
+            ("PHONE_LANG_CTN_CNT13", "PHONE_LANG_CTN_CNT14"),
+            ("PHONE_LANG_PTH_CNT13", "PHONE_LANG_PTH_CNT14"),
+            ("PHONE_LANG_ENG_CNT13", "PHONE_LANG_ENG_CNT14"),
+            ("PHONE_UNSUCC_CNT13", "PHONE_UNSUCC_CNT14"),
+            ("PHONE_INVLD_TONE_UNSUCC_CNT13", "PHONE_INVLD_TONE_UNSUCC_CNT14"),
+            ("PHONE_NO_ANS_UNSUCC_CNT13", "PHONE_NO_ANS_UNSUCC_CNT14"),
+            ("PHONE_BUSY_UNSUCC_CNT13", "PHONE_BUSY_UNSUCC_CNT14"),
+            ("SMS_CNT13", "SMS_CNT14"),
+            ("SMS_SUCC_CNT13", "SMS_SUCC_CNT14"),
+            ("SMS_UNSUCC_CNT13", "SMS_UNSUCC_CNT14"),
+        ]
+        for _old, _new in __rtr_renames:
+            df_rtr_RTRTRANS_NEWGROUP12 = df_rtr_RTRTRANS_NEWGROUP12.drop(_new).withColumnRenamed(_old, _new)
+        ctx.register_df("df_rtr_RTRTRANS_NEWGROUP12", df_rtr_RTRTRANS_NEWGROUP12)
+        df_rtr_RTRTRANS_NEWGROUP13 = df_Union_Transformation1.filter(expr("TRUE"))
+        __rtr_renames = [
+            ("EST_KEY", "EST_KEY15"),
+            ("SYS_RPT_YEAR3", "SYS_RPT_YEAR15"),
+            ("SYS_RPT_MTH3", "SYS_RPT_MTH15"),
+            ("PHONE_CNT13", "PHONE_CNT15"),
+            ("PHONE_SUCC_CNT13", "PHONE_SUCC_CNT15"),
+            ("PHONE_PND_CNT13", "PHONE_PND_CNT15"),
+            ("PHONE_LANG_CTN_CNT13", "PHONE_LANG_CTN_CNT15"),
+            ("PHONE_LANG_PTH_CNT13", "PHONE_LANG_PTH_CNT15"),
+            ("PHONE_LANG_ENG_CNT13", "PHONE_LANG_ENG_CNT15"),
+            ("PHONE_UNSUCC_CNT13", "PHONE_UNSUCC_CNT15"),
+            ("PHONE_INVLD_TONE_UNSUCC_CNT13", "PHONE_INVLD_TONE_UNSUCC_CNT15"),
+            ("PHONE_NO_ANS_UNSUCC_CNT13", "PHONE_NO_ANS_UNSUCC_CNT15"),
+            ("PHONE_BUSY_UNSUCC_CNT13", "PHONE_BUSY_UNSUCC_CNT15"),
+            ("SMS_CNT13", "SMS_CNT15"),
+            ("SMS_SUCC_CNT13", "SMS_SUCC_CNT15"),
+            ("SMS_UNSUCC_CNT13", "SMS_UNSUCC_CNT15"),
+        ]
+        for _old, _new in __rtr_renames:
+            df_rtr_RTRTRANS_NEWGROUP13 = df_rtr_RTRTRANS_NEWGROUP13.drop(_new).withColumnRenamed(_old, _new)
+        ctx.register_df("df_rtr_RTRTRANS_NEWGROUP13", df_rtr_RTRTRANS_NEWGROUP13)
+        df_rtr_RTRTRANS_DEFAULT = df_Union_Transformation1.filter(~(expr("TRUE")) & ~(expr("TRUE")) & ~(expr("TRUE")) & ~(expr("TRUE")) & ~(expr("TRUE")) & ~(expr("TRUE")) & ~(expr("TRUE")) & ~(expr("TRUE")) & ~(expr("TRUE")) & ~(expr("TRUE")) & ~(expr("TRUE")) & ~(expr("TRUE")) & ~(expr("TRUE")) & ~(expr("TRUE")))
+        __rtr_renames = [
+            ("EST_KEY", "EST_KEY1"),
+            ("SYS_RPT_YEAR3", "SYS_RPT_YEAR1"),
+            ("SYS_RPT_MTH3", "SYS_RPT_MTH1"),
+            ("PHONE_CNT13", "PHONE_CNT1"),
+            ("PHONE_SUCC_CNT13", "PHONE_SUCC_CNT1"),
+            ("PHONE_PND_CNT13", "PHONE_PND_CNT1"),
+            ("PHONE_LANG_CTN_CNT13", "PHONE_LANG_CTN_CNT1"),
+            ("PHONE_LANG_PTH_CNT13", "PHONE_LANG_PTH_CNT1"),
+            ("PHONE_LANG_ENG_CNT13", "PHONE_LANG_ENG_CNT1"),
+            ("PHONE_UNSUCC_CNT13", "PHONE_UNSUCC_CNT1"),
+            ("PHONE_INVLD_TONE_UNSUCC_CNT13", "PHONE_INVLD_TONE_UNSUCC_CNT1"),
+            ("PHONE_NO_ANS_UNSUCC_CNT13", "PHONE_NO_ANS_UNSUCC_CNT1"),
+            ("PHONE_BUSY_UNSUCC_CNT13", "PHONE_BUSY_UNSUCC_CNT1"),
+            ("SMS_CNT13", "SMS_CNT1"),
+            ("SMS_SUCC_CNT13", "SMS_SUCC_CNT1"),
+            ("SMS_UNSUCC_CNT13", "SMS_UNSUCC_CNT1"),
+        ]
+        for _old, _new in __rtr_renames:
+            df_rtr_RTRTRANS_DEFAULT = df_rtr_RTRTRANS_DEFAULT.drop(_new).withColumnRenamed(_old, _new)
+        ctx.register_df("df_rtr_RTRTRANS_DEFAULT", df_rtr_RTRTRANS_DEFAULT)
+
         logger.info("Step: apply_EXP_SMS_SUCC_CNT")
         # Expression: apply_EXP_SMS_SUCC_CNT
-        df_EXP_SMS_SUCC_CNT = df_rtr_newgroup11_17
+        df_EXP_SMS_SUCC_CNT = df_rtr_RTRTRANS_NEWGROUP11
         df_EXP_SMS_SUCC_CNT = df_EXP_SMS_SUCC_CNT.withColumn("ENQ_CHNL_TYPE_CODE", expr("'AS'"))
         df_EXP_SMS_SUCC_CNT = df_EXP_SMS_SUCC_CNT.withColumn("RENT_ENQ_RMDR_DTL_CODE", expr("'RRS_SUCC_SMS_SENT_CNT'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
@@ -571,7 +643,7 @@ AND  LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','YYYYMMDD')) BETWEEN BGN_DATE AND EN
         
         logger.info("Step: apply_EXP_SMS_UNSUCC_CNT")
         # Expression: apply_EXP_SMS_UNSUCC_CNT
-        df_EXP_SMS_UNSUCC_CNT = df_rtr_newgroup12_18
+        df_EXP_SMS_UNSUCC_CNT = df_rtr_RTRTRANS_NEWGROUP12
         df_EXP_SMS_UNSUCC_CNT = df_EXP_SMS_UNSUCC_CNT.withColumn("ENQ_CHNL_TYPE_CODE", expr("'AS'"))
         df_EXP_SMS_UNSUCC_CNT = df_EXP_SMS_UNSUCC_CNT.withColumn("RENT_ENQ_RMDR_DTL_CODE", expr("'RRS_UNSUCC_SMS_SENT_CNT'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
@@ -583,7 +655,7 @@ AND  LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','YYYYMMDD')) BETWEEN BGN_DATE AND EN
         
         logger.info("Step: apply_EXP_RRS_PHONE_CNT")
         # Expression: apply_EXP_RRS_PHONE_CNT
-        df_EXP_RRS_PHONE_CNT = df_rtr_newgroup_6
+        df_EXP_RRS_PHONE_CNT = df_rtr_RTRTRANS_NEWGROUP
         df_EXP_RRS_PHONE_CNT = df_EXP_RRS_PHONE_CNT.withColumn("EST_KEY1", expr("EST_KEY2"))
         df_EXP_RRS_PHONE_CNT = df_EXP_RRS_PHONE_CNT.withColumn("SYS_RPT_YEAR1", expr("SYS_RPT_YEAR2"))
         df_EXP_RRS_PHONE_CNT = df_EXP_RRS_PHONE_CNT.withColumn("SYS_RPT_MTH1", expr("SYS_RPT_MTH2"))
@@ -598,7 +670,7 @@ AND  LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','YYYYMMDD')) BETWEEN BGN_DATE AND EN
         
         logger.info("Step: apply_EXP_PHONE_SUCC_CNT")
         # Expression: apply_EXP_PHONE_SUCC_CNT
-        df_EXP_PHONE_SUCC_CNT = df_rtr_newgroup1_7
+        df_EXP_PHONE_SUCC_CNT = df_rtr_RTRTRANS_NEWGROUP1
         df_EXP_PHONE_SUCC_CNT = df_EXP_PHONE_SUCC_CNT.withColumn("ENQ_CHNL_TYPE_CODE", expr("'AP'"))
         df_EXP_PHONE_SUCC_CNT = df_EXP_PHONE_SUCC_CNT.withColumn("RENT_ENQ_RMDR_DTL_CODE", expr("'RRS_TNT_SUCC_CNTC_CNT'"))
         df_EXP_PHONE_SUCC_CNT = df_EXP_PHONE_SUCC_CNT.withColumn("PHONE_SUCC_CNT2", expr("PHONE_SUCC_CNT3"))
@@ -611,7 +683,7 @@ AND  LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','YYYYMMDD')) BETWEEN BGN_DATE AND EN
         
         logger.info("Step: apply_EXP_PHONE_LANG_CTN_CNT")
         # Expression: apply_EXP_PHONE_LANG_CTN_CNT
-        df_EXP_PHONE_LANG_CTN_CNT = df_rtr_newgroup3_9
+        df_EXP_PHONE_LANG_CTN_CNT = df_rtr_RTRTRANS_NEWGROUP3
         df_EXP_PHONE_LANG_CTN_CNT = df_EXP_PHONE_LANG_CTN_CNT.withColumn("EST_KEY3", expr("EST_KEY5"))
         df_EXP_PHONE_LANG_CTN_CNT = df_EXP_PHONE_LANG_CTN_CNT.withColumn("SYS_RPT_YEAR3", expr("SYS_RPT_YEAR5"))
         df_EXP_PHONE_LANG_CTN_CNT = df_EXP_PHONE_LANG_CTN_CNT.withColumn("SYS_RPT_MTH3", expr("SYS_RPT_MTH5"))
@@ -626,7 +698,7 @@ AND  LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','YYYYMMDD')) BETWEEN BGN_DATE AND EN
         
         logger.info("Step: apply_EXP_PHONE_LANG_PTH_CNT")
         # Expression: apply_EXP_PHONE_LANG_PTH_CNT
-        df_EXP_PHONE_LANG_PTH_CNT = df_rtr_newgroup4_10
+        df_EXP_PHONE_LANG_PTH_CNT = df_rtr_RTRTRANS_NEWGROUP4
         df_EXP_PHONE_LANG_PTH_CNT = df_EXP_PHONE_LANG_PTH_CNT.withColumn("EST_KEY1", expr("EST_KEY6"))
         df_EXP_PHONE_LANG_PTH_CNT = df_EXP_PHONE_LANG_PTH_CNT.withColumn("SYS_RPT_YEAR1", expr("SYS_RPT_YEAR6"))
         df_EXP_PHONE_LANG_PTH_CNT = df_EXP_PHONE_LANG_PTH_CNT.withColumn("SYS_RPT_MTH1", expr("SYS_RPT_MTH6"))
@@ -641,7 +713,7 @@ AND  LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','YYYYMMDD')) BETWEEN BGN_DATE AND EN
         
         logger.info("Step: apply_EXP_PHONE_LANG_ENG_CNT")
         # Expression: apply_EXP_PHONE_LANG_ENG_CNT
-        df_EXP_PHONE_LANG_ENG_CNT = df_rtr_newgroup5_11
+        df_EXP_PHONE_LANG_ENG_CNT = df_rtr_RTRTRANS_NEWGROUP5
         df_EXP_PHONE_LANG_ENG_CNT = df_EXP_PHONE_LANG_ENG_CNT.withColumn("EST_KEY1", expr("EST_KEY7"))
         df_EXP_PHONE_LANG_ENG_CNT = df_EXP_PHONE_LANG_ENG_CNT.withColumn("SYS_RPT_YEAR1", expr("SYS_RPT_YEAR7"))
         df_EXP_PHONE_LANG_ENG_CNT = df_EXP_PHONE_LANG_ENG_CNT.withColumn("SYS_RPT_MTH1", expr("SYS_RPT_MTH7"))
@@ -656,7 +728,7 @@ AND  LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','YYYYMMDD')) BETWEEN BGN_DATE AND EN
         
         logger.info("Step: apply_EXP_PHONE_UNSUCC_CNT")
         # Expression: apply_EXP_PHONE_UNSUCC_CNT
-        df_EXP_PHONE_UNSUCC_CNT = df_rtr_newgroup6_12
+        df_EXP_PHONE_UNSUCC_CNT = df_rtr_RTRTRANS_NEWGROUP6
         df_EXP_PHONE_UNSUCC_CNT = df_EXP_PHONE_UNSUCC_CNT.withColumn("EST_KEY3", expr("EST_KEY8"))
         df_EXP_PHONE_UNSUCC_CNT = df_EXP_PHONE_UNSUCC_CNT.withColumn("SYS_RPT_YEAR3", expr("SYS_RPT_YEAR8"))
         df_EXP_PHONE_UNSUCC_CNT = df_EXP_PHONE_UNSUCC_CNT.withColumn("SYS_RPT_MTH3", expr("SYS_RPT_MTH8"))
@@ -671,7 +743,7 @@ AND  LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','YYYYMMDD')) BETWEEN BGN_DATE AND EN
         
         logger.info("Step: apply_EXP_PHONE_INVLD_TONE_UNSUCC_CNT")
         # Expression: apply_EXP_PHONE_INVLD_TONE_UNSUCC_CNT
-        df_EXP_PHONE_INVLD_TONE_UNSUCC_CNT = df_rtr_newgroup7_13
+        df_EXP_PHONE_INVLD_TONE_UNSUCC_CNT = df_rtr_RTRTRANS_NEWGROUP7
         df_EXP_PHONE_INVLD_TONE_UNSUCC_CNT = df_EXP_PHONE_INVLD_TONE_UNSUCC_CNT.withColumn("EST_KEY4", expr("EST_KEY9"))
         df_EXP_PHONE_INVLD_TONE_UNSUCC_CNT = df_EXP_PHONE_INVLD_TONE_UNSUCC_CNT.withColumn("SYS_RPT_YEAR4", expr("SYS_RPT_YEAR9"))
         df_EXP_PHONE_INVLD_TONE_UNSUCC_CNT = df_EXP_PHONE_INVLD_TONE_UNSUCC_CNT.withColumn("SYS_RPT_MTH4", expr("SYS_RPT_MTH9"))
@@ -686,7 +758,7 @@ AND  LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','YYYYMMDD')) BETWEEN BGN_DATE AND EN
         
         logger.info("Step: apply_EXP_PHONE_NO_ANS_UNSUCC_CNT")
         # Expression: apply_EXP_PHONE_NO_ANS_UNSUCC_CNT
-        df_EXP_PHONE_NO_ANS_UNSUCC_CNT = df_rtr_newgroup8_14
+        df_EXP_PHONE_NO_ANS_UNSUCC_CNT = df_rtr_RTRTRANS_NEWGROUP8
         df_EXP_PHONE_NO_ANS_UNSUCC_CNT = df_EXP_PHONE_NO_ANS_UNSUCC_CNT.withColumn("ENQ_CHNL_TYPE_CODE", expr("'AP'"))
         df_EXP_PHONE_NO_ANS_UNSUCC_CNT = df_EXP_PHONE_NO_ANS_UNSUCC_CNT.withColumn("RENT_ENQ_RMDR_DTL_CODE", expr("'RRS_UNSUCC_NO_ANS_CNT'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
@@ -698,7 +770,7 @@ AND  LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','YYYYMMDD')) BETWEEN BGN_DATE AND EN
         
         logger.info("Step: apply_EXP_PHONE_PND_CNT")
         # Expression: apply_EXP_PHONE_PND_CNT
-        df_EXP_PHONE_PND_CNT = df_rtr_newgroup2_8
+        df_EXP_PHONE_PND_CNT = df_rtr_RTRTRANS_NEWGROUP2
         df_EXP_PHONE_PND_CNT = df_EXP_PHONE_PND_CNT.withColumn("ENQ_CHNL_TYPE_CODE", expr("'AP'"))
         df_EXP_PHONE_PND_CNT = df_EXP_PHONE_PND_CNT.withColumn("RENT_ENQ_RMDR_DTL_CODE", expr("'RRS_PHONE_NUM_RQR_CNTC_CNT'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
@@ -710,7 +782,7 @@ AND  LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','YYYYMMDD')) BETWEEN BGN_DATE AND EN
         
         logger.info("Step: apply_EXP_PHONE_BUSY_UNSUCC_CNT")
         # Expression: apply_EXP_PHONE_BUSY_UNSUCC_CNT
-        df_EXP_PHONE_BUSY_UNSUCC_CNT = df_rtr_newgroup9_15
+        df_EXP_PHONE_BUSY_UNSUCC_CNT = df_rtr_RTRTRANS_NEWGROUP9
         df_EXP_PHONE_BUSY_UNSUCC_CNT = df_EXP_PHONE_BUSY_UNSUCC_CNT.withColumn("ENQ_CHNL_TYPE_CODE", expr("'AP'"))
         df_EXP_PHONE_BUSY_UNSUCC_CNT = df_EXP_PHONE_BUSY_UNSUCC_CNT.withColumn("RENT_ENQ_RMDR_DTL_CODE", expr("'RRS_UNSUCC_BUSY_CNT'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
@@ -722,7 +794,7 @@ AND  LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','YYYYMMDD')) BETWEEN BGN_DATE AND EN
         
         logger.info("Step: apply_EXP_SMS_CNT")
         # Expression: apply_EXP_SMS_CNT
-        df_EXP_SMS_CNT = df_rtr_newgroup10_16
+        df_EXP_SMS_CNT = df_rtr_RTRTRANS_NEWGROUP10
         df_EXP_SMS_CNT = df_EXP_SMS_CNT.withColumn("ENQ_CHNL_TYPE_CODE", expr("'AS'"))
         df_EXP_SMS_CNT = df_EXP_SMS_CNT.withColumn("RENT_ENQ_RMDR_DTL_CODE", expr("'RRS_TOT_SMS_SENT_CNT'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
@@ -736,96 +808,96 @@ AND  LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','YYYYMMDD')) BETWEEN BGN_DATE AND EN
         # Union: apply_Union_Transformation
         # Select + rename upstream columns per input, then union
         df_Union_Transformation_phone_cnt = df_EXP_RRS_PHONE_CNT.select(
-            col("EST_KEY1").alias("EST_KEY1"),
-            col("SYS_RPT_YEAR1").alias("SYS_RPT_YEAR1"),
-            col("SYS_RPT_MTH1").alias("SYS_RPT_MTH1"),
-            col("ENQ_CHNL_TYPE_CODE").alias("ENQ_CHNL_TYPE_CODE"),
-            col("RENT_ENQ_RMDR_DTL_CODE").alias("RENT_ENQ_RMDR_DTL_CODE"),
-            col("PHONE_CNT2").alias("VALUE")        )
+col("EST_KEY1"),
+col("SYS_RPT_YEAR1"),
+col("SYS_RPT_MTH1"),
+col("ENQ_CHNL_TYPE_CODE"),
+col("RENT_ENQ_RMDR_DTL_CODE"),
+col("PHONE_CNT2").alias("VALUE")        )
         df_Union_Transformation_phone_succ_cnt = df_EXP_PHONE_SUCC_CNT.select(
-            col("EST_KEY3").alias("EST_KEY1"),
-            col("SYS_RPT_YEAR3").alias("SYS_RPT_YEAR1"),
-            col("SYS_RPT_MTH3").alias("SYS_RPT_MTH1"),
-            col("ENQ_CHNL_TYPE_CODE").alias("ENQ_CHNL_TYPE_CODE"),
-            col("RENT_ENQ_RMDR_DTL_CODE").alias("RENT_ENQ_RMDR_DTL_CODE"),
-            col("PHONE_SUCC_CNT2").alias("VALUE")        )
+col("EST_KEY3").alias("EST_KEY1"),
+col("SYS_RPT_YEAR3").alias("SYS_RPT_YEAR1"),
+col("SYS_RPT_MTH3").alias("SYS_RPT_MTH1"),
+col("ENQ_CHNL_TYPE_CODE"),
+col("RENT_ENQ_RMDR_DTL_CODE"),
+col("PHONE_SUCC_CNT2").alias("VALUE")        )
         df_Union_Transformation_phone_pnd_cnt = df_EXP_PHONE_PND_CNT.select(
-            col("EST_KEY4").alias("EST_KEY1"),
-            col("SYS_RPT_YEAR4").alias("SYS_RPT_YEAR1"),
-            col("SYS_RPT_MTH4").alias("SYS_RPT_MTH1"),
-            col("ENQ_CHNL_TYPE_CODE").alias("ENQ_CHNL_TYPE_CODE"),
-            col("RENT_ENQ_RMDR_DTL_CODE").alias("RENT_ENQ_RMDR_DTL_CODE"),
-            col("PHONE_PND_CNT4").alias("VALUE")        )
+col("EST_KEY4").alias("EST_KEY1"),
+col("SYS_RPT_YEAR4").alias("SYS_RPT_YEAR1"),
+col("SYS_RPT_MTH4").alias("SYS_RPT_MTH1"),
+col("ENQ_CHNL_TYPE_CODE"),
+col("RENT_ENQ_RMDR_DTL_CODE"),
+col("PHONE_PND_CNT4").alias("VALUE")        )
         df_Union_Transformation_phone_lang_ctn_cnt = df_EXP_PHONE_LANG_CTN_CNT.select(
-            col("EST_KEY3").alias("EST_KEY1"),
-            col("SYS_RPT_YEAR3").alias("SYS_RPT_YEAR1"),
-            col("SYS_RPT_MTH3").alias("SYS_RPT_MTH1"),
-            col("ENQ_CHNL_TYPE_CODE").alias("ENQ_CHNL_TYPE_CODE"),
-            col("RENT_ENQ_RMDR_DTL_CODE").alias("RENT_ENQ_RMDR_DTL_CODE"),
-            col("PHONE_LANG_CTN_CNT5").alias("VALUE")        )
+col("EST_KEY3").alias("EST_KEY1"),
+col("SYS_RPT_YEAR3").alias("SYS_RPT_YEAR1"),
+col("SYS_RPT_MTH3").alias("SYS_RPT_MTH1"),
+col("ENQ_CHNL_TYPE_CODE"),
+col("RENT_ENQ_RMDR_DTL_CODE"),
+col("PHONE_LANG_CTN_CNT5").alias("VALUE")        )
         df_Union_Transformation_phone_lang_pth_cnt = df_EXP_PHONE_LANG_PTH_CNT.select(
-            col("EST_KEY1").alias("EST_KEY1"),
-            col("SYS_RPT_YEAR1").alias("SYS_RPT_YEAR1"),
-            col("SYS_RPT_MTH1").alias("SYS_RPT_MTH1"),
-            col("ENQ_CHNL_TYPE_CODE").alias("ENQ_CHNL_TYPE_CODE"),
-            col("RENT_ENQ_RMDR_DTL_CODE").alias("RENT_ENQ_RMDR_DTL_CODE"),
-            col("PHONE_LANG_PTH_CNT6").alias("VALUE")        )
+col("EST_KEY1"),
+col("SYS_RPT_YEAR1"),
+col("SYS_RPT_MTH1"),
+col("ENQ_CHNL_TYPE_CODE"),
+col("RENT_ENQ_RMDR_DTL_CODE"),
+col("PHONE_LANG_PTH_CNT6").alias("VALUE")        )
         df_Union_Transformation_phone_lang_eng_cnt = df_EXP_PHONE_LANG_ENG_CNT.select(
-            col("EST_KEY1").alias("EST_KEY1"),
-            col("SYS_RPT_YEAR1").alias("SYS_RPT_YEAR1"),
-            col("SYS_RPT_MTH1").alias("SYS_RPT_MTH1"),
-            col("ENQ_CHNL_TYPE_CODE").alias("ENQ_CHNL_TYPE_CODE"),
-            col("RENT_ENQ_RMDR_DTL_CODE").alias("RENT_ENQ_RMDR_DTL_CODE"),
-            col("PHONE_LANG_ENG_CNT7").alias("VALUE")        )
+col("EST_KEY1"),
+col("SYS_RPT_YEAR1"),
+col("SYS_RPT_MTH1"),
+col("ENQ_CHNL_TYPE_CODE"),
+col("RENT_ENQ_RMDR_DTL_CODE"),
+col("PHONE_LANG_ENG_CNT7").alias("VALUE")        )
         df_Union_Transformation_phone_unsucc_cnt = df_EXP_PHONE_UNSUCC_CNT.select(
-            col("EST_KEY3").alias("EST_KEY1"),
-            col("SYS_RPT_YEAR3").alias("SYS_RPT_YEAR1"),
-            col("SYS_RPT_MTH3").alias("SYS_RPT_MTH1"),
-            col("ENQ_CHNL_TYPE_CODE").alias("ENQ_CHNL_TYPE_CODE"),
-            col("RENT_ENQ_RMDR_DTL_CODE").alias("RENT_ENQ_RMDR_DTL_CODE"),
-            col("PHONE_UNSUCC_CNT8").alias("VALUE")        )
+col("EST_KEY3").alias("EST_KEY1"),
+col("SYS_RPT_YEAR3").alias("SYS_RPT_YEAR1"),
+col("SYS_RPT_MTH3").alias("SYS_RPT_MTH1"),
+col("ENQ_CHNL_TYPE_CODE"),
+col("RENT_ENQ_RMDR_DTL_CODE"),
+col("PHONE_UNSUCC_CNT8").alias("VALUE")        )
         df_Union_Transformation_phone_invld_tone__unsucc_cnt = df_EXP_PHONE_INVLD_TONE_UNSUCC_CNT.select(
-            col("EST_KEY4").alias("EST_KEY1"),
-            col("SYS_RPT_YEAR4").alias("SYS_RPT_YEAR1"),
-            col("SYS_RPT_MTH4").alias("SYS_RPT_MTH1"),
-            col("ENQ_CHNL_TYPE_CODE").alias("ENQ_CHNL_TYPE_CODE"),
-            col("RENT_ENQ_RMDR_DTL_CODE").alias("RENT_ENQ_RMDR_DTL_CODE"),
-            col("PHONE_INVLD_TONE_UNSUCC_CNT9").alias("VALUE")        )
+col("EST_KEY4").alias("EST_KEY1"),
+col("SYS_RPT_YEAR4").alias("SYS_RPT_YEAR1"),
+col("SYS_RPT_MTH4").alias("SYS_RPT_MTH1"),
+col("ENQ_CHNL_TYPE_CODE"),
+col("RENT_ENQ_RMDR_DTL_CODE"),
+col("PHONE_INVLD_TONE_UNSUCC_CNT9").alias("VALUE")        )
         df_Union_Transformation_phone_no_ans_unsucc_cnt = df_EXP_PHONE_NO_ANS_UNSUCC_CNT.select(
-            col("EST_KEY10").alias("EST_KEY1"),
-            col("SYS_RPT_YEAR10").alias("SYS_RPT_YEAR1"),
-            col("SYS_RPT_MTH10").alias("SYS_RPT_MTH1"),
-            col("ENQ_CHNL_TYPE_CODE").alias("ENQ_CHNL_TYPE_CODE"),
-            col("RENT_ENQ_RMDR_DTL_CODE").alias("RENT_ENQ_RMDR_DTL_CODE"),
-            col("PHONE_NO_ANS_UNSUCC_CNT10").alias("VALUE")        )
+col("EST_KEY10").alias("EST_KEY1"),
+col("SYS_RPT_YEAR10").alias("SYS_RPT_YEAR1"),
+col("SYS_RPT_MTH10").alias("SYS_RPT_MTH1"),
+col("ENQ_CHNL_TYPE_CODE"),
+col("RENT_ENQ_RMDR_DTL_CODE"),
+col("PHONE_NO_ANS_UNSUCC_CNT10").alias("VALUE")        )
         df_Union_Transformation_phone_busy_unsucc_cnt = df_EXP_PHONE_BUSY_UNSUCC_CNT.select(
-            col("EST_KEY11").alias("EST_KEY1"),
-            col("SYS_RPT_YEAR11").alias("SYS_RPT_YEAR1"),
-            col("SYS_RPT_MTH11").alias("SYS_RPT_MTH1"),
-            col("ENQ_CHNL_TYPE_CODE").alias("ENQ_CHNL_TYPE_CODE"),
-            col("RENT_ENQ_RMDR_DTL_CODE").alias("RENT_ENQ_RMDR_DTL_CODE"),
-            col("PHONE_BUSY_UNSUCC_CNT11").alias("VALUE")        )
+col("EST_KEY11").alias("EST_KEY1"),
+col("SYS_RPT_YEAR11").alias("SYS_RPT_YEAR1"),
+col("SYS_RPT_MTH11").alias("SYS_RPT_MTH1"),
+col("ENQ_CHNL_TYPE_CODE"),
+col("RENT_ENQ_RMDR_DTL_CODE"),
+col("PHONE_BUSY_UNSUCC_CNT11").alias("VALUE")        )
         df_Union_Transformation_sms_cnt = df_EXP_SMS_CNT.select(
-            col("EST_KEY12").alias("EST_KEY1"),
-            col("SYS_RPT_YEAR12").alias("SYS_RPT_YEAR1"),
-            col("SYS_RPT_MTH12").alias("SYS_RPT_MTH1"),
-            col("ENQ_CHNL_TYPE_CODE").alias("ENQ_CHNL_TYPE_CODE"),
-            col("RENT_ENQ_RMDR_DTL_CODE").alias("RENT_ENQ_RMDR_DTL_CODE"),
-            col("SMS_CNT12").alias("VALUE")        )
+col("EST_KEY12").alias("EST_KEY1"),
+col("SYS_RPT_YEAR12").alias("SYS_RPT_YEAR1"),
+col("SYS_RPT_MTH12").alias("SYS_RPT_MTH1"),
+col("ENQ_CHNL_TYPE_CODE"),
+col("RENT_ENQ_RMDR_DTL_CODE"),
+col("SMS_CNT12").alias("VALUE")        )
         df_Union_Transformation_sms_succ_cnt = df_EXP_SMS_SUCC_CNT.select(
-            col("EST_KEY13").alias("EST_KEY1"),
-            col("SYS_RPT_YEAR13").alias("SYS_RPT_YEAR1"),
-            col("SYS_RPT_MTH13").alias("SYS_RPT_MTH1"),
-            col("ENQ_CHNL_TYPE_CODE").alias("ENQ_CHNL_TYPE_CODE"),
-            col("RENT_ENQ_RMDR_DTL_CODE").alias("RENT_ENQ_RMDR_DTL_CODE"),
-            col("SMS_SUCC_CNT13").alias("VALUE")        )
+col("EST_KEY13").alias("EST_KEY1"),
+col("SYS_RPT_YEAR13").alias("SYS_RPT_YEAR1"),
+col("SYS_RPT_MTH13").alias("SYS_RPT_MTH1"),
+col("ENQ_CHNL_TYPE_CODE"),
+col("RENT_ENQ_RMDR_DTL_CODE"),
+col("SMS_SUCC_CNT13").alias("VALUE")        )
         df_Union_Transformation_sms_unsucc_cnt = df_EXP_SMS_UNSUCC_CNT.select(
-            col("EST_KEY14").alias("EST_KEY1"),
-            col("SYS_RPT_YEAR14").alias("SYS_RPT_YEAR1"),
-            col("SYS_RPT_MTH14").alias("SYS_RPT_MTH1"),
-            col("ENQ_CHNL_TYPE_CODE").alias("ENQ_CHNL_TYPE_CODE"),
-            col("RENT_ENQ_RMDR_DTL_CODE").alias("RENT_ENQ_RMDR_DTL_CODE"),
-            col("SMS_UNSUCC_CNT14").alias("VALUE")        )
+col("EST_KEY14").alias("EST_KEY1"),
+col("SYS_RPT_YEAR14").alias("SYS_RPT_YEAR1"),
+col("SYS_RPT_MTH14").alias("SYS_RPT_MTH1"),
+col("ENQ_CHNL_TYPE_CODE"),
+col("RENT_ENQ_RMDR_DTL_CODE"),
+col("SMS_UNSUCC_CNT14").alias("VALUE")        )
         df_Union_Transformation = df_Union_Transformation_phone_cnt
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_phone_succ_cnt, allowMissingColumns=True)
         df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_phone_pnd_cnt, allowMissingColumns=True)
@@ -848,30 +920,22 @@ AND  LAST_DAY(TO_DATE('$$v_rpt_mth' || '01','YYYYMMDD')) BETWEEN BGN_DATE AND EN
         
         logger.info("Step: input_MPLT_LKP_RENT_ENQ_RMDR_SMRY")
         # Expression: input_MPLT_LKP_RENT_ENQ_RMDR_SMRY
-        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_input_21 = df_Union_Transformation
-        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_input_21 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_input_21.withColumn("EST_KEY", expr("EST_KEY1"))
-        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_input_21 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_input_21.withColumn("SYS_RPT_YEAR", expr("SYS_RPT_YEAR1"))
-        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_input_21 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_input_21.withColumn("SYS_RPT_MTH", expr("SYS_RPT_MTH1"))
-        ctx.register_df("df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_input_21", df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_input_21)
-        
-        logger.info("Step: rename_EXPTRANS1")
-        # Expression: rename_EXPTRANS1
-        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_rename_22 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_input_21
-        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_rename_22 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_rename_22.drop("EST_KEY").withColumnRenamed("EST_KEY1", "EST_KEY")
-        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_rename_22 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_rename_22.drop("SYS_RPT_YEAR").withColumnRenamed("SYS_RPT_YEAR1", "SYS_RPT_YEAR")
-        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_rename_22 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_rename_22.drop("SYS_RPT_MTH").withColumnRenamed("SYS_RPT_MTH1", "SYS_RPT_MTH")
-        ctx.register_df("df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_rename_22", df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_rename_22)
+        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_input = df_Union_Transformation
+        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_input = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_input.withColumn("EST_KEY", expr("EST_KEY1"))
+        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_input = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_input.withColumn("SYS_RPT_YEAR", expr("SYS_RPT_YEAR1"))
+        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_input = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_input.withColumn("SYS_RPT_MTH", expr("SYS_RPT_MTH1"))
+        ctx.register_df("df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_input", df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_input)
         
         logger.info("Step: apply_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS1")
         # Expression: apply_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS1
-        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS1 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_rename_22
-        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS1 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS1.withColumn("TIME_DMNS_KEY", expr("200000000+SYS_RPT_YEAR*10000+SYS_RPT_MTH*100"))
+        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_EXPTRANS1 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_input
+        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_EXPTRANS1 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_EXPTRANS1.withColumn("TIME_DMNS_KEY", expr("200000000+SYS_RPT_YEAR*10000+SYS_RPT_MTH*100"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["SYS_RPT_YEAR", "SYS_RPT_MTH", "EST_KEY", "ENQ_CHNL_TYPE_CODE", "RENT_ENQ_RMDR_DTL_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS1.columns]:
-                df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS1 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS1.withColumn(_col, lit(None))
+            if _col.lower() not in [x.lower() for x in df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_EXPTRANS1.columns]:
+                df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_EXPTRANS1 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_EXPTRANS1.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
-        ctx.register_df("df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS1", df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS1)
+        ctx.register_df("df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_EXPTRANS1", df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_EXPTRANS1)
         
         logger.info("Step: read_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_HRCHY_EMS_EST")
         # Reading Data From Source - read_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_HRCHY_EMS_EST
@@ -898,116 +962,99 @@ FROM DDS_HRCHY_EMS_EST
 WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY_EMS_EST.BGN_DATE AND DDS_HRCHY_EMS_EST.END_DATE"""
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         query = query.replace("$$v_snsh_date", v_snsh_date)
-        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_HRCHY_EMS_EST = lib.read_sql(spark, _conn, query=query)
+        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_LKP_DDS_HRCHY_EMS_EST = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_HRCHY_EMS_EST")
         # Lookup: apply_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_HRCHY_EMS_EST
+        # Use First Value / Use Any Value: dedup by join keys
+        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_LKP_DDS_HRCHY_EMS_EST = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_LKP_DDS_HRCHY_EMS_EST.dropDuplicates(subset=["EST_KEY"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS1
+        _lkp_input = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_EXPTRANS1
         # Join condition: EST_KEY=EST_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_23 = _lkp_input.alias("_main").join(
-            broadcast(df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_HRCHY_EMS_EST).alias("_lkp"),
+        df_mplt_lkp_chain_MPLT_LKP_RENT_ENQ_RMDR_SMRY_EXPTRANS1 = _lkp_input.alias("_main").join(
+            broadcast(df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_LKP_DDS_HRCHY_EMS_EST).alias("_lkp"),
             (col("_main.EST_KEY") == col("_lkp.EST_KEY")),
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_HRCHY_EMS_EST[c] for c in df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_HRCHY_EMS_EST.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
+            *[df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_LKP_DDS_HRCHY_EMS_EST[c] for c in df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_LKP_DDS_HRCHY_EMS_EST.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_mplt_lkp_chain_23", df_mplt_lkp_chain_23)        
+        ctx.register_df("df_mplt_lkp_chain_MPLT_LKP_RENT_ENQ_RMDR_SMRY_EXPTRANS1", df_mplt_lkp_chain_MPLT_LKP_RENT_ENQ_RMDR_SMRY_EXPTRANS1)        
         logger.info("Step: read_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_DMNS_RENT_ENQ_RMDR_DTL")
         # Reading Data From Source - read_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_DMNS_RENT_ENQ_RMDR_DTL
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "target")
-        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_DMNS_RENT_ENQ_RMDR_DTL = lib.read_sql(spark, _conn, table="DDS_DMNS_RENT_ENQ_RMDR_DTL")
+        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_LKP_DDS_DMNS_RENT_ENQ_RMDR_DTL = lib.read_sql(spark, _conn, table="DDS_DMNS_RENT_ENQ_RMDR_DTL")
         
         logger.info("Step: apply_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_DMNS_RENT_ENQ_RMDR_DTL")
         # Lookup: apply_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_DMNS_RENT_ENQ_RMDR_DTL
+        # Use First Value / Use Any Value: dedup by join keys
+        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_LKP_DDS_DMNS_RENT_ENQ_RMDR_DTL = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_LKP_DDS_DMNS_RENT_ENQ_RMDR_DTL.dropDuplicates(subset=["RENT_ENQ_RMDR_DTL_CODE"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_mplt_lkp_chain_23
+        _lkp_input = df_mplt_lkp_chain_MPLT_LKP_RENT_ENQ_RMDR_SMRY_EXPTRANS1
         # Join condition: RENT_ENQ_RMDR_DTL_CODE=RENT_ENQ_RMDR_DTL_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_23 = _lkp_input.alias("_main").join(
-            broadcast(df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_DMNS_RENT_ENQ_RMDR_DTL).alias("_lkp"),
+        df_mplt_lkp_chain_MPLT_LKP_RENT_ENQ_RMDR_SMRY_EXPTRANS1 = _lkp_input.alias("_main").join(
+            broadcast(df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_LKP_DDS_DMNS_RENT_ENQ_RMDR_DTL).alias("_lkp"),
             (col("_main.RENT_ENQ_RMDR_DTL_CODE") == col("_lkp.RENT_ENQ_RMDR_DTL_CODE")),
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_DMNS_RENT_ENQ_RMDR_DTL[c] for c in df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_DMNS_RENT_ENQ_RMDR_DTL.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
+            *[df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_LKP_DDS_DMNS_RENT_ENQ_RMDR_DTL[c] for c in df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_LKP_DDS_DMNS_RENT_ENQ_RMDR_DTL.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         
         logger.info("Step: read_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_DMNS_ENQ_CHNL_TYPE")
         # Reading Data From Source - read_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_DMNS_ENQ_CHNL_TYPE
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DDS")
-        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_DMNS_ENQ_CHNL_TYPE = lib.read_sql(spark, _conn, table="DDS_DMNS_ENQ_CHNL_TYPE")
+        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_LKP_DDS_DMNS_ENQ_CHNL_TYPE = lib.read_sql(spark, _conn, table="DDS_DMNS_ENQ_CHNL_TYPE")
         
         logger.info("Step: apply_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_DMNS_ENQ_CHNL_TYPE")
         # Lookup: apply_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_DMNS_ENQ_CHNL_TYPE
+        # Use First Value / Use Any Value: dedup by join keys
+        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_LKP_DDS_DMNS_ENQ_CHNL_TYPE = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_LKP_DDS_DMNS_ENQ_CHNL_TYPE.dropDuplicates(subset=["ENQ_CHNL_TYPE_CODE"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_mplt_lkp_chain_23
+        _lkp_input = df_mplt_lkp_chain_MPLT_LKP_RENT_ENQ_RMDR_SMRY_EXPTRANS1
         # Join condition: ENQ_CHNL_TYPE_CODE=ENQ_CHNL_TYPE_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_23 = _lkp_input.alias("_main").join(
-            broadcast(df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_DMNS_ENQ_CHNL_TYPE).alias("_lkp"),
+        df_mplt_lkp_chain_MPLT_LKP_RENT_ENQ_RMDR_SMRY_EXPTRANS1 = _lkp_input.alias("_main").join(
+            broadcast(df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_LKP_DDS_DMNS_ENQ_CHNL_TYPE).alias("_lkp"),
             (col("_main.ENQ_CHNL_TYPE_CODE") == col("_lkp.ENQ_CHNL_TYPE_CODE")),
             "left"
         ).select(
             *[_lkp_input[c] for c in _lkp_input.columns],
-            *[df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_DMNS_ENQ_CHNL_TYPE[c] for c in df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_LKP_DDS_DMNS_ENQ_CHNL_TYPE.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
+            *[df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_LKP_DDS_DMNS_ENQ_CHNL_TYPE[c] for c in df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_LKP_DDS_DMNS_ENQ_CHNL_TYPE.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        
-        logger.info("Step: rename_EXPTRANS2")
-        # Expression: rename_EXPTRANS2
-        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_rename_24 = df_mplt_lkp_chain_23
-        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_rename_24 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_rename_24.drop("EST_KEY").withColumnRenamed("EST_KEY1", "EST_KEY")
-        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_rename_24 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_rename_24.drop("SYS_RPT_YEAR").withColumnRenamed("SYS_RPT_YEAR1", "SYS_RPT_YEAR")
-        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_rename_24 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_rename_24.drop("SYS_RPT_MTH").withColumnRenamed("SYS_RPT_MTH1", "SYS_RPT_MTH")
-        ctx.register_df("df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_rename_24", df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_rename_24)
         
         logger.info("Step: apply_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS2")
         # Expression: apply_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS2
-        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS2 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_rename_24
-        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS2 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS2.withColumn("TIME_DMNS_KEY1", expr("CASE WHEN (TIME_DMNS_KEY IS NULL) THEN 0 ELSE TIME_DMNS_KEY END"))
-        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS2 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS2.withColumn("EST_SCD_KEY1", expr("CASE WHEN (EST_SCD_KEY IS NULL) THEN 0 ELSE EST_SCD_KEY END"))
-        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS2 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS2.withColumn("ENQ_CHNL_TYPE_KEY1", expr("CASE WHEN (ENQ_CHNL_TYPE_KEY IS NULL) THEN 0 ELSE ENQ_CHNL_TYPE_KEY END"))
-        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS2 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS2.withColumn("RENT_ENQ_RMDR_DTL_KEY1", expr("CASE WHEN (RENT_ENQ_RMDR_DTL_KEY IS NULL) THEN 0 ELSE RENT_ENQ_RMDR_DTL_KEY END"))
+        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_EXPTRANS2 = df_mplt_lkp_chain_MPLT_LKP_RENT_ENQ_RMDR_SMRY_EXPTRANS1
+        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_EXPTRANS2 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_EXPTRANS2.withColumn("TIME_DMNS_KEY1", expr("CASE WHEN (TIME_DMNS_KEY IS NULL) THEN 0 ELSE TIME_DMNS_KEY END"))
+        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_EXPTRANS2 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_EXPTRANS2.withColumn("EST_SCD_KEY1", expr("CASE WHEN (EST_SCD_KEY IS NULL) THEN 0 ELSE EST_SCD_KEY END"))
+        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_EXPTRANS2 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_EXPTRANS2.withColumn("ENQ_CHNL_TYPE_KEY1", expr("CASE WHEN (ENQ_CHNL_TYPE_KEY IS NULL) THEN 0 ELSE ENQ_CHNL_TYPE_KEY END"))
+        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_EXPTRANS2 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_EXPTRANS2.withColumn("RENT_ENQ_RMDR_DTL_KEY1", expr("CASE WHEN (RENT_ENQ_RMDR_DTL_KEY IS NULL) THEN 0 ELSE RENT_ENQ_RMDR_DTL_KEY END"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         # Keep all upstream columns + computed columns (no select filtering)
-        ctx.register_df("df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS2", df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS2)
+        ctx.register_df("df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_EXPTRANS2", df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_EXPTRANS2)
         
         logger.info("Step: apply_MPLT_LKP_RENT_ENQ_RMDR_SMRY")
         # Expression: apply_MPLT_LKP_RENT_ENQ_RMDR_SMRY
-        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_KEY_EXPTRANS2
-        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY.drop("TIME_DMNS_KEY").withColumnRenamed("TIME_DMNS_KEY1", "TIME_DMNS_KEY")
-        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY.drop("EST_SCD_KEY").withColumnRenamed("EST_SCD_KEY1", "EST_SCD_KEY")
-        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY.drop("ENQ_CHNL_TYPE_KEY").withColumnRenamed("ENQ_CHNL_TYPE_KEY1", "ENQ_CHNL_TYPE_KEY")
-        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY.drop("RENT_ENQ_RMDR_DTL_KEY").withColumnRenamed("RENT_ENQ_RMDR_DTL_KEY1", "RENT_ENQ_RMDR_DTL_KEY")
+        df_MPLT_LKP_RENT_ENQ_RMDR_SMRY = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY_EXPTRANS2
+        __expr_renames = [
+            ("TIME_DMNS_KEY1", "TIME_DMNS_KEY"),
+            ("EST_SCD_KEY1", "EST_SCD_KEY"),
+            ("ENQ_CHNL_TYPE_KEY1", "ENQ_CHNL_TYPE_KEY"),
+            ("RENT_ENQ_RMDR_DTL_KEY1", "RENT_ENQ_RMDR_DTL_KEY"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_LKP_RENT_ENQ_RMDR_SMRY = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY.drop(_new).withColumnRenamed(_old, _new)
         ctx.register_df("df_MPLT_LKP_RENT_ENQ_RMDR_SMRY", df_MPLT_LKP_RENT_ENQ_RMDR_SMRY)
-        
-        logger.info("Step: merge_AGG_SUM_0")
-        # Lookup: merge_AGG_SUM_0
-        # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
-        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
-        _cc = list(dict.fromkeys(c for c in df_MPLT_LKP_RENT_ENQ_RMDR_SMRY.columns if c.lower() in [x.lower() for x in df_Union_Transformation.columns]))
-        if _cc:
-            __lkp_dup = [c for c in df_Union_Transformation.columns if c.lower() in [x.lower() for x in df_MPLT_LKP_RENT_ENQ_RMDR_SMRY.columns] and c.lower() not in [x.lower() for x in _cc]]
-            df_merge_25 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY.join(
-                df_Union_Transformation.drop(*__lkp_dup) if __lkp_dup else df_Union_Transformation,
-                on=_cc, how="left"
-            )
-        else:
-            logger.warning("No common columns between df_MPLT_LKP_RENT_ENQ_RMDR_SMRY and df_Union_Transformation — using synthetic key join")
-            df_merge_25 = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY.withColumn("_join_key", lit(1)).join(
-                df_Union_Transformation.withColumn("_join_key", lit(1)),
-                on="_join_key", how="left").drop("_join_key")
-        ctx.register_df("df_merge_25", df_merge_25)
         
         logger.info("Step: apply_AGG_SUM")
         # Aggregator: apply_AGG_SUM
         # Select only mapped upstream columns with correct port names
-        _agg_input = df_merge_25.select(
+        _agg_input = df_MPLT_LKP_RENT_ENQ_RMDR_SMRY.select(
             col("TIME_DMNS_KEY"),
             col("EST_SCD_KEY"),
             col("ENQ_CHNL_TYPE_KEY"),
@@ -1025,11 +1072,10 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"ENQ_CHNL_TYPE_KEY": "ENQ_CHNL_TYPE_KEY", "EST_SCD_KEY": "EST_SCD_KEY", "RENT_ENQ_RMDR_DTL_KEY": "RENT_ENQ_RMDR_DTL_KEY", "RENT_ENQ_RMDR_VAL_NUM": "VALUE", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
+        _field_map = {"RENT_ENQ_RMDR_VAL_NUM": "VALUE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
+                # Drop any column that would conflict case-insensitively with the target name 
                 for _c in list(df_write.columns):
                     if _c.lower() == _tgt_col.lower() and _c != _src_col:
                         df_write = df_write.drop(_c)

@@ -82,17 +82,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: write_SOR_EMS_TOW_TPS_AGRMT")
         # Write to Target: write_SOR_EMS_TOW_TPS_AGRMT
         df_write = df_SQ_SSA_EMS_TOW_TPS_AGRMT
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "AGMT_IND", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "TPS_AGRMT_BK": "TPS_AGRMT_BK", "TPS_AGRMT_KEY": "TPS_AGRMT_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['TPS_AGRMT_KEY', 'TPS_AGRMT_BK', 'HSE_SRVC_APLY_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
         df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
@@ -114,7 +103,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"APLY_MBR_REF_NUM": "APLY_MBR_REF_NUM", "APLY_MBR_TYPE_CODE": "APLY_MBR_TYPE_CODE", "BGN_DATE": "BGN_DATE", "CUST_KEY": "CUST_KEY", "END_DATE": "OUT_END_DATE", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "MBR_ACT_IND": "MBR_ACT_IND", "ORIG_CUST_KEY": "ORIG_CUST_KEY", "ORIG_HSE_SRVC_APLY_KEY": "ORIG_HSE_SRVC_APLY_KEY", "ORIG_HSE_UNIT_TOT_IFA_AREA": "ORIG_HSE_UNIT_TOT_IFA_AREA", "TPS_AGRMT_ASGN_DATE": "TPS_AGRMT_ASGN_DATE", "TPS_AGRMT_CRE_DATE": "TPS_AGRMT_CRE_DATE", "TPS_AGRMT_EXOWNR_REF_CODE": "TPS_AGRMT_EXOWNR_REF_CODE", "TPS_AGRMT_FRST_ASGN_DATE": "TPS_AGRMT_FRST_ASGN_DATE", "TPS_AGRMT_HOME_PHONE_NUM_1": "TPS_AGRMT_HOME_PHONE_NUM_1", "TPS_AGRMT_HOME_PHONE_NUM_2": "TPS_AGRMT_HOME_PHONE_NUM_2", "TPS_AGRMT_KEY": "TPS_AGRMT_KEY", "TPS_AGRMT_MBL_PHONE_NUM_1": "TPS_AGRMT_MBL_PHONE_NUM_1", "TPS_AGRMT_MBL_PHONE_NUM_2": "TPS_AGRMT_MBL_PHONE_NUM_2", "TPS_AGRMT_OFFC_PHONE_NUM_1": "TPS_AGRMT_OFFC_PHONE_NUM_1", "TPS_AGRMT_OFFC_PHONE_NUM_2": "TPS_AGRMT_OFFC_PHONE_NUM_2", "TPS_AGRMT_PHASE_CODE": "TPS_AGRMT_PHASE_CODE", "TPS_AGRMT_RMK_TEXT": "TPS_AGRMT_RMK_TEXT", "TPS_AGRMT_SEQ_NUM": "TPS_AGRMT_SEQ_NUM", "TPS_AGRMT_TRMT_DATE": "TPS_AGRMT_TRMT_DATE", "TPS_APLY_TYPE_CODE": "TPS_APLY_TYPE_CODE", "TPS_CHNG_OWNR_RMK_TEXT": "TPS_CHNG_OWNR_RMK_TEXT", "TPS_MGT_FEE_DPST_AMT": "TPS_MGT_FEE_DPST_AMT", "TPS_PCHS_FORM_CODE": "TPS_PCHS_FORM_CODE", "TPS_TRMT_TYPE_CODE": "TPS_TRMT_TYPE_CODE", "UNIT_KEY": "UNIT_KEY"}
+        _field_map = {"END_DATE": "OUT_END_DATE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 

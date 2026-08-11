@@ -102,7 +102,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"ASP_SIGN_DATE": "ASP_SIGN_DATE", "BGN_DATE": "BGN_DATE", "CRSP_CHI_ADDR_1": "CRSP_CHI_ADDR_1", "CRSP_CHI_ADDR_2": "CRSP_CHI_ADDR_2", "CRSP_CHI_ADDR_3": "CRSP_CHI_ADDR_3", "CRSP_CHI_ADDR_4": "CRSP_CHI_ADDR_4", "CRSP_CHI_ADDR_5": "CRSP_CHI_ADDR_5", "CRSP_ENG_ADDR_1": "CRSP_ENG_ADDR_1", "CRSP_ENG_ADDR_2": "CRSP_ENG_ADDR_2", "CRSP_ENG_ADDR_3": "CRSP_ENG_ADDR_3", "CRSP_ENG_ADDR_4": "CRSP_ENG_ADDR_4", "CRSP_ENG_ADDR_5": "CRSP_ENG_ADDR_5", "EFAS_PRIOR_NUM_SFX_NUM": "EFAS_PRIOR_NUM_SFX_NUM", "ELCT_SRVC_APLY_IND": "ELCT_SRVC_APLY_IND", "END_DATE": "OUT_END_DATE", "GSH_IND": "GSH_IND", "HOME_PHONE_NUM": "HOME_PHONE_NUM", "HOS_APLY_KEY": "HOS_APLY_KEY", "HOS_APLY_NUM": "HOS_APLY_NUM", "HOS_FLAT_KEY": "HOS_FLAT_KEY", "HOS_OWN_KEY": "HOS_OWN_KEY", "HOS_OWN_STS_CODE": "HOS_OWN_STS_CODE", "INTL_MKT_VAL_AMT": "INTL_MKT_VAL_AMT", "LANG_PREF_CODE": "LANG_PREF_CODE", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "INS", "MBL_PHONE_NUM": "MBL_PHONE_NUM", "OFFC_PHONE_NUM": "OFFC_PHONE_NUM", "PHASE_ASP_ID": "PHASE_ASP_ID", "PHASE_CODE": "PHASE_CODE", "PRIOR_CATG_GRP_CODE": "PRIOR_CATG_GRP_CODE", "PRIOR_NUM": "PRIOR_NUM", "ROW_VER_NUM": "ROW_VER_NUM", "RSDN_CHI_ADDR_1": "RSDN_CHI_ADDR_1", "RSDN_CHI_ADDR_2": "RSDN_CHI_ADDR_2", "RSDN_CHI_ADDR_3": "RSDN_CHI_ADDR_3", "RSDN_CHI_ADDR_4": "RSDN_CHI_ADDR_4", "RSDN_CHI_ADDR_5": "RSDN_CHI_ADDR_5", "RSDN_ENG_ADDR_1": "RSDN_ENG_ADDR_1", "RSDN_ENG_ADDR_2": "RSDN_ENG_ADDR_2", "RSDN_ENG_ADDR_3": "RSDN_ENG_ADDR_3", "RSDN_ENG_ADDR_4": "RSDN_ENG_ADDR_4", "RSDN_ENG_ADDR_5": "RSDN_ENG_ADDR_5", "SALE_PRC_AMT": "SALE_PRC_AMT", "WSD_SRVC_APLY_IND": "WSD_SRVC_APLY_IND"}
+        _field_map = {"END_DATE": "OUT_END_DATE", "LAST_REC_TXN_TYPE_CODE": "INS"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 
@@ -123,17 +123,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: write_SOR_NHS_HOS_OWN")
         # Write to Target: write_SOR_NHS_HOS_OWN
         df_write = df_EXP_REC_TXN_TYPE_CODE_INS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "AGMT_IND", "HOS_OWN_KEY": "HOS_OWN_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "NHS_HOS_OWN_KEY": "NHS_HOS_OWN_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['HOS_OWN_KEY', 'NHS_HOS_OWN_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
         df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])

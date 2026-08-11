@@ -82,17 +82,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: write_SOR_EMS_TAM_NTQ")
         # Write to Target: write_SOR_EMS_TAM_NTQ
         df_write = df_SQ_SSA_EMS_TAM_NTQ
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "AGMT_IND", "CUST_KEY": "CUST_KEY", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "NTQ_CRE_DATE": "NTQ_CRE_DATE", "NTQ_KEY": "NTQ_KEY", "TNCY_AGRMT_KEY": "TNCY_AGRMT_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['NTQ_KEY', 'CUST_KEY', 'HSE_SRVC_APLY_KEY', 'NTQ_CRE_DATE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'AGMT_IND', 'TNCY_AGRMT_KEY']
         df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
@@ -114,7 +103,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"ABU_KEY": "ABU_KEY", "ACT_IND": "ACT_IND", "APL_DATE": "APL_DATE", "APL_DATE_UPD_DATE": "APL_DATE_UPD_DATE", "APL_HEAR_DATE": "APL_HEAR_DATE", "APL_INTT_USER_CODE": "APL_INTT_USER_CODE", "APL_MEMO_CNFRM_DATE": "APL_MEMO_CNFRM_DATE", "APL_PNL_PPR_SBMT_DATE": "APL_PNL_PPR_SBMT_DATE", "APL_PNL_RSLT_DATE": "APL_PNL_RSLT_DATE", "APL_RMK_TEXT": "APL_RMK_TEXT", "APL_RSLT_CODE": "APL_RSLT_CODE", "BGN_DATE": "BGN_DATE", "END_DATE": "OUT_END_DATE", "LAST_APRV_DATE": "LAST_APRV_DATE", "LAST_APRV_USER_ID": "LAST_APRV_USER_ID", "LAST_NTQ_STS_UPD_DATE": "LAST_NTQ_STS_UPD_DATE", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_SBMT_DATE": "LAST_SBMT_DATE", "LAST_SBMT_USER_ID": "LAST_SBMT_USER_ID", "LIC_FEE_END_DATE": "LIC_FEE_END_DATE", "MISC_HSE_BNFT_GNRT_IND": "MISC_HSE_BNFT_GNRT_IND", "NTQ_BU_DATE": "NTQ_BU_DATE", "NTQ_END_DATE": "NTQ_END_DATE", "NTQ_END_RMDR_SBMT_DATE": "NTQ_END_RMDR_SBMT_DATE", "NTQ_ISS_DATE": "NTQ_ISS_DATE", "NTQ_ISS_RSN_CODE": "NTQ_ISS_RSN_CODE", "NTQ_ISS_RSN_TEXT": "NTQ_ISS_RSN_TEXT", "NTQ_KEY": "NTQ_KEY", "NTQ_LTR_DATE": "NTQ_LTR_DATE", "NTQ_PRLNG_STYPT_RSN_TEXT": "NTQ_PRLNG_STYPT_RSN_TEXT", "NTQ_PRN_IND": "NTQ_PRN_IND", "NTQ_PRN_RMK_TEXT": "NTQ_PRN_RMK_TEXT", "NTQ_STL_RSN_CODE": "NTQ_STL_RSN_CODE", "NTQ_STL_RSN_TEXT": "NTQ_STL_RSN_TEXT", "NTQ_STS_CODE": "NTQ_STS_CODE", "NTQ_STS_UPD_DATE": "NTQ_STS_UPD_DATE", "NTQ_WTHDRW_IND": "NTQ_WTHDRW_IND", "ORIG_NEXT_RENT_BGN_DATE": "ORIG_NEXT_RENT_BGN_DATE", "ORIG_NEXT_RENT_CHNG_RSN_CODE": "ORIG_NEXT_RENT_CHNG_RSN_CODE", "ORIG_NEXT_RENT_CHNG_RSN_TEXT": "ORIG_NEXT_RENT_CHNG_RSN_TEXT", "ORIG_NEXT_RENT_END_DATE": "ORIG_NEXT_RENT_END_DATE", "ORIG_NEXT_RENT_FCTR_CODE": "ORIG_NEXT_RENT_FCTR_CODE", "ORIG_NEXT_RENT_RVW_CATG_CODE": "ORIG_NEXT_RENT_RVW_CATG_CODE", "ORIG_NEXT_RENT_RVW_CATG_DATE": "ORIG_NEXT_RENT_RVW_CATG_DATE", "ORIG_PYMT_MTHD_CODE": "ORIG_PYMT_MTHD_CODE", "ORIG_RENT_BGN_DATE": "ORIG_RENT_BGN_DATE", "ORIG_RENT_END_DATE": "ORIG_RENT_END_DATE", "ORIG_RENT_EXMPT_IND": "ORIG_RENT_EXMPT_IND", "ORIG_RENT_FCTR_CODE": "ORIG_RENT_FCTR_CODE", "PYMT_MTHD_CODE": "PYMT_MTHD_CODE", "RENT_FCTR_KEY": "RENT_FCTR_KEY"}
+        _field_map = {"END_DATE": "OUT_END_DATE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 

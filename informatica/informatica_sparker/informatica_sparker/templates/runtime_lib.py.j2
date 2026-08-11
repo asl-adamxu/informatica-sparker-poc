@@ -553,8 +553,16 @@ def _dynamic_lookup_output_schema(input_df, lookup_df, cfg):
         seen.add(lower)
     for of in out_fields:
         lower = of["name"].lower()
+        ref = str(of.get("ref_field") or "").upper()
         lf = lookup_fields.get(lower)
-        if lf is not None and not isinstance(lf.dataType, NullType):
+        if ref == "SEQUENCE-ID":
+            # Sequence-Id values come from the pre-allocated bigint key
+            # (__dyn_seq_key), never from the lookup source column type
+            # (often Oracle NUMBER → Decimal(38,0)); declare long so the
+            # pandas UDF round-trips as int64 without an Arrow cast
+            # (int64 → decimal128(38,0) raises PySparkValueError).
+            sf = StructField(of["name"], LongType(), True)
+        elif lf is not None and not isinstance(lf.dataType, NullType):
             sf = lf
         else:
             sf = StructField(
@@ -708,6 +716,12 @@ def dynamic_lookup(spark: SparkSession, input_df: DataFrame,
             raise ValueError(
                 "Lookup %s: sequence output column '%s' not found in lookup "
                 "source" % (name, seq_col))
+        # The base cache's sequence column is Oracle NUMBER → Decimal(38,0) in
+        # Spark, while the pre-allocated key is a long. Normalize to bigint so
+        # the pandas UDF sees one int64 dtype for both base hits and inserts
+        # (a mixed decimal/int64 Series breaks the Arrow conversion too).
+        joined = joined.withColumn(
+            base_seq_col, col(base_seq_col).cast("bigint"))
         seq_start = joined.agg(max(col(base_seq_col))).collect()[0][0]
         if seq_start is None:
             seq_start = 0

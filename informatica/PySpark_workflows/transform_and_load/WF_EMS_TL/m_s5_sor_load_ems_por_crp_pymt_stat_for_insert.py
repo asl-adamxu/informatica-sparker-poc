@@ -82,17 +82,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: write_SOR_EMS_POR_CRP_PYMT_STAT")
         # Write to Target: write_SOR_EMS_POR_CRP_PYMT_STAT
         df_write = df_SQ_SSA_EMS_POR_CRP_PYMT_STAT
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "AGMT_IND", "CRP_ALWN_TYPE_CODE": "CRP_ALWN_TYPE_CODE", "CRP_FMLY_SIZE_NUM": "CRP_FMLY_SIZE_NUM", "CRP_PYMT_SCHD_CODE": "CRP_PYMT_SCHD_CODE", "CRP_PYMT_STAT_BK": "CRP_PYMT_STAT_BK", "CRP_PYMT_STAT_KEY": "CRP_PYMT_STAT_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "OPR_KEY": "OPR_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['CRP_PYMT_STAT_KEY', 'CRP_PYMT_STAT_BK', 'OPR_KEY', 'CRP_PYMT_SCHD_CODE', 'CRP_ALWN_TYPE_CODE', 'CRP_FMLY_SIZE_NUM', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
         df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
@@ -114,7 +103,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"BGN_DATE": "BGN_DATE", "CRP_PYMT_INVLV_FMLY_BF_CNT": "CRP_PYMT_INVLV_FMLY_BF_CNT", "CRP_PYMT_INVLV_FMLY_CNT": "CRP_PYMT_INVLV_FMLY_CNT", "CRP_PYMT_STAT_EXTRC_DATE": "CRP_PYMT_STAT_EXTRC_DATE", "CRP_PYMT_STAT_KEY": "CRP_PYMT_STAT_KEY", "CRP_PYMT_STAT_LAST_EXTRC_DATE": "CRP_PYMT_STAT_LAST_EXTRC_DATE", "CRP_PYMT_TOT_AMT": "CRP_PYMT_TOT_AMT", "CRP_PYMT_TOT_BF_AMT": "CRP_PYMT_TOT_BF_AMT", "END_DATE": "OUT_END_DATE", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE"}
+        _field_map = {"END_DATE": "OUT_END_DATE"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 

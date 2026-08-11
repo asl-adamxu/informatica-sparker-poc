@@ -295,9 +295,12 @@ and to_date('$$v_rpt_date', 'yyyymmdd') between b.bgn_date and b.end_date
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
         df_EXPTRANS = df_SQ_SOR_CMS_CASE
-        df_EXPTRANS = df_EXPTRANS.withColumn("WO_STRT_DATE", expr("CASE WHEN WO_RPT_CMNC_DATE = NULL THEN CASE WHEN WO_SCHD_CMNC_DATE = NULL THEN CASE WHEN WO_CRE_DATE = NULL THEN WO_BGN_DATE ELSE WO_CRE_DATE END ELSE WO_SCHD_CMNC_DATE END ELSE WO_RPT_CMNC_DATE END"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("WO_STRT_DATE", expr("CASE WHEN WO_RPT_CMNC_DATE IS NULL THEN CASE WHEN WO_SCHD_CMNC_DATE IS NULL THEN CASE WHEN WO_CRE_DATE IS NULL THEN WO_BGN_DATE ELSE WO_CRE_DATE END ELSE WO_SCHD_CMNC_DATE END ELSE WO_RPT_CMNC_DATE END"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("CASE_ARTSN_ORD_KEY", expr("NULL"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("ARTSN_ORD_ISS_DATE", expr("NULL"))
+        df_EXPTRANS = df_EXPTRANS.withColumn("ARTSN_ORD_CMPLT_DATE", expr("NULL"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["CASE_KEY", "CMS_CASE_KEY", "BGN_DATE", "END_DATE", "CUST_RQS_KEY", "CASE_NUM", "RPT_CMS_HSE_EST_KEY", "RPT_CMS_HSE_BLK_KEY", "RPT_CMS_HSE_UNIT_KEY", "RPT_CASE_LOC_RMK_TEXT", "ACTL_CMS_HSE_EST_KEY", "ACTL_CMS_HSE_BLK_KEY", "ACTL_CMS_HSE_UNIT_KEY", "ACTL_CASE_LOC_RMK_TEXT", "CASE_CRE_DATE", "LAST_CASE_ACT_DATE", "CASE_CMPLT_DATE", "CASE_RMK_TEXT", "CASE_CRE_CMS_HSE_EST_KEY", "CASE_CRE_USER_ID", "CASE_CRE_USER_TYPE_CODE", "CASE_CRE_OFFC_TYPE_CODE", "CASE_ACT_CMS_HSE_EST_KEY", "CASE_ACT_USER_ID", "CASE_ACT_USER_TYPE_CODE", "CASE_ACT_OFFC_TYPE_CODE", "RLT_CASE_KEY", "CASE_PRIOR_CODE", "RESP_OFCR_USER_ID", "CASE_STS_CODE", "CASE_CNFRM_DATE", "CASE_RPLY_CNT", "LAST_CASE_RPLY_DATE", "DVC_REC_TXN_ID", "CUST_RQS_TXN_ID", "RLT_CASE_TXN_ID", "CLS_CASE_IND", "CASE_CRE_HSE_EST_OFFC_KEY", "CASE_ACT_HSE_EST_OFFC_KEY", "CASE_WO_KEY", "CASE_WO_ITEM_KEY", "WO_RPT_CMPLT_DATE", "CASE_ARTSN_ORD_KEY", "ARTSN_ORD_ISS_DATE", "ARTSN_ORD_CMPLT_DATE"]:
+        for _col in ["CASE_KEY", "CMS_CASE_KEY", "BGN_DATE", "END_DATE", "CUST_RQS_KEY", "CASE_NUM", "RPT_CMS_HSE_EST_KEY", "RPT_CMS_HSE_BLK_KEY", "RPT_CMS_HSE_UNIT_KEY", "RPT_CASE_LOC_RMK_TEXT", "ACTL_CMS_HSE_EST_KEY", "ACTL_CMS_HSE_BLK_KEY", "ACTL_CMS_HSE_UNIT_KEY", "ACTL_CASE_LOC_RMK_TEXT", "CASE_CRE_DATE", "LAST_CASE_ACT_DATE", "CASE_CMPLT_DATE", "CASE_RMK_TEXT", "CASE_CRE_CMS_HSE_EST_KEY", "CASE_CRE_USER_ID", "CASE_CRE_USER_TYPE_CODE", "CASE_CRE_OFFC_TYPE_CODE", "CASE_ACT_CMS_HSE_EST_KEY", "CASE_ACT_USER_ID", "CASE_ACT_USER_TYPE_CODE", "CASE_ACT_OFFC_TYPE_CODE", "RLT_CASE_KEY", "CASE_PRIOR_CODE", "RESP_OFCR_USER_ID", "CASE_STS_CODE", "CASE_CNFRM_DATE", "CASE_RPLY_CNT", "LAST_CASE_RPLY_DATE", "DVC_REC_TXN_ID", "CUST_RQS_TXN_ID", "RLT_CASE_TXN_ID", "CLS_CASE_IND", "CASE_CRE_HSE_EST_OFFC_KEY", "CASE_ACT_HSE_EST_OFFC_KEY", "CASE_WO_KEY", "CASE_WO_ITEM_KEY", "WO_RPT_CMPLT_DATE"]:
             if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
                 df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
@@ -307,10 +310,11 @@ and to_date('$$v_rpt_date', 'yyyymmdd') between b.bgn_date and b.end_date
         # Expression: apply_EXPTRANS2
         df_EXPTRANS2 = df_SQ_SOR_CMS_CASE_ARTSN_ORD_STS
         df_EXPTRANS2 = df_EXPTRANS2.withColumn("CASE_WO_KEY", expr("NULL"))
+        df_EXPTRANS2 = df_EXPTRANS2.withColumn("CASE_WO_ITEM_KEY", expr("NULL"))
         df_EXPTRANS2 = df_EXPTRANS2.withColumn("WO_STRT_DATE", expr("NULL"))
         df_EXPTRANS2 = df_EXPTRANS2.withColumn("WO_RPT_CMPLT_DATE", expr("NULL"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["CASE_KEY", "CMS_CASE_KEY", "BGN_DATE", "END_DATE", "CUST_RQS_KEY", "CASE_NUM", "RPT_CMS_HSE_EST_KEY", "RPT_CMS_HSE_BLK_KEY", "RPT_CMS_HSE_UNIT_KEY", "RPT_CASE_LOC_RMK_TEXT", "ACTL_CMS_HSE_EST_KEY", "ACTL_CMS_HSE_BLK_KEY", "ACTL_CMS_HSE_UNIT_KEY", "ACTL_CASE_LOC_RMK_TEXT", "CASE_CRE_DATE", "LAST_CASE_ACT_DATE", "CASE_CMPLT_DATE", "CASE_RMK_TEXT", "CASE_CRE_CMS_HSE_EST_KEY", "CASE_CRE_USER_ID", "CASE_CRE_USER_TYPE_CODE", "CASE_CRE_OFFC_TYPE_CODE", "CASE_ACT_CMS_HSE_EST_KEY", "CASE_ACT_USER_ID", "CASE_ACT_USER_TYPE_CODE", "CASE_ACT_OFFC_TYPE_CODE", "RLT_CASE_KEY", "CASE_PRIOR_CODE", "RESP_OFCR_USER_ID", "CASE_STS_CODE", "CASE_CNFRM_DATE", "CASE_RPLY_CNT", "LAST_CASE_RPLY_DATE", "DVC_REC_TXN_ID", "CUST_RQS_TXN_ID", "RLT_CASE_TXN_ID", "CLS_CASE_IND", "CASE_CRE_HSE_EST_OFFC_KEY", "CASE_ACT_HSE_EST_OFFC_KEY", "CASE_ARTSN_ORD_KEY", "ARTSN_ORD_BGN_DATE", "ARTSN_ORD_CMPLT_DATE", "ARTSN_ORD_STS_CODE", "ARTSN_ORD_ISS_DATE", "CASE_WO_ITEM_KEY"]:
+        for _col in ["CASE_KEY", "CMS_CASE_KEY", "BGN_DATE", "END_DATE", "CUST_RQS_KEY", "CASE_NUM", "RPT_CMS_HSE_EST_KEY", "RPT_CMS_HSE_BLK_KEY", "RPT_CMS_HSE_UNIT_KEY", "RPT_CASE_LOC_RMK_TEXT", "ACTL_CMS_HSE_EST_KEY", "ACTL_CMS_HSE_BLK_KEY", "ACTL_CMS_HSE_UNIT_KEY", "ACTL_CASE_LOC_RMK_TEXT", "CASE_CRE_DATE", "LAST_CASE_ACT_DATE", "CASE_CMPLT_DATE", "CASE_RMK_TEXT", "CASE_CRE_CMS_HSE_EST_KEY", "CASE_CRE_USER_ID", "CASE_CRE_USER_TYPE_CODE", "CASE_CRE_OFFC_TYPE_CODE", "CASE_ACT_CMS_HSE_EST_KEY", "CASE_ACT_USER_ID", "CASE_ACT_USER_TYPE_CODE", "CASE_ACT_OFFC_TYPE_CODE", "RLT_CASE_KEY", "CASE_PRIOR_CODE", "RESP_OFCR_USER_ID", "CASE_STS_CODE", "CASE_CNFRM_DATE", "CASE_RPLY_CNT", "LAST_CASE_RPLY_DATE", "DVC_REC_TXN_ID", "CUST_RQS_TXN_ID", "RLT_CASE_TXN_ID", "CLS_CASE_IND", "CASE_CRE_HSE_EST_OFFC_KEY", "CASE_ACT_HSE_EST_OFFC_KEY", "CASE_ARTSN_ORD_KEY", "ARTSN_ORD_BGN_DATE", "ARTSN_ORD_CMPLT_DATE", "ARTSN_ORD_STS_CODE", "ARTSN_ORD_ISS_DATE"]:
             if _col.lower() not in [x.lower() for x in df_EXPTRANS2.columns]:
                 df_EXPTRANS2 = df_EXPTRANS2.withColumn(_col, lit(None))
         # Keep all upstream columns + computed columns (no select filtering)
@@ -320,33 +324,33 @@ and to_date('$$v_rpt_date', 'yyyymmdd') between b.bgn_date and b.end_date
         # Union: apply_Union
         # Select + rename upstream columns per input, then union
         df_Union_work_ord = df_EXPTRANS.select(
-            col("CASE_KEY").alias("CASE_KEY"),
-            col("CMS_CASE_KEY").alias("CMS_CASE_KEY"),
-            col("ACTL_CMS_HSE_EST_KEY").alias("ACTL_CMS_HSE_EST_KEY"),
-            col("ACTL_CMS_HSE_BLK_KEY").alias("ACTL_CMS_HSE_BLK_KEY"),
-            col("ACTL_CMS_HSE_UNIT_KEY").alias("ACTL_CMS_HSE_UNIT_KEY"),
-            col("CASE_ACT_HSE_EST_OFFC_KEY").alias("CASE_ACT_HSE_EST_OFFC_KEY"),
-            col("CASE_WO_KEY").alias("CASE_WO_KEY"),
-            col("CASE_WO_ITEM_KEY").alias("CASE_WO_ITEM_KEY"),
-            col("WO_STRT_DATE").alias("WO_STRT_DATE"),
-            col("WO_RPT_CMPLT_DATE").alias("WO_RPT_CMPLT_DATE"),
-            col("CASE_ARTSN_ORD_KEY").alias("CASE_ARTSN_ORD_KEY"),
-            col("ARTSN_ORD_ISS_DATE").alias("ARTSN_ORD_ISS_DATE"),
-            col("ARTSN_ORD_CMPLT_DATE").alias("ARTSN_ORD_CMPLT_DATE")        )
+col("CASE_KEY"),
+col("CMS_CASE_KEY"),
+col("ACTL_CMS_HSE_EST_KEY"),
+col("ACTL_CMS_HSE_BLK_KEY"),
+col("ACTL_CMS_HSE_UNIT_KEY"),
+col("CASE_ACT_HSE_EST_OFFC_KEY"),
+col("CASE_WO_KEY"),
+col("CASE_WO_ITEM_KEY"),
+col("WO_STRT_DATE"),
+col("WO_RPT_CMPLT_DATE"),
+col("CASE_ARTSN_ORD_KEY"),
+col("ARTSN_ORD_ISS_DATE"),
+col("ARTSN_ORD_CMPLT_DATE")        )
         df_Union_artsn_ord = df_EXPTRANS2.select(
-            col("CASE_KEY").alias("CASE_KEY"),
-            col("CMS_CASE_KEY").alias("CMS_CASE_KEY"),
-            col("ACTL_CMS_HSE_EST_KEY").alias("ACTL_CMS_HSE_EST_KEY"),
-            col("ACTL_CMS_HSE_BLK_KEY").alias("ACTL_CMS_HSE_BLK_KEY"),
-            col("ACTL_CMS_HSE_UNIT_KEY").alias("ACTL_CMS_HSE_UNIT_KEY"),
-            col("CASE_ACT_HSE_EST_OFFC_KEY").alias("CASE_ACT_HSE_EST_OFFC_KEY"),
-            col("CASE_WO_KEY").alias("CASE_WO_KEY"),
-            col("CASE_WO_ITEM_KEY").alias("CASE_WO_ITEM_KEY"),
-            col("WO_STRT_DATE").alias("WO_STRT_DATE"),
-            col("WO_RPT_CMPLT_DATE").alias("WO_RPT_CMPLT_DATE"),
-            col("CASE_ARTSN_ORD_KEY").alias("CASE_ARTSN_ORD_KEY"),
-            col("ARTSN_ORD_ISS_DATE").alias("ARTSN_ORD_ISS_DATE"),
-            col("ARTSN_ORD_CMPLT_DATE").alias("ARTSN_ORD_CMPLT_DATE")        )
+col("CASE_KEY"),
+col("CMS_CASE_KEY"),
+col("ACTL_CMS_HSE_EST_KEY"),
+col("ACTL_CMS_HSE_BLK_KEY"),
+col("ACTL_CMS_HSE_UNIT_KEY"),
+col("CASE_ACT_HSE_EST_OFFC_KEY"),
+col("CASE_WO_KEY"),
+col("CASE_WO_ITEM_KEY"),
+col("WO_STRT_DATE"),
+col("WO_RPT_CMPLT_DATE"),
+col("CASE_ARTSN_ORD_KEY"),
+col("ARTSN_ORD_ISS_DATE"),
+col("ARTSN_ORD_CMPLT_DATE")        )
         df_Union = df_Union_work_ord
         df_Union = df_Union.unionByName(df_Union_artsn_ord, allowMissingColumns=True)
         # Select only union output columns (add lit(None) for any missing)
@@ -358,9 +362,9 @@ and to_date('$$v_rpt_date', 'yyyymmdd') between b.bgn_date and b.end_date
         
         logger.info("Step: input_MPLT_GET_EST_OFFC_SCD_KEY")
         # Expression: input_MPLT_GET_EST_OFFC_SCD_KEY
-        df_MPLT_GET_EST_OFFC_SCD_KEY_input_1 = df_Union
-        df_MPLT_GET_EST_OFFC_SCD_KEY_input_1 = df_MPLT_GET_EST_OFFC_SCD_KEY_input_1.withColumn("IN_HSE_EST_OFFC_KEY", expr("CASE_ACT_HSE_EST_OFFC_KEY"))
-        ctx.register_df("df_MPLT_GET_EST_OFFC_SCD_KEY_input_1", df_MPLT_GET_EST_OFFC_SCD_KEY_input_1)
+        df_MPLT_GET_EST_OFFC_SCD_KEY_input = df_Union
+        df_MPLT_GET_EST_OFFC_SCD_KEY_input = df_MPLT_GET_EST_OFFC_SCD_KEY_input.withColumn("IN_HSE_EST_OFFC_KEY", expr("CASE_ACT_HSE_EST_OFFC_KEY"))
+        ctx.register_df("df_MPLT_GET_EST_OFFC_SCD_KEY_input", df_MPLT_GET_EST_OFFC_SCD_KEY_input)
         
         logger.info("Step: read_MPLT_GET_EST_OFFC_SCD_KEY_LKPTRANS_SOR_CMS_HSE_EST_OFFC")
         # Reading Data From Source - read_MPLT_GET_EST_OFFC_SCD_KEY_LKPTRANS_SOR_CMS_HSE_EST_OFFC
@@ -370,11 +374,13 @@ and to_date('$$v_rpt_date', 'yyyymmdd') between b.bgn_date and b.end_date
         
         logger.info("Step: apply_MPLT_GET_EST_OFFC_SCD_KEY_LKPTRANS_SOR_CMS_HSE_EST_OFFC")
         # Lookup: apply_MPLT_GET_EST_OFFC_SCD_KEY_LKPTRANS_SOR_CMS_HSE_EST_OFFC
+        # Use First Value / Use Any Value: dedup by join keys
+        df_MPLT_GET_EST_OFFC_SCD_KEY_LKPTRANS_SOR_CMS_HSE_EST_OFFC = df_MPLT_GET_EST_OFFC_SCD_KEY_LKPTRANS_SOR_CMS_HSE_EST_OFFC.dropDuplicates(subset=["HSE_EST_OFFC_KEY"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_MPLT_GET_EST_OFFC_SCD_KEY_input_1
+        _lkp_input = df_MPLT_GET_EST_OFFC_SCD_KEY_input
         # Join condition: IN_HSE_EST_OFFC_KEY=HSE_EST_OFFC_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_2 = _lkp_input.alias("_main").join(
+        df_mplt_lkp_chain_MPLT_GET_EST_OFFC_SCD_KEY_input = _lkp_input.alias("_main").join(
             broadcast(df_MPLT_GET_EST_OFFC_SCD_KEY_LKPTRANS_SOR_CMS_HSE_EST_OFFC).alias("_lkp"),
             (col("_main.IN_HSE_EST_OFFC_KEY") == col("_lkp.HSE_EST_OFFC_KEY")),
             "left"
@@ -382,7 +388,7 @@ and to_date('$$v_rpt_date', 'yyyymmdd') between b.bgn_date and b.end_date
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_MPLT_GET_EST_OFFC_SCD_KEY_LKPTRANS_SOR_CMS_HSE_EST_OFFC[c] for c in df_MPLT_GET_EST_OFFC_SCD_KEY_LKPTRANS_SOR_CMS_HSE_EST_OFFC.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_mplt_lkp_chain_2", df_mplt_lkp_chain_2)        
+        ctx.register_df("df_mplt_lkp_chain_MPLT_GET_EST_OFFC_SCD_KEY_input", df_mplt_lkp_chain_MPLT_GET_EST_OFFC_SCD_KEY_input)        
         logger.info("Step: read_MPLT_GET_EST_OFFC_SCD_KEY_LKPTRANS_DDS_DMNS_CMS_EST_OFFC")
         # Reading Data From Source - read_MPLT_GET_EST_OFFC_SCD_KEY_LKPTRANS_DDS_DMNS_CMS_EST_OFFC
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -397,11 +403,13 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
         
         logger.info("Step: apply_MPLT_GET_EST_OFFC_SCD_KEY_LKPTRANS_DDS_DMNS_CMS_EST_OFFC")
         # Lookup: apply_MPLT_GET_EST_OFFC_SCD_KEY_LKPTRANS_DDS_DMNS_CMS_EST_OFFC
+        # Use First Value / Use Any Value: dedup by join keys
+        df_MPLT_GET_EST_OFFC_SCD_KEY_LKPTRANS_DDS_DMNS_CMS_EST_OFFC = df_MPLT_GET_EST_OFFC_SCD_KEY_LKPTRANS_DDS_DMNS_CMS_EST_OFFC.dropDuplicates(subset=["CMS_HSE_EST_OFFC_KEY"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_mplt_lkp_chain_2
+        _lkp_input = df_mplt_lkp_chain_MPLT_GET_EST_OFFC_SCD_KEY_input
         # Join condition: CMS_HSE_EST_OFFC_KEY=CMS_HSE_EST_OFFC_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_3 = _lkp_input.alias("_main").join(
+        df_mplt_lkp_chain_MPLT_GET_EST_OFFC_SCD_KEY_mplt_lkp_chain_MPLT_GET_EST_OFFC_SCD_KEY_input = _lkp_input.alias("_main").join(
             broadcast(df_MPLT_GET_EST_OFFC_SCD_KEY_LKPTRANS_DDS_DMNS_CMS_EST_OFFC).alias("_lkp"),
             (col("_main.CMS_HSE_EST_OFFC_KEY") == col("_lkp.CMS_HSE_EST_OFFC_KEY")),
             "left"
@@ -409,17 +417,17 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_MPLT_GET_EST_OFFC_SCD_KEY_LKPTRANS_DDS_DMNS_CMS_EST_OFFC[c] for c in df_MPLT_GET_EST_OFFC_SCD_KEY_LKPTRANS_DDS_DMNS_CMS_EST_OFFC.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_mplt_lkp_chain_3", df_mplt_lkp_chain_3)        
+        ctx.register_df("df_mplt_lkp_chain_MPLT_GET_EST_OFFC_SCD_KEY_mplt_lkp_chain_MPLT_GET_EST_OFFC_SCD_KEY_input", df_mplt_lkp_chain_MPLT_GET_EST_OFFC_SCD_KEY_mplt_lkp_chain_MPLT_GET_EST_OFFC_SCD_KEY_input)        
         logger.info("Step: apply_MPLT_GET_EST_OFFC_SCD_KEY")
         # Expression: apply_MPLT_GET_EST_OFFC_SCD_KEY
-        df_MPLT_GET_EST_OFFC_SCD_KEY = df_mplt_lkp_chain_3
+        df_MPLT_GET_EST_OFFC_SCD_KEY = df_mplt_lkp_chain_MPLT_GET_EST_OFFC_SCD_KEY_mplt_lkp_chain_MPLT_GET_EST_OFFC_SCD_KEY_input
         ctx.register_df("df_MPLT_GET_EST_OFFC_SCD_KEY", df_MPLT_GET_EST_OFFC_SCD_KEY)
         
         logger.info("Step: input_MPLT_LKP_EST_CODE")
         # Expression: input_MPLT_LKP_EST_CODE
-        df_MPLT_LKP_EST_CODE_input_4 = df_Union
-        df_MPLT_LKP_EST_CODE_input_4 = df_MPLT_LKP_EST_CODE_input_4.withColumn("IN_CMS_HSE_EST_KEY", expr("ACTL_CMS_HSE_EST_KEY"))
-        ctx.register_df("df_MPLT_LKP_EST_CODE_input_4", df_MPLT_LKP_EST_CODE_input_4)
+        df_MPLT_LKP_EST_CODE_input = df_Union
+        df_MPLT_LKP_EST_CODE_input = df_MPLT_LKP_EST_CODE_input.withColumn("IN_CMS_HSE_EST_KEY", expr("ACTL_CMS_HSE_EST_KEY"))
+        ctx.register_df("df_MPLT_LKP_EST_CODE_input", df_MPLT_LKP_EST_CODE_input)
         
         logger.info("Step: read_MPLT_LKP_EST_CODE_LKPTRANS_SOR_CMS_HSE_EST_STS")
         # Reading Data From Source - read_MPLT_LKP_EST_CODE_LKPTRANS_SOR_CMS_HSE_EST_STS
@@ -436,11 +444,13 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
         
         logger.info("Step: apply_MPLT_LKP_EST_CODE_LKPTRANS_SOR_CMS_HSE_EST_STS")
         # Lookup: apply_MPLT_LKP_EST_CODE_LKPTRANS_SOR_CMS_HSE_EST_STS
+        # Use First Value / Use Any Value: dedup by join keys
+        df_MPLT_LKP_EST_CODE_LKPTRANS_SOR_CMS_HSE_EST_STS = df_MPLT_LKP_EST_CODE_LKPTRANS_SOR_CMS_HSE_EST_STS.dropDuplicates(subset=["CMS_HSE_EST_KEY"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_MPLT_LKP_EST_CODE_input_4
+        _lkp_input = df_MPLT_LKP_EST_CODE_input
         # Join condition: IN_CMS_HSE_EST_KEY=CMS_HSE_EST_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_5 = _lkp_input.alias("_main").join(
+        df_mplt_lkp_chain_MPLT_LKP_EST_CODE_input = _lkp_input.alias("_main").join(
             broadcast(df_MPLT_LKP_EST_CODE_LKPTRANS_SOR_CMS_HSE_EST_STS).alias("_lkp"),
             (col("_main.IN_CMS_HSE_EST_KEY") == col("_lkp.CMS_HSE_EST_KEY")),
             "left"
@@ -448,17 +458,17 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_MPLT_LKP_EST_CODE_LKPTRANS_SOR_CMS_HSE_EST_STS[c] for c in df_MPLT_LKP_EST_CODE_LKPTRANS_SOR_CMS_HSE_EST_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_mplt_lkp_chain_5", df_mplt_lkp_chain_5)        
+        ctx.register_df("df_mplt_lkp_chain_MPLT_LKP_EST_CODE_input", df_mplt_lkp_chain_MPLT_LKP_EST_CODE_input)        
         logger.info("Step: apply_MPLT_LKP_EST_CODE")
         # Expression: apply_MPLT_LKP_EST_CODE
-        df_MPLT_LKP_EST_CODE = df_mplt_lkp_chain_5
+        df_MPLT_LKP_EST_CODE = df_mplt_lkp_chain_MPLT_LKP_EST_CODE_input
         ctx.register_df("df_MPLT_LKP_EST_CODE", df_MPLT_LKP_EST_CODE)
         
         logger.info("Step: input_MPLT_LKP_BLK_CODE")
         # Expression: input_MPLT_LKP_BLK_CODE
-        df_MPLT_LKP_BLK_CODE_input_6 = df_Union
-        df_MPLT_LKP_BLK_CODE_input_6 = df_MPLT_LKP_BLK_CODE_input_6.withColumn("IN_CMS_HSE_BLK_KEY", expr("ACTL_CMS_HSE_BLK_KEY"))
-        ctx.register_df("df_MPLT_LKP_BLK_CODE_input_6", df_MPLT_LKP_BLK_CODE_input_6)
+        df_MPLT_LKP_BLK_CODE_input = df_Union
+        df_MPLT_LKP_BLK_CODE_input = df_MPLT_LKP_BLK_CODE_input.withColumn("IN_CMS_HSE_BLK_KEY", expr("ACTL_CMS_HSE_BLK_KEY"))
+        ctx.register_df("df_MPLT_LKP_BLK_CODE_input", df_MPLT_LKP_BLK_CODE_input)
         
         logger.info("Step: read_MPLT_LKP_BLK_CODE_LKPTRANS_SOR_CMS_HSE_BLK_STS")
         # Reading Data From Source - read_MPLT_LKP_BLK_CODE_LKPTRANS_SOR_CMS_HSE_BLK_STS
@@ -474,11 +484,13 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
         
         logger.info("Step: apply_MPLT_LKP_BLK_CODE_LKPTRANS_SOR_CMS_HSE_BLK_STS")
         # Lookup: apply_MPLT_LKP_BLK_CODE_LKPTRANS_SOR_CMS_HSE_BLK_STS
+        # Use First Value / Use Any Value: dedup by join keys
+        df_MPLT_LKP_BLK_CODE_LKPTRANS_SOR_CMS_HSE_BLK_STS = df_MPLT_LKP_BLK_CODE_LKPTRANS_SOR_CMS_HSE_BLK_STS.dropDuplicates(subset=["CMS_HSE_BLK_KEY"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_MPLT_LKP_BLK_CODE_input_6
+        _lkp_input = df_MPLT_LKP_BLK_CODE_input
         # Join condition: IN_CMS_HSE_BLK_KEY=CMS_HSE_BLK_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_7 = _lkp_input.alias("_main").join(
+        df_mplt_lkp_chain_MPLT_LKP_BLK_CODE_input = _lkp_input.alias("_main").join(
             broadcast(df_MPLT_LKP_BLK_CODE_LKPTRANS_SOR_CMS_HSE_BLK_STS).alias("_lkp"),
             (col("_main.IN_CMS_HSE_BLK_KEY") == col("_lkp.CMS_HSE_BLK_KEY")),
             "left"
@@ -486,17 +498,17 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_MPLT_LKP_BLK_CODE_LKPTRANS_SOR_CMS_HSE_BLK_STS[c] for c in df_MPLT_LKP_BLK_CODE_LKPTRANS_SOR_CMS_HSE_BLK_STS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_mplt_lkp_chain_7", df_mplt_lkp_chain_7)        
+        ctx.register_df("df_mplt_lkp_chain_MPLT_LKP_BLK_CODE_input", df_mplt_lkp_chain_MPLT_LKP_BLK_CODE_input)        
         logger.info("Step: apply_MPLT_LKP_BLK_CODE")
         # Expression: apply_MPLT_LKP_BLK_CODE
-        df_MPLT_LKP_BLK_CODE = df_mplt_lkp_chain_7
+        df_MPLT_LKP_BLK_CODE = df_mplt_lkp_chain_MPLT_LKP_BLK_CODE_input
         ctx.register_df("df_MPLT_LKP_BLK_CODE", df_MPLT_LKP_BLK_CODE)
         
         logger.info("Step: input_MPLT_LKP_HSE_UNIT_KEY")
         # Expression: input_MPLT_LKP_HSE_UNIT_KEY
-        df_MPLT_LKP_HSE_UNIT_KEY_input_8 = df_Union
-        df_MPLT_LKP_HSE_UNIT_KEY_input_8 = df_MPLT_LKP_HSE_UNIT_KEY_input_8.withColumn("IN_CMS_HSE_UNIT_KEY", expr("ACTL_CMS_HSE_UNIT_KEY"))
-        ctx.register_df("df_MPLT_LKP_HSE_UNIT_KEY_input_8", df_MPLT_LKP_HSE_UNIT_KEY_input_8)
+        df_MPLT_LKP_HSE_UNIT_KEY_input = df_Union
+        df_MPLT_LKP_HSE_UNIT_KEY_input = df_MPLT_LKP_HSE_UNIT_KEY_input.withColumn("IN_CMS_HSE_UNIT_KEY", expr("ACTL_CMS_HSE_UNIT_KEY"))
+        ctx.register_df("df_MPLT_LKP_HSE_UNIT_KEY_input", df_MPLT_LKP_HSE_UNIT_KEY_input)
         
         logger.info("Step: read_MPLT_LKP_HSE_UNIT_KEY_LKPTRANS_SOR_CMS_HSE_UNIT")
         # Reading Data From Source - read_MPLT_LKP_HSE_UNIT_KEY_LKPTRANS_SOR_CMS_HSE_UNIT
@@ -514,11 +526,13 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
         
         logger.info("Step: apply_MPLT_LKP_HSE_UNIT_KEY_LKPTRANS_SOR_CMS_HSE_UNIT")
         # Lookup: apply_MPLT_LKP_HSE_UNIT_KEY_LKPTRANS_SOR_CMS_HSE_UNIT
+        # Use First Value / Use Any Value: dedup by join keys
+        df_MPLT_LKP_HSE_UNIT_KEY_LKPTRANS_SOR_CMS_HSE_UNIT = df_MPLT_LKP_HSE_UNIT_KEY_LKPTRANS_SOR_CMS_HSE_UNIT.dropDuplicates(subset=["CMS_HSE_UNIT_KEY"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_MPLT_LKP_HSE_UNIT_KEY_input_8
+        _lkp_input = df_MPLT_LKP_HSE_UNIT_KEY_input
         # Join condition: IN_CMS_HSE_UNIT_KEY=CMS_HSE_UNIT_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_9 = _lkp_input.alias("_main").join(
+        df_mplt_lkp_chain_MPLT_LKP_HSE_UNIT_KEY_input = _lkp_input.alias("_main").join(
             broadcast(df_MPLT_LKP_HSE_UNIT_KEY_LKPTRANS_SOR_CMS_HSE_UNIT).alias("_lkp"),
             (col("_main.IN_CMS_HSE_UNIT_KEY") == col("_lkp.CMS_HSE_UNIT_KEY")),
             "left"
@@ -526,27 +540,21 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_MPLT_LKP_HSE_UNIT_KEY_LKPTRANS_SOR_CMS_HSE_UNIT[c] for c in df_MPLT_LKP_HSE_UNIT_KEY_LKPTRANS_SOR_CMS_HSE_UNIT.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_mplt_lkp_chain_9", df_mplt_lkp_chain_9)        
+        ctx.register_df("df_mplt_lkp_chain_MPLT_LKP_HSE_UNIT_KEY_input", df_mplt_lkp_chain_MPLT_LKP_HSE_UNIT_KEY_input)        
         logger.info("Step: apply_MPLT_LKP_HSE_UNIT_KEY")
         # Expression: apply_MPLT_LKP_HSE_UNIT_KEY
-        df_MPLT_LKP_HSE_UNIT_KEY = df_mplt_lkp_chain_9
+        df_MPLT_LKP_HSE_UNIT_KEY = df_mplt_lkp_chain_MPLT_LKP_HSE_UNIT_KEY_input
         ctx.register_df("df_MPLT_LKP_HSE_UNIT_KEY", df_MPLT_LKP_HSE_UNIT_KEY)
         
         logger.info("Step: input_MPLT_GET_EST_SCD_KEY")
         # Expression: input_MPLT_GET_EST_SCD_KEY
-        df_MPLT_GET_EST_SCD_KEY_input_10 = df_MPLT_LKP_EST_CODE
-        df_MPLT_GET_EST_SCD_KEY_input_10 = df_MPLT_GET_EST_SCD_KEY_input_10.withColumn("IN_HSE_EST_CODE", expr("HSE_EST_CODE"))
-        ctx.register_df("df_MPLT_GET_EST_SCD_KEY_input_10", df_MPLT_GET_EST_SCD_KEY_input_10)
-        
-        logger.info("Step: rename_EXPTRANS")
-        # Expression: rename_EXPTRANS
-        df_MPLT_GET_EST_SCD_KEY_rename_11 = df_MPLT_GET_EST_SCD_KEY_input_10
-        df_MPLT_GET_EST_SCD_KEY_rename_11 = df_MPLT_GET_EST_SCD_KEY_rename_11.drop("IN_HSE_EST_CODE").withColumnRenamed("HSE_EST_CODE", "IN_HSE_EST_CODE")
-        ctx.register_df("df_MPLT_GET_EST_SCD_KEY_rename_11", df_MPLT_GET_EST_SCD_KEY_rename_11)
+        df_MPLT_GET_EST_SCD_KEY_input = df_MPLT_LKP_EST_CODE
+        df_MPLT_GET_EST_SCD_KEY_input = df_MPLT_GET_EST_SCD_KEY_input.withColumn("IN_HSE_EST_CODE", expr("HSE_EST_CODE"))
+        ctx.register_df("df_MPLT_GET_EST_SCD_KEY_input", df_MPLT_GET_EST_SCD_KEY_input)
         
         logger.info("Step: apply_MPLT_GET_EST_SCD_KEY_EXPTRANS")
         # Expression: apply_MPLT_GET_EST_SCD_KEY_EXPTRANS
-        df_MPLT_GET_EST_SCD_KEY_EXPTRANS = df_MPLT_GET_EST_SCD_KEY_rename_11
+        df_MPLT_GET_EST_SCD_KEY_EXPTRANS = df_MPLT_GET_EST_SCD_KEY_input
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["IN_HSE_EST_CODE"]:
             if _col.lower() not in [x.lower() for x in df_MPLT_GET_EST_SCD_KEY_EXPTRANS.columns]:
@@ -569,11 +577,13 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
         
         logger.info("Step: apply_MPLT_GET_EST_SCD_KEY_LKPTRANS")
         # Lookup: apply_MPLT_GET_EST_SCD_KEY_LKPTRANS
+        # Use First Value / Use Any Value: dedup by join keys
+        df_MPLT_GET_EST_SCD_KEY_LKPTRANS = df_MPLT_GET_EST_SCD_KEY_LKPTRANS.dropDuplicates(subset=["EST_CODE"])
         # Rename upstream columns to match lookup input port names before join
         _lkp_input = df_MPLT_GET_EST_SCD_KEY_EXPTRANS
         # Join condition: IN_HSE_EST_CODE=EST_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_12 = _lkp_input.alias("_main").join(
+        df_mplt_lkp_chain_MPLT_GET_EST_SCD_KEY_EXPTRANS = _lkp_input.alias("_main").join(
             broadcast(df_MPLT_GET_EST_SCD_KEY_LKPTRANS).alias("_lkp"),
             (col("_main.IN_HSE_EST_CODE") == col("_lkp.EST_CODE")),
             "left"
@@ -581,18 +591,18 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_MPLT_GET_EST_SCD_KEY_LKPTRANS[c] for c in df_MPLT_GET_EST_SCD_KEY_LKPTRANS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_mplt_lkp_chain_12", df_mplt_lkp_chain_12)        
+        ctx.register_df("df_mplt_lkp_chain_MPLT_GET_EST_SCD_KEY_EXPTRANS", df_mplt_lkp_chain_MPLT_GET_EST_SCD_KEY_EXPTRANS)        
         logger.info("Step: apply_MPLT_GET_EST_SCD_KEY")
         # Expression: apply_MPLT_GET_EST_SCD_KEY
-        df_MPLT_GET_EST_SCD_KEY = df_mplt_lkp_chain_12
+        df_MPLT_GET_EST_SCD_KEY = df_mplt_lkp_chain_MPLT_GET_EST_SCD_KEY_EXPTRANS
         ctx.register_df("df_MPLT_GET_EST_SCD_KEY", df_MPLT_GET_EST_SCD_KEY)
         
         logger.info("Step: input_MPLT_GET_CMS_EST_SCD_KEY")
         # Expression: input_MPLT_GET_CMS_EST_SCD_KEY
-        df_MPLT_GET_CMS_EST_SCD_KEY_input_13 = df_MPLT_LKP_EST_CODE
-        df_MPLT_GET_CMS_EST_SCD_KEY_input_13 = df_MPLT_GET_CMS_EST_SCD_KEY_input_13.withColumn("IN_EST_CODE", expr("HSE_EST_CODE"))
-        df_MPLT_GET_CMS_EST_SCD_KEY_input_13 = df_MPLT_GET_CMS_EST_SCD_KEY_input_13.withColumn("IN_EST_TYPE_CODE", expr("HSE_EST_TYPE_CODE"))
-        ctx.register_df("df_MPLT_GET_CMS_EST_SCD_KEY_input_13", df_MPLT_GET_CMS_EST_SCD_KEY_input_13)
+        df_MPLT_GET_CMS_EST_SCD_KEY_input = df_MPLT_LKP_EST_CODE
+        df_MPLT_GET_CMS_EST_SCD_KEY_input = df_MPLT_GET_CMS_EST_SCD_KEY_input.withColumn("IN_EST_CODE", expr("HSE_EST_CODE"))
+        df_MPLT_GET_CMS_EST_SCD_KEY_input = df_MPLT_GET_CMS_EST_SCD_KEY_input.withColumn("IN_EST_TYPE_CODE", expr("HSE_EST_TYPE_CODE"))
+        ctx.register_df("df_MPLT_GET_CMS_EST_SCD_KEY_input", df_MPLT_GET_CMS_EST_SCD_KEY_input)
         
         logger.info("Step: read_MPLT_GET_CMS_EST_SCD_KEY_LKPTRANS")
         # Reading Data From Source - read_MPLT_GET_CMS_EST_SCD_KEY_LKPTRANS
@@ -609,11 +619,13 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
         
         logger.info("Step: apply_MPLT_GET_CMS_EST_SCD_KEY_LKPTRANS")
         # Lookup: apply_MPLT_GET_CMS_EST_SCD_KEY_LKPTRANS
+        # Use First Value / Use Any Value: dedup by join keys
+        df_MPLT_GET_CMS_EST_SCD_KEY_LKPTRANS = df_MPLT_GET_CMS_EST_SCD_KEY_LKPTRANS.dropDuplicates(subset=["EST_CODE", "EST_TYPE_CODE"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_MPLT_GET_CMS_EST_SCD_KEY_input_13
+        _lkp_input = df_MPLT_GET_CMS_EST_SCD_KEY_input
         # Join condition: IN_EST_CODE=EST_CODE AND IN_EST_TYPE_CODE=EST_TYPE_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_14 = _lkp_input.alias("_main").join(
+        df_mplt_lkp_chain_MPLT_GET_CMS_EST_SCD_KEY_input = _lkp_input.alias("_main").join(
             broadcast(df_MPLT_GET_CMS_EST_SCD_KEY_LKPTRANS).alias("_lkp"),
             (col("_main.IN_EST_CODE") == col("_lkp.EST_CODE")) &
             (col("_main.IN_EST_TYPE_CODE") == col("_lkp.EST_TYPE_CODE")),
@@ -622,48 +634,46 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_MPLT_GET_CMS_EST_SCD_KEY_LKPTRANS[c] for c in df_MPLT_GET_CMS_EST_SCD_KEY_LKPTRANS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_mplt_lkp_chain_14", df_mplt_lkp_chain_14)        
+        ctx.register_df("df_mplt_lkp_chain_MPLT_GET_CMS_EST_SCD_KEY_input", df_mplt_lkp_chain_MPLT_GET_CMS_EST_SCD_KEY_input)        
         logger.info("Step: apply_MPLT_GET_CMS_EST_SCD_KEY")
         # Expression: apply_MPLT_GET_CMS_EST_SCD_KEY
-        df_MPLT_GET_CMS_EST_SCD_KEY = df_mplt_lkp_chain_14
+        df_MPLT_GET_CMS_EST_SCD_KEY = df_mplt_lkp_chain_MPLT_GET_CMS_EST_SCD_KEY_input
         ctx.register_df("df_MPLT_GET_CMS_EST_SCD_KEY", df_MPLT_GET_CMS_EST_SCD_KEY)
         
         logger.info("Step: join_MPLT_GET_CMS_BLK_SCD_KEY_0")
         # Lookup: join_MPLT_GET_CMS_BLK_SCD_KEY_0
-        # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
-        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
+        # Merge on common columns — drop lookup columns that duplicate non-key input columns. 
+        # Matches are CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
         _cc = list(dict.fromkeys(c for c in df_MPLT_LKP_EST_CODE.columns if c.lower() in [x.lower() for x in df_MPLT_LKP_BLK_CODE.columns]))
         if _cc:
             __lkp_dup = [c for c in df_MPLT_LKP_BLK_CODE.columns if c.lower() in [x.lower() for x in df_MPLT_LKP_EST_CODE.columns] and c.lower() not in [x.lower() for x in _cc]]
-            df_MPLT_GET_CMS_BLK_SCD_KEY_merge_15 = df_MPLT_LKP_EST_CODE.join(
-                df_MPLT_LKP_BLK_CODE.drop(*__lkp_dup) if __lkp_dup else df_MPLT_LKP_BLK_CODE,
+            # Break attribute lineage on the merged side: when both inputs are built from the same source plan. 
+            # Re-projecting with aliases gives this side fresh attribute IDs without changing rows or column names.
+            __rhs = df_MPLT_LKP_BLK_CODE.drop(*__lkp_dup) if __lkp_dup else df_MPLT_LKP_BLK_CODE
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_MPLT_GET_CMS_BLK_SCD_KEY_merge_input_0 = df_MPLT_LKP_EST_CODE.join(
+                __rhs,
                 on=_cc, how="left"
             )
         else:
             logger.warning("No common columns between df_MPLT_LKP_EST_CODE and df_MPLT_LKP_BLK_CODE — using synthetic key join")
-            df_MPLT_GET_CMS_BLK_SCD_KEY_merge_15 = df_MPLT_LKP_EST_CODE.withColumn("_join_key", lit(1)).join(
-                df_MPLT_LKP_BLK_CODE.withColumn("_join_key", lit(1)),
+            __rhs = df_MPLT_LKP_BLK_CODE.withColumn("_join_key", lit(1))
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_MPLT_GET_CMS_BLK_SCD_KEY_merge_input_0 = df_MPLT_LKP_EST_CODE.withColumn("_join_key", lit(1)).join(
+                __rhs,
                 on="_join_key", how="left").drop("_join_key")
-        ctx.register_df("df_MPLT_GET_CMS_BLK_SCD_KEY_merge_15", df_MPLT_GET_CMS_BLK_SCD_KEY_merge_15)
+        ctx.register_df("df_MPLT_GET_CMS_BLK_SCD_KEY_merge_input_0", df_MPLT_GET_CMS_BLK_SCD_KEY_merge_input_0)
         
         logger.info("Step: input_MPLT_GET_CMS_BLK_SCD_KEY")
         # Expression: input_MPLT_GET_CMS_BLK_SCD_KEY
-        df_MPLT_GET_CMS_BLK_SCD_KEY_input_16 = df_MPLT_GET_CMS_BLK_SCD_KEY_merge_15
-        df_MPLT_GET_CMS_BLK_SCD_KEY_input_16 = df_MPLT_GET_CMS_BLK_SCD_KEY_input_16.withColumn("IN_EST_CODE", expr("HSE_EST_CODE"))
-        df_MPLT_GET_CMS_BLK_SCD_KEY_input_16 = df_MPLT_GET_CMS_BLK_SCD_KEY_input_16.withColumn("IN_BLK_CODE", expr("HSE_BLK_CODE"))
-        ctx.register_df("df_MPLT_GET_CMS_BLK_SCD_KEY_input_16", df_MPLT_GET_CMS_BLK_SCD_KEY_input_16)
-        
-        logger.info("Step: rename_EXPTRANS")
-        # Expression: rename_EXPTRANS
-        df_MPLT_GET_CMS_BLK_SCD_KEY_rename_17 = df_MPLT_GET_CMS_BLK_SCD_KEY_input_16
-        df_MPLT_GET_CMS_BLK_SCD_KEY_rename_17 = df_MPLT_GET_CMS_BLK_SCD_KEY_rename_17.drop("IN_EST_CODE").withColumnRenamed("HSE_EST_CODE", "IN_EST_CODE")
-        df_MPLT_GET_CMS_BLK_SCD_KEY_rename_17 = df_MPLT_GET_CMS_BLK_SCD_KEY_rename_17.drop("IN_BLK_CODE").withColumnRenamed("HSE_BLK_CODE", "IN_BLK_CODE")
-        ctx.register_df("df_MPLT_GET_CMS_BLK_SCD_KEY_rename_17", df_MPLT_GET_CMS_BLK_SCD_KEY_rename_17)
+        df_MPLT_GET_CMS_BLK_SCD_KEY_input = df_MPLT_GET_CMS_BLK_SCD_KEY_merge_input_0
+        df_MPLT_GET_CMS_BLK_SCD_KEY_input = df_MPLT_GET_CMS_BLK_SCD_KEY_input.withColumn("IN_EST_CODE", expr("HSE_EST_CODE"))
+        df_MPLT_GET_CMS_BLK_SCD_KEY_input = df_MPLT_GET_CMS_BLK_SCD_KEY_input.withColumn("IN_BLK_CODE", expr("HSE_BLK_CODE"))
+        ctx.register_df("df_MPLT_GET_CMS_BLK_SCD_KEY_input", df_MPLT_GET_CMS_BLK_SCD_KEY_input)
         
         logger.info("Step: apply_MPLT_GET_CMS_BLK_SCD_KEY_EXPTRANS")
         # Expression: apply_MPLT_GET_CMS_BLK_SCD_KEY_EXPTRANS
-        df_MPLT_GET_CMS_BLK_SCD_KEY_EXPTRANS = df_MPLT_GET_CMS_BLK_SCD_KEY_rename_17
+        df_MPLT_GET_CMS_BLK_SCD_KEY_EXPTRANS = df_MPLT_GET_CMS_BLK_SCD_KEY_input
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["IN_EST_CODE", "IN_BLK_CODE"]:
             if _col.lower() not in [x.lower() for x in df_MPLT_GET_CMS_BLK_SCD_KEY_EXPTRANS.columns]:
@@ -686,11 +696,13 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
         
         logger.info("Step: apply_MPLT_GET_CMS_BLK_SCD_KEY_LKPTRANS1")
         # Lookup: apply_MPLT_GET_CMS_BLK_SCD_KEY_LKPTRANS1
+        # Use First Value / Use Any Value: dedup by join keys
+        df_MPLT_GET_CMS_BLK_SCD_KEY_LKPTRANS1 = df_MPLT_GET_CMS_BLK_SCD_KEY_LKPTRANS1.dropDuplicates(subset=["EST_CODE", "BLK_CODE"])
         # Rename upstream columns to match lookup input port names before join
         _lkp_input = df_MPLT_GET_CMS_BLK_SCD_KEY_EXPTRANS
         # Join condition: IN_EST_CODE=EST_CODE AND IN_BLK_CODE=BLK_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_18 = _lkp_input.alias("_main").join(
+        df_mplt_lkp_chain_MPLT_GET_CMS_BLK_SCD_KEY_EXPTRANS = _lkp_input.alias("_main").join(
             broadcast(df_MPLT_GET_CMS_BLK_SCD_KEY_LKPTRANS1).alias("_lkp"),
             (col("_main.IN_EST_CODE") == col("_lkp.EST_CODE")) &
             (col("_main.IN_BLK_CODE") == col("_lkp.BLK_CODE")),
@@ -699,37 +711,42 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_MPLT_GET_CMS_BLK_SCD_KEY_LKPTRANS1[c] for c in df_MPLT_GET_CMS_BLK_SCD_KEY_LKPTRANS1.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_mplt_lkp_chain_18", df_mplt_lkp_chain_18)        
+        ctx.register_df("df_mplt_lkp_chain_MPLT_GET_CMS_BLK_SCD_KEY_EXPTRANS", df_mplt_lkp_chain_MPLT_GET_CMS_BLK_SCD_KEY_EXPTRANS)        
         logger.info("Step: apply_MPLT_GET_CMS_BLK_SCD_KEY")
         # Expression: apply_MPLT_GET_CMS_BLK_SCD_KEY
-        df_MPLT_GET_CMS_BLK_SCD_KEY = df_mplt_lkp_chain_18
+        df_MPLT_GET_CMS_BLK_SCD_KEY = df_mplt_lkp_chain_MPLT_GET_CMS_BLK_SCD_KEY_EXPTRANS
         ctx.register_df("df_MPLT_GET_CMS_BLK_SCD_KEY", df_MPLT_GET_CMS_BLK_SCD_KEY)
         
         logger.info("Step: join_MPLT_GET_BLK_SCD_KEY_0")
         # Lookup: join_MPLT_GET_BLK_SCD_KEY_0
-        # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
-        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
+        # Merge on common columns — drop lookup columns that duplicate non-key input columns. 
+        # Matches are CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
         _cc = list(dict.fromkeys(c for c in df_MPLT_LKP_EST_CODE.columns if c.lower() in [x.lower() for x in df_MPLT_LKP_BLK_CODE.columns]))
         if _cc:
             __lkp_dup = [c for c in df_MPLT_LKP_BLK_CODE.columns if c.lower() in [x.lower() for x in df_MPLT_LKP_EST_CODE.columns] and c.lower() not in [x.lower() for x in _cc]]
-            df_MPLT_GET_BLK_SCD_KEY_merge_19 = df_MPLT_LKP_EST_CODE.join(
-                df_MPLT_LKP_BLK_CODE.drop(*__lkp_dup) if __lkp_dup else df_MPLT_LKP_BLK_CODE,
+            # Break attribute lineage on the merged side: when both inputs are built from the same source plan. 
+            # Re-projecting with aliases gives this side fresh attribute IDs without changing rows or column names.
+            __rhs = df_MPLT_LKP_BLK_CODE.drop(*__lkp_dup) if __lkp_dup else df_MPLT_LKP_BLK_CODE
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_MPLT_GET_BLK_SCD_KEY_merge_input_0 = df_MPLT_LKP_EST_CODE.join(
+                __rhs,
                 on=_cc, how="left"
             )
         else:
             logger.warning("No common columns between df_MPLT_LKP_EST_CODE and df_MPLT_LKP_BLK_CODE — using synthetic key join")
-            df_MPLT_GET_BLK_SCD_KEY_merge_19 = df_MPLT_LKP_EST_CODE.withColumn("_join_key", lit(1)).join(
-                df_MPLT_LKP_BLK_CODE.withColumn("_join_key", lit(1)),
+            __rhs = df_MPLT_LKP_BLK_CODE.withColumn("_join_key", lit(1))
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_MPLT_GET_BLK_SCD_KEY_merge_input_0 = df_MPLT_LKP_EST_CODE.withColumn("_join_key", lit(1)).join(
+                __rhs,
                 on="_join_key", how="left").drop("_join_key")
-        ctx.register_df("df_MPLT_GET_BLK_SCD_KEY_merge_19", df_MPLT_GET_BLK_SCD_KEY_merge_19)
+        ctx.register_df("df_MPLT_GET_BLK_SCD_KEY_merge_input_0", df_MPLT_GET_BLK_SCD_KEY_merge_input_0)
         
         logger.info("Step: input_MPLT_GET_BLK_SCD_KEY")
         # Expression: input_MPLT_GET_BLK_SCD_KEY
-        df_MPLT_GET_BLK_SCD_KEY_input_20 = df_MPLT_GET_BLK_SCD_KEY_merge_19
-        df_MPLT_GET_BLK_SCD_KEY_input_20 = df_MPLT_GET_BLK_SCD_KEY_input_20.withColumn("IN_HSE_EST_CODE", expr("HSE_EST_CODE"))
-        df_MPLT_GET_BLK_SCD_KEY_input_20 = df_MPLT_GET_BLK_SCD_KEY_input_20.withColumn("IN_HSE_BLK_CODE", expr("HSE_BLK_CODE"))
-        ctx.register_df("df_MPLT_GET_BLK_SCD_KEY_input_20", df_MPLT_GET_BLK_SCD_KEY_input_20)
+        df_MPLT_GET_BLK_SCD_KEY_input = df_MPLT_GET_BLK_SCD_KEY_merge_input_0
+        df_MPLT_GET_BLK_SCD_KEY_input = df_MPLT_GET_BLK_SCD_KEY_input.withColumn("IN_HSE_EST_CODE", expr("HSE_EST_CODE"))
+        df_MPLT_GET_BLK_SCD_KEY_input = df_MPLT_GET_BLK_SCD_KEY_input.withColumn("IN_HSE_BLK_CODE", expr("HSE_BLK_CODE"))
+        ctx.register_df("df_MPLT_GET_BLK_SCD_KEY_input", df_MPLT_GET_BLK_SCD_KEY_input)
         
         logger.info("Step: read_MPLT_GET_BLK_SCD_KEY_LKPTRANS_DDS_HRCHY_EMS_BLK")
         # Reading Data From Source - read_MPLT_GET_BLK_SCD_KEY_LKPTRANS_DDS_HRCHY_EMS_BLK
@@ -747,11 +764,13 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
         
         logger.info("Step: apply_MPLT_GET_BLK_SCD_KEY_LKPTRANS_DDS_HRCHY_EMS_BLK")
         # Lookup: apply_MPLT_GET_BLK_SCD_KEY_LKPTRANS_DDS_HRCHY_EMS_BLK
+        # Use First Value / Use Any Value: dedup by join keys
+        df_MPLT_GET_BLK_SCD_KEY_LKPTRANS_DDS_HRCHY_EMS_BLK = df_MPLT_GET_BLK_SCD_KEY_LKPTRANS_DDS_HRCHY_EMS_BLK.dropDuplicates(subset=["EST_CODE", "BLK_CODE"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_MPLT_GET_BLK_SCD_KEY_input_20
+        _lkp_input = df_MPLT_GET_BLK_SCD_KEY_input
         # Join condition: IN_HSE_EST_CODE=EST_CODE AND IN_HSE_BLK_CODE=BLK_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_21 = _lkp_input.alias("_main").join(
+        df_mplt_lkp_chain_MPLT_GET_BLK_SCD_KEY_input = _lkp_input.alias("_main").join(
             broadcast(df_MPLT_GET_BLK_SCD_KEY_LKPTRANS_DDS_HRCHY_EMS_BLK).alias("_lkp"),
             (col("_main.IN_HSE_EST_CODE") == col("_lkp.EST_CODE")) &
             (col("_main.IN_HSE_BLK_CODE") == col("_lkp.BLK_CODE")),
@@ -760,19 +779,21 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_MPLT_GET_BLK_SCD_KEY_LKPTRANS_DDS_HRCHY_EMS_BLK[c] for c in df_MPLT_GET_BLK_SCD_KEY_LKPTRANS_DDS_HRCHY_EMS_BLK.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_mplt_lkp_chain_21", df_mplt_lkp_chain_21)        
+        ctx.register_df("df_mplt_lkp_chain_MPLT_GET_BLK_SCD_KEY_input", df_mplt_lkp_chain_MPLT_GET_BLK_SCD_KEY_input)        
         logger.info("Step: rename_EXPTRANS2")
         # Expression: rename_EXPTRANS2
-        df_MPLT_GET_BLK_SCD_KEY_rename_22 = df_mplt_lkp_chain_21
-        df_MPLT_GET_BLK_SCD_KEY_rename_22 = df_MPLT_GET_BLK_SCD_KEY_rename_22.drop("IN_HSE_EST_CODE").withColumnRenamed("HSE_EST_CODE", "IN_HSE_EST_CODE")
-        df_MPLT_GET_BLK_SCD_KEY_rename_22 = df_MPLT_GET_BLK_SCD_KEY_rename_22.drop("IN_HSE_BLK_CODE").withColumnRenamed("HSE_BLK_CODE", "IN_HSE_BLK_CODE")
-        df_MPLT_GET_BLK_SCD_KEY_rename_22 = df_MPLT_GET_BLK_SCD_KEY_rename_22.drop("IN_BLK_AGE").withColumnRenamed("BLK_AGE", "IN_BLK_AGE")
-        ctx.register_df("df_MPLT_GET_BLK_SCD_KEY_rename_22", df_MPLT_GET_BLK_SCD_KEY_rename_22)
+        df_MPLT_GET_BLK_SCD_KEY_rename_EXPTRANS2 = df_mplt_lkp_chain_MPLT_GET_BLK_SCD_KEY_input
+        __expr_renames = [
+            ("BLK_AGE", "IN_BLK_AGE"),
+        ]
+        for _old, _new in __expr_renames:
+            df_MPLT_GET_BLK_SCD_KEY_rename_EXPTRANS2 = df_MPLT_GET_BLK_SCD_KEY_rename_EXPTRANS2.drop(_new).withColumnRenamed(_old, _new)
+        ctx.register_df("df_MPLT_GET_BLK_SCD_KEY_rename_EXPTRANS2", df_MPLT_GET_BLK_SCD_KEY_rename_EXPTRANS2)
         
         logger.info("Step: apply_MPLT_GET_BLK_SCD_KEY_EXPTRANS2")
         # Expression: apply_MPLT_GET_BLK_SCD_KEY_EXPTRANS2
-        df_MPLT_GET_BLK_SCD_KEY_EXPTRANS2 = df_MPLT_GET_BLK_SCD_KEY_rename_22
-        df_MPLT_GET_BLK_SCD_KEY_EXPTRANS2 = df_MPLT_GET_BLK_SCD_KEY_EXPTRANS2.withColumn("BLK_AGE_CODE", expr("CASE WHEN IN_BLK_AGE = NULL THEN '-1' WHEN IN_BLK_AGE = 0 THEN '0-5' ELSE CASE WHEN floor((IN_BLK_AGE-1)/5) = 0 THEN '0-5' WHEN floor((IN_BLK_AGE-1)/5) = 1 THEN '6-10' WHEN floor((IN_BLK_AGE-1)/5) = 2 THEN '11-15' WHEN floor((IN_BLK_AGE-1)/5) = 3 THEN '16-20' WHEN floor((IN_BLK_AGE-1)/5) = 4 THEN '21-25' ELSE '>25' END END"))
+        df_MPLT_GET_BLK_SCD_KEY_EXPTRANS2 = df_MPLT_GET_BLK_SCD_KEY_rename_EXPTRANS2
+        df_MPLT_GET_BLK_SCD_KEY_EXPTRANS2 = df_MPLT_GET_BLK_SCD_KEY_EXPTRANS2.withColumn("BLK_AGE_CODE", expr("CASE WHEN IN_BLK_AGE IS NULL THEN '-1' WHEN IN_BLK_AGE = 0 THEN '0-5' ELSE CASE WHEN floor((IN_BLK_AGE-1)/5) = 0 THEN '0-5' WHEN floor((IN_BLK_AGE-1)/5) = 1 THEN '6-10' WHEN floor((IN_BLK_AGE-1)/5) = 2 THEN '11-15' WHEN floor((IN_BLK_AGE-1)/5) = 3 THEN '16-20' WHEN floor((IN_BLK_AGE-1)/5) = 4 THEN '21-25' ELSE '>25' END END"))
         df_MPLT_GET_BLK_SCD_KEY_EXPTRANS2 = df_MPLT_GET_BLK_SCD_KEY_EXPTRANS2.withColumn("BLK_AGE_SCHM_CODE", expr("'HPL'"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
         # Keep all upstream columns + computed columns (no select filtering)
@@ -786,11 +807,13 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
         
         logger.info("Step: apply_MPLT_GET_BLK_SCD_KEY_LKPTRANS_DDS_DMNS_EMS_BLK_AGE")
         # Lookup: apply_MPLT_GET_BLK_SCD_KEY_LKPTRANS_DDS_DMNS_EMS_BLK_AGE
+        # Use First Value / Use Any Value: dedup by join keys
+        df_MPLT_GET_BLK_SCD_KEY_LKPTRANS_DDS_DMNS_EMS_BLK_AGE = df_MPLT_GET_BLK_SCD_KEY_LKPTRANS_DDS_DMNS_EMS_BLK_AGE.dropDuplicates(subset=["BLK_AGE_CODE", "BLK_AGE_SCHM_CODE"])
         # Rename upstream columns to match lookup input port names before join
         _lkp_input = df_MPLT_GET_BLK_SCD_KEY_EXPTRANS2
         # Join condition: BLK_AGE_CODE=BLK_AGE_CODE AND BLK_AGE_SCHM_CODE=BLK_AGE_SCHM_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_23 = _lkp_input.alias("_main").join(
+        df_mplt_lkp_chain_MPLT_GET_BLK_SCD_KEY_EXPTRANS2 = _lkp_input.alias("_main").join(
             broadcast(df_MPLT_GET_BLK_SCD_KEY_LKPTRANS_DDS_DMNS_EMS_BLK_AGE).alias("_lkp"),
             (col("_main.BLK_AGE_CODE") == col("_lkp.BLK_AGE_CODE")) &
             (col("_main.BLK_AGE_SCHM_CODE") == col("_lkp.BLK_AGE_SCHM_CODE")),
@@ -799,36 +822,17 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_MPLT_GET_BLK_SCD_KEY_LKPTRANS_DDS_DMNS_EMS_BLK_AGE[c] for c in df_MPLT_GET_BLK_SCD_KEY_LKPTRANS_DDS_DMNS_EMS_BLK_AGE.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_mplt_lkp_chain_23", df_mplt_lkp_chain_23)        
-        logger.info("Step: join_output_MPLT_GET_BLK_SCD_KEY_0")
-        # Lookup: join_output_MPLT_GET_BLK_SCD_KEY_0
-        # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
-        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
-        _cc = list(dict.fromkeys(c for c in df_mplt_lkp_chain_21.columns if c.lower() in [x.lower() for x in df_mplt_lkp_chain_23.columns]))
-        if _cc:
-            __lkp_dup = [c for c in df_mplt_lkp_chain_23.columns if c.lower() in [x.lower() for x in df_mplt_lkp_chain_21.columns] and c.lower() not in [x.lower() for x in _cc]]
-            df_MPLT_GET_BLK_SCD_KEY_merge_24 = df_mplt_lkp_chain_21.join(
-                df_mplt_lkp_chain_23.drop(*__lkp_dup) if __lkp_dup else df_mplt_lkp_chain_23,
-                on=_cc, how="left"
-            )
-        else:
-            logger.warning("No common columns between df_mplt_lkp_chain_21 and df_mplt_lkp_chain_23 — using synthetic key join")
-            df_MPLT_GET_BLK_SCD_KEY_merge_24 = df_mplt_lkp_chain_21.withColumn("_join_key", lit(1)).join(
-                df_mplt_lkp_chain_23.withColumn("_join_key", lit(1)),
-                on="_join_key", how="left").drop("_join_key")
-        ctx.register_df("df_MPLT_GET_BLK_SCD_KEY_merge_24", df_MPLT_GET_BLK_SCD_KEY_merge_24)
-        
+        ctx.register_df("df_mplt_lkp_chain_MPLT_GET_BLK_SCD_KEY_EXPTRANS2", df_mplt_lkp_chain_MPLT_GET_BLK_SCD_KEY_EXPTRANS2)        
         logger.info("Step: apply_MPLT_GET_BLK_SCD_KEY")
         # Expression: apply_MPLT_GET_BLK_SCD_KEY
-        df_MPLT_GET_BLK_SCD_KEY = df_MPLT_GET_BLK_SCD_KEY_merge_24
+        df_MPLT_GET_BLK_SCD_KEY = df_mplt_lkp_chain_MPLT_GET_BLK_SCD_KEY_EXPTRANS2
         ctx.register_df("df_MPLT_GET_BLK_SCD_KEY", df_MPLT_GET_BLK_SCD_KEY)
         
         logger.info("Step: input_MPLT_GET_UNIT_SIZE_DMNS_KEY")
         # Expression: input_MPLT_GET_UNIT_SIZE_DMNS_KEY
-        df_MPLT_GET_UNIT_SIZE_DMNS_KEY_input_25 = df_MPLT_LKP_HSE_UNIT_KEY
-        df_MPLT_GET_UNIT_SIZE_DMNS_KEY_input_25 = df_MPLT_GET_UNIT_SIZE_DMNS_KEY_input_25.withColumn("IN_EMS_CODE_ADDR", expr("EMS_CODE_ADDR"))
-        ctx.register_df("df_MPLT_GET_UNIT_SIZE_DMNS_KEY_input_25", df_MPLT_GET_UNIT_SIZE_DMNS_KEY_input_25)
+        df_MPLT_GET_UNIT_SIZE_DMNS_KEY_input = df_MPLT_LKP_HSE_UNIT_KEY
+        df_MPLT_GET_UNIT_SIZE_DMNS_KEY_input = df_MPLT_GET_UNIT_SIZE_DMNS_KEY_input.withColumn("IN_EMS_CODE_ADDR", expr("EMS_CODE_ADDR"))
+        ctx.register_df("df_MPLT_GET_UNIT_SIZE_DMNS_KEY_input", df_MPLT_GET_UNIT_SIZE_DMNS_KEY_input)
         
         logger.info("Step: read_MPLT_GET_UNIT_SIZE_DMNS_KEY_LKPTRANS_SOR_HSM_UNIT")
         # Reading Data From Source - read_MPLT_GET_UNIT_SIZE_DMNS_KEY_LKPTRANS_SOR_HSM_UNIT
@@ -838,11 +842,13 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
         
         logger.info("Step: apply_MPLT_GET_UNIT_SIZE_DMNS_KEY_LKPTRANS_SOR_HSM_UNIT")
         # Lookup: apply_MPLT_GET_UNIT_SIZE_DMNS_KEY_LKPTRANS_SOR_HSM_UNIT
+        # Use First Value / Use Any Value: dedup by join keys
+        df_MPLT_GET_UNIT_SIZE_DMNS_KEY_LKPTRANS_SOR_HSM_UNIT = df_MPLT_GET_UNIT_SIZE_DMNS_KEY_LKPTRANS_SOR_HSM_UNIT.dropDuplicates(subset=["UNIT_ADDR_CODE"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_MPLT_GET_UNIT_SIZE_DMNS_KEY_input_25
+        _lkp_input = df_MPLT_GET_UNIT_SIZE_DMNS_KEY_input
         # Join condition: IN_EMS_CODE_ADDR=UNIT_ADDR_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_26 = _lkp_input.alias("_main").join(
+        df_mplt_lkp_chain_MPLT_GET_UNIT_SIZE_DMNS_KEY_input = _lkp_input.alias("_main").join(
             broadcast(df_MPLT_GET_UNIT_SIZE_DMNS_KEY_LKPTRANS_SOR_HSM_UNIT).alias("_lkp"),
             (col("_main.IN_EMS_CODE_ADDR") == col("_lkp.UNIT_ADDR_CODE")),
             "left"
@@ -850,16 +856,10 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_MPLT_GET_UNIT_SIZE_DMNS_KEY_LKPTRANS_SOR_HSM_UNIT[c] for c in df_MPLT_GET_UNIT_SIZE_DMNS_KEY_LKPTRANS_SOR_HSM_UNIT.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_mplt_lkp_chain_26", df_mplt_lkp_chain_26)        
-        logger.info("Step: rename_EXPTRANS")
-        # Expression: rename_EXPTRANS
-        df_MPLT_GET_UNIT_SIZE_DMNS_KEY_rename_27 = df_mplt_lkp_chain_26
-        df_MPLT_GET_UNIT_SIZE_DMNS_KEY_rename_27 = df_MPLT_GET_UNIT_SIZE_DMNS_KEY_rename_27.drop("IN_EMS_CODE_ADDR").withColumnRenamed("EMS_CODE_ADDR", "IN_EMS_CODE_ADDR")
-        ctx.register_df("df_MPLT_GET_UNIT_SIZE_DMNS_KEY_rename_27", df_MPLT_GET_UNIT_SIZE_DMNS_KEY_rename_27)
-        
+        ctx.register_df("df_mplt_lkp_chain_MPLT_GET_UNIT_SIZE_DMNS_KEY_input", df_mplt_lkp_chain_MPLT_GET_UNIT_SIZE_DMNS_KEY_input)        
         logger.info("Step: apply_MPLT_GET_UNIT_SIZE_DMNS_KEY_EXPTRANS")
         # Expression: apply_MPLT_GET_UNIT_SIZE_DMNS_KEY_EXPTRANS
-        df_MPLT_GET_UNIT_SIZE_DMNS_KEY_EXPTRANS = df_MPLT_GET_UNIT_SIZE_DMNS_KEY_rename_27
+        df_MPLT_GET_UNIT_SIZE_DMNS_KEY_EXPTRANS = df_mplt_lkp_chain_MPLT_GET_UNIT_SIZE_DMNS_KEY_input
         # Ensure any missing pass-through columns exist (no connector feeding them)
         for _col in ["UNIT_IFA_AREA", "UNIT_KEY"]:
             if _col.lower() not in [x.lower() for x in df_MPLT_GET_UNIT_SIZE_DMNS_KEY_EXPTRANS.columns]:
@@ -883,163 +883,150 @@ or a.UNIT_SIZE_DMNS_KEY = 0"""
         
         logger.info("Step: apply_MPLT_GET_UNIT_SIZE_DMNS_KEY_LKPTRANS_DDS_DMNS_UNIT_SIZE")
         # Lookup: apply_MPLT_GET_UNIT_SIZE_DMNS_KEY_LKPTRANS_DDS_DMNS_UNIT_SIZE
-        df_mplt_lkp_chain_28 = df_MPLT_GET_UNIT_SIZE_DMNS_KEY_EXPTRANS.join(
+        df_mplt_lkp_chain_MPLT_GET_UNIT_SIZE_DMNS_KEY_EXPTRANS = df_MPLT_GET_UNIT_SIZE_DMNS_KEY_EXPTRANS.join(
             broadcast(df_MPLT_GET_UNIT_SIZE_DMNS_KEY_LKPTRANS_DDS_DMNS_UNIT_SIZE),
             expr("UNIT_SIZE_MIN_AREA <= UNIT_IFA_AREA AND UNIT_SIZE_MAX_AREA > UNIT_IFA_AREA"),
             "left"
         )
-        ctx.register_df("df_mplt_lkp_chain_28", df_mplt_lkp_chain_28)
-        
-        logger.info("Step: join_output_MPLT_GET_UNIT_SIZE_DMNS_KEY_0")
-        # Lookup: join_output_MPLT_GET_UNIT_SIZE_DMNS_KEY_0
-        # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
-        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
-        _cc = list(dict.fromkeys(c for c in df_mplt_lkp_chain_28.columns if c.lower() in [x.lower() for x in df_MPLT_GET_UNIT_SIZE_DMNS_KEY_EXPTRANS.columns]))
-        if _cc:
-            __lkp_dup = [c for c in df_MPLT_GET_UNIT_SIZE_DMNS_KEY_EXPTRANS.columns if c.lower() in [x.lower() for x in df_mplt_lkp_chain_28.columns] and c.lower() not in [x.lower() for x in _cc]]
-            df_MPLT_GET_UNIT_SIZE_DMNS_KEY_merge_29 = df_mplt_lkp_chain_28.join(
-                df_MPLT_GET_UNIT_SIZE_DMNS_KEY_EXPTRANS.drop(*__lkp_dup) if __lkp_dup else df_MPLT_GET_UNIT_SIZE_DMNS_KEY_EXPTRANS,
-                on=_cc, how="left"
-            )
-        else:
-            logger.warning("No common columns between df_mplt_lkp_chain_28 and df_MPLT_GET_UNIT_SIZE_DMNS_KEY_EXPTRANS — using synthetic key join")
-            df_MPLT_GET_UNIT_SIZE_DMNS_KEY_merge_29 = df_mplt_lkp_chain_28.withColumn("_join_key", lit(1)).join(
-                df_MPLT_GET_UNIT_SIZE_DMNS_KEY_EXPTRANS.withColumn("_join_key", lit(1)),
-                on="_join_key", how="left").drop("_join_key")
-        ctx.register_df("df_MPLT_GET_UNIT_SIZE_DMNS_KEY_merge_29", df_MPLT_GET_UNIT_SIZE_DMNS_KEY_merge_29)
+        ctx.register_df("df_mplt_lkp_chain_MPLT_GET_UNIT_SIZE_DMNS_KEY_EXPTRANS", df_mplt_lkp_chain_MPLT_GET_UNIT_SIZE_DMNS_KEY_EXPTRANS)
         
         logger.info("Step: apply_MPLT_GET_UNIT_SIZE_DMNS_KEY")
         # Expression: apply_MPLT_GET_UNIT_SIZE_DMNS_KEY
-        df_MPLT_GET_UNIT_SIZE_DMNS_KEY = df_MPLT_GET_UNIT_SIZE_DMNS_KEY_merge_29
+        df_MPLT_GET_UNIT_SIZE_DMNS_KEY = df_mplt_lkp_chain_MPLT_GET_UNIT_SIZE_DMNS_KEY_EXPTRANS
         ctx.register_df("df_MPLT_GET_UNIT_SIZE_DMNS_KEY", df_MPLT_GET_UNIT_SIZE_DMNS_KEY)
         
         logger.info("Step: merge_EXPTRANS11_0")
         # Lookup: merge_EXPTRANS11_0
-        # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
-        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
+        # Merge on common columns — drop lookup columns that duplicate non-key input columns. 
+        # Matches are CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
         _cc = list(dict.fromkeys(c for c in df_MPLT_GET_EST_OFFC_SCD_KEY.columns if c.lower() in [x.lower() for x in df_MPLT_GET_BLK_SCD_KEY.columns]))
         if _cc:
             __lkp_dup = [c for c in df_MPLT_GET_BLK_SCD_KEY.columns if c.lower() in [x.lower() for x in df_MPLT_GET_EST_OFFC_SCD_KEY.columns] and c.lower() not in [x.lower() for x in _cc]]
-            df_merge_30 = df_MPLT_GET_EST_OFFC_SCD_KEY.join(
-                df_MPLT_GET_BLK_SCD_KEY.drop(*__lkp_dup) if __lkp_dup else df_MPLT_GET_BLK_SCD_KEY,
+            # Break attribute lineage on the merged side: when both inputs are built from the same source plan. 
+            # Re-projecting with aliases gives this side fresh attribute IDs without changing rows or column names.
+            __rhs = df_MPLT_GET_BLK_SCD_KEY.drop(*__lkp_dup) if __lkp_dup else df_MPLT_GET_BLK_SCD_KEY
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_merge_EXPTRANS11_0 = df_MPLT_GET_EST_OFFC_SCD_KEY.join(
+                __rhs,
                 on=_cc, how="left"
             )
         else:
             logger.warning("No common columns between df_MPLT_GET_EST_OFFC_SCD_KEY and df_MPLT_GET_BLK_SCD_KEY — using synthetic key join")
-            df_merge_30 = df_MPLT_GET_EST_OFFC_SCD_KEY.withColumn("_join_key", lit(1)).join(
-                df_MPLT_GET_BLK_SCD_KEY.withColumn("_join_key", lit(1)),
+            __rhs = df_MPLT_GET_BLK_SCD_KEY.withColumn("_join_key", lit(1))
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_merge_EXPTRANS11_0 = df_MPLT_GET_EST_OFFC_SCD_KEY.withColumn("_join_key", lit(1)).join(
+                __rhs,
                 on="_join_key", how="left").drop("_join_key")
-        ctx.register_df("df_merge_30", df_merge_30)
+        ctx.register_df("df_merge_EXPTRANS11_0", df_merge_EXPTRANS11_0)
         
         logger.info("Step: merge_EXPTRANS11_1")
         # Lookup: merge_EXPTRANS11_1
-        # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
-        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
-        _cc = list(dict.fromkeys(c for c in df_merge_30.columns if c.lower() in [x.lower() for x in df_MPLT_GET_CMS_BLK_SCD_KEY.columns]))
+        # Merge on common columns — drop lookup columns that duplicate non-key input columns. 
+        # Matches are CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
+        _cc = list(dict.fromkeys(c for c in df_merge_EXPTRANS11_0.columns if c.lower() in [x.lower() for x in df_MPLT_GET_CMS_BLK_SCD_KEY.columns]))
         if _cc:
-            __lkp_dup = [c for c in df_MPLT_GET_CMS_BLK_SCD_KEY.columns if c.lower() in [x.lower() for x in df_merge_30.columns] and c.lower() not in [x.lower() for x in _cc]]
-            df_merge_31 = df_merge_30.join(
-                df_MPLT_GET_CMS_BLK_SCD_KEY.drop(*__lkp_dup) if __lkp_dup else df_MPLT_GET_CMS_BLK_SCD_KEY,
+            __lkp_dup = [c for c in df_MPLT_GET_CMS_BLK_SCD_KEY.columns if c.lower() in [x.lower() for x in df_merge_EXPTRANS11_0.columns] and c.lower() not in [x.lower() for x in _cc]]
+            # Break attribute lineage on the merged side: when both inputs are built from the same source plan. 
+            # Re-projecting with aliases gives this side fresh attribute IDs without changing rows or column names.
+            __rhs = df_MPLT_GET_CMS_BLK_SCD_KEY.drop(*__lkp_dup) if __lkp_dup else df_MPLT_GET_CMS_BLK_SCD_KEY
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_merge_EXPTRANS11_1 = df_merge_EXPTRANS11_0.join(
+                __rhs,
                 on=_cc, how="left"
             )
         else:
-            logger.warning("No common columns between df_merge_30 and df_MPLT_GET_CMS_BLK_SCD_KEY — using synthetic key join")
-            df_merge_31 = df_merge_30.withColumn("_join_key", lit(1)).join(
-                df_MPLT_GET_CMS_BLK_SCD_KEY.withColumn("_join_key", lit(1)),
+            logger.warning("No common columns between df_merge_EXPTRANS11_0 and df_MPLT_GET_CMS_BLK_SCD_KEY — using synthetic key join")
+            __rhs = df_MPLT_GET_CMS_BLK_SCD_KEY.withColumn("_join_key", lit(1))
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_merge_EXPTRANS11_1 = df_merge_EXPTRANS11_0.withColumn("_join_key", lit(1)).join(
+                __rhs,
                 on="_join_key", how="left").drop("_join_key")
-        ctx.register_df("df_merge_31", df_merge_31)
+        ctx.register_df("df_merge_EXPTRANS11_1", df_merge_EXPTRANS11_1)
         
         logger.info("Step: merge_EXPTRANS11_2")
         # Lookup: merge_EXPTRANS11_2
-        # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
-        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
-        _cc = list(dict.fromkeys(c for c in df_merge_31.columns if c.lower() in [x.lower() for x in df_MPLT_GET_UNIT_SIZE_DMNS_KEY.columns]))
+        # Merge on common columns — drop lookup columns that duplicate non-key input columns. 
+        # Matches are CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
+        _cc = list(dict.fromkeys(c for c in df_merge_EXPTRANS11_1.columns if c.lower() in [x.lower() for x in df_MPLT_GET_UNIT_SIZE_DMNS_KEY.columns]))
         if _cc:
-            __lkp_dup = [c for c in df_MPLT_GET_UNIT_SIZE_DMNS_KEY.columns if c.lower() in [x.lower() for x in df_merge_31.columns] and c.lower() not in [x.lower() for x in _cc]]
-            df_merge_32 = df_merge_31.join(
-                df_MPLT_GET_UNIT_SIZE_DMNS_KEY.drop(*__lkp_dup) if __lkp_dup else df_MPLT_GET_UNIT_SIZE_DMNS_KEY,
+            __lkp_dup = [c for c in df_MPLT_GET_UNIT_SIZE_DMNS_KEY.columns if c.lower() in [x.lower() for x in df_merge_EXPTRANS11_1.columns] and c.lower() not in [x.lower() for x in _cc]]
+            # Break attribute lineage on the merged side: when both inputs are built from the same source plan. 
+            # Re-projecting with aliases gives this side fresh attribute IDs without changing rows or column names.
+            __rhs = df_MPLT_GET_UNIT_SIZE_DMNS_KEY.drop(*__lkp_dup) if __lkp_dup else df_MPLT_GET_UNIT_SIZE_DMNS_KEY
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_merge_EXPTRANS11_2 = df_merge_EXPTRANS11_1.join(
+                __rhs,
                 on=_cc, how="left"
             )
         else:
-            logger.warning("No common columns between df_merge_31 and df_MPLT_GET_UNIT_SIZE_DMNS_KEY — using synthetic key join")
-            df_merge_32 = df_merge_31.withColumn("_join_key", lit(1)).join(
-                df_MPLT_GET_UNIT_SIZE_DMNS_KEY.withColumn("_join_key", lit(1)),
+            logger.warning("No common columns between df_merge_EXPTRANS11_1 and df_MPLT_GET_UNIT_SIZE_DMNS_KEY — using synthetic key join")
+            __rhs = df_MPLT_GET_UNIT_SIZE_DMNS_KEY.withColumn("_join_key", lit(1))
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_merge_EXPTRANS11_2 = df_merge_EXPTRANS11_1.withColumn("_join_key", lit(1)).join(
+                __rhs,
                 on="_join_key", how="left").drop("_join_key")
-        ctx.register_df("df_merge_32", df_merge_32)
+        ctx.register_df("df_merge_EXPTRANS11_2", df_merge_EXPTRANS11_2)
         
         logger.info("Step: merge_EXPTRANS11_3")
         # Lookup: merge_EXPTRANS11_3
-        # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
-        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
-        _cc = list(dict.fromkeys(c for c in df_merge_32.columns if c.lower() in [x.lower() for x in df_MPLT_GET_CMS_EST_SCD_KEY.columns]))
+        # Merge on common columns — drop lookup columns that duplicate non-key input columns. 
+        # Matches are CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
+        _cc = list(dict.fromkeys(c for c in df_merge_EXPTRANS11_2.columns if c.lower() in [x.lower() for x in df_MPLT_GET_CMS_EST_SCD_KEY.columns]))
         if _cc:
-            __lkp_dup = [c for c in df_MPLT_GET_CMS_EST_SCD_KEY.columns if c.lower() in [x.lower() for x in df_merge_32.columns] and c.lower() not in [x.lower() for x in _cc]]
-            df_merge_33 = df_merge_32.join(
-                df_MPLT_GET_CMS_EST_SCD_KEY.drop(*__lkp_dup) if __lkp_dup else df_MPLT_GET_CMS_EST_SCD_KEY,
+            __lkp_dup = [c for c in df_MPLT_GET_CMS_EST_SCD_KEY.columns if c.lower() in [x.lower() for x in df_merge_EXPTRANS11_2.columns] and c.lower() not in [x.lower() for x in _cc]]
+            # Break attribute lineage on the merged side: when both inputs are built from the same source plan. 
+            # Re-projecting with aliases gives this side fresh attribute IDs without changing rows or column names.
+            __rhs = df_MPLT_GET_CMS_EST_SCD_KEY.drop(*__lkp_dup) if __lkp_dup else df_MPLT_GET_CMS_EST_SCD_KEY
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_merge_EXPTRANS11_3 = df_merge_EXPTRANS11_2.join(
+                __rhs,
                 on=_cc, how="left"
             )
         else:
-            logger.warning("No common columns between df_merge_32 and df_MPLT_GET_CMS_EST_SCD_KEY — using synthetic key join")
-            df_merge_33 = df_merge_32.withColumn("_join_key", lit(1)).join(
-                df_MPLT_GET_CMS_EST_SCD_KEY.withColumn("_join_key", lit(1)),
+            logger.warning("No common columns between df_merge_EXPTRANS11_2 and df_MPLT_GET_CMS_EST_SCD_KEY — using synthetic key join")
+            __rhs = df_MPLT_GET_CMS_EST_SCD_KEY.withColumn("_join_key", lit(1))
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_merge_EXPTRANS11_3 = df_merge_EXPTRANS11_2.withColumn("_join_key", lit(1)).join(
+                __rhs,
                 on="_join_key", how="left").drop("_join_key")
-        ctx.register_df("df_merge_33", df_merge_33)
-        
-        logger.info("Step: merge_EXPTRANS11_4")
-        # Lookup: merge_EXPTRANS11_4
-        # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
-        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
-        _cc = list(dict.fromkeys(c for c in df_merge_33.columns if c.lower() in [x.lower() for x in df_Union.columns]))
-        if _cc:
-            __lkp_dup = [c for c in df_Union.columns if c.lower() in [x.lower() for x in df_merge_33.columns] and c.lower() not in [x.lower() for x in _cc]]
-            df_merge_34 = df_merge_33.join(
-                df_Union.drop(*__lkp_dup) if __lkp_dup else df_Union,
-                on=_cc, how="left"
-            )
-        else:
-            logger.warning("No common columns between df_merge_33 and df_Union — using synthetic key join")
-            df_merge_34 = df_merge_33.withColumn("_join_key", lit(1)).join(
-                df_Union.withColumn("_join_key", lit(1)),
-                on="_join_key", how="left").drop("_join_key")
-        ctx.register_df("df_merge_34", df_merge_34)
+        ctx.register_df("df_merge_EXPTRANS11_3", df_merge_EXPTRANS11_3)
         
         logger.info("Step: merge_EXPTRANS11_5")
         # Lookup: merge_EXPTRANS11_5
-        # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
-        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
-        _cc = list(dict.fromkeys(c for c in df_merge_34.columns if c.lower() in [x.lower() for x in df_MPLT_GET_EST_SCD_KEY.columns]))
+        # Merge on common columns — drop lookup columns that duplicate non-key input columns. 
+        # Matches are CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
+        _cc = list(dict.fromkeys(c for c in df_merge_EXPTRANS11_3.columns if c.lower() in [x.lower() for x in df_MPLT_GET_EST_SCD_KEY.columns]))
         if _cc:
-            __lkp_dup = [c for c in df_MPLT_GET_EST_SCD_KEY.columns if c.lower() in [x.lower() for x in df_merge_34.columns] and c.lower() not in [x.lower() for x in _cc]]
-            df_merge_35 = df_merge_34.join(
-                df_MPLT_GET_EST_SCD_KEY.drop(*__lkp_dup) if __lkp_dup else df_MPLT_GET_EST_SCD_KEY,
+            __lkp_dup = [c for c in df_MPLT_GET_EST_SCD_KEY.columns if c.lower() in [x.lower() for x in df_merge_EXPTRANS11_3.columns] and c.lower() not in [x.lower() for x in _cc]]
+            # Break attribute lineage on the merged side: when both inputs are built from the same source plan. 
+            # Re-projecting with aliases gives this side fresh attribute IDs without changing rows or column names.
+            __rhs = df_MPLT_GET_EST_SCD_KEY.drop(*__lkp_dup) if __lkp_dup else df_MPLT_GET_EST_SCD_KEY
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_merge_EXPTRANS11_5 = df_merge_EXPTRANS11_3.join(
+                __rhs,
                 on=_cc, how="left"
             )
         else:
-            logger.warning("No common columns between df_merge_34 and df_MPLT_GET_EST_SCD_KEY — using synthetic key join")
-            df_merge_35 = df_merge_34.withColumn("_join_key", lit(1)).join(
-                df_MPLT_GET_EST_SCD_KEY.withColumn("_join_key", lit(1)),
+            logger.warning("No common columns between df_merge_EXPTRANS11_3 and df_MPLT_GET_EST_SCD_KEY — using synthetic key join")
+            __rhs = df_MPLT_GET_EST_SCD_KEY.withColumn("_join_key", lit(1))
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_merge_EXPTRANS11_5 = df_merge_EXPTRANS11_3.withColumn("_join_key", lit(1)).join(
+                __rhs,
                 on="_join_key", how="left").drop("_join_key")
-        ctx.register_df("df_merge_35", df_merge_35)
+        ctx.register_df("df_merge_EXPTRANS11_5", df_merge_EXPTRANS11_5)
         
         logger.info("Step: apply_EXPTRANS11")
         # Expression: apply_EXPTRANS11
-        df_EXPTRANS11 = df_merge_35
+        df_EXPTRANS11 = df_merge_EXPTRANS11_5
         _expr = """'2' || substring('$$v_rpt_mth',1,6) || '00'"""
         _expr = _expr.replace("$$v_rpt_date", str(v_rpt_date))
         _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
         df_EXPTRANS11 = df_EXPTRANS11.withColumn("TIME_DMNS_KEY", expr(_expr))
-        _expr = """CASE WHEN WO_STRT_DATE = NULL THEN 0 ELSE CASE WHEN cast(date_format(WO_STRT_DATE, 'yyyymm') as int) - cast(substring('$$v_rpt_mth',1,6) as int) = 0 THEN 1 ELSE 0 END END"""
+        _expr = """CASE WHEN WO_STRT_DATE IS NULL THEN 0 ELSE CASE WHEN cast(date_format(WO_STRT_DATE, 'yyyyMM') as int) - cast(substring('$$v_rpt_mth',1,6) as int) = 0 THEN 1 ELSE 0 END END"""
         _expr = _expr.replace("$$v_rpt_date", str(v_rpt_date))
         _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
         df_EXPTRANS11 = df_EXPTRANS11.withColumn("ERP_WO_ITEM_CNT", expr(_expr))
-        _expr = """CASE WHEN WO_RPT_CMPLT_DATE = NULL THEN 0 ELSE CASE WHEN cast(date_format(WO_RPT_CMPLT_DATE, 'yyyymm') as int) - cast(substring('$$v_rpt_mth',1,6) as int) = 0 THEN 1 ELSE 0 END END"""
+        _expr = """CASE WHEN WO_RPT_CMPLT_DATE IS NULL THEN 0 ELSE CASE WHEN cast(date_format(WO_RPT_CMPLT_DATE, 'yyyyMM') as int) - cast(substring('$$v_rpt_mth',1,6) as int) = 0 THEN 1 ELSE 0 END END"""
         _expr = _expr.replace("$$v_rpt_date", str(v_rpt_date))
         _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
         df_EXPTRANS11 = df_EXPTRANS11.withColumn("ERP_WO_ITEM_CMPLT_CNT", expr(_expr))
@@ -1054,121 +1041,127 @@ or a.UNIT_SIZE_DMNS_KEY = 0"""
         
         logger.info("Step: merge_EXPTRANS1_0")
         # Lookup: merge_EXPTRANS1_0
-        # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
-        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
+        # Merge on common columns — drop lookup columns that duplicate non-key input columns. 
+        # Matches are CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
         _cc = list(dict.fromkeys(c for c in df_MPLT_GET_EST_OFFC_SCD_KEY.columns if c.lower() in [x.lower() for x in df_MPLT_GET_EST_SCD_KEY.columns]))
         if _cc:
             __lkp_dup = [c for c in df_MPLT_GET_EST_SCD_KEY.columns if c.lower() in [x.lower() for x in df_MPLT_GET_EST_OFFC_SCD_KEY.columns] and c.lower() not in [x.lower() for x in _cc]]
-            df_merge_36 = df_MPLT_GET_EST_OFFC_SCD_KEY.join(
-                df_MPLT_GET_EST_SCD_KEY.drop(*__lkp_dup) if __lkp_dup else df_MPLT_GET_EST_SCD_KEY,
+            # Break attribute lineage on the merged side: when both inputs are built from the same source plan. 
+            # Re-projecting with aliases gives this side fresh attribute IDs without changing rows or column names.
+            __rhs = df_MPLT_GET_EST_SCD_KEY.drop(*__lkp_dup) if __lkp_dup else df_MPLT_GET_EST_SCD_KEY
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_merge_EXPTRANS1_0 = df_MPLT_GET_EST_OFFC_SCD_KEY.join(
+                __rhs,
                 on=_cc, how="left"
             )
         else:
             logger.warning("No common columns between df_MPLT_GET_EST_OFFC_SCD_KEY and df_MPLT_GET_EST_SCD_KEY — using synthetic key join")
-            df_merge_36 = df_MPLT_GET_EST_OFFC_SCD_KEY.withColumn("_join_key", lit(1)).join(
-                df_MPLT_GET_EST_SCD_KEY.withColumn("_join_key", lit(1)),
+            __rhs = df_MPLT_GET_EST_SCD_KEY.withColumn("_join_key", lit(1))
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_merge_EXPTRANS1_0 = df_MPLT_GET_EST_OFFC_SCD_KEY.withColumn("_join_key", lit(1)).join(
+                __rhs,
                 on="_join_key", how="left").drop("_join_key")
-        ctx.register_df("df_merge_36", df_merge_36)
+        ctx.register_df("df_merge_EXPTRANS1_0", df_merge_EXPTRANS1_0)
         
         logger.info("Step: merge_EXPTRANS1_1")
         # Lookup: merge_EXPTRANS1_1
-        # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
-        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
-        _cc = list(dict.fromkeys(c for c in df_merge_36.columns if c.lower() in [x.lower() for x in df_MPLT_GET_CMS_BLK_SCD_KEY.columns]))
+        # Merge on common columns — drop lookup columns that duplicate non-key input columns. 
+        # Matches are CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
+        _cc = list(dict.fromkeys(c for c in df_merge_EXPTRANS1_0.columns if c.lower() in [x.lower() for x in df_MPLT_GET_CMS_BLK_SCD_KEY.columns]))
         if _cc:
-            __lkp_dup = [c for c in df_MPLT_GET_CMS_BLK_SCD_KEY.columns if c.lower() in [x.lower() for x in df_merge_36.columns] and c.lower() not in [x.lower() for x in _cc]]
-            df_merge_37 = df_merge_36.join(
-                df_MPLT_GET_CMS_BLK_SCD_KEY.drop(*__lkp_dup) if __lkp_dup else df_MPLT_GET_CMS_BLK_SCD_KEY,
+            __lkp_dup = [c for c in df_MPLT_GET_CMS_BLK_SCD_KEY.columns if c.lower() in [x.lower() for x in df_merge_EXPTRANS1_0.columns] and c.lower() not in [x.lower() for x in _cc]]
+            # Break attribute lineage on the merged side: when both inputs are built from the same source plan. 
+            # Re-projecting with aliases gives this side fresh attribute IDs without changing rows or column names.
+            __rhs = df_MPLT_GET_CMS_BLK_SCD_KEY.drop(*__lkp_dup) if __lkp_dup else df_MPLT_GET_CMS_BLK_SCD_KEY
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_merge_EXPTRANS1_1 = df_merge_EXPTRANS1_0.join(
+                __rhs,
                 on=_cc, how="left"
             )
         else:
-            logger.warning("No common columns between df_merge_36 and df_MPLT_GET_CMS_BLK_SCD_KEY — using synthetic key join")
-            df_merge_37 = df_merge_36.withColumn("_join_key", lit(1)).join(
-                df_MPLT_GET_CMS_BLK_SCD_KEY.withColumn("_join_key", lit(1)),
+            logger.warning("No common columns between df_merge_EXPTRANS1_0 and df_MPLT_GET_CMS_BLK_SCD_KEY — using synthetic key join")
+            __rhs = df_MPLT_GET_CMS_BLK_SCD_KEY.withColumn("_join_key", lit(1))
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_merge_EXPTRANS1_1 = df_merge_EXPTRANS1_0.withColumn("_join_key", lit(1)).join(
+                __rhs,
                 on="_join_key", how="left").drop("_join_key")
-        ctx.register_df("df_merge_37", df_merge_37)
-        
-        logger.info("Step: merge_EXPTRANS1_2")
-        # Lookup: merge_EXPTRANS1_2
-        # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
-        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
-        _cc = list(dict.fromkeys(c for c in df_merge_37.columns if c.lower() in [x.lower() for x in df_Union.columns]))
-        if _cc:
-            __lkp_dup = [c for c in df_Union.columns if c.lower() in [x.lower() for x in df_merge_37.columns] and c.lower() not in [x.lower() for x in _cc]]
-            df_merge_38 = df_merge_37.join(
-                df_Union.drop(*__lkp_dup) if __lkp_dup else df_Union,
-                on=_cc, how="left"
-            )
-        else:
-            logger.warning("No common columns between df_merge_37 and df_Union — using synthetic key join")
-            df_merge_38 = df_merge_37.withColumn("_join_key", lit(1)).join(
-                df_Union.withColumn("_join_key", lit(1)),
-                on="_join_key", how="left").drop("_join_key")
-        ctx.register_df("df_merge_38", df_merge_38)
+        ctx.register_df("df_merge_EXPTRANS1_1", df_merge_EXPTRANS1_1)
         
         logger.info("Step: merge_EXPTRANS1_3")
         # Lookup: merge_EXPTRANS1_3
-        # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
-        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
-        _cc = list(dict.fromkeys(c for c in df_merge_38.columns if c.lower() in [x.lower() for x in df_MPLT_GET_BLK_SCD_KEY.columns]))
+        # Merge on common columns — drop lookup columns that duplicate non-key input columns. 
+        # Matches are CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
+        _cc = list(dict.fromkeys(c for c in df_merge_EXPTRANS1_1.columns if c.lower() in [x.lower() for x in df_MPLT_GET_BLK_SCD_KEY.columns]))
         if _cc:
-            __lkp_dup = [c for c in df_MPLT_GET_BLK_SCD_KEY.columns if c.lower() in [x.lower() for x in df_merge_38.columns] and c.lower() not in [x.lower() for x in _cc]]
-            df_merge_39 = df_merge_38.join(
-                df_MPLT_GET_BLK_SCD_KEY.drop(*__lkp_dup) if __lkp_dup else df_MPLT_GET_BLK_SCD_KEY,
+            __lkp_dup = [c for c in df_MPLT_GET_BLK_SCD_KEY.columns if c.lower() in [x.lower() for x in df_merge_EXPTRANS1_1.columns] and c.lower() not in [x.lower() for x in _cc]]
+            # Break attribute lineage on the merged side: when both inputs are built from the same source plan. 
+            # Re-projecting with aliases gives this side fresh attribute IDs without changing rows or column names.
+            __rhs = df_MPLT_GET_BLK_SCD_KEY.drop(*__lkp_dup) if __lkp_dup else df_MPLT_GET_BLK_SCD_KEY
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_merge_EXPTRANS1_3 = df_merge_EXPTRANS1_1.join(
+                __rhs,
                 on=_cc, how="left"
             )
         else:
-            logger.warning("No common columns between df_merge_38 and df_MPLT_GET_BLK_SCD_KEY — using synthetic key join")
-            df_merge_39 = df_merge_38.withColumn("_join_key", lit(1)).join(
-                df_MPLT_GET_BLK_SCD_KEY.withColumn("_join_key", lit(1)),
+            logger.warning("No common columns between df_merge_EXPTRANS1_1 and df_MPLT_GET_BLK_SCD_KEY — using synthetic key join")
+            __rhs = df_MPLT_GET_BLK_SCD_KEY.withColumn("_join_key", lit(1))
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_merge_EXPTRANS1_3 = df_merge_EXPTRANS1_1.withColumn("_join_key", lit(1)).join(
+                __rhs,
                 on="_join_key", how="left").drop("_join_key")
-        ctx.register_df("df_merge_39", df_merge_39)
+        ctx.register_df("df_merge_EXPTRANS1_3", df_merge_EXPTRANS1_3)
         
         logger.info("Step: merge_EXPTRANS1_4")
         # Lookup: merge_EXPTRANS1_4
-        # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
-        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
-        _cc = list(dict.fromkeys(c for c in df_merge_39.columns if c.lower() in [x.lower() for x in df_MPLT_GET_UNIT_SIZE_DMNS_KEY.columns]))
+        # Merge on common columns — drop lookup columns that duplicate non-key input columns. 
+        # Matches are CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
+        _cc = list(dict.fromkeys(c for c in df_merge_EXPTRANS1_3.columns if c.lower() in [x.lower() for x in df_MPLT_GET_UNIT_SIZE_DMNS_KEY.columns]))
         if _cc:
-            __lkp_dup = [c for c in df_MPLT_GET_UNIT_SIZE_DMNS_KEY.columns if c.lower() in [x.lower() for x in df_merge_39.columns] and c.lower() not in [x.lower() for x in _cc]]
-            df_merge_40 = df_merge_39.join(
-                df_MPLT_GET_UNIT_SIZE_DMNS_KEY.drop(*__lkp_dup) if __lkp_dup else df_MPLT_GET_UNIT_SIZE_DMNS_KEY,
+            __lkp_dup = [c for c in df_MPLT_GET_UNIT_SIZE_DMNS_KEY.columns if c.lower() in [x.lower() for x in df_merge_EXPTRANS1_3.columns] and c.lower() not in [x.lower() for x in _cc]]
+            # Break attribute lineage on the merged side: when both inputs are built from the same source plan. 
+            # Re-projecting with aliases gives this side fresh attribute IDs without changing rows or column names.
+            __rhs = df_MPLT_GET_UNIT_SIZE_DMNS_KEY.drop(*__lkp_dup) if __lkp_dup else df_MPLT_GET_UNIT_SIZE_DMNS_KEY
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_merge_EXPTRANS1_4 = df_merge_EXPTRANS1_3.join(
+                __rhs,
                 on=_cc, how="left"
             )
         else:
-            logger.warning("No common columns between df_merge_39 and df_MPLT_GET_UNIT_SIZE_DMNS_KEY — using synthetic key join")
-            df_merge_40 = df_merge_39.withColumn("_join_key", lit(1)).join(
-                df_MPLT_GET_UNIT_SIZE_DMNS_KEY.withColumn("_join_key", lit(1)),
+            logger.warning("No common columns between df_merge_EXPTRANS1_3 and df_MPLT_GET_UNIT_SIZE_DMNS_KEY — using synthetic key join")
+            __rhs = df_MPLT_GET_UNIT_SIZE_DMNS_KEY.withColumn("_join_key", lit(1))
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_merge_EXPTRANS1_4 = df_merge_EXPTRANS1_3.withColumn("_join_key", lit(1)).join(
+                __rhs,
                 on="_join_key", how="left").drop("_join_key")
-        ctx.register_df("df_merge_40", df_merge_40)
+        ctx.register_df("df_merge_EXPTRANS1_4", df_merge_EXPTRANS1_4)
         
         logger.info("Step: merge_EXPTRANS1_5")
         # Lookup: merge_EXPTRANS1_5
-        # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
-        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
-        _cc = list(dict.fromkeys(c for c in df_merge_40.columns if c.lower() in [x.lower() for x in df_MPLT_GET_CMS_EST_SCD_KEY.columns]))
+        # Merge on common columns — drop lookup columns that duplicate non-key input columns. 
+        # Matches are CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
+        _cc = list(dict.fromkeys(c for c in df_merge_EXPTRANS1_4.columns if c.lower() in [x.lower() for x in df_MPLT_GET_CMS_EST_SCD_KEY.columns]))
         if _cc:
-            __lkp_dup = [c for c in df_MPLT_GET_CMS_EST_SCD_KEY.columns if c.lower() in [x.lower() for x in df_merge_40.columns] and c.lower() not in [x.lower() for x in _cc]]
-            df_merge_41 = df_merge_40.join(
-                df_MPLT_GET_CMS_EST_SCD_KEY.drop(*__lkp_dup) if __lkp_dup else df_MPLT_GET_CMS_EST_SCD_KEY,
+            __lkp_dup = [c for c in df_MPLT_GET_CMS_EST_SCD_KEY.columns if c.lower() in [x.lower() for x in df_merge_EXPTRANS1_4.columns] and c.lower() not in [x.lower() for x in _cc]]
+            # Break attribute lineage on the merged side: when both inputs are built from the same source plan. 
+            # Re-projecting with aliases gives this side fresh attribute IDs without changing rows or column names.
+            __rhs = df_MPLT_GET_CMS_EST_SCD_KEY.drop(*__lkp_dup) if __lkp_dup else df_MPLT_GET_CMS_EST_SCD_KEY
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_merge_EXPTRANS1_5 = df_merge_EXPTRANS1_4.join(
+                __rhs,
                 on=_cc, how="left"
             )
         else:
-            logger.warning("No common columns between df_merge_40 and df_MPLT_GET_CMS_EST_SCD_KEY — using synthetic key join")
-            df_merge_41 = df_merge_40.withColumn("_join_key", lit(1)).join(
-                df_MPLT_GET_CMS_EST_SCD_KEY.withColumn("_join_key", lit(1)),
+            logger.warning("No common columns between df_merge_EXPTRANS1_4 and df_MPLT_GET_CMS_EST_SCD_KEY — using synthetic key join")
+            __rhs = df_MPLT_GET_CMS_EST_SCD_KEY.withColumn("_join_key", lit(1))
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_merge_EXPTRANS1_5 = df_merge_EXPTRANS1_4.withColumn("_join_key", lit(1)).join(
+                __rhs,
                 on="_join_key", how="left").drop("_join_key")
-        ctx.register_df("df_merge_41", df_merge_41)
+        ctx.register_df("df_merge_EXPTRANS1_5", df_merge_EXPTRANS1_5)
         
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
-        df_EXPTRANS1 = df_merge_41
+        df_EXPTRANS1 = df_merge_EXPTRANS1_5
         _expr = """'2' || substring('$$v_rpt_mth',1,6) || '00'"""
         _expr = _expr.replace("$$v_rpt_date", str(v_rpt_date))
         _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
@@ -1230,19 +1223,19 @@ or a.UNIT_SIZE_DMNS_KEY = 0"""
         logger.info("Step: apply_EXPTRANS111")
         # Expression: apply_EXPTRANS111
         df_EXPTRANS111 = df_AGGTRANS1
-        _expr = """CASE WHEN WO_STRT_DATE = NULL THEN 0 ELSE CASE WHEN cast(date_format(WO_STRT_DATE, 'yyyymm') as int) - cast(substring('$$v_rpt_mth',1,6) as int) = 0 THEN 1 ELSE 0 END END"""
+        _expr = """CASE WHEN WO_STRT_DATE IS NULL THEN 0 ELSE CASE WHEN cast(date_format(WO_STRT_DATE, 'yyyyMM') as int) - cast(substring('$$v_rpt_mth',1,6) as int) = 0 THEN 1 ELSE 0 END END"""
         _expr = _expr.replace("$$v_rpt_date", str(v_rpt_date))
         _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
         df_EXPTRANS111 = df_EXPTRANS111.withColumn("ERP_WO_CNT", expr(_expr))
-        _expr = """CASE WHEN WO_RPT_CMPLT_DATE = NULL THEN 0 ELSE CASE WHEN cast(date_format(WO_RPT_CMPLT_DATE, 'yyyymm') as int) - cast(substring('$$v_rpt_mth',1,6) as int) = 0 THEN 1 ELSE 0 END END"""
+        _expr = """CASE WHEN WO_RPT_CMPLT_DATE IS NULL THEN 0 ELSE CASE WHEN cast(date_format(WO_RPT_CMPLT_DATE, 'yyyyMM') as int) - cast(substring('$$v_rpt_mth',1,6) as int) = 0 THEN 1 ELSE 0 END END"""
         _expr = _expr.replace("$$v_rpt_date", str(v_rpt_date))
         _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
         df_EXPTRANS111 = df_EXPTRANS111.withColumn("ERP_WO_CMPLT_CNT", expr(_expr))
-        _expr = """CASE WHEN ARTSN_ORD_ISS_DATE = null THEN 0 ELSE CASE WHEN cast(date_format(ARTSN_ORD_ISS_DATE, 'yyyymm') as int) - cast(substring('$$v_rpt_mth',1,6) as int) = 0 THEN 1 ELSE 0 END END"""
+        _expr = """CASE WHEN ARTSN_ORD_ISS_DATE IS NULL THEN 0 ELSE CASE WHEN cast(date_format(ARTSN_ORD_ISS_DATE, 'yyyyMM') as int) - cast(substring('$$v_rpt_mth',1,6) as int) = 0 THEN 1 ELSE 0 END END"""
         _expr = _expr.replace("$$v_rpt_date", str(v_rpt_date))
         _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
         df_EXPTRANS111 = df_EXPTRANS111.withColumn("ARTSN_ORD_CNT", expr(_expr))
-        _expr = """CASE WHEN ARTSN_ORD_CMPLT_DATE = NULL THEN 0 ELSE CASE WHEN cast(date_format(ARTSN_ORD_CMPLT_DATE, 'yyyymm') as int) - cast(substring('$$v_rpt_mth',1,6) as int) = 0 THEN 1 ELSE 0 END END"""
+        _expr = """CASE WHEN ARTSN_ORD_CMPLT_DATE IS NULL THEN 0 ELSE CASE WHEN cast(date_format(ARTSN_ORD_CMPLT_DATE, 'yyyyMM') as int) - cast(substring('$$v_rpt_mth',1,6) as int) = 0 THEN 1 ELSE 0 END END"""
         _expr = _expr.replace("$$v_rpt_date", str(v_rpt_date))
         _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
         df_EXPTRANS111 = df_EXPTRANS111.withColumn("ARTSN_ORD_CMPLT_CNT", expr(_expr))
@@ -1256,18 +1249,18 @@ or a.UNIT_SIZE_DMNS_KEY = 0"""
         logger.info("Step: apply_EXPTRANS5")
         # Expression: apply_EXPTRANS5
         df_EXPTRANS5 = df_FILTRANS
-        df_EXPTRANS5 = df_EXPTRANS5.withColumn("TIME_DMNS_KEY", expr("CASE WHEN TIME_DMNS_KEY = NULL THEN 0 ELSE TIME_DMNS_KEY END"))
-        df_EXPTRANS5 = df_EXPTRANS5.withColumn("EST_OFFC_SCD_KEY", expr("CASE WHEN EST_OFFC_SCD_KEY = NULL THEN 0 ELSE EST_OFFC_SCD_KEY END"))
-        df_EXPTRANS5 = df_EXPTRANS5.withColumn("UNIT_SIZE_DMNS_KEY", expr("CASE WHEN UNIT_SIZE_DMNS_KEY = NULL THEN 0 ELSE UNIT_SIZE_DMNS_KEY END"))
-        df_EXPTRANS5 = df_EXPTRANS5.withColumn("BLK_SCD_KEY", expr("CASE WHEN BLK_SCD_KEY = NULL THEN 0 ELSE BLK_SCD_KEY END"))
-        df_EXPTRANS5 = df_EXPTRANS5.withColumn("BLK_AGE_DMNS_KEY", expr("CASE WHEN BLK_AGE_DMNS_KEY = NULL THEN 0 ELSE BLK_AGE_DMNS_KEY END"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("TIME_DMNS_KEY", expr("CASE WHEN TIME_DMNS_KEY IS NULL THEN 0 ELSE TIME_DMNS_KEY END"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("EST_OFFC_SCD_KEY", expr("CASE WHEN EST_OFFC_SCD_KEY IS NULL THEN 0 ELSE EST_OFFC_SCD_KEY END"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("UNIT_SIZE_DMNS_KEY", expr("CASE WHEN UNIT_SIZE_DMNS_KEY IS NULL THEN 0 ELSE UNIT_SIZE_DMNS_KEY END"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("BLK_SCD_KEY", expr("CASE WHEN BLK_SCD_KEY IS NULL THEN 0 ELSE BLK_SCD_KEY END"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("BLK_AGE_DMNS_KEY", expr("CASE WHEN BLK_AGE_DMNS_KEY IS NULL THEN 0 ELSE BLK_AGE_DMNS_KEY END"))
         df_EXPTRANS5 = df_EXPTRANS5.withColumn("ERP_WO_CNT", expr("0"))
         df_EXPTRANS5 = df_EXPTRANS5.withColumn("ERP_WO_CMPLT_CNT", expr("0"))
         df_EXPTRANS5 = df_EXPTRANS5.withColumn("ARTSN_ORD_CNT", expr("0"))
         df_EXPTRANS5 = df_EXPTRANS5.withColumn("ARTSN_ORD_CMPLT_CNT", expr("0"))
-        df_EXPTRANS5 = df_EXPTRANS5.withColumn("CMS_BLK_SCD_KEY", expr("CASE WHEN CMS_BLK_SCD_KEY = NULL THEN 0 ELSE CMS_BLK_SCD_KEY END"))
-        df_EXPTRANS5 = df_EXPTRANS5.withColumn("EST_SCD_KEY", expr("CASE WHEN EST_SCD_KEY = null THEN 0 ELSE EST_SCD_KEY END"))
-        df_EXPTRANS5 = df_EXPTRANS5.withColumn("CMS_EST_SCD_KEY", expr("CASE WHEN CMS_EST_SCD_KEY = NULL THEN 0 ELSE CMS_EST_SCD_KEY END"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("CMS_BLK_SCD_KEY", expr("CASE WHEN CMS_BLK_SCD_KEY IS NULL THEN 0 ELSE CMS_BLK_SCD_KEY END"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("EST_SCD_KEY", expr("CASE WHEN EST_SCD_KEY IS NULL THEN 0 ELSE EST_SCD_KEY END"))
+        df_EXPTRANS5 = df_EXPTRANS5.withColumn("CMS_EST_SCD_KEY", expr("CASE WHEN CMS_EST_SCD_KEY IS NULL THEN 0 ELSE CMS_EST_SCD_KEY END"))
         df_EXPTRANS5 = df_EXPTRANS5.withColumn("ERP_WO_ITEM_CNT", expr("TTL_ERP_WO_ITEM_CNT"))
         df_EXPTRANS5 = df_EXPTRANS5.withColumn("ERP_WO_ITEM_CMPLT_CNT", expr("TTL_ERP_WO_ITEM_CMPLT_CNT"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
@@ -1302,18 +1295,18 @@ or a.UNIT_SIZE_DMNS_KEY = 0"""
         logger.info("Step: apply_EXPTRANS51")
         # Expression: apply_EXPTRANS51
         df_EXPTRANS51 = df_AGGTRANS2
-        df_EXPTRANS51 = df_EXPTRANS51.withColumn("TIME_DMNS_KEY", expr("CASE WHEN TIME_DMNS_KEY = NULL THEN 0 ELSE TIME_DMNS_KEY END"))
-        df_EXPTRANS51 = df_EXPTRANS51.withColumn("EST_OFFC_SCD_KEY", expr("CASE WHEN EST_OFFC_SCD_KEY = NULL THEN 0 ELSE EST_OFFC_SCD_KEY END"))
-        df_EXPTRANS51 = df_EXPTRANS51.withColumn("UNIT_SIZE_DMNS_KEY", expr("CASE WHEN UNIT_SIZE_DMNS_KEY = NULL THEN 0 ELSE UNIT_SIZE_DMNS_KEY END"))
-        df_EXPTRANS51 = df_EXPTRANS51.withColumn("BLK_SCD_KEY", expr("CASE WHEN BLK_SCD_KEY = NULL THEN 0 ELSE BLK_SCD_KEY END"))
-        df_EXPTRANS51 = df_EXPTRANS51.withColumn("BLK_AGE_DMNS_KEY", expr("CASE WHEN BLK_AGE_DMNS_KEY = NULL THEN 0 ELSE BLK_AGE_DMNS_KEY END"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("TIME_DMNS_KEY", expr("CASE WHEN TIME_DMNS_KEY IS NULL THEN 0 ELSE TIME_DMNS_KEY END"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("EST_OFFC_SCD_KEY", expr("CASE WHEN EST_OFFC_SCD_KEY IS NULL THEN 0 ELSE EST_OFFC_SCD_KEY END"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("UNIT_SIZE_DMNS_KEY", expr("CASE WHEN UNIT_SIZE_DMNS_KEY IS NULL THEN 0 ELSE UNIT_SIZE_DMNS_KEY END"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("BLK_SCD_KEY", expr("CASE WHEN BLK_SCD_KEY IS NULL THEN 0 ELSE BLK_SCD_KEY END"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("BLK_AGE_DMNS_KEY", expr("CASE WHEN BLK_AGE_DMNS_KEY IS NULL THEN 0 ELSE BLK_AGE_DMNS_KEY END"))
         df_EXPTRANS51 = df_EXPTRANS51.withColumn("ERP_WO_CNT", expr("TTL_ERP_WO_CNT"))
         df_EXPTRANS51 = df_EXPTRANS51.withColumn("ERP_WO_CMPLT_CNT", expr("TTL_ERP_WO_CMPLT_CNT"))
         df_EXPTRANS51 = df_EXPTRANS51.withColumn("ARTSN_ORD_CNT", expr("TTL_ARTSN_ORD_CNT"))
         df_EXPTRANS51 = df_EXPTRANS51.withColumn("ARTSN_ORD_CMPLT_CNT", expr("TTL_ARTSN_ORD_CMPLT_CNT"))
-        df_EXPTRANS51 = df_EXPTRANS51.withColumn("CMS_BLK_SCD_KEY", expr("CASE WHEN CMS_BLK_SCD_KEY = NULL THEN 0 ELSE CMS_BLK_SCD_KEY END"))
-        df_EXPTRANS51 = df_EXPTRANS51.withColumn("EST_SCD_KEY", expr("CASE WHEN EST_SCD_KEY = null THEN 0 ELSE EST_SCD_KEY END"))
-        df_EXPTRANS51 = df_EXPTRANS51.withColumn("CMS_EST_SCD_KEY", expr("CASE WHEN CMS_EST_SCD_KEY = NULL THEN 0 ELSE CMS_EST_SCD_KEY END"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("CMS_BLK_SCD_KEY", expr("CASE WHEN CMS_BLK_SCD_KEY IS NULL THEN 0 ELSE CMS_BLK_SCD_KEY END"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("EST_SCD_KEY", expr("CASE WHEN EST_SCD_KEY IS NULL THEN 0 ELSE EST_SCD_KEY END"))
+        df_EXPTRANS51 = df_EXPTRANS51.withColumn("CMS_EST_SCD_KEY", expr("CASE WHEN CMS_EST_SCD_KEY IS NULL THEN 0 ELSE CMS_EST_SCD_KEY END"))
         df_EXPTRANS51 = df_EXPTRANS51.withColumn("ERP_WO_ITEM_CNT", expr("0"))
         df_EXPTRANS51 = df_EXPTRANS51.withColumn("ERP_WO_ITEM_CMPLT_CNT", expr("0"))
         # Ensure any missing pass-through columns exist (no connector feeding them)
@@ -1324,35 +1317,35 @@ or a.UNIT_SIZE_DMNS_KEY = 0"""
         # Union: apply_Union1
         # Select + rename upstream columns per input, then union
         df_Union1_newgroup = df_EXPTRANS51.select(
-            col("TIME_DMNS_KEY").alias("TIME_DMNS_KEY"),
-            col("EST_OFFC_SCD_KEY").alias("EST_OFFC_SCD_KEY"),
-            col("UNIT_SIZE_DMNS_KEY").alias("UNIT_SIZE_DMNS_KEY"),
-            col("BLK_SCD_KEY").alias("BLK_SCD_KEY"),
-            col("BLK_AGE_DMNS_KEY").alias("BLK_AGE_DMNS_KEY"),
-            col("ERP_WO_CNT").alias("ERP_WO_CNT"),
-            col("ERP_WO_CMPLT_CNT").alias("ERP_WO_CMPLT_CNT"),
-            col("ARTSN_ORD_CNT").alias("ARTSN_ORD_CNT"),
-            col("ARTSN_ORD_CMPLT_CNT").alias("ARTSN_ORD_CMPLT_CNT"),
-            col("CMS_BLK_SCD_KEY").alias("CMS_BLK_SCD_KEY"),
-            col("EST_SCD_KEY").alias("EST_SCD_KEY"),
-            col("CMS_EST_SCD_KEY").alias("CMS_EST_SCD_KEY"),
-            col("ERP_WO_ITEM_CNT").alias("ERP_WO_ITEM_CNT"),
-            col("ERP_WO_ITEM_CMPLT_CNT").alias("ERP_WO_ITEM_CMPLT_CNT")        )
+col("TIME_DMNS_KEY"),
+col("EST_OFFC_SCD_KEY"),
+col("UNIT_SIZE_DMNS_KEY"),
+col("BLK_SCD_KEY"),
+col("BLK_AGE_DMNS_KEY"),
+col("ERP_WO_CNT"),
+col("ERP_WO_CMPLT_CNT"),
+col("ARTSN_ORD_CNT"),
+col("ARTSN_ORD_CMPLT_CNT"),
+col("CMS_BLK_SCD_KEY"),
+col("EST_SCD_KEY"),
+col("CMS_EST_SCD_KEY"),
+col("ERP_WO_ITEM_CNT"),
+col("ERP_WO_ITEM_CMPLT_CNT")        )
         df_Union1_newgroup1 = df_EXPTRANS5.select(
-            col("TIME_DMNS_KEY").alias("TIME_DMNS_KEY"),
-            col("EST_OFFC_SCD_KEY").alias("EST_OFFC_SCD_KEY"),
-            col("UNIT_SIZE_DMNS_KEY").alias("UNIT_SIZE_DMNS_KEY"),
-            col("BLK_SCD_KEY").alias("BLK_SCD_KEY"),
-            col("BLK_AGE_DMNS_KEY").alias("BLK_AGE_DMNS_KEY"),
-            col("ERP_WO_CNT").alias("ERP_WO_CNT"),
-            col("ERP_WO_CMPLT_CNT").alias("ERP_WO_CMPLT_CNT"),
-            col("ARTSN_ORD_CNT").alias("ARTSN_ORD_CNT"),
-            col("ARTSN_ORD_CMPLT_CNT").alias("ARTSN_ORD_CMPLT_CNT"),
-            col("CMS_BLK_SCD_KEY").alias("CMS_BLK_SCD_KEY"),
-            col("EST_SCD_KEY").alias("EST_SCD_KEY"),
-            col("CMS_EST_SCD_KEY").alias("CMS_EST_SCD_KEY"),
-            col("ERP_WO_ITEM_CNT").alias("ERP_WO_ITEM_CNT"),
-            col("ERP_WO_ITEM_CMPLT_CNT").alias("ERP_WO_ITEM_CMPLT_CNT")        )
+col("TIME_DMNS_KEY"),
+col("EST_OFFC_SCD_KEY"),
+col("UNIT_SIZE_DMNS_KEY"),
+col("BLK_SCD_KEY"),
+col("BLK_AGE_DMNS_KEY"),
+col("ERP_WO_CNT"),
+col("ERP_WO_CMPLT_CNT"),
+col("ARTSN_ORD_CNT"),
+col("ARTSN_ORD_CMPLT_CNT"),
+col("CMS_BLK_SCD_KEY"),
+col("EST_SCD_KEY"),
+col("CMS_EST_SCD_KEY"),
+col("ERP_WO_ITEM_CNT"),
+col("ERP_WO_ITEM_CMPLT_CNT")        )
         df_Union1 = df_Union1_newgroup
         df_Union1 = df_Union1.unionByName(df_Union1_newgroup1, allowMissingColumns=True)
         # Select only union output columns (add lit(None) for any missing)
@@ -1406,18 +1399,6 @@ or a.UNIT_SIZE_DMNS_KEY = 0"""
         logger.info("Step: write_DPA_FACT_CMS_ORD_SMRY")
         # Write to Target: write_DPA_FACT_CMS_ORD_SMRY
         df_write = df_EXPTRANS511
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"ARTSN_ORD_CMPLT_CNT": "ARTSN_ORD_CMPLT_CNT", "ARTSN_ORD_CNT": "ARTSN_ORD_CNT", "BLK_AGE_DMNS_KEY": "BLK_AGE_DMNS_KEY", "BLK_SCD_KEY": "BLK_SCD_KEY", "CMS_BLK_SCD_KEY": "CMS_BLK_SCD_KEY", "CMS_EST_SCD_KEY": "CMS_EST_SCD_KEY", "ERP_WO_CMPLT_CNT": "ERP_WO_CMPLT_CNT", "ERP_WO_CNT": "ERP_WO_CNT", "ERP_WO_ITEM_CMPLT_CNT": "ERP_WO_ITEM_CMPLT_CNT", "ERP_WO_ITEM_CNT": "ERP_WO_ITEM_CNT", "EST_OFFC_SCD_KEY": "EST_OFFC_SCD_KEY", "EST_SCD_KEY": "EST_SCD_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "UNIT_SIZE_DMNS_KEY": "UNIT_SIZE_DMNS_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['TIME_DMNS_KEY', 'EST_OFFC_SCD_KEY', 'UNIT_SIZE_DMNS_KEY', 'BLK_SCD_KEY', 'BLK_AGE_DMNS_KEY', 'ERP_WO_CNT', 'ERP_WO_CMPLT_CNT', 'ARTSN_ORD_CNT', 'ARTSN_ORD_CMPLT_CNT', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'CMS_BLK_SCD_KEY', 'EST_SCD_KEY', 'CMS_EST_SCD_KEY', 'ERP_WO_ITEM_CNT', 'ERP_WO_ITEM_CMPLT_CNT']
         df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])

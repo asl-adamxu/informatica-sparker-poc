@@ -199,7 +199,7 @@ and exists (select 1 from ems_hsm_unit_scnd_env_code)"""
         # Map source columns to target columns using connector field map (handles name
         # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
         # column names in batch_update/batch_delete.
-        _field_map = {"END_DATE": "END_DATE", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "OPR_IND": "OPR_IND", "SOR_DATE": "SOR_DATE", "UNIT_SCND_ENV_KEY": "SURROGATE_KEY"}
+        _field_map = {"UNIT_SCND_ENV_KEY": "SURROGATE_KEY"}
         for _tgt_col, _src_col in _field_map.items():
             if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
                 # Drop any column that would conflict case-insensitively with the target name 

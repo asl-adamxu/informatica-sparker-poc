@@ -67,17 +67,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: write_SOR_EMS_RFX_RENT_SCHD_HIST")
         # Write to Target: write_SOR_EMS_RFX_RENT_SCHD_HIST
         df_write = df_SQ_SSA_EMS_RFX_RENT_SCHD_HIST
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "AGMT_IND", "BLK_KEY": "BLK_KEY", "EST_KEY": "EST_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_RENT_SCHD_REC_UPD_DATE": "LAST_RENT_SCHD_REC_UPD_DATE", "RENT_SCHD_AMND_HIST_BK": "RENT_SCHD_AMND_HIST_BK", "RENT_SCHD_AMND_HIST_KEY": "RENT_SCHD_AMND_HIST_KEY", "TNT_RENT_CODE_CATG_CODE": "TNT_RENT_CODE_CATG_CODE", "UNIT_ENV_CODE": "UNIT_ENV_CODE", "UNIT_IFA_AREA": "UNIT_IFA_AREA"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Add NULL for unmapped target columns (schema parity) - excluding identity columns
         df_write = df_write.withColumn("RENT_SCHD_KEY", lit(None).cast(StringType()))
         df_write = df_write.withColumn("RENT_SCHD_BK", lit(None).cast(StringType()))

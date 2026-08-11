@@ -1218,7 +1218,7 @@ class TransformHandlers:
         # references the correct columns.
         _filter_renames = []
         for conn in self.mapping.connectors:
-            if conn.to_instance == instance.name and conn.from_field != conn.to_field:
+            if conn.to_instance == instance.name and conn.from_field.lower() != conn.to_field.lower():
                 _filter_renames.append({
                     "from": conn.from_field,
                     "to": conn.to_field,
@@ -2500,7 +2500,7 @@ class TransformHandlers:
         # Collect connector field renames: upstream column -> Sorter port name
         _sorter_renames = []
         for conn in self.mapping.connectors:
-            if conn.to_instance == instance.name and conn.from_field != conn.to_field:
+            if conn.to_instance == instance.name and conn.from_field.lower() != conn.to_field.lower():
                 _sorter_renames.append({
                     "from": conn.from_field,
                     "to": conn.to_field,
@@ -2709,6 +2709,37 @@ class TransformHandlers:
             if conn.to_instance == instance.name:
                 _rtr_field_remap[conn.to_field] = conn.from_field
 
+        # Multi-input detection (v2026.08.11): group the connectors feeding this
+        # router by upstream instance. Each feed maps upstream column names to
+        # Router INPUT port names (connector to_field); aliases only record
+        # renames (from_field != to_field). Multi-input routers are translated
+        # as a UNION of all feeds (missing ports -> NULL) with ORDERED group
+        # conditions (first match wins, per XML GROUP ORDER); single-input
+        # routers keep the legacy translation unchanged.
+        _feed_conns = {}
+        for conn in self.mapping.connectors:
+            if conn.to_instance == instance.name:
+                _feed_conns.setdefault(conn.from_instance, []).append(conn)
+        _feed_specs = []  # [(df_name, {from_field: to_field, ...}), ...]
+        for _uinst in _feed_conns:
+            _df = None
+            if _uinst in self._direct_df_map:
+                _df = self._direct_df_map[_uinst]
+            elif _uinst in self.current_df_map:
+                _df = self.current_df_map[_uinst]
+            if not _df:
+                plan.add_warning(
+                    f"Router {instance.name}: upstream {_uinst} DataFrame unresolved; "
+                    "falling back to legacy single-input translation")
+                _feed_specs = []
+                break
+            _aliases = {}
+            for _c in _feed_conns[_uinst]:
+                if _c.from_field != _c.to_field:
+                    _aliases[_c.from_field] = _c.to_field
+            _feed_specs.append((_df, _aliases))
+        _multi_feed = len(_feed_specs) > 1
+
         # Build column rename map per group: in Informatica, Router output fields
         # get suffixed names (e.g. PRPL_CSSA_APLY_ID_TYPE_CODE1 / _CODE2) via REF_FIELD.
         # PySpark .filter() preserves input column names, so we must rename after filter.
@@ -2718,13 +2749,23 @@ class TransformHandlers:
                 gname = field.group_name or "DEFAULT"
                 if gname not in group_renames:
                     group_renames[gname] = []
-                if field.ref_field and field.name != field.ref_field:
-                    # REF_FIELD is the Router's input port name; map it to the actual upstream column
-                    actual_col = _rtr_field_remap.get(field.ref_field, field.ref_field)
-                    group_renames[gname].append({
-                        "from": actual_col,
-                        "to": field.name
-                    })
+                if field.ref_field and field.name.lower() != field.ref_field.lower():
+                    # REF_FIELD is the Router's input port name. The union
+                    # (multi-feed) translation carries INPUT PORT names in the
+                    # group df, so rename from the input port directly; the
+                    # legacy single-input path maps it to the actual upstream
+                    # column name.
+                    if _multi_feed:
+                        actual_col = field.ref_field
+                    else:
+                        actual_col = _rtr_field_remap.get(field.ref_field, field.ref_field)
+                    # Skip renames where the resolved source equals the output
+                    # name (case-insensitive — Spark resolution is case-insensitive)
+                    if actual_col.lower() != field.name.lower():
+                        group_renames[gname].append({
+                            "from": actual_col,
+                            "to": field.name
+                        })
 
         all_conditions = []
 
@@ -2763,7 +2804,7 @@ class TransformHandlers:
                 _grp["filter_inner"] = self._normalize_sql_text(_filter_inner, plan)
             groups.append(_grp)
 
-        if groups:
+        if groups and not _multi_feed:
             default_group = next((g for g in groups if g["name"] == "DEFAULT"), None)
             if default_group and all_conditions:
                 _valid = [c for c in all_conditions if c]
@@ -2779,13 +2820,57 @@ class TransformHandlers:
                     if _d_negated:
                         default_group["default_negated"] = _d_negated
 
+        if _multi_feed:
+            # ORDERED group split (first match wins): sort output groups by the
+            # XML GROUP ORDER attribute; DEFAULT is evaluated last. Each group's
+            # filter is the negated conjunction of all PRIOR conditions AND its
+            # own condition; a TRUE/empty condition group is the fallback for
+            # everything not yet matched, so DEFAULT becomes lit(False) whenever
+            # a TRUE group exists. NULL never matches (translate_for_filter
+            # renders '= 1' comparisons; rows with NULL fall through to later
+            # groups / DEFAULT). $$ variable conditions compose through the
+            # _rtr_<group>_filter runtime variables defined in the template.
+            _g_order = {g.name: g.order for g in transform.groups}
+            _ordered = sorted(
+                [g for g in groups if g["name"].upper() != "DEFAULT"],
+                key=lambda g: _g_order.get(g["name"], 999))
+            _default_g = next((g for g in groups if g["name"].upper() == "DEFAULT"), None)
+            if _default_g:
+                _ordered.append(_default_g)
+
+            _neg_parts = []
+            _had_true = False
+            for _g in _ordered:
+                _c = _g.get("condition") or ""
+                _is_true = (not _c) or _c.strip().upper() in ("EXPR(\"TRUE\")", "TRUE")
+                _expr_c = f"expr(_rtr_{_g['name'].lower()}_filter)" if _g.get("filter_inner") else _c
+                if _g["name"].upper() == "DEFAULT":
+                    if _had_true:
+                        _g["condition"] = "lit(False)"
+                    else:
+                        _g["condition"] = " & ".join(_neg_parts) if _neg_parts else "expr(\"FALSE\")"
+                    continue
+                if _is_true:
+                    _had_true = True
+                    _g["condition"] = " & ".join(_neg_parts) if _neg_parts else "expr(\"TRUE\")"
+                elif _had_true:
+                    # A prior TRUE/fallback group already consumed every
+                    # remaining row; later groups are always empty.
+                    _g["condition"] = "lit(False)"
+                else:
+                    _g["condition"] = " & ".join(_neg_parts + [_expr_c]) if _neg_parts else _expr_c
+                    _neg_parts.append(f"~({_expr_c})")
+
         plan.router_outputs[instance.name] = [g["df_output"] for g in groups]
 
         steps.append(ApplyRouterStep(
             step_name=f"apply_{instance.name}",
-            df_input=input_df,
+            df_input=("df_rtr_input" if _multi_feed else input_df),
             groups=groups
         ))
+        if _multi_feed:
+            steps[-1].params["multi_feed"] = True
+            steps[-1].params["feeds"] = _feed_specs
 
         return steps
 
@@ -3161,7 +3246,11 @@ class TransformHandlers:
         for conn in self.mapping.connectors:
             if conn.to_instance == instance.name:
                 mapped_columns.add(conn.to_field)
-                field_map[conn.to_field] = conn.from_field
+                # Skip identity entries (source == target, case-insensitive) —
+                # no rename needed and drop("X").withColumnRenamed("X", "X")
+                # would silently drop the column.
+                if conn.to_field.lower() != conn.from_field.lower():
+                    field_map[conn.to_field] = conn.from_field
 
         unmapped_columns = []
         if target:
@@ -3444,9 +3533,14 @@ class TransformHandlers:
         }
         if not _expected:
             return True
+        # A Router registers only <instance>_<group> suffixed keys (never the
+        # bare instance name); any group output satisfies availability for
+        # downstream instances (targets/transforms fed by a router group).
         _available = {
             u for u in _expected
             if u in self._direct_df_map or u in self.current_df_map
+            or any(k.startswith(u + "_") for k in self._direct_df_map)
+            or any(k.startswith(u + "_") for k in self.current_df_map)
         }
         return len(_available) >= len(_expected)
 
@@ -4016,14 +4110,14 @@ class TransformHandlers:
                 if input_inst is not None:
                     _expr_renames = [(actual_col, mpl_port)
                                      for mpl_port, actual_col in _internal_remap.items()
-                                     if mpl_port != actual_col]
+                                     if mpl_port.lower() != actual_col.lower()]
                 else:
                     _expr_renames = [(actual_col, mpl_port)
                                      for mpl_port, actual_col in inst_field_remap.items()
-                                     if mpl_port != actual_col]
+                                     if mpl_port.lower() != actual_col.lower()]
                 if _expr_renames:
                     # Rename upstream columns to match expression port names via
-                    # a single withColumnRenamed chain (efficient, no column copy).
+                    # a for loop of drop + withColumnRenamed (order-preserving).
                     _rename_df = self._df_name(_mpl_df_prefix, "rename", mpl_inst.name)
                     _rename_step = ApplyExpressionStep(
                         step_name=f"rename_{mpl_inst_name}",
@@ -4272,7 +4366,7 @@ class TransformHandlers:
             # Build output field remap: internal column → OUTPUT port name
             _output_renames = []
             for conn in mpl_connectors:
-                if conn.to_instance == output_inst.name and conn.from_field != conn.to_field:
+                if conn.to_instance == output_inst.name and conn.from_field.lower() != conn.to_field.lower():
                     _actual = conn.from_field
                     if (conn.from_instance in mpl_nlr_cols
                             and conn.from_field.upper() == "NEWLOOKUPROW"):

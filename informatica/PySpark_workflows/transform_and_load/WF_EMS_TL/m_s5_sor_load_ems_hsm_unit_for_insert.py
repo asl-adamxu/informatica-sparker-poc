@@ -67,17 +67,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: write_SOR_HSM_UNIT")
         # Write to Target: write_SOR_HSM_UNIT
         df_write = df_SQ_SSA_HSM_UNIT
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AGMT_IND": "AGMT_IND", "BLK_KEY": "BLK_KEY", "EMMS_UNIT_KEY": "EMMS_UNIT_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "UNIT_ADDR_CODE": "UNIT_ADDR_CODE", "UNIT_BWA_AREA": "UNIT_BWA_AREA", "UNIT_CATG_CODE": "UNIT_CATG_CODE", "UNIT_CNV_REF_IND": "UNIT_CNV_REF_IND", "UNIT_FLR_NUM": "UNIT_FLR_NUM", "UNIT_GFA_AREA": "UNIT_GFA_AREA", "UNIT_IFA_AREA": "UNIT_IFA_AREA", "UNIT_KEY": "UNIT_KEY", "UNIT_LVNG_AREA": "UNIT_LVNG_AREA", "UNIT_NUM": "UNIT_NUM", "UNIT_SFA_AREA": "UNIT_SFA_AREA", "UNIT_SHRD_IND": "UNIT_SHRD_IND", "UNIT_TAKE_OVER_DATE": "UNIT_TAKE_OVER_DATE", "UNIT_TYPE_CODE": "UNIT_TYPE_CODE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
         # Select only target-defined columns (field_map already handled name alignment)
         _target_cols = ['UNIT_ADDR_CODE', 'UNIT_CATG_CODE', 'UNIT_TYPE_CODE', 'UNIT_NUM', 'UNIT_CNV_REF_IND', 'UNIT_SHRD_IND', 'UNIT_IFA_AREA', 'UNIT_LVNG_AREA', 'UNIT_TAKE_OVER_DATE', 'UNIT_GFA_AREA', 'UNIT_SFA_AREA', 'UNIT_BWA_AREA', 'BLK_KEY', 'UNIT_KEY', 'UNIT_FLR_NUM', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'EMMS_UNIT_KEY']
         df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
