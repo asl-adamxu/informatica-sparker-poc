@@ -28,7 +28,7 @@ def test_expression_renames_before_computed(runtime_lib, spark):
 
 
 def test_expression_api_computed(runtime_lib, spark):
-    df = spark.createDataFrame([(1,), (2,)], ["A"])
+    df = spark.createDataFrame([(1,), (2,)], ["A"]).coalesce(1)
     out = runtime_lib.expression(
         spark=spark, input_df=df, name="EXPR",
         computed_columns=[{"name": "SEQ", "expr": "monotonically_increasing_id() + 1"}],
