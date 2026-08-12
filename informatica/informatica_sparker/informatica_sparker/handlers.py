@@ -4322,12 +4322,21 @@ class TransformHandlers:
                         _filter_expr = self.expr_translator.translate_for_filter(_filter_expr)
                         _mpl_filt_df = self._df_name(_mpl_df_prefix, mpl_inst_name)
                         mpl_df_map[mpl_inst_name] = _mpl_filt_df
-                        steps.append(ApplyFilterStep(
+                        _mpl_filt_step = ApplyFilterStep(
                             step_name=f"apply_{_mplt_step_prefix}_{mpl_inst.name}",
                             df_input=_mpl_filt_input,
                             df_output=_mpl_filt_df,
                             condition=_filter_expr,
-                        ))
+                        )
+                        # Component-method config: the template reads ONLY
+                        # lib_filter_cfg — without it the condition silently
+                        # falls back to 'TRUE' (the filter passes ALL rows).
+                        _mpl_inner = re.match(r'expr\("(.*)"\)$', _filter_expr)
+                        _mpl_filt_step.params["lib_filter_cfg"] = {
+                            "rename_columns": [],
+                            "condition": _mpl_inner.group(1) if _mpl_inner else _filter_expr,
+                        }
+                        steps.append(_mpl_filt_step)
                     else:
                         # Filter with no condition — pass-through
                         mpl_df_map[mpl_inst_name] = mpl_input_df or input_df
