@@ -874,6 +874,26 @@ def expression(spark, input_df, name, rename_columns=None,
     return df
 
 
+def filter(spark, input_df, name, rename_columns=None, condition=None,
+           substitutions=None, sequence_attach=None, config=None, **kwargs):
+    """Convert one Informatica Filter.
+
+    Connector renames run BEFORE the condition (the condition references the
+    filter's input port names). Connected Sequence Generators attach NEXTVAL
+    AFTER the filter (post-filter placement). $$ mapping variables in the
+    condition use the str(v or "0") rule so an empty value cannot produce
+    invalid SQL.
+    """
+    df = _rename_columns(input_df, rename_columns or [])
+    if not condition:
+        raise ValueError("Filter %s: empty condition" % name)
+    df = df.filter(expr(_substitute(condition, substitutions, or_zero=True)))
+    for _att in (sequence_attach or []):
+        df = df.withColumn(_att["col"],
+                           monotonically_increasing_id() + int(_att["start"]))
+    return df
+
+
 def _read_local_csv(spark: SparkSession, local_path: str, opts: Dict[str, Any]) -> DataFrame:
     """Read a small local CSV file on the driver and return a DataFrame.
 
