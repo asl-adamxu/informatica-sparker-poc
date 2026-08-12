@@ -28,6 +28,68 @@ _NUMERIC_DATATYPES = {
 _BARE_IDENTIFIER_RE = re.compile(r'^[A-Za-z_$][A-Za-z0-9_$]*$')
 
 
+def _build_expression_cfg(step, computed_columns, output_columns, transform,
+                          plan, inline_lkp_info, re_module, transform_map):
+    """Build the lib.expression config.
+
+    Translation (expression texts) already happened in the handler; this
+    classifies the translated columns into the config keys lib.expression
+    consumes. SP columns (:SP.xxx()) are excluded from computed_columns and
+    become sp_calls entries.
+    """
+    _sp_cols = set()
+    _sp_calls = []
+    if transform:
+        for _f in transform.fields:
+            if not (_f.expression and ':SP.' in _f.expression):
+                continue
+            _sp_match = re_module.search(r':SP\.(\w+)', _f.expression)
+            if not _sp_match:
+                continue
+            _sp_trans = transform_map.get(_sp_match.group(1))
+            if not (_sp_trans and _sp_trans.table_attributes):
+                continue
+            _sp_full = _sp_trans.table_attributes.get("Stored Procedure Name", "")
+            if not _sp_full:
+                continue
+            _parts = _sp_full.split('.')
+            if len(_parts) >= 3:
+                _sp_call, _sp_schema = '.'.join(_parts[1:]), _parts[0]
+            else:
+                _sp_call, _sp_schema = _sp_full, ""
+            _args = [a.strip() for a in
+                     _f.expression.split('(', 1)[1].rsplit(')', 1)[0].split(',')]
+            _sp_calls.append({"col": _f.name, "sp_call": _sp_call,
+                              "sp_schema": _sp_schema, "args": _args})
+            _sp_cols.add(_f.name)
+    _lib_cfg = {
+        "rename_columns": list(step.params.get("rename_columns") or []),
+        "computed_columns": [
+            {"name": _cc.name, "expr": _cc.expression}
+            for _cc in computed_columns
+            if _cc.name not in _sp_cols
+            and (_cc.expression or "").strip() != _cc.name
+        ],
+        "pass_through_cols": [
+            _c for _c in output_columns
+            if _c not in {_cc.name for _cc in computed_columns}
+        ],
+    }
+    _all_exprs = " ".join(_cc.expression or "" for _cc in computed_columns)
+    _subs = {}
+    if '$$' in _all_exprs and plan and plan.mapping_variables:
+        for _var, _val in plan.mapping_variables.items():
+            if _var in _all_exprs:
+                _subs[_var] = _val.replace('$', '')
+    if _subs:
+        _lib_cfg["substitutions"] = _subs
+    if inline_lkp_info:
+        _lib_cfg["inline_lookup_joins"] = list(inline_lkp_info.values())
+    if _sp_calls:
+        _lib_cfg["sp_calls"] = _sp_calls
+    return _lib_cfg
+
+
 class TransformHandlers:
 
     def __init__(self, mapping: MappingDefinition, user_config: UserConfig,
@@ -1566,6 +1628,10 @@ class TransformHandlers:
                                     _sp_call = _sp_full
                                 step.params["sp_call_text"] = _sp_call
                                 break
+
+        step.params["expression_cfg"] = _build_expression_cfg(
+            step, computed_columns, output_columns, transform, plan,
+            inline_lkp_info, _re, self.transform_map)
 
         # Multi-upstream: merge extra DFs into the main input so that
         # lookups and other pipeline branches contribute their columns.
@@ -3678,6 +3744,7 @@ class TransformHandlers:
                    in the mapping's transform_map, or (for reusable lookups) absent.
           Type B – inline transformations: full TRANSFORMATION children for each step.
         """
+        import re as _re
         steps: List[IRStep] = []
 
         # --- 1. Resolve mapplet identity ------------------------------------------------
@@ -4159,6 +4226,8 @@ class TransformHandlers:
                         computed_columns=[],
                     )
                     _rename_step.params["rename_columns"] = _expr_renames
+                    _rename_step.params["expression_cfg"] = _build_expression_cfg(
+                        _rename_step, [], [], None, None, {}, _re, self.transform_map)
                     steps.append(_rename_step)
                     mpl_input_df = _rename_df
                     self.logger.log_transformation(
@@ -4419,6 +4488,8 @@ class TransformHandlers:
                     )
                     if _output_renames:
                         _out_step.params["rename_columns"] = _output_renames
+                        _out_step.params["expression_cfg"] = _build_expression_cfg(
+                            _out_step, [], [], None, None, {}, _re, self.transform_map)
                     steps.append(_out_step)
                 else:
                     # Pass-through of the last internal DataFrame as output

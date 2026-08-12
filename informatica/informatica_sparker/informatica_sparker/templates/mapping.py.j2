@@ -312,104 +312,40 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
         {% elif step.step_type == IRStepType.APPLY_EXPRESSION %}
         # Expression: {{ step.step_name }}
-        {% if step.params.get('window_imports') %}
-        from pyspark.sql.window import Window
-        {% endif %}
-        {{ step.df_output }} = {{ step.df_input }}
-        {% for lkp_join in step.params.get('inline_lookup_joins', []) %}
-        # Inline lookup join: {{ lkp_join.lookup_name }} (return column: {{ lkp_join.return_port }})
-        # Select only join keys + return column from lookup, renaming
-        # join keys to avoid column name conflicts with the main DataFrame.
-        _lkp_sub = {{ lkp_join.lookup_df }}.select(
-        {% for jp in lkp_join.join_predicates %}
-            col("{{ jp.lookup_col }}").alias("_lkp_jk_{{ jp.lookup_col }}"),
-        {% endfor %}
-            col("{{ lkp_join.return_port }}")
+        {% set ecfg = step.params.get('expression_cfg', {}) %}
+        {{ step.df_output }} = lib.expression(
+            spark=spark,
+            input_df={{ step.df_input }},
+            name='{{ step.step_name }}',
+            {% if ecfg.get('rename_columns') %}
+            rename_columns={{ ecfg['rename_columns'] | pyrepr }},
+            {% endif %}
+            {% if ecfg.get('computed_columns') %}
+            computed_columns=[
+                {{ ecfg['computed_columns'] | map('pyrepr') | join(',\n                ') }}
+            ],
+            {% endif %}
+            {% if ecfg.get('pass_through_cols') %}
+            pass_through_cols={{ ecfg['pass_through_cols'] | pyrepr }},
+            {% endif %}
+            {% if ecfg.get('substitutions') %}
+            substitutions={% for _k, _v in ecfg['substitutions'].items() %}'{{ _k }}': {{ _v }}{% if not loop.last %}, {% endif %}{% endfor %},
+            {% endif %}
+            {% if ecfg.get('inline_lookup_joins') %}
+            inline_lookup_joins=[
+            {% for _j in ecfg['inline_lookup_joins'] %}
+                {'lookup_df': {{ _j['lookup_df'] }}, 'join_predicates': {{ _j['join_predicates'] | pyrepr }}, 'return_port': {{ _j['return_port'] | pyrepr }}},
+            {% endfor %}
+            ],
+            {% endif %}
+            {% if ecfg.get('sp_calls') %}
+            sp_calls=[
+                {{ ecfg['sp_calls'] | map('pyrepr') | join(',\n                ') }}
+            ],
+            sp_conn=conn_oracle,
+            {% endif %}
+            config=config,
         )
-        {{ step.df_output }} = {{ step.df_output }}.join(
-            broadcast(_lkp_sub),
-        {% for jp in lkp_join.join_predicates %}
-            ({{ step.df_output }}["{{ jp.source_col }}"] == _lkp_sub["_lkp_jk_{{ jp.lookup_col }}"]){% if not loop.last %} &{{ '\n' }}{% endif %}
-        {% endfor %},
-            "left"
-        ).drop({% for jp in lkp_join.join_predicates %}"_lkp_jk_{{ jp.lookup_col }}"{% if not loop.last %}, {% endif %}{% endfor %})
-        {% endfor %}
-        {% set rename_columns = step.params.get('rename_columns', []) %}
-        {% if rename_columns %}
-        __expr_renames = [
-        {% for rc in rename_columns %}
-        {% set _src, _tgt = rc %}
-        {% if _src | lower != _tgt | lower %}
-            ("{{ _src }}", "{{ _tgt }}"),
-        {% endif %}
-        {% endfor %}
-        ]
-        for _old, _new in __expr_renames:
-            {{ step.df_output }} = {{ step.df_output }}.drop(_new).withColumnRenamed(_old, _new)
-        {% endif %}
-        {% set pass_through_cols = [] %}
-        {% for col in step.params.get('computed_columns', []) %}
-        {% set expr_str = col.get('expression', 'NULL') %}
-        {% if ':SP.' in expr_str or '.SP_' in expr_str %}
-        # Execute stored procedure for each input value via JDBC
-        _sp_conn = conn_oracle
-        {% set sp_body = expr_str | replace(':SP.', '') %}
-        {% set sp_name = sp_body.split('(')[0] %}
-        {% set sp_full = step.params.get('sp_call_text', sp_name) %}
-        {% set sp_schema = step.params.get('sp_schema', '') %}
-        {% set sp_arg_raw = sp_body.split('(')[1].rstrip(')') %}
-        {% if sp_schema %}
-        # Parameterize schema from connection config (falls back to the Informatica owner)
-        _schema = _sp_conn.get("schema", "") or "{{ sp_schema }}"
-        _sp_call = _schema + "." + "{{ sp_full }}"
-        {% else %}
-        _sp_call = "{{ sp_full }}"
-        {% endif %}
-        {% set sp_args = sp_arg_raw.split(',') %}
-        {% if sp_args | length == 1 %}
-        {#- Single-argument SP: collect values directly #}
-        _input_vals = [row["{{ sp_args[0].strip() }}"] for row in {{ step.df_input }}.select("{{ sp_args[0].strip() }}").collect()]
-        for _val in _input_vals:
-            lib.call_stored_procedure(spark, _sp_conn, _sp_call, [_val])
-        {% else %}
-        {#- Multi-argument SP: select each column individually #}
-        _sp_input_cols = [{% for a in sp_args %}"{{ a.strip() }}"{% if not loop.last %}, {% endif %}{% endfor %}]
-        _input_rows = [row for row in {{ step.df_input }}.select(*_sp_input_cols).collect()]
-        for _row in _input_rows:
-            _arg_vals = [ _row[c] for c in _sp_input_cols ]
-            lib.call_stored_procedure(spark, _sp_conn, _sp_call, _arg_vals)
-        {% endif %}
-        {{ step.df_output }} = {{ step.df_output }}.withColumn("{{ col.get('name', 'col') }}", lit("SUCCESS"))
-        {% elif expr_str | trim != col.get('name', 'col') %}
-        {% if 'row_number()' in expr_str or 'monotonically_increasing_id' in expr_str or 'last(when(' in expr_str %}
-        {{ step.df_output }} = {{ step.df_output }}.withColumn("{{ col.get('name', 'col') }}", {{ expr_str }})
-        {% elif mapping_variables and '$$' in expr_str %}
-        _expr = """{{ expr_str }}"""
-        {% for var_name, var_default in mapping_variables.items() %}
-        {% set clean_name = var_name | replace('$', '') %}
-        _expr = _expr.replace("{{ var_name }}", str({{ clean_name }}))
-        {% endfor %}
-        {{ step.df_output }} = {{ step.df_output }}.withColumn("{{ col.get('name', 'col') }}", expr(_expr))
-        {% else %}
-        {{ step.df_output }} = {{ step.df_output }}.withColumn("{{ col.get('name', 'col') }}", expr("{{ expr_str }}"))
-        {% endif %}
-        {% elif expr_str | trim == col.get('name', 'col') %}
-        {#- Collect pass-through column name for consolidated loop below #}
-        {%- set _ = pass_through_cols.append(col.get('name', 'col')) %}
-        {% endif %}
-        {% endfor %}
-        {% set output_columns = step.params.get('output_columns', []) %}
-        {% if output_columns %}
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        {% set computed_names = step.params.get('computed_columns', []) | map(attribute='name') | list %}
-        {% for c in output_columns if c not in computed_names %}{% set _ = pass_through_cols.append(c) %}{% endfor %}
-        {% if pass_through_cols %}
-        for _col in [{% for c in pass_through_cols %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %}]:
-            if _col.lower() not in [x.lower() for x in {{ step.df_output }}.columns]:
-                {{ step.df_output }} = {{ step.df_output }}.withColumn(_col, lit(None))
-        {% endif %}
-        # Keep all upstream columns + computed columns (no select filtering)
-        {% endif %}
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
         
         {% elif step.step_type == IRStepType.APPLY_LOOKUP %}
