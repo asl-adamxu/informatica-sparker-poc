@@ -311,7 +311,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
             pass_through_cols={{ ecfg['pass_through_cols'] | pyrepr }},
             {% endif %}
             {% if ecfg.get('substitutions') %}
-            substitutions={% for _k, _v in ecfg['substitutions'].items() %}'{{ _k }}': {{ _v }}{% if not loop.last %}, {% endif %}{% endfor %},
+            substitutions={{ '{' }}{% for _k, _v in ecfg['substitutions'].items() %}'{{ _k }}': {{ _v }}{% if not loop.last %}, {% endif %}{% endfor %}{{ '}' }},
             {% endif %}
             {% if ecfg.get('inline_lookup_joins') %}
             inline_lookup_joins=[
