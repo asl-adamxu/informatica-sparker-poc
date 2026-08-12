@@ -1018,6 +1018,17 @@ def sorter(spark, input_df, name=None, rename_columns=None,
     return df
 
 
+def sequence(spark, input_df, name=None, output_col="NEXTVAL", start=1,
+             config=None, **kwargs):
+    """Convert one standalone Informatica Sequence Generator.
+
+    Attaches the next-value column as monotonically_increasing_id() + start.
+    (Connected sequences attach via lib.filter's sequence_attach.)
+    """
+    return input_df.withColumn(
+        output_col, monotonically_increasing_id() + int(start))
+
+
 def _read_local_csv(spark: SparkSession, local_path: str, opts: Dict[str, Any]) -> DataFrame:
     """Read a small local CSV file on the driver and return a DataFrame.
 
