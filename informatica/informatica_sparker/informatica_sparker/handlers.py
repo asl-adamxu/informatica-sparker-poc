@@ -2634,6 +2634,15 @@ class TransformHandlers:
         )
         if _sorter_renames:
             step.params["sorter_renames"] = _sorter_renames
+        _sorter_cfg: Dict[str, Any] = {
+            "rename_columns": [
+                (_r.get("from"), _r.get("to"))
+                for _r in step.params.get("sorter_renames", [])
+                if (_r.get("from") or "").lower() != (_r.get("to") or "").lower()
+            ],
+            "sort_columns": step.params.get("sort_columns", []),
+        }
+        step.params["sorter_cfg"] = _sorter_cfg
         return step
 
     def _handle_union(self, instance: Instance, plan: IRPlan) -> Optional[IRStep]:
@@ -2767,6 +2776,15 @@ class TransformHandlers:
 
         if flag_column:
             step.comments.append(f"Normalizing flag column to: {flag_column}")
+
+        _union_cfg: Dict[str, Any] = {
+            "inputs": step.params.get("df_inputs", []),
+            "flag_column": step.params.get("flag_column", ""),
+            "output_columns": step.params.get("output_columns", []),
+        }
+        if step.params.get("union_selects"):
+            _union_cfg["union_selects"] = step.params["union_selects"]
+        step.params["union_cfg"] = _union_cfg
 
         return step
 
@@ -3236,13 +3254,18 @@ class TransformHandlers:
         df_output = self._get_df_name("df_seq", instance)
         self._register_df(instance, df_output)
 
-        return ApplySequenceStep(
+        step = ApplySequenceStep(
             step_name=f"apply_{instance.name}",
             df_input=input_df,
             df_output=df_output,
             sequence_name=seq_name,
             start_value=start_value
         )
+        step.params["sequence_cfg"] = {
+            "output_col": step.params.get("sequence_name", "NEXTVAL"),
+            "start": step.params.get("start_value", 1),
+        }
+        return step
 
     def _handle_update_strategy(self, instance: Instance, plan: IRPlan) -> List[IRStep]:
         input_df = self._get_input_df(instance.name)

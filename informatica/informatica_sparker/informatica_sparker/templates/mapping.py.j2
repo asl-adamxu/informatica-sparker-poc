@@ -599,82 +599,47 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         
         {% elif step.step_type == IRStepType.APPLY_SORTER %}
         # Sorter: {{ step.step_name }}
-        {% set sorter_renames = step.params.get('sorter_renames', []) %}
-        {% set sort_cols = step.params.get('sort_columns', []) %}
-        {% if sorter_renames %}
-        __srt_input = {{ step.df_input }}
-        __srt_renames = [
-        {% for r in sorter_renames %}
-        {% if r.from | lower != r.to | lower %}
-            ("{{ r.from }}", "{{ r.to }}"),
-        {% endif %}
-        {% endfor %}
-        ]
-        for _old, _new in __srt_renames:
-            __srt_input = __srt_input.drop(_new).withColumnRenamed(_old, _new)
-        {% else %}
-        __srt_input = {{ step.df_input }}
-        {% endif %}
-        {% if sort_cols %}
-        {{ step.df_output }} = __srt_input.orderBy(
-            {% for sc in sort_cols %}
-            {% if sc.get('direction', 'ASC').upper() == 'DESC' %}
-            desc("{{ sc.get('column', '') }}"){{ "," if not loop.last else "" }}
-            {% else %}
-            asc("{{ sc.get('column', '') }}"){{ "," if not loop.last else "" }}
+        {% set srtcfg = step.params['sorter_cfg'] %}
+        {{ step.df_output }} = lib.sorter(
+            spark=spark,
+            input_df={{ step.df_input }},
+            {% if srtcfg.get('rename_columns') %}
+            rename_columns=[
+                {{ srtcfg['rename_columns'] | map('pyrepr') | join(',\n                ') }}
+            ],
             {% endif %}
-            {% endfor %}
+            {% if srtcfg.get('sort_columns') %}
+            sort_columns=[
+                {{ srtcfg['sort_columns'] | map('pyrepr') | join(',\n                ') }}
+            ],
+            {% endif %}
+            config=config,
         )
-        {% else %}
-        {{ step.df_output }} = __srt_input
-        {% endif %}
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
         
         {% elif step.step_type == IRStepType.APPLY_UNION %}
         # Union: {{ step.step_name }}
-        {% set df_inputs = step.params.get('df_inputs', []) %}
-        {% set flag_column = step.params.get('flag_column', '') %}
-        {% set union_output_columns = step.params.get('output_columns', []) %}
-        {% if df_inputs | length >= 2 %}
-        {% if flag_column %}
-        # Normalize flag column names to '{{ flag_column }}' before union
-        {% for df in df_inputs %}
-        {{ df }}_norm = normalize_flag_column({{ df }}, "{{ flag_column }}")
-        {% endfor %}
-        {{ step.df_output }} = {{ df_inputs[0] }}_norm
-        {% for df in df_inputs[1:] %}
-        {{ step.df_output }} = {{ step.df_output }}.unionByName({{ df }}_norm, allowMissingColumns=True)
-        {% endfor %}
-        {% else %}
-        {% set union_selects = step.params.get('union_selects', []) %}
-        {% if union_selects %}
-        # Select + rename upstream columns per input, then union
-        {% for us in union_selects %}
-        {{ us.intermediate_var }} = {{ us.df_input }}.select(
-            {% for s in us.selects %}{% if s.from | lower == s.to | lower %}col("{{ s.from }}"){% else %}col("{{ s.from }}").alias("{{ s.to }}"){% endif %}{% if not loop.last %},{{ '\n' }}{% endif %}{% endfor %}
+        {% set uncfg = step.params['union_cfg'] %}
+        {{ step.df_output }} = lib.union(
+            spark=spark,
+            input_df={{ step.df_input }},
+            {% if uncfg.get('union_selects') %}
+            union_selects=[
+            {% for _us in uncfg['union_selects'] %}
+                {'df_input': {{ _us['df_input'] }}, 'selects': {{ _us['selects'] | pyrepr }}},
+            {% endfor %}
+            ],
+            {% else %}
+            inputs=[{% for _df in uncfg.get('inputs', []) %}{{ _df }}{% if not loop.last %}, {% endif %}{% endfor %}],
+            {% endif %}
+            {% if uncfg.get('flag_column') %}
+            flag_column={{ uncfg['flag_column'] | pyrepr }},
+            {% endif %}
+            {% if uncfg.get('output_columns') %}
+            output_columns={{ uncfg['output_columns'] | pyrepr }},
+            {% endif %}
+            config=config,
         )
-        {% endfor %}
-        {{ step.df_output }} = {{ union_selects[0].intermediate_var }}
-        {% for us in union_selects[1:] %}
-        {{ step.df_output }} = {{ step.df_output }}.unionByName({{ us.intermediate_var }}, allowMissingColumns=True)
-        {% endfor %}
-        {% elif df_inputs %}
-        {{ step.df_output }} = {{ df_inputs[0] }}
-        {% for df in df_inputs[1:] %}
-        {{ step.df_output }} = {{ step.df_output }}.unionByName({{ df }}, allowMissingColumns=True)
-        {% endfor %}
-        {% endif %}
-        {% endif %}
-        {% else %}
-        {{ step.df_output }} = {{ step.df_input }}
-        {% endif %}
-        {% if union_output_columns %}
-        # Select only union output columns (add lit(None) for any missing)
-        for _col in [{% for c in union_output_columns %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %}]:
-            if _col.lower() not in [x.lower() for x in {{ step.df_output }}.columns]:
-                {{ step.df_output }} = {{ step.df_output }}.withColumn(_col, lit(None))
-        {{ step.df_output }} = {{ step.df_output }}.select({% for c in union_output_columns %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %})
-        {% endif %}
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
         
         {% elif step.step_type == IRStepType.APPLY_ROUTER %}
@@ -710,9 +675,13 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
         {% elif step.step_type == IRStepType.APPLY_SEQUENCE %}
         # Sequence Generator: {{ step.step_name }}
-        {{ step.df_output }} = {{ step.df_input }}.withColumn(
-            "{{ step.params.get('sequence_name', 'NEXTVAL') }}", 
-            monotonically_increasing_id() + {{ step.params.get('start_value', 1) }}
+        {% set seqcfg = step.params['sequence_cfg'] %}
+        {{ step.df_output }} = lib.sequence(
+            spark=spark,
+            input_df={{ step.df_input }},
+            output_col={{ seqcfg.get('output_col', 'NEXTVAL') | pyrepr }},
+            start={{ seqcfg.get('start', 1) | pyrepr }},
+            config=config,
         )
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
 
