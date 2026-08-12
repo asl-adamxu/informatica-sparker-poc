@@ -1029,6 +1029,73 @@ def sequence(spark, input_df, name=None, output_col="NEXTVAL", start=1,
         output_col, monotonically_increasing_id() + int(start))
 
 
+def sq_output(spark, input_df, name=None, port_cols=None, column_types=None,
+              filter_condition=None, substitutions=None, distinct=False,
+              config=None, **kwargs):
+    """Convert one Source Qualifier's output-port handling.
+
+    SQL-pushdown results are renamed to the SQ output ports: name-match first
+    (case-insensitive), then positional fallback for unaliased expression
+    columns (backtick-quoted so dots/pipes stay part of the column name), then
+    the port select with lit(None) for missing ports, then type casts.
+    Non-pushdown SQs apply the optional filter condition ($$ with the
+    str(v or "0") rule) and DISTINCT before the same port select.
+    """
+    df = input_df
+    if filter_condition:
+        df = df.filter(expr(_substitute(filter_condition, substitutions, or_zero=True)))
+    if distinct:
+        df = df.distinct()
+    _port_cols = list(port_cols or [])
+    if _port_cols:
+        _sql_cols = list(df.columns)
+        _rename_map = {}
+        _used = set()
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_cols):
+                if _pi not in _used and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used.add(_pi)
+                    break
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used:
+                _pi += 1
+            if _pi < len(_port_cols):
+                _rename_map[_sc] = _port_cols[_pi]
+                _used.add(_pi)
+                _pi += 1
+        if _rename_map:
+            df = df.select(*[col("`" + _old + "`").alias(_new)
+                             for _old, _new in _rename_map.items()])
+        df = df.select([
+            col(_c) if _c.lower() in [x.lower() for x in df.columns]
+            else lit(None).alias(_c)
+            for _c in _port_cols
+        ])
+    for _cname, _ctype in (column_types or {}).items():
+        _lower = _cname.lower()
+        _cast = None
+        _t = str(_ctype or "").upper()
+        if _t in ("INTEGER", "INT", "BIGINT", "SMALLINT", "TINYINT"):
+            _cast = LongType()
+        elif _t in ("FLOAT", "DOUBLE", "REAL"):
+            _cast = DoubleType()
+        elif "DECIMAL" in _t or "NUMERIC" in _t or _t == "NUMBER":
+            _cast = DecimalType(38, 10)
+        elif _t in ("DATE",):
+            _cast = DateType()
+        elif _t in ("DATETIME", "TIMESTAMP"):
+            _cast = TimestampType()
+        if _cast is not None:
+            for _c in df.columns:
+                if _c.lower() == _lower:
+                    df = df.withColumn(_c, col(_c).cast(_cast))
+    return df
+
+
 def _read_local_csv(spark: SparkSession, local_path: str, opts: Dict[str, Any]) -> DataFrame:
     """Read a small local CSV file on the driver and return a DataFrame.
 
