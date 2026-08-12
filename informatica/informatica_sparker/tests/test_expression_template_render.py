@@ -82,7 +82,8 @@ def test_apply_expression_block_renders_parseable_lib_expression_call():
 
     assert "lib.expression(" in out
     assert "name='" not in out
-    assert "rename_columns=[('OLD', 'NEW')]," in out
+    assert "rename_columns=[\n" in out
+    assert "('OLD', 'NEW')" in out
     assert "substitutions={'$$v_rpt_mth': v_rpt_mth}," in out
     assert "sp_conn=conn_oracle," in out
     # No unreplaced Jinja tags / stray braces leaked into the output

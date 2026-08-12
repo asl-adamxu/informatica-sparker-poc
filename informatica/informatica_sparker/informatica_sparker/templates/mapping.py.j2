@@ -278,7 +278,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
             spark=spark,
             input_df={{ step.df_input }},
             {% if fcfg.get('rename_columns') %}
-            rename_columns={{ fcfg['rename_columns'] | pyrepr }},
+            rename_columns=[
+                {{ fcfg['rename_columns'] | map('pyrepr') | join(',\n                ') }}
+            ],
             {% endif %}
             condition={{ fcfg.get('condition', 'TRUE') | pyrepr }},
             {% if fcfg.get('substitutions') %}
@@ -298,7 +300,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
             spark=spark,
             input_df={{ step.df_input }},
             {% if ecfg.get('rename_columns') %}
-            rename_columns={{ ecfg['rename_columns'] | pyrepr }},
+            rename_columns=[
+                {{ ecfg['rename_columns'] | map('pyrepr') | join(',\n                ') }}
+            ],
             {% endif %}
             {% if ecfg.get('computed_columns') %}
             computed_columns=[

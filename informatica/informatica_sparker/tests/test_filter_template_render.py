@@ -70,7 +70,8 @@ def test_apply_filter_block_renders_parseable_lib_filter_call():
 
     assert "lib.filter(" in out
     assert "name='" not in out
-    assert "rename_columns=[('OLD', 'NEW')]," in out
+    assert "rename_columns=[\n" in out
+    assert "('OLD', 'NEW')" in out
     assert "condition='NEW != 0 AND $$v_rpt_mth >= 0'," in out
     assert "substitutions={'$$v_rpt_mth': v_rpt_mth}," in out
     assert "sequence_attach=[{'col': 'NEXTVAL', 'start': 100}]," in out
