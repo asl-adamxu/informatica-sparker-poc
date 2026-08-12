@@ -1334,7 +1334,7 @@ class TransformHandlers:
         if '$$' in _cond_text and plan and plan.mapping_variables:
             for _var, _val in plan.mapping_variables.items():
                 if _var in _cond_text:
-                    _subs[_var] = _val.replace('$', '')
+                    _subs[_var] = _var.replace('$', '')
         if _subs:
             _lib_cfg["substitutions"] = _subs
         if self._sequence_attachments.get(instance.name):
