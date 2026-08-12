@@ -176,7 +176,11 @@ def test_apply_router_block_renders_parseable_lib_router_call():
     out = env.from_string(block).render(step=step, IRStepType=IRStepType)
 
     assert "lib.router(" in out
-    assert "input_df=df_in," in out
+    # multi_feed: input_df is NOT rendered — the handler sets df_input to the
+    # literal "df_rtr_input", a variable that no longer exists now that the
+    # template's union-building block is gone (lib.router builds the union
+    # from feeds and ignores input_df in multi_feed mode)
+    assert "input_df=" not in out
     # top-level feed df names render UNQUOTED; aliases pyrepr-quoted
     assert "(df_feed_a, {'SRC': 'PORT1'})," in out
     assert "(df_feed_b, {})," in out
@@ -193,3 +197,26 @@ def test_apply_router_block_renders_parseable_lib_router_call():
     # No unreplaced Jinja tags / stray braces leaked into the output
     assert "{%" not in out and "{{" not in out
     ast.parse(textwrap.dedent(out))
+
+    # Single-feed variant: input_df IS rendered (the fix must not drop it)
+    single = SimpleNamespace(
+        step_type=IRStepType.APPLY_ROUTER,
+        step_name="apply_SMOKE",
+        df_input="df_in",
+        params={
+            "router_cfg": {
+                "groups": [
+                    {"name": "G1", "df_output": "df_rtr_G1",
+                     "condition": "GRP = 'A'"},
+                    {"name": "DEFAULT", "df_output": "df_rtr_DEFAULT",
+                     "default_negated": ["G1"]},
+                ],
+            }
+        },
+    )
+    out_single = env.from_string(block).render(
+        step=single, IRStepType=IRStepType
+    )
+    assert "input_df=df_in," in out_single
+    assert "multi_feed=True" not in out_single
+    ast.parse(textwrap.dedent(out_single))

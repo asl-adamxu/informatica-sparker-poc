@@ -682,7 +682,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         {% set rtrcfg = step.params['router_cfg'] %}
         _rtr = lib.router(
             spark=spark,
+            {% if not rtrcfg.get('multi_feed') %}
             input_df={{ step.df_input }},
+            {% endif %}
             {% if rtrcfg.get('multi_feed') %}
             multi_feed=True,
             feeds=[
