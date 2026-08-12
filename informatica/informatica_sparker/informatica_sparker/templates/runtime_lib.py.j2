@@ -999,6 +999,25 @@ def union(spark, input_df, name=None, inputs=None, union_selects=None,
     return df
 
 
+def sorter(spark, input_df, name=None, rename_columns=None,
+           sort_columns=None, config=None, **kwargs):
+    """Convert one Informatica Sorter.
+
+    Connector renames apply first, then orderBy over the sort keys (ASC by
+    default, DESC when the direction says so).
+    """
+    df = _rename_columns(input_df, rename_columns or [])
+    if sort_columns:
+        _sorts = []
+        for _sc in sort_columns:
+            if (_sc.get("direction") or "ASC").upper() == "DESC":
+                _sorts.append(desc(_sc["column"]))
+            else:
+                _sorts.append(asc(_sc["column"]))
+        df = df.orderBy(*_sorts)
+    return df
+
+
 def _read_local_csv(spark: SparkSession, local_path: str, opts: Dict[str, Any]) -> DataFrame:
     """Read a small local CSV file on the driver and return a DataFrame.
 
