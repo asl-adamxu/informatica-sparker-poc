@@ -2992,6 +2992,81 @@ class TransformHandlers:
             steps[-1].params["multi_feed"] = True
             steps[-1].params["feeds"] = _feed_specs
 
+        # Component-method config: lib.router owns the runtime semantics
+        # (multi-feed union input, per-group filters, connector renames, $$
+        # substitution via filter_inner). The template reads ONLY this key.
+        _rtr_step = steps[-1]
+        _rtr_groups = []
+        for _g in _rtr_step.params.get("groups", []):
+            _cond = _g.get("condition") or ""
+            # Conditions arrive as translated Python source (`expr("...")`);
+            # lib.router wraps its own condition text in expr() at runtime,
+            # so the cfg stores the RAW inner text (same regex as _handle_filter).
+            _m = re.match(r'expr\("(.*)"\)$', _cond)
+            _rtr_group = {
+                "name": _g["name"],
+                "df_output": _g.get("df_output", "df_group"),
+                "condition": _m.group(1) if _m else _cond,
+                "filter_inner": _g.get("filter_inner", ""),
+                # lib.router's default_negated branch chains ~_conds[name] —
+                # it keys conditions by GROUP NAME (the handler's dict list
+                # carries name + inner; only the name is needed).
+                "default_negated": [
+                    _d["name"] for _d in _g.get("default_negated", [])
+                ],
+                "renames": [
+                    (_r["from"], _r["to"]) for _r in _g.get("renames", [])
+                ],
+            }
+            _is_default = _g["name"].upper() == "DEFAULT"
+            if _is_default and _rtr_group["default_negated"]:
+                # $$-case DEFAULT negation chain: names only, drop the
+                # composed condition text (branch is exclusive in lib.router).
+                _rtr_group["condition"] = ""
+            elif _is_default and _rtr_group["condition"] and "~(" in _rtr_group["condition"]:
+                # Composed ~(expr("...")) & ... negation chain (no $$): express
+                # via the runtime's default_negated branch (chained
+                # filter(~_conds[name])) — same rows as the old single
+                # filter(~expr(...) & ...) call. Names = every non-default
+                # group that carries a condition / filter_inner.
+                _rtr_group["default_negated"] = [
+                    _x["name"] for _x in _rtr_step.params.get("groups", [])
+                    if _x["name"].upper() != "DEFAULT"
+                    and (_x.get("condition") or _x.get("filter_inner"))
+                ]
+                _rtr_group["condition"] = ""
+            elif _rtr_group["condition"] == "lit(False)":
+                # multi-feed groups after a TRUE/fallback group are always
+                # empty; lib.router wraps conditions in expr(), so SQL FALSE.
+                _rtr_group["condition"] = "FALSE"
+            elif _rtr_group["condition"] == "lit(True)":
+                _rtr_group["condition"] = "TRUE"
+            elif not _m and _cond and "expr(" in _cond:
+                # multi-feed ORDERED split composition: ~(expr("a")) & expr("b")
+                # → raw SQL `NOT (a) AND (b)` (lib.router wraps in expr()).
+                _t = re.sub(r'expr\("([^"]*)"\)', r"\1", _cond)
+                _t = _t.replace("~(", "NOT (").replace(" & ", " AND ")
+                _rtr_group["condition"] = _t
+            _rtr_groups.append(_rtr_group)
+        _rtr_cfg: Dict[str, Any] = {"groups": _rtr_groups}
+        if _rtr_step.params.get("multi_feed"):
+            _rtr_cfg["multi_feed"] = True
+            _rtr_cfg["feeds"] = _rtr_step.params.get("feeds", [])
+        # $$ mapping variables inside group filter_inner texts: map the key to
+        # the RUNTIME IDENTIFIER ($$v_x → v_x) — the template renders the
+        # value unquoted (loaded override-aware from UTL_JOB_PARAM). Same rule
+        # as lib.filter's cfg.
+        _rtr_subs: Dict[str, str] = {}
+        for _g in _rtr_step.params.get("groups", []):
+            _fi = _g.get("filter_inner") or ""
+            if '$$' in _fi and plan and plan.mapping_variables:
+                for _var, _val in plan.mapping_variables.items():
+                    if _var in _fi:
+                        _rtr_subs[_var] = _var.replace('$', '')
+        if _rtr_subs:
+            _rtr_cfg["substitutions"] = _rtr_subs
+        _rtr_step.params["router_cfg"] = _rtr_cfg
+
         return steps
 
     def _handle_normalizer(self, instance: Instance, plan: IRPlan) -> Optional[IRStep]:

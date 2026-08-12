@@ -679,97 +679,32 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         
         {% elif step.step_type == IRStepType.APPLY_ROUTER %}
         # Router: {{ step.step_name }} - splits into multiple output groups
-        {# First pass: define named filter variables for reuse across groups #}
-        {% for group in step.params.get('groups', []) %}
-        {% if mapping_variables and group.get('filter_inner') and '$$' in group.get('filter_inner') %}
-        {% set _rtr_var = '_rtr_' + group.name | lower + '_filter' %}
-        {{ _rtr_var }} = """{{ group.get('filter_inner') }}"""
-        {% for var_name, var_default in mapping_variables.items() %}{% set clean_name = var_name | replace('$', '') %}
-        {{ _rtr_var }} = {{ _rtr_var }}.replace("{{ var_name }}", {{ clean_name }}){{ '\n' }}{% endfor %}
-        {% endif %}
+        {% set rtrcfg = step.params['router_cfg'] %}
+        _rtr = lib.router(
+            spark=spark,
+            input_df={{ step.df_input }},
+            {% if rtrcfg.get('multi_feed') %}
+            multi_feed=True,
+            feeds=[
+            {% for _df, _aliases in rtrcfg['feeds'] %}
+                ({{ _df }}, {{ _aliases | pyrepr }}),
+            {% endfor %}
+            ],
+            {% endif %}
+            groups=[
+            {% for _g in rtrcfg['groups'] %}
+                {{ _g | pyrepr }},
+            {% endfor %}
+            ],
+            {% if rtrcfg.get('substitutions') %}
+            substitutions={{ '{' }}{% for _k, _v in rtrcfg['substitutions'].items() %}'{{ _k }}': {{ _v }}{% if not loop.last %}, {% endif %}{% endfor %}{{ '}' }},
+            {% endif %}
+            config=config,
+        )
+        {% for _g in rtrcfg['groups'] %}
+        {{ _g['df_output'] }} = _rtr[{{ _g['df_output'] | pyrepr }}]
+        ctx.register_df("{{ _g['df_output'] }}", {{ _g['df_output'] }})
         {% endfor %}
-        {% if step.params.get('multi_feed') %}
-        {# Multi-input router: build the input as a UNION of all upstream
-           feeds, NULL-filled per Router INPUT port (port aliases from the XML
-           connectors), then apply the ORDERED group split (first match wins) #}
-        _feed_specs = [
-        {% for _feed in step.params.get('feeds', []) %}
-            ({{ _feed[0] }}, {{ _feed[1] | topython }}),
-        {% endfor %}
-        ]
-        _rtr_ports = []
-        for _df, _aliases in _feed_specs:
-            for _c in _df.columns:
-                _p = _aliases.get(_c, _c)
-                if _p.lower() not in [x.lower() for x in _rtr_ports]:
-                    _rtr_ports.append(_p)
-        _feed_views = []
-        for _df, _aliases in _feed_specs:
-            _rev = {_v: _k for _k, _v in _aliases.items()}
-            _sel = []
-            for _p in _rtr_ports:
-                if _p in _rev:
-                    if _rev[_p].lower() in [x.lower() for x in _df.columns]:
-                        _sel.append(col(_rev[_p]).alias(_p))
-                    else:
-                        _sel.append(lit(None).alias(_p))
-                elif _p.lower() in [x.lower() for x in _df.columns] and _p not in _aliases:
-                    _sel.append(col(_p))
-                else:
-                    _sel.append(lit(None).alias(_p))
-            _feed_views.append(_df.select(*_sel))
-        df_rtr_input = _feed_views[0]
-        {% for _i in range(1, step.params.get('feeds', []) | length) %}
-        df_rtr_input = df_rtr_input.unionByName(_feed_views[{{ _i }}])
-        {% endfor %}
-        ctx.register_df("df_rtr_input", df_rtr_input)
-        {% for group in step.params.get('groups', []) %}
-        {{ group.get('df_output', 'df_group') }} = df_rtr_input.filter({{ group.get('condition', 'expr("TRUE")') }})
-        {% set group_renames = group.get('renames', []) %}
-        {% if group_renames %}
-        __rtr_renames = [
-        {% for rename in group_renames %}
-        {% if rename.from | lower != rename.to | lower %}
-            ("{{ rename.from }}", "{{ rename.to }}"),
-        {% endif %}
-        {% endfor %}
-        ]
-        for _old, _new in __rtr_renames:
-            {{ group.get('df_output', 'df_group') }} = {{ group.get('df_output', 'df_group') }}.drop(_new).withColumnRenamed(_old, _new)
-        {% endif %}
-        ctx.register_df("{{ group.get('df_output', 'df_group') }}", {{ group.get('df_output', 'df_group') }})
-        {% endfor %}
-        {% else %}
-        {# Second pass: render each group using the predefined variables #}
-        {% for group in step.params.get('groups', []) %}
-        {% if mapping_variables and group.get('filter_inner') and '$$' in group.get('filter_inner') %}
-        {% set _rtr_var = '_rtr_' + group.name | lower + '_filter' %}
-        {{ group.get('df_output', 'df_group') }} = {{ step.df_input }}.filter(expr({{ _rtr_var }}))
-        {% elif group.get('default_negated') %}
-        {# DEFAULT group: chain negated filters via pre-defined variables #}
-        {{ group.get('df_output', 'df_group') }} = {{ step.df_input }}
-        {% for _neg in group.get('default_negated') %}{% set _rtr_var = '_rtr_' + _neg.name | lower + '_filter' %}
-        {{ group.get('df_output', 'df_group') }} = {{ group.get('df_output', 'df_group') }}.filter(~expr({{ _rtr_var }})){{ '\n' }}{% endfor %}
-        {% elif group.get('condition') %}
-        {{ group.get('df_output', 'df_group') }} = {{ step.df_input }}.filter({{ group.get('condition') }})
-        {% else %}
-        {{ group.get('df_output', 'df_group') }} = {{ step.df_input }}  # Default group
-        {% endif %}
-        {% set group_renames = group.get('renames', []) %}
-        {% if group_renames %}
-        __rtr_renames = [
-        {% for rename in group_renames %}
-        {% if rename.from | lower != rename.to | lower %}
-            ("{{ rename.from }}", "{{ rename.to }}"),
-        {% endif %}
-        {% endfor %}
-        ]
-        for _old, _new in __rtr_renames:
-            {{ group.get('df_output', 'df_group') }} = {{ group.get('df_output', 'df_group') }}.drop(_new).withColumnRenamed(_old, _new)
-        {% endif %}
-        ctx.register_df("{{ group.get('df_output', 'df_group') }}", {{ group.get('df_output', 'df_group') }})
-        {% endfor %}
-        {% endif %}
 
         {% elif step.step_type == IRStepType.APPLY_SEQUENCE %}
         # Sequence Generator: {{ step.step_name }}
