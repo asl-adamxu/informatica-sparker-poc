@@ -818,6 +818,62 @@ def _substitute(text, substitutions, or_zero=False):
     return text
 
 
+def expression(spark, input_df, name, rename_columns=None,
+               computed_columns=None, pass_through_cols=None,
+               substitutions=None, inline_lookup_joins=None,
+               sp_calls=None, sp_conn=None, config=None, **kwargs):
+    """Convert one Informatica Expression into PySpark column operations.
+
+    Order matches the Informatica mapping:
+      1. Connector renames (drop target first, case-insensitive dup guard).
+      2. Inline lookup joins (:LKP.xxx() ports): broadcast left join with
+         prefixed join keys, dropped after the join.
+      3. Computed columns in port order ($$ mapping variables substituted;
+         direct-API expressions detected inside _with_column).
+      4. Stored-procedure calls (:SP.xxx()): collect argument columns on the
+         driver, call call_stored_procedure per row, set the column to
+         'SUCCESS'.
+      5. Pass-through fills: output ports absent from the frame become
+         lit(None).
+    All upstream columns are preserved.
+    """
+    df = _rename_columns(input_df, rename_columns or [])
+    for _lkp in (inline_lookup_joins or []):
+        _lkp_df = _lkp["lookup_df"]
+        _sub = _lkp_df.select(
+            *[col(_jp["lookup_col"]).alias("_lkp_jk_" + _jp["lookup_col"])
+              for _jp in _lkp["join_predicates"]],
+            col(_lkp["return_port"]),
+        )
+        _cond = None
+        for _jp in _lkp["join_predicates"]:
+            _part = df[_jp["source_col"]] == _sub["_lkp_jk_" + _jp["lookup_col"]]
+            _cond = _part if _cond is None else (_cond & _part)
+        df = df.join(broadcast(_sub), on=_cond, how="left")
+        for _jp in _lkp["join_predicates"]:
+            df = df.drop("_lkp_jk_" + _jp["lookup_col"])
+    for _col_def in (computed_columns or []):
+        df = _with_column(df, _col_def["name"],
+                          _substitute(_col_def["expr"], substitutions))
+    for _sp in (sp_calls or []):
+        _sp_call = _sp["sp_call"]
+        if _sp.get("sp_schema"):
+            _schema = (sp_conn or {}).get("schema", "") or _sp["sp_schema"]
+            _sp_call = _schema + "." + _sp_call
+        _args = _sp["args"]
+        if len(_args) == 1:
+            _vals = [r[_args[0]] for r in df.select(_args[0]).collect()]
+            for _v in _vals:
+                call_stored_procedure(spark, sp_conn, _sp_call, [_v])
+        else:
+            _rows = [r for r in df.select(*_args).collect()]
+            for _r in _rows:
+                call_stored_procedure(spark, sp_conn, _sp_call, [_r[c] for c in _args])
+        df = df.withColumn(_sp["col"], lit("SUCCESS"))
+    df = _fill_missing(df, pass_through_cols or [])
+    return df
+
+
 def _read_local_csv(spark: SparkSession, local_path: str, opts: Dict[str, Any]) -> DataFrame:
     """Read a small local CSV file on the driver and return a DataFrame.
 
