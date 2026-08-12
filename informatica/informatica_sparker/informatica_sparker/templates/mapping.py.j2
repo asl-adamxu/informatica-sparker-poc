@@ -277,7 +277,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         {{ step.df_output }} = lib.filter(
             spark=spark,
             input_df={{ step.df_input }},
-            name='{{ step.step_name }}',
             {% if fcfg.get('rename_columns') %}
             rename_columns={{ fcfg['rename_columns'] | pyrepr }},
             {% endif %}
@@ -298,7 +297,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         {{ step.df_output }} = lib.expression(
             spark=spark,
             input_df={{ step.df_input }},
-            name='{{ step.step_name }}',
             {% if ecfg.get('rename_columns') %}
             rename_columns={{ ecfg['rename_columns'] | pyrepr }},
             {% endif %}

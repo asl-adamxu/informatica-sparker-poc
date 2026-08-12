@@ -818,7 +818,7 @@ def _substitute(text, substitutions, or_zero=False):
     return text
 
 
-def expression(spark, input_df, name, rename_columns=None,
+def expression(spark, input_df, name=None, rename_columns=None,
                computed_columns=None, pass_through_cols=None,
                substitutions=None, inline_lookup_joins=None,
                sp_calls=None, sp_conn=None, config=None, **kwargs):
@@ -874,7 +874,7 @@ def expression(spark, input_df, name, rename_columns=None,
     return df
 
 
-def filter(spark, input_df, name, rename_columns=None, condition=None,
+def filter(spark, input_df, name=None, rename_columns=None, condition=None,
            substitutions=None, sequence_attach=None, config=None, **kwargs):
     """Convert one Informatica Filter.
 
@@ -886,7 +886,7 @@ def filter(spark, input_df, name, rename_columns=None, condition=None,
     """
     df = _rename_columns(input_df, rename_columns or [])
     if not condition:
-        raise ValueError("Filter %s: empty condition" % name)
+        raise ValueError("Filter %s: empty condition" % (name or "?"))
     df = df.filter(expr(_substitute(condition, substitutions, or_zero=True)))
     for _att in (sequence_attach or []):
         df = df.withColumn(_att["col"],

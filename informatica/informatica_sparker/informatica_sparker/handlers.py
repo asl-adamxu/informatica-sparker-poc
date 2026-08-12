@@ -63,7 +63,7 @@ def _build_expression_cfg(step, computed_columns, output_columns, transform,
                               "sp_schema": _sp_schema, "args": _args})
             _sp_cols.add(_f.name)
     _lib_cfg = {
-        "rename_columns": list(step.params.get("rename_columns") or []),
+        "rename_columns": [tuple(_p) for _p in (step.params.get("rename_columns") or [])],
         "computed_columns": [
             {"name": _cc.name, "expr": _cc.expression}
             for _cc in computed_columns

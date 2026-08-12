@@ -56,10 +56,10 @@ def _assert_cfg_wired(mapping, step):
     )
     cfg = step.params["expression_cfg"]
 
-    # rename_columns copied verbatim from params
-    assert cfg.get("rename_columns") == list(
+    # rename_columns copied from params, normalized to tuples (the render form)
+    assert cfg.get("rename_columns") == [tuple(_p) for _p in (
         step.params.get("rename_columns") or []
-    ), f"{mapping.name}: {step.step_name} cfg rename_columns mismatch"
+    )], f"{mapping.name}: {step.step_name} cfg rename_columns mismatch"
 
     # computed columns preserved (SP columns may be moved to sp_calls, so a
     # subset is the guaranteed direction)
