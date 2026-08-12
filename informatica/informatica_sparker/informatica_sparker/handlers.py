@@ -1306,8 +1306,6 @@ class TransformHandlers:
             condition=condition,
             original_condition=original_condition
         )
-        if filter_inner and '$$' in filter_inner and plan and plan.mapping_variables:
-            step.params["filter_inner"] = self._normalize_sql_text(filter_inner, plan)
         # Collect connector field renames: upstream column → Filter input port name
         # (e.g. CUST_TNT_CODE_OUT → CUST_TNT_CODE) so the filter's condition
         # references the correct columns.
@@ -1318,12 +1316,26 @@ class TransformHandlers:
                     "from": conn.from_field,
                     "to": conn.to_field,
                 })
-        if _filter_renames:
-            step.params["filter_renames"] = _filter_renames
-        # Connected sequence generator feeding this filter: attach the NEXTVAL
-        # column on the filter's output (post-filter) — see _handle_sequence.
+
+        # Component-method config: lib.filter owns the runtime semantics
+        # (renames before condition, $$ substitution, sequence attach).
+        _cond_text = filter_inner
+        if _cond_text and '$$' in _cond_text and plan and plan.mapping_variables:
+            _cond_text = self._normalize_sql_text(_cond_text, plan)
+        _lib_cfg: Dict[str, Any] = {
+            "rename_columns": [(r["from"], r["to"]) for r in _filter_renames],
+            "condition": _cond_text or "TRUE",
+        }
+        _subs: Dict[str, str] = {}
+        if '$$' in _cond_text and plan and plan.mapping_variables:
+            for _var, _val in plan.mapping_variables.items():
+                if _var in _cond_text:
+                    _subs[_var] = _val.replace('$', '')
+        if _subs:
+            _lib_cfg["substitutions"] = _subs
         if self._sequence_attachments.get(instance.name):
-            step.params["sequence_attach"] = self._sequence_attachments[instance.name]
+            _lib_cfg["sequence_attach"] = self._sequence_attachments[instance.name]
+        step.params["lib_filter_cfg"] = _lib_cfg
         return step
 
     def _handle_expression(self, instance: Instance, plan: IRPlan) -> Optional[IRStep]:

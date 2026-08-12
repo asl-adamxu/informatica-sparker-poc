@@ -273,42 +273,24 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         
         {% elif step.step_type == IRStepType.APPLY_FILTER %}
         # Filter: {{ step.step_name }}
-        {% set filter_renames = step.params.get('filter_renames', []) %}
-        {% if filter_renames %}
-        __fil_input = {{ step.df_input }}
-        __fil_renames = [
-        {% for r in filter_renames %}
-        {% if r.from | lower != r.to | lower %}
-            ("{{ r.from }}", "{{ r.to }}"),
-        {% endif %}
-        {% endfor %}
-        ]
-        for _old, _new in __fil_renames:
-            __fil_input = __fil_input.drop(_new).withColumnRenamed(_old, _new)
-        {% else %}
-        __fil_input = {{ step.df_input }}
-        {% endif %}
-        {% if mapping_variables and step.params.get('filter_inner') and '$$' in step.params.get('filter_inner') %}
-        _filter_text = """{{ step.params.get('filter_inner') }}"""
-        {% for var_name, var_default in mapping_variables.items() %}
-        {% set clean_name = var_name | replace('$', '') %}
-        {% if var_name in step.params.get('filter_inner', '') %}
-        _filter_text = _filter_text.replace("{{ var_name }}", str({{ clean_name }} or "0"))
-        {% endif %}
-        {% endfor %}
-        {{ step.df_output }} = __fil_input.filter(expr(_filter_text))
-        {% else %}
-        {{ step.df_output }} = __fil_input.filter({{ step.params.get('condition', 'True') }})
-        {% endif %}
-        ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
-        {% for att in step.params.get('sequence_attach', []) %}
-        # Connected sequence generator: attach {{ att.col }} (start {{ att.start }})
-        {{ step.df_output }} = {{ step.df_output }}.withColumn(
-            "{{ att.col }}",
-            monotonically_increasing_id() + {{ att.start }}
+        {% set fcfg = step.params.get('lib_filter_cfg', {}) %}
+        {{ step.df_output }} = lib.filter(
+            spark=spark,
+            input_df={{ step.df_input }},
+            name='{{ step.step_name }}',
+            {% if fcfg.get('rename_columns') %}
+            rename_columns={{ fcfg['rename_columns'] | pyrepr }},
+            {% endif %}
+            condition={{ fcfg.get('condition', 'TRUE') | pyrepr }},
+            {% if fcfg.get('substitutions') %}
+            substitutions={{ '{' }}{% for _k, _v in fcfg['substitutions'].items() %}'{{ _k }}': {{ _v }}{% if not loop.last %}, {% endif %}{% endfor %}{{ '}' }},
+            {% endif %}
+            {% if fcfg.get('sequence_attach') %}
+            sequence_attach={{ fcfg['sequence_attach'] | pyrepr }},
+            {% endif %}
+            config=config,
         )
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
-        {% endfor %}
 
         {% elif step.step_type == IRStepType.APPLY_EXPRESSION %}
         # Expression: {{ step.step_name }}
