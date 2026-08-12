@@ -756,6 +756,68 @@ def dynamic_lookup(spark: SparkSession, input_df: DataFrame,
     return _dynamic_lookup_rdd(spark, joined, cfg, output_schema)
 
 
+# ---------------------------------------------------------------------------
+# Shared component-method helpers (used by lib.<component> wrappers)
+# ---------------------------------------------------------------------------
+
+_API_EXPR_MARKERS = ('row_number()', 'monotonically_increasing_id', 'last(when(')
+_PYSPARK_API_NS = None
+
+
+def _api_namespace():
+    """Lazily build the namespace used to evaluate direct PySpark API
+    expressions (the generator renders these as Python source, not SQL)."""
+    global _PYSPARK_API_NS
+    if _PYSPARK_API_NS is None:
+        from pyspark.sql.window import Window as _Window
+        _ns = dict(globals())
+        _ns['Window'] = _Window
+        _PYSPARK_API_NS = _ns
+    return _PYSPARK_API_NS
+
+
+def _with_column(df, name, expr_str):
+    """Add column `name` with a translated expression.
+
+    Spark SQL text is wrapped in expr(). Text containing a direct PySpark API
+    marker (row_number() / monotonically_increasing_id / last(when() — the
+    generator emits these as Python source) is evaluated against the pyspark
+    namespace instead.
+    """
+    if any(_m in expr_str for _m in _API_EXPR_MARKERS):
+        return df.withColumn(name, eval(expr_str, {"__builtins__": {}}, _api_namespace()))
+    return df.withColumn(name, expr(expr_str))
+
+
+def _rename_columns(df, renames):
+    """Apply connector renames (drop target first, skip src == tgt)."""
+    for _old, _new in (renames or []):
+        if _old.lower() == _new.lower():
+            continue
+        df = df.drop(_new).withColumnRenamed(_old, _new)
+    return df
+
+
+def _fill_missing(df, cols):
+    """Add lit(None) for any listed column absent from df (case-insensitive)."""
+    for _c in (cols or []):
+        if _c.lower() not in [x.lower() for x in df.columns]:
+            df = df.withColumn(_c, lit(None))
+    return df
+
+
+def _substitute(text, substitutions, or_zero=False):
+    """Replace $$ mapping variables in translated text with runtime values.
+
+    or_zero=True (Filter/SQ conditions): str(v or "0") so an empty value
+    cannot produce invalid SQL. or_zero=False (Expression columns): str(v).
+    """
+    for _var, _val in (substitutions or {}).items():
+        if _var in text:
+            text = text.replace(_var, str(_val or "0") if or_zero else str(_val))
+    return text
+
+
 def _read_local_csv(spark: SparkSession, local_path: str, opts: Dict[str, Any]) -> DataFrame:
     """Read a small local CSV file on the driver and return a DataFrame.
 
