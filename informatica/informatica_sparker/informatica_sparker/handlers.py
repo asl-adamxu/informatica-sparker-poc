@@ -47,16 +47,21 @@ def _build_expression_cfg(step, computed_columns, output_columns, transform,
             if not _sp_match:
                 continue
             _sp_trans = transform_map.get(_sp_match.group(1))
-            if not (_sp_trans and _sp_trans.table_attributes):
-                continue
-            _sp_full = _sp_trans.table_attributes.get("Stored Procedure Name", "")
+            _sp_full = ""
+            if _sp_trans and _sp_trans.table_attributes:
+                _sp_full = _sp_trans.table_attributes.get("Stored Procedure Name", "") or ""
             if not _sp_full:
-                continue
-            _parts = _sp_full.split('.')
-            if len(_parts) >= 3:
-                _sp_call, _sp_schema = '.'.join(_parts[1:]), _parts[0]
+                # Fallback: reusable / mapplet-local Stored Procedure components
+                # are not in transform_map — call the procedure name extracted
+                # from the :SP. expression without a schema prefix (matches the
+                # old template's sp_call_text fallback).
+                _sp_call, _sp_schema = _sp_match.group(1), ""
             else:
-                _sp_call, _sp_schema = _sp_full, ""
+                _parts = _sp_full.split('.')
+                if len(_parts) >= 3:
+                    _sp_call, _sp_schema = '.'.join(_parts[1:]), _parts[0]
+                else:
+                    _sp_call, _sp_schema = _sp_full, ""
             _args = [a.strip() for a in
                      _f.expression.split('(', 1)[1].rsplit(')', 1)[0].split(',')]
             _sp_calls.append({"col": _f.name, "sp_call": _sp_call,
