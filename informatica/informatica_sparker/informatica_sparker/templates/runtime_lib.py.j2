@@ -894,6 +894,77 @@ def filter(spark, input_df, name=None, rename_columns=None, condition=None,
     return df
 
 
+def router(spark, input_df, name=None, groups=None, multi_feed=False,
+           feeds=None, substitutions=None, config=None, **kwargs):
+    """Convert one Informatica Router into its output-group DataFrames.
+
+    Returns {df_output: DataFrame}. Multi-input routers first build the input
+    as a UNION of all feeds (NULL-filled per Router INPUT port, port aliases
+    from the XML connectors), then the ORDERED group split runs (first match
+    wins). Each group's condition is: filter_inner ($$ substituted) >
+    default_negated (negated chain of named groups' conditions) > condition >
+    pass-through. Connector renames apply after the filter, drop-first.
+    """
+    if multi_feed:
+        _feeds = feeds or []
+        _rtr_ports = []
+        for _df, _aliases in _feeds:
+            for _c in _df.columns:
+                _p = _aliases.get(_c, _c)
+                if _p.lower() not in [x.lower() for x in _rtr_ports]:
+                    _rtr_ports.append(_p)
+        _feed_views = []
+        for _df, _aliases in _feeds:
+            _rev = {_v: _k for _k, _v in _aliases.items()}
+            _sel = []
+            for _p in _rtr_ports:
+                if _p in _rev:
+                    if _rev[_p].lower() in [x.lower() for x in _df.columns]:
+                        _sel.append(col(_rev[_p]).alias(_p))
+                    else:
+                        _sel.append(lit(None).alias(_p))
+                elif _p.lower() in [x.lower() for x in _df.columns] and _p not in _aliases:
+                    _sel.append(col(_p))
+                else:
+                    _sel.append(lit(None).alias(_p))
+            _feed_views.append(_df.select(*_sel))
+        _rtr_in = _feed_views[0]
+        for _v in _feed_views[1:]:
+            _rtr_in = _rtr_in.unionByName(_v)
+    else:
+        _rtr_in = input_df
+    # Pre-substitute $$ filter texts once (the template's first-pass vars)
+    _prepared = {}
+    for _g in groups or []:
+        _f_inner = _g.get("filter_inner") or ""
+        if _f_inner and "$$" in _f_inner:
+            _f_inner = _substitute(_f_inner, substitutions)
+        _prepared[_g["name"]] = _f_inner
+    _conds = {}
+    for _g in groups or []:
+        _f_inner = _prepared.get(_g["name"]) or ""
+        if _f_inner:
+            _conds[_g["name"]] = expr(_f_inner)
+        elif _g.get("condition"):
+            _conds[_g["name"]] = expr(_g["condition"])
+    _out = {}
+    for _g in groups or []:
+        _name, _df_out = _g["name"], _g["df_output"]
+        if _prepared.get(_name):
+            _df = _rtr_in.filter(expr(_prepared[_name]))
+        elif _g.get("default_negated"):
+            _df = _rtr_in
+            for _neg in _g["default_negated"]:
+                _df = _df.filter(~_conds[_neg])
+        elif _g.get("condition"):
+            _df = _rtr_in.filter(expr(_g["condition"]))
+        else:
+            _df = _rtr_in
+        _df = _rename_columns(_df, _g.get("renames") or [])
+        _out[_df_out] = _df
+    return _out
+
+
 def _read_local_csv(spark: SparkSession, local_path: str, opts: Dict[str, Any]) -> DataFrame:
     """Read a small local CSV file on the driver and return a DataFrame.
 
