@@ -373,6 +373,12 @@ use default python to run pyspark workflow or mapping
 - **Conditional replace**: The `_filter_text.replace("$$var", ...)` calls are only generated for mapping variables that actually appear in the filter expression — unused variables don't generate unnecessary replace code.
 - **Empty variable fallback**: Uses `str(v_var or "0")` to prevent invalid SQL when a mapping variable's value is empty (e.g. `COL > ` → `COL > 0`).
 
+### Bare Numeric Filter Condition → `!= 0` (v2026.08.12)
+- **Problem**: `M_S5_SSAL2_TRANSFORM_EMS_TAM_FLAT_RCVR` FILTRANS3 (WF_EMS_TL.XML) has a Filter Condition of a **bare numeric port** (`VALUE="OUT_DLPK_SOR_CACHE"`). Informatica accepts it (non-zero = TRUE); Spark 3.5 rejects non-boolean filter expressions with `[DATATYPE_MISMATCH.FILTER_NOT_BOOLEAN]`. The generator copied the bare column into `filter(expr("OUT_DLPK_SOR_CACHE"))`.
+- **Semantics (verified)**: `OUT_DLPK_SOR_CACHE` = the SOR dynamic lookup's `NewLookupRow` (0 = no change, 1 = insert, 2 = update). Non-zero passes both insert and update rows — the correct rewrite is `OUT_DLPK_SOR_CACHE != 0`, **NOT** `= 1` (which would silently drop the update rows; the sibling mappings that use `= 1` have that comparison literally in their XML).
+- **Fix** (`handlers.py`): `_normalize_bare_numeric_condition()` in `_handle_filter` rewrites a filter condition that is exactly one of the filter's ports with a numeric datatype (`integer/decimal/number/float/double/real/numeric/smallint/bigint/money`) into `<port> != 0`. Explicit comparisons and non-numeric ports are untouched.
+- **Tests**: `tests/test_bare_filter_condition.py` (synthetic XML: bare numeric → rewritten; `= 1` and bare string → unchanged).
+
 ### Target Column Case-Insensitive Drop (v2026.07.29)
 - **Template** (mapping.py.j2): The target field_map rename loop now drops any column that case-insensitively matches the target name before `withColumnRenamed`, preventing Spark ambiguity errors when a column and its computed replacement share the same name (e.g. `vcnt_ind` vs `VCNT_IND`).
 

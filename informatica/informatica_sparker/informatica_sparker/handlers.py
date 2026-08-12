@@ -18,6 +18,15 @@ from .expr_translator import ExpressionTranslator, sanitize_for_expr
 from .graph_builder import GraphBuilder
 from .logger import ConversionLogger, LogLevel, LogStage
 
+# Informatica Filter conditions may be a bare numeric port (non-zero = TRUE,
+# zero = FALSE). Spark 3.5 filter() requires a boolean, so bare numeric
+# conditions must become explicit comparisons (FILTER_NOT_BOOLEAN fix).
+_NUMERIC_DATATYPES = {
+    "integer", "smallint", "bigint", "decimal", "number", "float",
+    "double", "real", "numeric", "money",
+}
+_BARE_IDENTIFIER_RE = re.compile(r'^[A-Za-z_$][A-Za-z0-9_$]*$')
+
 
 class TransformHandlers:
 
@@ -1174,6 +1183,23 @@ class TransformHandlers:
 
         return f"{_sel_prefix}{''.join(_parts)}{_from_part}"
 
+    def _normalize_bare_numeric_condition(self, inner_text: str,
+                                          transform: Optional[Transformation]) -> str:
+        """Rewrite a bare numeric port used as a Filter condition into an
+        explicit boolean comparison (`COL != 0`) for Spark 3.5. Informatica
+        accepts a bare numeric port (non-zero = TRUE); Spark rejects it with
+        [DATATYPE_MISMATCH.FILTER_NOT_BOOLEAN]. Non-identifier conditions and
+        non-numeric ports are left untouched."""
+        if not inner_text or not transform:
+            return inner_text
+        if not _BARE_IDENTIFIER_RE.match(inner_text):
+            return inner_text
+        for field in transform.fields:
+            if (field.name.upper() == inner_text.upper()
+                    and (field.datatype or "").lower() in _NUMERIC_DATATYPES):
+                return f"{inner_text} != 0"
+        return inner_text
+
     def _handle_filter(self, instance: Instance, plan: IRPlan) -> Optional[IRStep]:
         input_df = self._get_input_df(instance.name)
         if not input_df:
@@ -1203,6 +1229,13 @@ class TransformHandlers:
             original_condition = ""
             filter_inner = ""
             plan.add_warning(f"No filter condition found for {instance.name}")
+
+        # Bare numeric port as condition (e.g. VALUE="OUT_DLPK_SOR_CACHE"):
+        # Informatica treats non-zero as TRUE; Spark 3.5 requires a boolean.
+        _rewritten = self._normalize_bare_numeric_condition(filter_inner, transform)
+        if _rewritten != filter_inner:
+            filter_inner = _rewritten
+            condition = f'expr("{_rewritten}")'
 
         step = ApplyFilterStep(
             step_name=f"apply_{instance.name}",

@@ -1,23 +1,23 @@
-[2026-08-11 17:55:42] [CONVERT] WF_EMS_TL.XML
-[2026-08-11 17:59:26] Total Mappings: 581
-[2026-08-11 17:59:26] Successful: 581
-[2026-08-11 17:59:26] Failed: 0
-[2026-08-11 17:59:26] Total Warnings: 0
-[2026-08-11 17:59:26] Total Errors: 0
-[2026-08-11 17:59:26] [COMPLETED] ----------------------------------------
-[2026-08-11 17:59:26] [CONVERT] WF_NHS_TL.XML
-[2026-08-11 17:59:48] Total Mappings: 174
-[2026-08-11 17:59:48] Successful: 174
-[2026-08-11 17:59:48] Failed: 0
-[2026-08-11 17:59:48] Total Warnings: 0
-[2026-08-11 17:59:48] Total Errors: 0
-[2026-08-11 17:59:48] [COMPLETED] ----------------------------------------
-[2026-08-11 17:59:48] [MANIFEST] Building manifest.json...
+[2026-08-12 10:08:59] [CONVERT] WF_EMS_TL.XML
+[2026-08-12 10:12:31] Total Mappings: 581
+[2026-08-12 10:12:31] Successful: 581
+[2026-08-12 10:12:31] Failed: 0
+[2026-08-12 10:12:31] Total Warnings: 0
+[2026-08-12 10:12:31] Total Errors: 0
+[2026-08-12 10:12:31] [COMPLETED] ----------------------------------------
+[2026-08-12 10:12:31] [CONVERT] WF_NHS_TL.XML
+[2026-08-12 10:12:47] Total Mappings: 174
+[2026-08-12 10:12:47] Successful: 174
+[2026-08-12 10:12:47] Failed: 0
+[2026-08-12 10:12:47] Total Warnings: 0
+[2026-08-12 10:12:47] Total Errors: 0
+[2026-08-12 10:12:47] [COMPLETED] ----------------------------------------
+[2026-08-12 10:12:47] [MANIFEST] Building manifest.json...
 
-[2026-08-11 17:59:48] ==========================================
-[2026-08-11 17:59:48]  Conversion complete
-[2026-08-11 17:59:48]    Source: /var/lib/airflow/dags/adam/informatica/PowerCenter_workflows/transform_and_load
-[2026-08-11 17:59:48]    Target: /var/lib/airflow/dags/adam/informatica/PySpark_workflows/transform_and_load
-[2026-08-11 17:59:48]    Succeeded: 2
-[2026-08-11 17:59:48]    Failed:    0
-[2026-08-11 17:59:48] ==========================================
+[2026-08-12 10:12:48] ==========================================
+[2026-08-12 10:12:48]  Conversion complete
+[2026-08-12 10:12:48]    Source: /var/lib/airflow/dags/adam/informatica/PowerCenter_workflows/transform_and_load
+[2026-08-12 10:12:48]    Target: /var/lib/airflow/dags/adam/informatica/PySpark_workflows/transform_and_load
+[2026-08-12 10:12:48]    Succeeded: 2
+[2026-08-12 10:12:48]    Failed:    0
+[2026-08-12 10:12:48] ==========================================

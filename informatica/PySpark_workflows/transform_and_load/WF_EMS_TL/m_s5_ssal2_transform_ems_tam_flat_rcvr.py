@@ -281,7 +281,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_FILTRANS3")
         # Filter: apply_FILTRANS3
         __fil_input = df_MPLT_AGMT_EMS_TAM_TNCY_CNCL
-        df_FILTRANS3 = __fil_input.filter(expr("OUT_DLPK_SOR_CACHE"))
+        df_FILTRANS3 = __fil_input.filter(expr("OUT_DLPK_SOR_CACHE != 0"))
         ctx.register_df("df_FILTRANS3", df_FILTRANS3)
 
         logger.info("Step: write_SSA_EMS_TAM_TNCY_CNCL")
