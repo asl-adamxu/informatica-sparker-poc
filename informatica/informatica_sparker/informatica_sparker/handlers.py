@@ -3909,12 +3909,16 @@ class TransformHandlers:
                     _null_cols.append({"name": _c, "expression": "NULL"})
             if _null_cols:
                 _null_input_df = self._df_name(_mpl_df_prefix, "nullinput")
-                steps.append(ApplyExpressionStep(
+                _null_ccs = [ComputedColumn(name=n["name"], expression=n["expression"], datatype="string") for n in _null_cols]
+                _null_step = ApplyExpressionStep(
                     step_name=f"nullinput_{instance.name}",
                     df_input=input_df,
                     df_output=_null_input_df,
-                    computed_columns=[ComputedColumn(name=n["name"], expression=n["expression"], datatype="string") for n in _null_cols],
-                ))
+                    computed_columns=_null_ccs,
+                )
+                _null_step.params["expression_cfg"] = _build_expression_cfg(
+                    _null_step, _null_ccs, [], None, plan, {}, _re, self.transform_map)
+                steps.append(_null_step)
                 input_df = _null_input_df
                 self.logger.log_mapplet(instance.name,
                     f"Added NULL columns for {len(_null_cols)} unconnected INPUT ports: {_unconnected_inputs}",
@@ -3937,12 +3941,15 @@ class TransformHandlers:
                         datatype="string",
                     ))
                 remap_input_df = self._df_name(_mpl_df_prefix, "input")
-                steps.append(ApplyExpressionStep(
+                _remap_step = ApplyExpressionStep(
                     step_name=f"input_{instance.name}",
                     df_input=input_df,
                     df_output=remap_input_df,
                     computed_columns=remap_cols,
-                ))
+                )
+                _remap_step.params["expression_cfg"] = _build_expression_cfg(
+                    _remap_step, remap_cols, [], None, plan, {}, _re, self.transform_map)
+                steps.append(_remap_step)
                 input_df = remap_input_df
 
         # --- 6. Track DataFrames within mapplet ----------------------------------------
@@ -4264,6 +4271,9 @@ class TransformHandlers:
                     )
                     if mpl_output_ports:
                         _expr_step.params["output_columns"] = mpl_output_ports
+                    _expr_step.params["expression_cfg"] = _build_expression_cfg(
+                        _expr_step, computed_cols, mpl_output_ports, transform, plan,
+                        {}, _re, self.transform_map)
                     steps.append(_expr_step)
                 else:
                     # Expression with no computed columns → pass-through
@@ -4488,8 +4498,8 @@ class TransformHandlers:
                     )
                     if _output_renames:
                         _out_step.params["rename_columns"] = _output_renames
-                        _out_step.params["expression_cfg"] = _build_expression_cfg(
-                            _out_step, [], [], None, None, {}, _re, self.transform_map)
+                    _out_step.params["expression_cfg"] = _build_expression_cfg(
+                        _out_step, [], output_ports, None, plan, {}, _re, self.transform_map)
                     steps.append(_out_step)
                 else:
                     # Pass-through of the last internal DataFrame as output
