@@ -965,6 +965,40 @@ def router(spark, input_df, name=None, groups=None, multi_feed=False,
     return _out
 
 
+def union(spark, input_df, name=None, inputs=None, union_selects=None,
+          flag_column="", output_columns=None, config=None, **kwargs):
+    """Convert one Informatica Union.
+
+    Per-input groups are select+aliased to the union's output ports, then
+    unionByName(allowMissingColumns=True). Output ports absent from the union
+    are filled with lit(None) and the frame is re-selected to the output
+    column list.
+    """
+    if flag_column:
+        raise ValueError(
+            "Union %s: flag_column unions are not supported" % (name or "?"))
+    _sels = union_selects or []
+    if _sels:
+        _views = []
+        for _us in _sels:
+            _views.append(_us["df_input"].select(*[
+                col(_s["from"]) if _s["from"].lower() == _s["to"].lower()
+                else col(_s["from"]).alias(_s["to"])
+                for _s in _us["selects"]
+            ]))
+        df = _views[0]
+        for _v in _views[1:]:
+            df = df.unionByName(_v, allowMissingColumns=True)
+    else:
+        df = (inputs or [input_df])[0]
+        for _v in (inputs or [input_df])[1:]:
+            df = df.unionByName(_v, allowMissingColumns=True)
+    if output_columns:
+        df = _fill_missing(df, output_columns)
+        df = df.select(*output_columns)
+    return df
+
+
 def _read_local_csv(spark: SparkSession, local_path: str, opts: Dict[str, Any]) -> DataFrame:
     """Read a small local CSV file on the driver and return a DataFrame.
 
