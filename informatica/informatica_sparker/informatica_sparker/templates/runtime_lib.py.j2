@@ -1096,6 +1096,25 @@ def sq_output(spark, input_df, name=None, port_cols=None, column_types=None,
     return df
 
 
+def update_strategy(spark, input_df, name=None, strategy_field=None,
+                    config=None, **kwargs):
+    """Convert one Informatica Update Strategy.
+
+    Dynamic field strategies derive the _update_flag column (I/U/D) from the
+    strategy field. Static strategies (DD_INSERT/DD_UPDATE/DD_DELETE) pass
+    through — the target write applies them directly.
+    """
+    if strategy_field:
+        return input_df.withColumn(
+            "_update_flag",
+            when(col(strategy_field) == "DD_INSERT", lit("I"))
+            .when(col(strategy_field) == "DD_UPDATE", lit("U"))
+            .when(col(strategy_field) == "DD_DELETE", lit("D"))
+            .otherwise(lit("I")),
+        )
+    return input_df
+
+
 def _read_local_csv(spark: SparkSession, local_path: str, opts: Dict[str, Any]) -> DataFrame:
     """Read a small local CSV file on the driver and return a DataFrame.
 
