@@ -80,7 +80,11 @@ def _build_expression_cfg(step, computed_columns, output_columns, transform,
     if '$$' in _all_exprs and plan and plan.mapping_variables:
         for _var, _val in plan.mapping_variables.items():
             if _var in _all_exprs:
-                _subs[_var] = _val.replace('$', '')
+                # Values are DEFAULT VALUES (e.g. '202606'), not names; the
+                # template renders the value unquoted as the runtime variable
+                # identifier (loaded override-aware from UTL_JOB_PARAM), so
+                # derive it from the KEY ($$v_x → v_x).
+                _subs[_var] = _var.replace('$', '')
     if _subs:
         _lib_cfg["substitutions"] = _subs
     if inline_lkp_info:

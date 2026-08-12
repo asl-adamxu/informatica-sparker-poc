@@ -79,11 +79,24 @@ def _assert_cfg_wired(mapping, step):
             set(out_cols) - param_names
         ), f"{mapping.name}: {step.step_name} cfg pass_through_cols mismatch"
 
+    # substitutions map the $$ variable key to the RUNTIME IDENTIFIER derived
+    # from the key ($$v_x → v_x), which the template renders unquoted — the
+    # value loaded override-aware from UTL_JOB_PARAM. Baking the variable's
+    # DEFAULT VALUE here would ignore job-param overrides (and non-identifier
+    # defaults render invalid Python).
+    for _k, _v in cfg.get("substitutions", {}).items():
+        assert _v == _k.replace("$", ""), (
+            f"{mapping.name}: {step.step_name} cfg substitution "
+            f"{{{_k!r}: {_v!r}}} value must be the clean var-name derived "
+            f"from the key (expected {_k.replace('$', '')!r}), not the "
+            "variable's default value"
+        )
+
 
 def _check_mappings(xml_path, label, require_kinds):
     mappings = _load_mappings(xml_path)
     assert mappings, f"no mappings parsed from {xml_path.name}"
-    checked = {"computed": 0, "rename": 0, "total": 0}
+    checked = {"computed": 0, "rename": 0, "total": 0, "subs": 0}
     kinds = {}
     for mapping in mappings:
         plan, expr_steps = _expression_steps(TransformHandlers(mapping, UserConfig()))
@@ -98,6 +111,8 @@ def _check_mappings(xml_path, label, require_kinds):
             checked["total"] += 1
             checked["computed"] += has_computed
             checked["rename"] += has_rename
+            if step.params.get("expression_cfg", {}).get("substitutions"):
+                checked["subs"] += 1
             _assert_cfg_wired(mapping, step)
     assert checked["total"] > 0, f"{xml_path.name}: no expression steps with params"
     assert checked["computed"] > 0, f"{xml_path.name}: no computed-bearing steps"
@@ -121,6 +136,10 @@ def test_cms_expression_steps_all_carry_expression_cfg():
     assert checked["computed"] >= 50, (
         f"CMS: expected many computed-bearing steps, got {checked['computed']}"
     )
+    assert checked["subs"] > 0, (
+        "CMS: expected steps with substitutions ($$ variables) so the "
+        "substitutions assertion is non-vacuous"
+    )
 
 
 def test_nullinput_steps_carry_expression_cfg():
@@ -135,4 +154,8 @@ def test_nullinput_steps_carry_expression_cfg():
     )
     assert kinds["nullinput"] >= 10, (
         f"HSE_STCK: expected many nullinput steps, got {kinds['nullinput']}"
+    )
+    assert checked["subs"] > 0, (
+        "HSE_STCK: expected steps with substitutions ($$ variables) so the "
+        "substitutions assertion is non-vacuous"
     )
