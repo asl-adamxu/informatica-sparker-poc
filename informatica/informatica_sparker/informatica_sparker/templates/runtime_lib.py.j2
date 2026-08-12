@@ -1115,6 +1115,92 @@ def update_strategy(spark, input_df, name=None, strategy_field=None,
     return input_df
 
 
+def write_target(spark, df, conn, table, mode="append", sink_type="delta",
+                 target_columns=None, field_map=None, unmapped_columns=None,
+                 is_delete=False, delete_keys=None, cast_nulltype=False,
+                 has_update_flag=False, static_dd=None, config=None,
+                 name=None, **kwargs):
+    """Convert one Informatica Target write.
+
+    Order matches the mapping: DUAL/DEV_NULL no-op → NullType cast → connector
+    field-map rename (BEFORE the _update_flag split, so UPDATE/DELETE use
+    target column names) → static DD_UPDATE (batch_update ALL rows, then an
+    empty INSERT frame) or dynamic I/U/D split (batch delete/update, INSERT
+    flows to the normal write) → static DD_DELETE (batch_delete_composite ALL
+    rows) → unmapped lit(None) fills → target-column select → csv/DB write.
+    """
+    _table = table or ""
+    if _table.endswith("DEV_NULL") or "/dev/null" in _table.lower() or _table.upper() == "DUAL":
+        logging.info("Target %s is a no-op target (/dev/null or DUAL), skipping write", name or "?")
+        return
+    _df = df
+    if cast_nulltype:
+        for _c in _df.columns:
+            if isinstance(_df.schema[_c].dataType, NullType):
+                _df = _df.withColumn(_c, col(_c).cast(StringType()))
+    _field_map = field_map or {}
+    for _tgt_col, _src_col in _field_map.items():
+        if (_tgt_col.lower() not in [x.lower() for x in _df.columns]
+                and _src_col.lower() in [x.lower() for x in _df.columns]):
+            for _c in list(_df.columns):
+                if _c.lower() == _tgt_col.lower() and _c != _src_col:
+                    _df = _df.drop(_c)
+            _df = _df.withColumnRenamed(_src_col, _tgt_col)
+    _keys = delete_keys or []
+    if has_update_flag:
+        if static_dd == "DD_UPDATE":
+            if _keys and not _df.rdd.isEmpty():
+                _set_cols = [c for c in _df.columns
+                             if c.lower() not in [k.lower() for k in _keys]
+                             and c != "_update_flag"]
+                if _set_cols:
+                    _rows = [tuple(r[c] for c in _set_cols + _keys)
+                             for r in _df.collect()]
+                    batch_update(spark, conn, _table, _set_cols, _keys, _rows, 1000)
+            _df = _df.filter(lit(False))
+        else:
+            _df_ins = _df.filter(col("_update_flag") == "I").drop("_update_flag")
+            _df_upd = _df.filter(col("_update_flag") == "U").drop("_update_flag")
+            _df_del = _df.filter(col("_update_flag") == "D").drop("_update_flag")
+            _df = _df.drop("_update_flag")
+            if _keys and not _df_del.rdd.isEmpty():
+                _del_rows = [tuple(r[c] for c in _keys)
+                             for r in _df_del.select(*_keys).distinct().collect()]
+                if _del_rows:
+                    batch_delete_composite(spark, conn, _table, _keys, _del_rows, 1000)
+            if _keys and not _df_upd.rdd.isEmpty():
+                _set_cols = [c for c in _df_upd.columns
+                             if c.lower() not in [k.lower() for k in _keys]]
+                if _set_cols:
+                    _rows = [tuple(r[c] for c in _set_cols + _keys)
+                             for r in _df_upd.collect()]
+                    batch_update(spark, conn, _table, _set_cols, _keys, _rows, 1000)
+            _df = _df_ins
+    if is_delete and _keys:
+        if not _df.rdd.isEmpty():
+            _del_rows = [tuple(r[c] for c in _keys)
+                         for r in _df.select(*_keys).distinct().collect()]
+            if _del_rows:
+                batch_delete_composite(spark, conn, _table, _keys, _del_rows, 1000)
+    else:
+        for _col in (unmapped_columns or []):
+            if _col.lower() not in ["src_rowid"]:
+                _df = _df.withColumn(_col, lit(None).cast(StringType()))
+        if target_columns:
+            _df = _df.select(*[_c for _c in target_columns
+                               if _c.lower() in [x.lower() for x in _df.columns]])
+        if sink_type == "csv":
+            _obj = ((config or {}).get("objects") or {}).get(_table) or {}
+            _path = _obj.get("path", "/tmp/" + _table)
+            _fmt = _obj.get("format", sink_type)
+            if _path and _path.strip() in ("/dev/null", "NUL"):
+                logging.info("Target %s resolved to /dev/null, skipping write", name or "?")
+            else:
+                write_file(_df, _path, format=_fmt, mode="overwrite")
+        else:
+            write_table(_df, conn, _table, mode=mode)
+
+
 def _read_local_csv(spark: SparkSession, local_path: str, opts: Dict[str, Any]) -> DataFrame:
     """Read a small local CSV file on the driver and return a DataFrame.
 
