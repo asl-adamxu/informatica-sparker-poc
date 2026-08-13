@@ -1147,6 +1147,13 @@ class TransformHandlers:
             step.params["db_type"] = source_db_type
             if source_inputs:
                 step.params["source_schema"] = source_inputs[0].get("owner", "")
+            # Port datatypes drive the runtime type casts in lib.sq_output
+            # (pushdown only — the non-pushdown path applies no casts).
+            step.params["output_column_types"] = {
+                _f.name: _f.datatype
+                for _f in (transform.fields if transform else [])
+                if "OUTPUT" in _f.port_type
+            }
             step.comments.append(f"SQL Pushdown: Executing SQ SQL on source database ({source_db_type})")
         else:
             step = ApplySourceQualifierStep(
@@ -1167,6 +1174,29 @@ class TransformHandlers:
 
         step.params["connection_alias"] = conn_alias
         step.params["output_columns"] = output_columns
+
+        # Component-method config: lib.sq_output owns the runtime semantics of
+        # SQ port handling (two-pass rename, port select, type casts, filter,
+        # distinct). The template renders ONE lib.sq_output call from this cfg.
+        _sq_cfg: Dict[str, Any] = {"port_cols": step.params.get("output_columns", [])}
+        if step.params.get("output_column_types"):
+            _sq_cfg["column_types"] = step.params["output_column_types"]
+        if step.params.get("filter_inner") and '$$' not in step.params.get("filter_inner", ""):
+            _sq_cfg["filter_condition"] = step.params["filter_inner"]
+        elif step.params.get("filter_inner"):
+            _sq_cfg["filter_condition"] = step.params["filter_inner"]
+            _sq_cfg["substitutions"] = {
+                # Values are DEFAULT VALUES (e.g. '202606'), not names; the
+                # template renders the value unquoted as the runtime variable
+                # identifier (loaded override-aware from UTL_JOB_PARAM), so
+                # derive it from the KEY ($$v_x → v_x) — see _handle_filter.
+                _var: _var.replace('$', '')
+                for _var, _val in (plan.mapping_variables or {}).items()
+                if _var in step.params["filter_inner"]
+            }
+        if step.params.get("distinct"):
+            _sq_cfg["distinct"] = True
+        step.params["sq_output_cfg"] = _sq_cfg
 
         return step
 

@@ -181,92 +181,49 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         {% endfor %}
         {% endif %}
         {{ step.df_output }} = lib.read_sql(spark, _conn, query=query)
-        {% if sq_output_columns %}
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = {{ step.df_output }}.columns
-        _port_cols = [{% for c in sq_output_columns %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %}]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        {{ step.df_output }} = {{ step.df_output }}.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        {{ step.df_output }} = {{ step.df_output }}.select([col(c) if c.lower() in [x.lower() for x in {{ step.df_output }}.columns] else lit(None).alias(c) for c in _port_cols])
-        
-        {% set sq_col_types = step.params.get('output_column_types', {}) %}
-        {% for col_name, col_type in sq_col_types.items() %}
-        {% set col_lower = col_name.lower() %}
-        {% if col_type.upper() in ['INTEGER', 'INT', 'BIGINT', 'SMALLINT', 'TINYINT'] %}
-        if "{{ col_lower }}" in [c.lower() for c in {{ step.df_output }}.columns]:
-            for c in {{ step.df_output }}.columns:
-                if c.lower() == "{{ col_lower }}":
-                    {{ step.df_output }} = {{ step.df_output }}.withColumn(c, col(c).cast(LongType()))
-        {% elif col_type.upper() in ['FLOAT', 'DOUBLE', 'REAL'] %}
-        if "{{ col_lower }}" in [c.lower() for c in {{ step.df_output }}.columns]:
-            for c in {{ step.df_output }}.columns:
-                if c.lower() == "{{ col_lower }}":
-                    {{ step.df_output }} = {{ step.df_output }}.withColumn(c, col(c).cast(DoubleType()))
-        {% elif 'DECIMAL' in col_type.upper() or 'NUMERIC' in col_type.upper() or col_type.upper() == 'NUMBER' %}
-        if "{{ col_lower }}" in [c.lower() for c in {{ step.df_output }}.columns]:
-            for c in {{ step.df_output }}.columns:
-                if c.lower() == "{{ col_lower }}":
-                    {{ step.df_output }} = {{ step.df_output }}.withColumn(c, col(c).cast(DecimalType(38, 10)))
-        {% elif col_type.upper() in ['DATE'] %}
-        if "{{ col_lower }}" in [c.lower() for c in {{ step.df_output }}.columns]:
-            for c in {{ step.df_output }}.columns:
-                if c.lower() == "{{ col_lower }}":
-                    {{ step.df_output }} = {{ step.df_output }}.withColumn(c, col(c).cast(DateType()))
-        {% elif col_type.upper() in ['DATETIME', 'TIMESTAMP'] %}
-        if "{{ col_lower }}" in [c.lower() for c in {{ step.df_output }}.columns]:
-            for c in {{ step.df_output }}.columns:
-                if c.lower() == "{{ col_lower }}":
-                    {{ step.df_output }} = {{ step.df_output }}.withColumn(c, col(c).cast(TimestampType()))
-        {% else %}
-        # VARCHAR, CHAR, STRING etc — keep as-is
-        {% endif %}
-        {% endfor %}
+        {% if step.params.get('sq_output_cfg') %}
+        {% set sqcfg = step.params['sq_output_cfg'] %}
+        {{ step.df_output }} = lib.sq_output(
+            spark=spark,
+            input_df={{ step.df_output }},
+            port_cols={{ sqcfg['port_cols'] | pyrepr }},
+            {% if sqcfg.get('column_types') %}
+            column_types={{ sqcfg['column_types'] | pyrepr }},
+            {% endif %}
+            {% if sqcfg.get('filter_condition') %}
+            filter_condition={{ sqcfg['filter_condition'] | pyrepr }},
+            {% endif %}
+            {% if sqcfg.get('substitutions') %}
+            substitutions={{ '{' }}{% for _k, _v in sqcfg['substitutions'].items() %}'{{ _k }}': {{ _v }}{% if not loop.last %}, {% endif %}{% endfor %}{{ '}' }},
+            {% endif %}
+            {% if sqcfg.get('distinct') %}
+            distinct=True,
+            {% endif %}
+            config=config,
+        )
         {% endif %}
         {% else %}
         {{ step.df_output }} = {{ step.df_input }}
-        {% if step.params.get('filter_condition') %}
-        {% if mapping_variables and step.params.get('filter_inner') and '$$' in step.params.get('filter_inner') %}
-        _filter_text = """{{ step.params.get('filter_inner') }}"""
-        {% for var_name, var_default in mapping_variables.items() %}
-        {% set clean_name = var_name | replace('$', '') %}
-        {% if var_name in step.params.get('filter_inner', '') %}
-        _filter_text = _filter_text.replace("{{ var_name }}", str({{ clean_name }} or "0"))
-        {% endif %}
-        {% endfor %}
-        {{ step.df_output }} = {{ step.df_output }}.filter(expr(_filter_text))
-        {% else %}
-        {{ step.df_output }} = {{ step.df_output }}.filter({{ step.params.get('filter_condition') }})
-        {% endif %}
-        {% endif %}
-        {% if step.params.get('distinct') %}
-        {{ step.df_output }} = {{ step.df_output }}.distinct()
-        {% endif %}
-        {% if sq_output_columns %}
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = [{% for c in sq_output_columns %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %}]
-        {{ step.df_output }} = {{ step.df_output }}.select([col(c) if c.lower() in [x.lower() for x in {{ step.df_output }}.columns] else lit(None).alias(c) for c in _port_cols])
+        {% if step.params.get('sq_output_cfg') %}
+        {% set sqcfg = step.params['sq_output_cfg'] %}
+        {{ step.df_output }} = lib.sq_output(
+            spark=spark,
+            input_df={{ step.df_output }},
+            port_cols={{ sqcfg['port_cols'] | pyrepr }},
+            {% if sqcfg.get('column_types') %}
+            column_types={{ sqcfg['column_types'] | pyrepr }},
+            {% endif %}
+            {% if sqcfg.get('filter_condition') %}
+            filter_condition={{ sqcfg['filter_condition'] | pyrepr }},
+            {% endif %}
+            {% if sqcfg.get('substitutions') %}
+            substitutions={{ '{' }}{% for _k, _v in sqcfg['substitutions'].items() %}'{{ _k }}': {{ _v }}{% if not loop.last %}, {% endif %}{% endfor %}{{ '}' }},
+            {% endif %}
+            {% if sqcfg.get('distinct') %}
+            distinct=True,
+            {% endif %}
+            config=config,
+        )
         {% endif %}
         {% endif %}
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
