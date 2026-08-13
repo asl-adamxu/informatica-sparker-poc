@@ -6,11 +6,13 @@ substitutions). Any ApplyRouterStep that carries groups in its params but
 lacks router_cfg silently drops every output group in the generated code
 (NameError on the group DataFrames at runtime).
 
-The cfg form is the runtime contract (Task 1):
+The cfg form is the runtime contract (Task 3):
   - `condition` is RAW text (the runtime wraps it in expr() itself) — a
     leftover `expr("...")` wrapper would double-wrap and emit invalid SQL;
+    `$$` markers stay in it and the runtime substitutes them via the
+    `substitutions` map (the old `filter_inner` field is gone);
   - `default_negated` is a list of group NAMES (the runtime chains
-    filter(~_conds[name]));
+    filter(~expr(_conds[name])));
   - `renames` are (from, to) tuples.
 
 Source of truth is real PowerCenter XML only: WF_EMS_DDS_APLY_MTH (6 Router
@@ -58,8 +60,9 @@ def test_all_router_steps_carry_router_cfg():
     """Every ApplyRouterStep must carry router_cfg with non-empty groups,
     and every group must satisfy the runtime contract (df_output, raw
     condition, name-based default_negated, tuple renames, exactly one of
-    condition / default_negated / pass-through)."""
+    condition / default_negated / pass-through, no filter_inner)."""
     seen = 0
+    dollar_conds = 0
     for mapping, step in _load_router_steps():
         seen += 1
         assert "router_cfg" in step.params, (
@@ -74,6 +77,12 @@ def test_all_router_steps_carry_router_cfg():
                 f"{mapping.name}: {step.step_name} group {g.get('name')!r} "
                 "missing df_output"
             )
+            # Task 3 merge: filter_inner is GONE — the raw text (incl. $$
+            # markers) lives in the single condition field
+            assert "filter_inner" not in g, (
+                f"{mapping.name}: {step.step_name} group {g.get('name')!r} "
+                "still carries filter_inner"
+            )
             cond = g.get("condition") or ""
             dneg = g.get("default_negated") or []
             # Exactly one of condition / default_negated / pass-through
@@ -86,6 +95,22 @@ def test_all_router_steps_carry_router_cfg():
                 f"{mapping.name}: {step.step_name} group {g.get('name')!r} "
                 f"condition still wrapped/unrenderable: {cond!r}"
             )
+            # $$ markers survive into the merged condition, and any group
+            # carrying them has the substitutions the runtime needs
+            if "$$" in cond:
+                dollar_conds += 1
+                subs = cfg.get("substitutions") or {}
+                assert subs, (
+                    f"{mapping.name}: {step.step_name} group {g.get('name')!r} "
+                    "condition carries $$ but no substitutions in router_cfg"
+                )
+                assert all(
+                    k.startswith("$$") and subs[k] == k.replace("$", "")
+                    for k in subs
+                ), (
+                    f"{mapping.name}: {step.step_name} substitutions must map "
+                    "$$v_x to the runtime identifier v_x"
+                )
             # default_negated entries are group NAMES (strings)
             assert all(isinstance(n, str) for n in dneg), (
                 f"{mapping.name}: {step.step_name} group {g.get('name')!r} "
@@ -98,6 +123,10 @@ def test_all_router_steps_carry_router_cfg():
                     f"rename not a tuple: {r!r}"
                 )
     assert seen >= 1, "no ApplyRouterStep found in the workflow"
+    assert dollar_conds >= 1, (
+        "no $$ condition survived into router_cfg — the merged condition "
+        "must keep the $$ markers for runtime substitution"
+    )
 
 
 def test_default_groups_use_name_based_negation():
@@ -137,8 +166,9 @@ def test_default_groups_use_name_based_negation():
 
 def test_apply_router_block_renders_parseable_lib_router_call():
     """The APPLY_ROUTER block must render a parseable lib.router(...) call
-    with per-group dict unpacking, multi_feed feeds (df names UNQUOTED),
-    substitutions dict braces, and ctx.register_df per group."""
+    with STRUCTURED per-group dicts (one key per line, renames one tuple per
+    line), multi_feed feeds (df names UNQUOTED), substitutions dict braces,
+    and ctx.register_df per group."""
     env = Environment()
     env.filters["pyrepr"] = repr  # matches codegen.py registration
     source = TEMPLATE.read_text()
@@ -163,10 +193,10 @@ def test_apply_router_block_renders_parseable_lib_router_call():
                 "feeds": [("df_feed_a", {"SRC": "PORT1"}), ("df_feed_b", {})],
                 "groups": [
                     {"name": "G1", "df_output": "df_rtr_G1",
-                     "condition": "GRP = 'A'",
-                     "filter_inner": "V > $$v_min",
-                     "renames": [("GRP", "GRP1")]},
+                     "condition": "V > $$v_min",
+                     "renames": [("GRP", "GRP1"), ("SRC", "SRC1")]},
                     {"name": "DEFAULT", "df_output": "df_rtr_DEFAULT",
+                     "condition": "",
                      "default_negated": ["G1"]},
                 ],
                 "substitutions": {"$$v_min": "v_min"},
@@ -184,10 +214,24 @@ def test_apply_router_block_renders_parseable_lib_router_call():
     # top-level feed df names render UNQUOTED; aliases pyrepr-quoted
     assert "(df_feed_a, {'SRC': 'PORT1'})," in out
     assert "(df_feed_b, {})," in out
-    # whole-group dicts one per line (pyrepr), conditions raw (repr picks
-    # double quotes because the raw condition contains single quotes)
-    assert "'condition': \"GRP = 'A'\"" in out
-    assert "'default_negated': ['G1']" in out
+    # Task 3: STRUCTURED per-group rendering — each key on its own line,
+    # conditions raw via pyrepr (single-quoted with escaped inner quotes),
+    # renames one tuple per line, absent keys omitted entirely
+    assert "'name': 'G1'," in out
+    assert "'df_output': 'df_rtr_G1'," in out
+    assert "'condition': 'V > $$v_min'," in out
+    assert "'renames': [" in out
+    assert "('GRP', 'GRP1')," in out
+    assert "('SRC', 'SRC1')," in out
+    # DEFAULT carries no renames and its empty condition is NOT rendered;
+    # default_negated renders as a name list
+    assert "'name': 'DEFAULT'," in out
+    assert "'df_output': 'df_rtr_DEFAULT'," in out
+    assert "'default_negated': ['G1']," in out
+    # only G1 carries renames (one block rendered, one tuple per line)
+    assert out.count("'renames':") == 1
+    assert "'condition': ''" not in out
+    assert "'filter_inner'" not in out
     # per-group dict unpacking from the returned dict + registration
     assert "df_rtr_G1 = _rtr['df_rtr_G1']" in out
     assert "df_rtr_DEFAULT = _rtr['df_rtr_DEFAULT']" in out

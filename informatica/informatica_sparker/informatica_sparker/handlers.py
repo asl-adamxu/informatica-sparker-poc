@@ -3004,8 +3004,9 @@ class TransformHandlers:
             # everything not yet matched, so DEFAULT becomes lit(False) whenever
             # a TRUE group exists. NULL never matches (translate_for_filter
             # renders '= 1' comparisons; rows with NULL fall through to later
-            # groups / DEFAULT). $$ variable conditions compose through the
-            # _rtr_<group>_filter runtime variables defined in the template.
+            # groups / DEFAULT). $$ variable conditions compose as RAW text
+            # (markers kept); the runtime substitutes them with lib.router's
+            # substitutions before expr().
             _g_order = {g.name: g.order for g in transform.groups}
             _ordered = sorted(
                 [g for g in groups if g["name"].upper() != "DEFAULT"],
@@ -3019,7 +3020,7 @@ class TransformHandlers:
             for _g in _ordered:
                 _c = _g.get("condition") or ""
                 _is_true = (not _c) or _c.strip().upper() in ("EXPR(\"TRUE\")", "TRUE")
-                _expr_c = f"expr(_rtr_{_g['name'].lower()}_filter)" if _g.get("filter_inner") else _c
+                _expr_c = _c
                 if _g["name"].upper() == "DEFAULT":
                     if _had_true:
                         _g["condition"] = "lit(False)"
@@ -3050,20 +3051,24 @@ class TransformHandlers:
 
         # Component-method config: lib.router owns the runtime semantics
         # (multi-feed union input, per-group filters, connector renames, $$
-        # substitution via filter_inner). The template reads ONLY this key.
+        # substitution via the merged condition). The template reads ONLY
+        # this key.
         _rtr_step = steps[-1]
         _rtr_groups = []
         for _g in _rtr_step.params.get("groups", []):
             _cond = _g.get("condition") or ""
             # Conditions arrive as translated Python source (`expr("...")`);
             # lib.router wraps its own condition text in expr() at runtime,
-            # so the cfg stores the RAW inner text (same regex as _handle_filter).
+            # so the cfg stores the RAW inner text (same regex as
+            # _handle_filter). Task 3 merge: filter_inner is gone — the raw
+            # ($$-carrying) inner text wins and becomes THE condition; the
+            # runtime substitutes $$ markers itself.
             _m = re.match(r'expr\("(.*)"\)$', _cond)
+            _raw_cond = _g.get("filter_inner") or (_m.group(1) if _m else _cond)
             _rtr_group = {
                 "name": _g["name"],
                 "df_output": _g.get("df_output", "df_group"),
-                "condition": _m.group(1) if _m else _cond,
-                "filter_inner": _g.get("filter_inner", ""),
+                "condition": _raw_cond,
                 # lib.router's default_negated branch chains ~_conds[name] —
                 # it keys conditions by GROUP NAME (the handler's dict list
                 # carries name + inner; only the name is needed).
@@ -3108,16 +3113,16 @@ class TransformHandlers:
         if _rtr_step.params.get("multi_feed"):
             _rtr_cfg["multi_feed"] = True
             _rtr_cfg["feeds"] = _rtr_step.params.get("feeds", [])
-        # $$ mapping variables inside group filter_inner texts: map the key to
-        # the RUNTIME IDENTIFIER ($$v_x → v_x) — the template renders the
-        # value unquoted (loaded override-aware from UTL_JOB_PARAM). Same rule
-        # as lib.filter's cfg.
+        # $$ mapping variables inside the merged group conditions: map the
+        # key to the RUNTIME IDENTIFIER ($$v_x → v_x) — the template renders
+        # the value unquoted (loaded override-aware from UTL_JOB_PARAM). Same
+        # rule as lib.filter's cfg.
         _rtr_subs: Dict[str, str] = {}
-        for _g in _rtr_step.params.get("groups", []):
-            _fi = _g.get("filter_inner") or ""
-            if '$$' in _fi and plan and plan.mapping_variables:
+        for _g in _rtr_groups:
+            _cond = _g.get("condition") or ""
+            if '$$' in _cond and plan and plan.mapping_variables:
                 for _var, _val in plan.mapping_variables.items():
-                    if _var in _fi:
+                    if _var in _cond:
                         _rtr_subs[_var] = _var.replace('$', '')
         if _rtr_subs:
             _rtr_cfg["substitutions"] = _rtr_subs

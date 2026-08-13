@@ -45,10 +45,27 @@ def test_substitution(runtime_lib, spark):
     out = runtime_lib.router(
         spark=spark, input_df=df, name="RTR",
         groups=[{"name": "G1", "df_output": "df_rtr_G1",
-                 "filter_inner": "V > $$v_min"}],
+                 "condition": "V > $$v_min"}],
         substitutions={"$$v_min": "2"},
     )
     assert sorted(r["V"] for r in out["df_rtr_G1"].collect()) == [5]
+
+
+def test_substitution_in_default_negated_chain(runtime_lib, spark):
+    """A DEFAULT group negating $$-carrying conditions substitutes each named
+    group's condition before the ~expr() chain filter."""
+    df = spark.createDataFrame([("A", 1), ("B", 2)], ["GRP", "V"])
+    out = runtime_lib.router(
+        spark=spark, input_df=df, name="RTR",
+        groups=[
+            {"name": "G1", "df_output": "df_rtr_G1",
+             "condition": "GRP = '$$v_keep'"},
+            {"name": "G2", "df_output": "df_rtr_G2",
+             "default_negated": ["G1"]},
+        ],
+        substitutions={"$$v_keep": "A"},
+    )
+    assert sorted(r["V"] for r in out["df_rtr_G2"].collect()) == [2]
 
 
 def test_multi_feed_union_input(runtime_lib, spark):

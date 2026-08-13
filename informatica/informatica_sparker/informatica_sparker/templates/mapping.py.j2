@@ -606,9 +606,25 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
             ],
             {% endif %}
             groups=[
-            {% for _g in rtrcfg['groups'] %}
-                {{ _g | pyrepr }},
-            {% endfor %}
+            {%- for _g in rtrcfg['groups'] %}
+                {
+                    'name': {{ _g['name'] | pyrepr }},
+                    'df_output': {{ _g['df_output'] | pyrepr }},
+                    {%- if _g.get('condition') %}
+                    'condition': {{ _g['condition'] | pyrepr }},
+                    {%- endif %}
+                    {%- if _g.get('default_negated') %}
+                    'default_negated': {{ _g['default_negated'] | pyrepr }},
+                    {%- endif %}
+                    {%- if _g.get('renames') %}
+                    'renames': [
+                    {%- for _r in _g['renames'] %}
+                        {{ _r | pyrepr }},
+                    {%- endfor %}
+                    ],
+                    {%- endif %}
+                },
+            {%- endfor %}
             ],
             {% if rtrcfg.get('substitutions') %}
             substitutions={{ '{' }}{% for _k, _v in rtrcfg['substitutions'].items() %}'{{ _k }}': {{ _v }}{% if not loop.last %}, {% endif %}{% endfor %}{{ '}' }},

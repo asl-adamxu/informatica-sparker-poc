@@ -903,9 +903,11 @@ def router(spark=None, input_df=None, name=None, groups=None,
     Returns {df_output: DataFrame}. Multi-input routers first build the input
     as a UNION of all feeds (NULL-filled per Router INPUT port, port aliases
     from the XML connectors), then the ORDERED group split runs (first match
-    wins). Each group's condition is: filter_inner ($$ substituted) >
-    default_negated (negated chain of named groups' conditions) > condition >
-    pass-through. Connector renames apply after the filter, drop-first.
+    wins). Each group carries ONE condition (raw translated text, may hold
+    $$ markers) substituted at runtime; DEFAULT groups compose via
+    default_negated (negated chain of named groups' conditions); an empty
+    condition is a pass-through. Connector renames apply after the filter,
+    drop-first.
     """
     if multi_feed:
         _feeds = feeds or []
@@ -935,31 +937,25 @@ def router(spark=None, input_df=None, name=None, groups=None,
             _rtr_in = _rtr_in.unionByName(_v)
     else:
         _rtr_in = input_df
-    # Pre-substitute $$ filter texts once (the template's first-pass vars)
-    _prepared = {}
-    for _g in groups or []:
-        _f_inner = _g.get("filter_inner") or ""
-        if _f_inner and "$$" in _f_inner:
-            _f_inner = _substitute(_f_inner, substitutions)
-        _prepared[_g["name"]] = _f_inner
+    # One condition per group (raw translated text; may carry $$ markers).
+    # Substitute $$ variables once, then run the ordered split (first match
+    # wins). The single _conds build replaces the old _prepared/_conds pair.
     _conds = {}
     for _g in groups or []:
-        _f_inner = _prepared.get(_g["name"]) or ""
-        if _f_inner:
-            _conds[_g["name"]] = expr(_f_inner)
-        elif _g.get("condition"):
-            _conds[_g["name"]] = expr(_g["condition"])
+        _c = _g.get("condition") or ""
+        if _c and "$$" in _c:
+            _c = _substitute(_c, substitutions)
+        _conds[_g["name"]] = _c
     _out = {}
     for _g in groups or []:
         _name, _df_out = _g["name"], _g["df_output"]
-        if _prepared.get(_name):
-            _df = _rtr_in.filter(expr(_prepared[_name]))
-        elif _g.get("default_negated"):
+        _c = _conds.get(_name) or ""
+        if _g.get("default_negated"):
             _df = _rtr_in
             for _neg in _g["default_negated"]:
-                _df = _df.filter(~_conds[_neg])
-        elif _g.get("condition"):
-            _df = _rtr_in.filter(expr(_g["condition"]))
+                _df = _df.filter(~expr(_conds.get(_neg) or ""))
+        elif _c:
+            _df = _rtr_in.filter(expr(_c))
         else:
             _df = _rtr_in
         _df = _rename_columns(_df, _g.get("renames") or [])
