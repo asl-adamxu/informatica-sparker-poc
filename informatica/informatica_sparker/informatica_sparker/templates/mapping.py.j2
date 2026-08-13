@@ -729,22 +729,15 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         {% elif step.step_type == IRStepType.APPLY_UPDATE_STRATEGY %}
         # Update Strategy: {{ step.step_name }}
         # Strategy: {{ step.params.get('strategy_expression', 'DD_INSERT') }}
-        {% if step.params.get('strategy_field') %}
-        {% set sf = step.params.get('strategy_field') %}
-        # Dynamic strategy from field — split rows by _update_flag
-        {{ step.df_output }} = {{ step.df_input }}.withColumn("_update_flag",
-            when(col("{{ sf }}") == "DD_INSERT", lit("I"))
-            .when(col("{{ sf }}") == "DD_UPDATE", lit("U"))
-            .when(col("{{ sf }}") == "DD_DELETE", lit("D"))
-            .otherwise(lit("I"))
+        {% set uscfg = step.params.get('update_strategy_cfg', {}) %}
+        {{ step.df_output }} = lib.update_strategy(
+            spark=spark,
+            input_df={{ step.df_input }},
+            {% if uscfg.get('strategy_field') %}
+            strategy_field={{ uscfg['strategy_field'] | pyrepr }},
+            {% endif %}
+            config=config,
         )
-        {% elif step.params.get('static_dd') %}
-        # Static {{ step.params.get('static_dd') }} — pass through; the target write
-        # step applies the strategy directly (append / batch_update / batch_delete).
-        {{ step.df_output }} = {{ step.df_input }}
-        {% else %}
-        {{ step.df_output }} = {{ step.df_input }}
-        {% endif %}
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
         
         {% elif step.step_type == IRStepType.EXECUTE_SQL %}
@@ -770,118 +763,42 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         
         {% elif step.step_type == IRStepType.WRITE_TARGET %}
         # Write to Target: {{ step.step_name }}
-        {% set sink_type = step.params.get('sink_type', 'delta') %}
-        {% set table_name = step.params.get('table_name', '') %}
-        {% set mode = step.params.get('mode', 'append') %}
-        {% set target_columns = step.params.get('target_columns', []) %}
-        {% set target_column_types = step.params.get('target_column_types', {}) %}
-        {% set unmapped_columns = step.params.get('unmapped_columns', []) %}
-        {% set is_delete = step.params.get('is_delete', False) %}
-        {% set delete_keys = step.params.get('delete_keys', []) %}
-        {% if table_name.endswith('DEV_NULL') or '/dev/null' in table_name.lower() or table_name.upper() == 'DUAL' %}
-        # /dev/null / DUAL — skip entire write component 
-        logger.info("Target {{ step.step_name }} is a no-op target (/dev/null or DUAL), skipping write")
-        {% else %}
-        df_write = {{ step.df_input }}
-        {% if step.params.get('cast_nulltype') %}
-        # Cast NullType columns to StringType
-        for _c in df_write.columns:
-            if isinstance(df_write.schema[_c].dataType, NullType):
-                df_write = df_write.withColumn(_c, col(_c).cast(StringType()))
-        {% endif %}
-        {% if target_columns and step.params.get('field_map') %}
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        {% set field_map = step.params.get('field_map', {}) %}
-        _field_map = {{ field_map | tojson }}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        {% endif %}
-        {% if step.params.get('has_update_flag') %}
-        {% set _upd_keys = step.params.get('delete_keys', []) %}
-        {% if step.params.get('static_dd') == 'DD_UPDATE' %}
-        # Static DD_UPDATE: batch update ALL rows by primary key (no split needed)
-        {% if _upd_keys %}
-        if not df_write.rdd.isEmpty():
-            _upd_key_cols = {{ _upd_keys }}
-            _upd_set_cols = [c for c in df_write.columns if c.lower() not in [k.lower() for k in _upd_key_cols] and c != "_update_flag"]
-            if _upd_set_cols:
-                _upd_rows = [tuple(r[c] for c in _upd_set_cols + _upd_key_cols) for r in df_write.collect()]
-                lib.batch_update(spark, conn_target, "{{ table_name }}", _upd_set_cols, _upd_key_cols, _upd_rows, 1000)
-        {% endif %}
-        # No rows to insert (all rows were updated)
-        df_write = df_write.filter(lit(False))
-        {% else %}
-        # Dynamic field strategy — split by _update_flag operation (INSERT/UPDATE/DELETE)
-        _df_ins = df_write.filter(col("_update_flag") == "I").drop("_update_flag")
-        _df_upd = df_write.filter(col("_update_flag") == "U").drop("_update_flag")
-        _df_del = df_write.filter(col("_update_flag") == "D").drop("_update_flag")
-        df_write = df_write.drop("_update_flag")
-        # DELETE: composite key batch delete (all key columns together)
-        {% if _upd_keys %}
-        _del_key_cols = {{ _upd_keys }}
-        if not _df_del.rdd.isEmpty():
-            _del_rows = [tuple(r[c] for c in _del_key_cols) for r in _df_del.select(*_del_key_cols).distinct().collect()]
-            if _del_rows:
-                lib.batch_delete_composite(spark, conn_target, "{{ table_name }}", _del_key_cols, _del_rows, 1000)
-        {% endif %}
-        # UPDATE: batch update via JDBC
-        {% if _upd_keys %}
-        if not _df_upd.rdd.isEmpty():
-            _upd_key_cols = {{ _upd_keys }}
-            _upd_set_cols = [c for c in _df_upd.columns if c.lower() not in [k.lower() for k in _upd_key_cols]]
-            if _upd_set_cols:
-                _upd_rows = [tuple(r[c] for c in _upd_set_cols + _upd_key_cols) for r in _df_upd.collect()]
-                lib.batch_update(spark, conn_target, "{{ table_name }}", _upd_set_cols, _upd_key_cols, _upd_rows, 1000)
-        {% endif %}
-        # INSERT — set df_write to _df_ins so it flows through normal write path
-        df_write = _df_ins
-        {% endif %}
-        {% endif %}
-        {% if is_delete and delete_keys %}
-        # Static DD_DELETE: composite primary-key delete of all rows
-        _del_key_cols = {{ delete_keys }}
-        if not df_write.rdd.isEmpty():
-            _del_rows = [tuple(r[c] for c in _del_key_cols) for r in df_write.select(*_del_key_cols).distinct().collect()]
-            if _del_rows:
-                lib.batch_delete_composite(spark, conn_target, "{{ table_name }}", _del_key_cols, _del_rows, 1000)
-        {% else %}
-        {% if unmapped_columns %}
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        {% for col in unmapped_columns %}
-        {% if col.lower() not in ['src_rowid'] %}
-        df_write = df_write.withColumn("{{ col }}", lit(None).cast(StringType()))
-        {% endif %}
-        {% endfor %}
-        {% endif %}
-        {% if target_columns %}
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = {{ target_columns }}
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        {% endif %}
-        {% if sink_type == 'csv' %}
-        # Write to flat file — prefer config.yml objects metadata, then derived default path
-        _write_obj = objects.get("{{ table_name }}")
-        if _write_obj and isinstance(_write_obj, dict):
-            _write_path = _write_obj.get('path', '/tmp/{{ table_name }}')
-            _write_fmt = _write_obj.get('format', '{{ sink_type }}')
-        # Runtime fallback: skip write if path resolves to /dev/null
-        if _write_path and _write_path.strip() in ("/dev/null", "NUL"):
-            logger.info("Target %s resolved to /dev/null, skipping write", "{{ step.step_name }}")
-        else:
-            lib.write_file(df_write, _write_path, format=_write_fmt, mode="overwrite")
-        {% else %}
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "{{ table_name }}", mode="{{ mode }}")
-        {% endif %}
-        {% endif %}
-        {% endif %}
+        {% set wtcfg = step.params['write_target_cfg'] %}
+        lib.write_target(
+            spark=spark,
+            df={{ step.df_input }},
+            conn=conn_target,
+            table={{ wtcfg['table'] | pyrepr }},
+            mode={{ wtcfg['mode'] | pyrepr }},
+            {% if wtcfg.get('sink_type') != 'delta' %}
+            sink_type={{ wtcfg['sink_type'] | pyrepr }},
+            {% endif %}
+            {% if wtcfg.get('target_columns') %}
+            target_columns={{ wtcfg['target_columns'] | pyrepr }},
+            {% endif %}
+            {% if wtcfg.get('field_map') %}
+            field_map={{ wtcfg['field_map'] | pyrepr }},
+            {% endif %}
+            {% if wtcfg.get('unmapped_columns') %}
+            unmapped_columns={{ wtcfg['unmapped_columns'] | pyrepr }},
+            {% endif %}
+            {% if wtcfg.get('is_delete') %}
+            is_delete=True,
+            {% endif %}
+            {% if wtcfg.get('delete_keys') %}
+            delete_keys={{ wtcfg['delete_keys'] | pyrepr }},
+            {% endif %}
+            {% if wtcfg.get('cast_nulltype') %}
+            cast_nulltype=True,
+            {% endif %}
+            {% if wtcfg.get('has_update_flag') %}
+            has_update_flag=True,
+            {% endif %}
+            {% if wtcfg.get('static_dd') %}
+            static_dd={{ wtcfg['static_dd'] | pyrepr }},
+            {% endif %}
+            config=config,
+        )
 
         logger.info("{{ step.step_name }} write completed")
         {% elif step.step_type == IRStepType.WORKFLOW_DAG %}

@@ -3389,6 +3389,14 @@ class TransformHandlers:
             step.params["static_dd"] = "DD_INSERT"
             step.comments.append("DD_INSERT: all rows appended directly")
 
+        # Component-method cfg contract (lib.update_strategy reads ONLY this):
+        # strategy_field (dynamic field strategies) or nothing (static DD_* —
+        # the write step applies the strategy directly).
+        _us_cfg: Dict[str, Any] = {}
+        if step.params.get("strategy_field"):
+            _us_cfg["strategy_field"] = step.params["strategy_field"]
+        step.params["update_strategy_cfg"] = _us_cfg
+
         return pre_steps + [step]
 
     def _handle_transaction_control(self, instance: Instance, plan: IRPlan) -> Optional[IRStep]:
@@ -3623,6 +3631,24 @@ class TransformHandlers:
 
         if post_sql:
             write_step.params["post_sql"] = post_sql
+
+        # Component-method cfg contract (lib.write_target reads ONLY this).
+        # conn/table/mode render as conn_target / the pyrepr'd table / mode.
+        _wt_cfg: Dict[str, Any] = {
+            "table": write_step.params.get("table_name", ""),
+            "mode": write_step.params.get("mode", "append"),
+            "sink_type": write_step.params.get("sink_type", "delta"),
+            "target_columns": write_step.params.get("target_columns", []),
+            "unmapped_columns": write_step.params.get("unmapped_columns", []),
+            "is_delete": bool(write_step.params.get("is_delete")),
+            "delete_keys": write_step.params.get("delete_keys", []),
+            "cast_nulltype": bool(write_step.params.get("cast_nulltype")),
+            "has_update_flag": bool(write_step.params.get("has_update_flag")),
+            "static_dd": write_step.params.get("static_dd"),
+        }
+        if write_step.params.get("field_map"):
+            _wt_cfg["field_map"] = write_step.params["field_map"]
+        write_step.params["write_target_cfg"] = _wt_cfg
 
         steps.append(write_step)
 
