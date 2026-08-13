@@ -65,6 +65,7 @@ def test_every_sq_step_carries_sq_output_cfg():
     carry only '' (no casts apply)."""
     seen = 0
     n_pushdown_with_types = 0
+    n_nonpush_with_types = 0
     for mapping, step in _load_steps():
         seen += 1
         assert "sq_output_cfg" in step.params, (
@@ -96,14 +97,17 @@ def test_every_sq_step_carries_sq_output_cfg():
             )
             n_pushdown_with_types += 1
         else:
-            # Non-pushdown applies no casts: every value must be ''
-            assert all(not v for v in cfg["port_cols"].values()), (
-                f"{mapping.name}: {step.step_name} non-pushdown sq_output_cfg "
-                "port_cols carries cast types (pushdown-only per contract)"
-            )
+            # Non-pushdown SQs also carry the SQ OUTPUT-port datatypes (the
+            # store moved to the shared tail) — at least one must carry a
+            # real type so the rendered port_cols shows types.
+            n_nonpush_with_types += 1 if any(cfg["port_cols"].values()) else 0
     assert seen >= 40, f"expected >= 40 Source Qualifier steps, saw {seen}"
     assert n_pushdown_with_types >= 1, (
         "no pushdown SQ carries cast types - type casts would never render"
+    )
+    assert n_nonpush_with_types >= 1, (
+        "no non-pushdown SQ carries cast types - the rendered port_cols "
+        "would show all-empty types"
     )
 
 

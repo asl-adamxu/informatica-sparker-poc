@@ -1147,13 +1147,6 @@ class TransformHandlers:
             step.params["db_type"] = source_db_type
             if source_inputs:
                 step.params["source_schema"] = source_inputs[0].get("owner", "")
-            # Port datatypes drive the runtime type casts in lib.sq_output
-            # (pushdown only — the non-pushdown path applies no casts).
-            step.params["output_column_types"] = {
-                _f.name: _f.datatype
-                for _f in (transform.fields if transform else [])
-                if "OUTPUT" in _f.port_type
-            }
             step.comments.append(f"SQL Pushdown: Executing SQ SQL on source database ({source_db_type})")
         else:
             step = ApplySourceQualifierStep(
@@ -1174,6 +1167,14 @@ class TransformHandlers:
 
         step.params["connection_alias"] = conn_alias
         step.params["output_columns"] = output_columns
+        # Port datatypes drive the runtime type casts in lib.sq_output
+        # (both pushdown and non-pushdown paths — the SQ's OUTPUT port
+        # datatypes come from the transform definition; missing → '' (no cast)).
+        step.params["output_column_types"] = {
+            _f.name: _f.datatype
+            for _f in (transform.fields if transform else [])
+            if "OUTPUT" in _f.port_type
+        }
 
         # Component-method config: lib.sq_output owns the runtime semantics of
         # SQ port handling (two-pass rename, port select, type casts, filter,
