@@ -185,9 +185,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         {% set sqcfg = step.params['sq_output_cfg'] %}
         {{ step.df_output }} = lib.sq_output(
             input_df={{ step.df_output }},
-            port_cols={{ sqcfg['port_cols'] | pyrepr }},
-            {% if sqcfg.get('column_types') %}
-            column_types={{ sqcfg['column_types'] | pyrepr }},
+            {% if sqcfg['port_cols'] %}
+            port_cols={
+                {{ sqcfg['port_cols'].items() | map('map', 'pyrepr') | map('join', ': ') | join(',\n                ') }},
+            },
             {% endif %}
             {% if sqcfg.get('filter_condition') %}
             filter_condition={{ sqcfg['filter_condition'] | pyrepr }},
@@ -206,9 +207,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         {% set sqcfg = step.params['sq_output_cfg'] %}
         {{ step.df_output }} = lib.sq_output(
             input_df={{ step.df_output }},
-            port_cols={{ sqcfg['port_cols'] | pyrepr }},
-            {% if sqcfg.get('column_types') %}
-            column_types={{ sqcfg['column_types'] | pyrepr }},
+            {% if sqcfg['port_cols'] %}
+            port_cols={
+                {{ sqcfg['port_cols'].items() | map('map', 'pyrepr') | map('join', ': ') | join(',\n                ') }},
+            },
             {% endif %}
             {% if sqcfg.get('filter_condition') %}
             filter_condition={{ sqcfg['filter_condition'] | pyrepr }},

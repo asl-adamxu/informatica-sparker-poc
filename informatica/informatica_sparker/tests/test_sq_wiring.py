@@ -5,11 +5,12 @@ which reads ONLY `step.params["sq_output_cfg"]`. Any step missing its cfg
 silently drops the SQ port handling (rename, port select, type casts,
 filter/distinct) in the generated code.
 
-The cfg form is the runtime contract (Task 1):
-  - `port_cols`: SQ output port names (always present, non-empty);
-  - `column_types`: {port: datatype} — PUSHDOWN only (the non-pushdown path
-    applies no casts; the old inline type-cast block lived in the pushdown
-    tail);
+The cfg form is the runtime contract (Opt 2):
+  - `port_cols`: ordered dict {port_name: cast_type} — dict insertion order
+    is the port order (drives the two-pass rename + final select); the value
+    is the cast type, '' or None → no cast. Types are PUSHDOWN only (the
+    non-pushdown path applies no casts → every value is '' there). The old
+    `column_types` kwarg is REMOVED.
   - `filter_condition` / `substitutions` / `distinct`: NON-PUSHDOWN only.
 
 Source of truth is real PowerCenter XML only: WF_EMS_DDS_APLY_MTH (143 Source
@@ -58,8 +59,10 @@ def _load_steps():
 
 
 def test_every_sq_step_carries_sq_output_cfg():
-    """Every ApplySourceQualifierStep must carry sq_output_cfg with non-empty
-    port_cols; pushdown steps carry column_types, non-pushdown steps never do."""
+    """Every ApplySourceQualifierStep must carry sq_output_cfg with a non-empty
+    port_cols DICT {port: type} (the merged form replacing column_types);
+    pushdown steps carry real cast types in the values, non-pushdown steps
+    carry only '' (no casts apply)."""
     seen = 0
     n_pushdown_with_types = 0
     for mapping, step in _load_steps():
@@ -69,26 +72,38 @@ def test_every_sq_step_carries_sq_output_cfg():
             "lib.sq_output rendering would drop its port handling"
         )
         cfg = step.params["sq_output_cfg"]
-        assert cfg.get("port_cols"), (
-            f"{mapping.name}: {step.step_name} sq_output_cfg port_cols empty"
+        assert isinstance(cfg.get("port_cols"), dict) and cfg["port_cols"], (
+            f"{mapping.name}: {step.step_name} sq_output_cfg port_cols must "
+            "be a non-empty dict"
+        )
+        # Dict order = port order (drives the runtime rename + select)
+        assert list(cfg["port_cols"].keys()) == step.params.get(
+            "output_columns", []
+        ), (
+            f"{mapping.name}: {step.step_name} port_cols dict order does not "
+            "match output_columns order"
+        )
+        # The column_types kwarg is gone - the cast type rides in the values
+        assert "column_types" not in cfg, (
+            f"{mapping.name}: {step.step_name} sq_output_cfg must not carry "
+            "the removed column_types key"
         )
         if step.params.get("use_sql_override"):
-            # Pushdown SQs carry column_types (drives the runtime type casts);
-            # the old inline cast block read output_column_types, which the
-            # handler now stores for pushdown steps.
-            assert "column_types" in cfg, (
+            # Pushdown SQs carry datatypes (drives the runtime type casts)
+            assert any(cfg["port_cols"].values()), (
                 f"{mapping.name}: {step.step_name} pushdown sq_output_cfg "
-                "missing column_types"
+                "port_cols has no cast types - type casts would never run"
             )
             n_pushdown_with_types += 1
         else:
-            assert "column_types" not in cfg, (
+            # Non-pushdown applies no casts: every value must be ''
+            assert all(not v for v in cfg["port_cols"].values()), (
                 f"{mapping.name}: {step.step_name} non-pushdown sq_output_cfg "
-                "must not carry column_types (pushdown-only per contract)"
+                "port_cols carries cast types (pushdown-only per contract)"
             )
     assert seen >= 40, f"expected >= 40 Source Qualifier steps, saw {seen}"
     assert n_pushdown_with_types >= 1, (
-        "no pushdown SQ carries column_types - type casts would never render"
+        "no pushdown SQ carries cast types - type casts would never render"
     )
 
 
@@ -121,7 +136,8 @@ def test_apply_source_qualifier_block_renders_parseable_lib_sq_output_call():
     """The APPLY_SOURCE_QUALIFIER block must render a parseable
     lib.sq_output(...) call for BOTH paths: pushdown (after lib.read_sql,
     input_df is the read result) and non-pushdown (after the df_input
-    assignment), with port_cols/column_types/filter_condition/substitutions/
+    assignment), with port_cols rendered as a multi-line dict (one entry per
+    line, Opt 2), no column_types kwarg, and filter_condition/substitutions/
     distinct rendered only when present, and ctx.register_df after."""
     env = Environment()
     env.filters["pyrepr"] = repr  # matches codegen.py registration
@@ -139,7 +155,7 @@ def test_apply_source_qualifier_block_renders_parseable_lib_sq_output_call():
     # branch); the wrapper tags emit nothing.
     block = "{% if False %}\n" + source[start:end] + "\n{% endif %}"
 
-    # Full cfg: column_types + filter_condition + substitutions + distinct
+    # Full cfg: port_cols dict + filter_condition + substitutions + distinct
     step = SimpleNamespace(
         step_type=IRStepType.APPLY_SOURCE_QUALIFIER,
         step_name="apply_SMOKE",
@@ -149,8 +165,7 @@ def test_apply_source_qualifier_block_renders_parseable_lib_sq_output_call():
             "use_sql_override": False,
             "sql_query": "",
             "sq_output_cfg": {
-                "port_cols": ["C1", "C2"],
-                "column_types": {"C1": "decimal", "C2": "string"},
+                "port_cols": {"C1": "decimal", "C2": "string"},
                 "filter_condition": "C1 > $$v_min",
                 "substitutions": {"$$v_min": "v_min"},
                 "distinct": True,
@@ -163,9 +178,16 @@ def test_apply_source_qualifier_block_renders_parseable_lib_sq_output_call():
 
     assert "lib.sq_output(" in out
     assert "input_df=df_sq_smoke," in out
-    assert "port_cols=['C1', 'C2']," in out
-    # column_types / filter_condition pyrepr'd as strings
-    assert "column_types={'C1': 'decimal', 'C2': 'string'}," in out
+    # port_cols renders ONE ENTRY PER LINE (dict insertion order preserved)
+    assert (
+        "port_cols={\n"
+        "                'C1': 'decimal',\n"
+        "                'C2': 'string',\n"
+        "            }," in out
+    )
+    # Opt 2: column_types kwarg is gone entirely
+    assert "column_types=" not in out
+    # filter_condition pyrepr'd as a string
     assert 'filter_condition=\'C1 > $$v_min\',' in out
     # substitutions value renders UNQUOTED (runtime variable identifier)
     assert "{'$$v_min': v_min}," in out
@@ -189,8 +211,7 @@ def test_apply_source_qualifier_block_renders_parseable_lib_sq_output_call():
             "sql_query": "SELECT C1, C2 FROM SRC_TBL",
             "source_schema": "psor",
             "sq_output_cfg": {
-                "port_cols": ["C1", "C2"],
-                "column_types": {"C1": "decimal", "C2": "string"},
+                "port_cols": {"C1": "decimal", "C2": "string"},
             },
         },
     )
@@ -206,7 +227,14 @@ def test_apply_source_qualifier_block_renders_parseable_lib_sq_output_call():
     # single lib.sq_output call feeding from the read result
     assert out2.count("lib.sq_output(") == 1
     assert "input_df=df_sq_push," in out2
-    assert "column_types={'C1': 'decimal', 'C2': 'string'}," in out2
+    # multi-line dict rendering on the pushdown path too
+    assert (
+        "port_cols={\n"
+        "                'C1': 'decimal',\n"
+        "                'C2': 'string',\n"
+        "            }," in out2
+    )
+    assert "column_types=" not in out2
     # non-pushdown-only keys must NOT render for pushdown
     assert "filter_condition=" not in out2
     assert "substitutions=" not in out2
@@ -227,14 +255,14 @@ def test_apply_source_qualifier_block_renders_parseable_lib_sq_output_call():
         params={
             "use_sql_override": False,
             "sql_query": "",
-            "sq_output_cfg": {"port_cols": ["C1"]},
+            "sq_output_cfg": {"port_cols": {"C1": ""}},
         },
     )
     out3 = env.from_string(block).render(
         step=step3, IRStepType=IRStepType, mapping_variables={},
     )
     assert "lib.sq_output(" in out3
-    assert "port_cols=['C1']," in out3
+    assert "port_cols={\n                'C1': '',\n            }," in out3
     assert "filter_condition=" not in out3
     assert "column_types=" not in out3
     assert "substitutions=" not in out3

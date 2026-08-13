@@ -1033,9 +1033,13 @@ def sequence(spark=None, input_df=None, name=None, output_col="NEXTVAL",
 
 
 def sq_output(spark=None, input_df=None, name=None, port_cols=None,
-              column_types=None, filter_condition=None, substitutions=None,
+              filter_condition=None, substitutions=None,
               distinct=False, config=None, **kwargs):
     """Convert one Source Qualifier's output-port handling.
+
+    port_cols is an ordered dict {port_name: cast_type} — dict insertion order
+    is the port order (drives the two-pass rename AND the final select). The
+    value is the cast type ('' or None → no cast).
 
     SQL-pushdown results are renamed to the SQ output ports: name-match first
     (case-insensitive), then positional fallback for unaliased expression
@@ -1049,13 +1053,13 @@ def sq_output(spark=None, input_df=None, name=None, port_cols=None,
         df = df.filter(expr(_substitute(filter_condition, substitutions, or_zero=True)))
     if distinct:
         df = df.distinct()
-    _port_cols = list(port_cols or [])
-    if _port_cols:
+    _port_names = list(port_cols or [])
+    if _port_names:
         _sql_cols = list(df.columns)
         _rename_map = {}
         _used = set()
         for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
+            for _pi, _port in enumerate(_port_names):
                 if _pi not in _used and _sc.lower() == _port.lower():
                     _rename_map[_sc] = _port
                     _used.add(_pi)
@@ -1066,8 +1070,8 @@ def sq_output(spark=None, input_df=None, name=None, port_cols=None,
                 continue
             while _pi in _used:
                 _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
+            if _pi < len(_port_names):
+                _rename_map[_sc] = _port_names[_pi]
                 _used.add(_pi)
                 _pi += 1
         if _rename_map:
@@ -1076,9 +1080,9 @@ def sq_output(spark=None, input_df=None, name=None, port_cols=None,
         df = df.select([
             col(_c) if _c.lower() in [x.lower() for x in df.columns]
             else lit(None).alias(_c)
-            for _c in _port_cols
+            for _c in _port_names
         ])
-    for _cname, _ctype in (column_types or {}).items():
+    for _cname, _ctype in (port_cols or {}).items():
         _lower = _cname.lower()
         _cast = None
         _t = str(_ctype or "").upper()

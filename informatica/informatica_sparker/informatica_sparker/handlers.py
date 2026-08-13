@@ -1178,9 +1178,17 @@ class TransformHandlers:
         # Component-method config: lib.sq_output owns the runtime semantics of
         # SQ port handling (two-pass rename, port select, type casts, filter,
         # distinct). The template renders ONE lib.sq_output call from this cfg.
-        _sq_cfg: Dict[str, Any] = {"port_cols": step.params.get("output_columns", [])}
-        if step.params.get("output_column_types"):
-            _sq_cfg["column_types"] = step.params["output_column_types"]
+        # port_cols is the merged dict {name: ctype} (Opt 2): dict insertion
+        # order = port order (drives the runtime two-pass rename + final
+        # select); the value is the cast type, missing/None datatype → '' (no
+        # runtime cast).
+        _output_types = step.params.get("output_column_types", {}) or {}
+        _sq_cfg: Dict[str, Any] = {
+            "port_cols": {
+                _c: str(_output_types.get(_c, "") or "")
+                for _c in step.params.get("output_columns", [])
+            }
+        }
         if step.params.get("filter_inner") and '$$' not in step.params.get("filter_inner", ""):
             _sq_cfg["filter_condition"] = step.params["filter_inner"]
         elif step.params.get("filter_inner"):
