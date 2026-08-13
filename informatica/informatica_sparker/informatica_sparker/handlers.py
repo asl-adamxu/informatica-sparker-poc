@@ -2781,25 +2781,23 @@ class TransformHandlers:
 
                 # Build the select as FROM names in output-column order
                 # (Opt 4: selects are from-only string lists; selects[j]
-                # aliases positionally to output_columns[j]). The entries'
-                # 'to' identifies the output port - sort by the output_columns
-                # index so to-order is guaranteed by construction (the loop
-                # already iterates _output_ports in definition order, which
-                # matches output_columns; the sort makes it explicit).
-                _selects = []
-                for _out_port in _output_ports:
-                    for _in_grp in _grp_connectors:
-                        _out = _port_map.get(_in_grp.to_field)
-                        if _out == _out_port:
-                            _selects.append({"from": _in_grp.from_field, "to": _out_port})
-                            break
-                if _selects:
-                    _out_idx = {_p: _i for _i, _p in enumerate(output_columns)}
-                    _selects.sort(
-                        key=lambda _s: _out_idx.get(_s["to"], len(output_columns)))
-                    _selects = [_s["from"] for _s in _selects]
+                # aliases positionally to output_columns[j]). GAP positions -
+                # output ports this group has no connected source for - are
+                # emitted as None padding so selects is ALWAYS
+                # len(output_columns) long and no value can shift left;
+                # lib.union skips None entries (no select emitted; the port
+                # is lit(None)-filled after the union). First connector to
+                # claim an output port wins.
+                _out_idx = {_p: _i for _i, _p in enumerate(output_columns)}
+                _selects: List[Optional[str]] = [None] * len(output_columns)
+                for _in_grp in _grp_connectors:
+                    _out = _port_map.get(_in_grp.to_field)
+                    if _out is not None and _out in _out_idx:
+                        _j = _out_idx[_out]
+                        if _selects[_j] is None:
+                            _selects[_j] = _in_grp.from_field
 
-                if _selects:
+                if any(_s is not None for _s in _selects):
                     _safe_inst = re.sub(r'[^a-zA-Z0-9_]', '_', instance.name)
                     _intermediate_var = f"df_{_safe_inst}_{_grp.lower()}"
                     _union_selects.append({

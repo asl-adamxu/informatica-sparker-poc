@@ -46,6 +46,27 @@ def test_union_selects_shorter_than_output_columns_filled(runtime_lib, spark):
     assert sorted(r["K"] for r in out.collect()) == [1, 2]
 
 
+def test_union_selects_gap_position_none_padding(runtime_lib, spark):
+    """GAP positions: a None entry in selects means this group has no
+    connected source for that output port - no select is emitted, so the next
+    value must NOT shift left onto the missing port. Here 'V2' must land in
+    output port 'V' (position 2), NOT 'X' (position 1)."""
+    a = spark.createDataFrame([(1, "x")], ["K", "V2"])
+    b = spark.createDataFrame([(2, "y", "w")], ["K", "X", "V"])
+    out = runtime_lib.union(
+        spark=spark, input_df=a, name="UN",
+        union_selects=[
+            # gap at output position 1 (X): K -> K, (none), V2 -> V
+            {"df_input": a, "selects": ["K", None, "V2"]},
+            {"df_input": b, "selects": ["K", "X", "V"]},
+        ],
+        output_columns=["K", "X", "V"],
+    )
+    assert out.columns == ["K", "X", "V"]
+    rows = sorted((r["K"], r["X"], r["V"]) for r in out.collect())
+    assert rows == [(1, None, "x"), (2, "y", "w")]
+
+
 def test_union_simple_inputs(runtime_lib, spark):
     a = spark.createDataFrame([(1,)], ["K"])
     b = spark.createDataFrame([(2,)], ["K"])

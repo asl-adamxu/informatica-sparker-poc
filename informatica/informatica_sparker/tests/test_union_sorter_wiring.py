@@ -7,9 +7,11 @@ missing its cfg silently drops the transformation in the generated code.
 
 The cfg form is the runtime contract (Tasks 2-4):
   - `union_selects[].df_input` is a DataFrame NAME (the template renders it
-    UNQUOTED); `selects` are FROM-only string lists in output-column order
-    (selects[j] aliases positionally to output_columns[j]), rendered via
-    pyrepr one entry per line;
+    UNQUOTED); `selects` are FROM-only lists in output-column order with
+    EXACTLY len(output_columns) entries - selects[j] aliases positionally to
+    output_columns[j], or None for a GAP position (no connected source for
+    that output port; lib.union skips it). Rendered via pyrepr one entry per
+    line (None renders as `None`);
   - `rename_columns` are (from, to) TUPLES (the runtime applies them via
     withColumnRenamed);
   - `sort_columns` keep their {column, direction} dicts.
@@ -78,21 +80,25 @@ def test_every_union_step_carries_union_cfg():
             "flag_column/output_columns"
         )
         for _us in cfg.get("union_selects", []):
-            # df_input must be a NAME (unquoted render); selects are FROM-only
-            # strings in output-column order, at most one per output column
+            # df_input must be a NAME (unquoted render); selects are
+            # positionally aligned to output_columns with EXACTLY
+            # len(output_columns) entries - a from-only string, or None for a
+            # GAP position (no connected source for that output port)
             assert isinstance(_us["df_input"], str), (
                 f"{mapping.name}: {step.step_name} union_select df_input "
                 f"not a df name: {_us['df_input']!r}"
             )
-            assert isinstance(_us["selects"], list) and all(
-                isinstance(_s, str) for _s in _us["selects"]
+            assert isinstance(_us["selects"], list) and \
+                len(_us["selects"]) == len(cfg["output_columns"]), (
+                    f"{mapping.name}: {step.step_name} union_selects must be "
+                    f"len(output_columns)={len(cfg['output_columns'])} with "
+                    "None padding for gap positions"
+                )
+            assert all(
+                _s is None or isinstance(_s, str) for _s in _us["selects"]
             ), (
                 f"{mapping.name}: {step.step_name} union_selects entries "
-                "must be from-only string lists"
-            )
-            assert len(_us["selects"]) <= len(cfg["output_columns"]), (
-                f"{mapping.name}: {step.step_name} union_selects longer than "
-                "output_columns - positional aliasing would overflow"
+                "must be from-only strings or None (gap padding)"
             )
     assert seen >= 1, "no ApplyUnionStep found in the workflow"
 
@@ -169,12 +175,14 @@ def test_apply_union_block_renders_parseable_lib_union_call():
             "union_cfg": {
                 "inputs": ["df_in_a", "df_in_b"],
                 "flag_column": "",
-                "output_columns": ["C1", "C2"],
+                "output_columns": ["C1", "C2", "C3"],
                 "union_selects": [
+                    # gap at output position 1 (C2) -> None padding
                     {"df_input": "df_in_a",
-                     "selects": ["SRC1", "SRC2"]},
+                     "selects": ["SRC1", None, "SRC2"]},
+                    # trailing gap -> None padding at the end
                     {"df_input": "df_in_b",
-                     "selects": ["SRC1"]},
+                     "selects": ["SRC1", "SRC2", None]},
                 ],
             }
         },
@@ -183,13 +191,14 @@ def test_apply_union_block_renders_parseable_lib_union_call():
 
     assert "lib.union(" in out
     # df_input renders UNQUOTED (df name); selects render as pyrepr'd
-    # from-only string lists, one entry per line (collapsed for the check)
+    # lists, one entry per line - None renders as `None` (collapsed for the
+    # check)
     _collapsed = "".join(out.split())
-    assert "{'df_input':df_in_a,'selects':['SRC1','SRC2']}," in _collapsed
-    assert "{'df_input':df_in_b,'selects':['SRC1']}," in _collapsed
+    assert "{'df_input':df_in_a,'selects':['SRC1',None,'SRC2']}," in _collapsed
+    assert "{'df_input':df_in_b,'selects':['SRC1','SRC2',None]}," in _collapsed
     # flag_column dead branch NOT rendered when empty
     assert "flag_column=" not in out
-    assert "output_columns=['C1', 'C2']," in out
+    assert "output_columns=['C1', 'C2', 'C3']," in out
     assert 'ctx.register_df("df_un", df_un)' in out
     # Opt 1: union renders NEITHER spark=spark NOR config=config
     assert "spark=" not in out
