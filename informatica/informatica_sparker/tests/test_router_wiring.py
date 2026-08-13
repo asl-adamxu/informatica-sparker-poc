@@ -216,13 +216,16 @@ def test_apply_router_block_renders_parseable_lib_router_call():
     assert "(df_feed_b, {})," in out
     # Task 3: STRUCTURED per-group rendering — each key on its own line,
     # conditions raw via pyrepr (single-quoted with escaped inner quotes),
-    # renames one tuple per line, absent keys omitted entirely
-    assert "'name': 'G1'," in out
-    assert "'df_output': 'df_rtr_G1'," in out
-    assert "'condition': 'V > $$v_min'," in out
-    assert "'renames': [" in out
-    assert "('GRP', 'GRP1')," in out
-    assert "('SRC', 'SRC1')," in out
+    # renames one tuple per line, absent keys omitted entirely.
+    # The multi-line assertions guard against Jinja whitespace-trimming
+    # regressions (the {%- hyphen form collapsed every group onto one line —
+    # syntactically valid, so ast.parse alone cannot catch it).
+    assert "'name': 'G1',\n" in out
+    assert "'df_output': 'df_rtr_G1',\n" in out
+    assert "'condition': 'V > $$v_min',\n" in out
+    assert "'renames': [\n" in out
+    assert "('GRP', 'GRP1'),\n" in out
+    assert "('SRC', 'SRC1'),\n" in out
     # DEFAULT carries no renames and its empty condition is NOT rendered;
     # default_negated renders as a name list
     assert "'name': 'DEFAULT'," in out
