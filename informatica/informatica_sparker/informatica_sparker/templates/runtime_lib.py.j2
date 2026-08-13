@@ -969,22 +969,29 @@ def union(spark=None, input_df=None, name=None, inputs=None,
     """Convert one Informatica Union.
 
     Per-input groups are select+aliased to the union's output ports, then
-    unionByName(allowMissingColumns=True). Output ports absent from the union
-    are filled with lit(None) and the frame is re-selected to the output
-    column list.
+    unionByName(allowMissingColumns=True). `selects` are FROM column names in
+    output-column order - selects[j] aliases to output_columns[j]; when the
+    output column at that position is missing, the from name is kept
+    (defensive). Output ports absent from a group stay missing and are filled
+    with lit(None) after the union; the frame is then re-selected to the
+    output column list.
     """
     if flag_column:
         raise ValueError(
             "Union %s: flag_column unions are not supported" % (name or "?"))
     _sels = union_selects or []
+    _oc = output_columns or []
     if _sels:
         _views = []
         for _us in _sels:
-            _views.append(_us["df_input"].select(*[
-                col(_s["from"]) if _s["from"].lower() == _s["to"].lower()
-                else col(_s["from"]).alias(_s["to"])
-                for _s in _us["selects"]
-            ]))
+            _view_cols = []
+            for _i, _s in enumerate(_us["selects"] or []):
+                _port = _oc[_i] if _i < len(_oc) else None
+                if _port is None or _s.lower() == _port.lower():
+                    _view_cols.append(col(_s))
+                else:
+                    _view_cols.append(col(_s).alias(_port))
+            _views.append(_us["df_input"].select(*_view_cols))
         df = _views[0]
         for _v in _views[1:]:
             df = df.unionByName(_v, allowMissingColumns=True)

@@ -575,7 +575,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
             {% if uncfg.get('union_selects') %}
             union_selects=[
             {% for _us in uncfg['union_selects'] %}
-                {'df_input': {{ _us['df_input'] }}, 'selects': {{ _us['selects'] | pyrepr }}},
+                {'df_input': {{ _us['df_input'] }}, 'selects': [
+                    {{ _us['selects'] | map('pyrepr') | join(',\n                    ') }}
+                ]},
             {% endfor %}
             ],
             {% else %}

@@ -2779,7 +2779,13 @@ class TransformHandlers:
                     return 0 if 'exptrans' in _name.lower() or '_exp_' in _name.lower() else 1
                 _best_df = max(_up_entries, key=lambda k: (-_prefer_order(k), -len(_up_entries[k])))
 
-                # Build the select from ALL connector mappings for this group
+                # Build the select as FROM names in output-column order
+                # (Opt 4: selects are from-only string lists; selects[j]
+                # aliases positionally to output_columns[j]). The entries'
+                # 'to' identifies the output port - sort by the output_columns
+                # index so to-order is guaranteed by construction (the loop
+                # already iterates _output_ports in definition order, which
+                # matches output_columns; the sort makes it explicit).
                 _selects = []
                 for _out_port in _output_ports:
                     for _in_grp in _grp_connectors:
@@ -2787,6 +2793,11 @@ class TransformHandlers:
                         if _out == _out_port:
                             _selects.append({"from": _in_grp.from_field, "to": _out_port})
                             break
+                if _selects:
+                    _out_idx = {_p: _i for _i, _p in enumerate(output_columns)}
+                    _selects.sort(
+                        key=lambda _s: _out_idx.get(_s["to"], len(output_columns)))
+                    _selects = [_s["from"] for _s in _selects]
 
                 if _selects:
                     _safe_inst = re.sub(r'[^a-zA-Z0-9_]', '_', instance.name)

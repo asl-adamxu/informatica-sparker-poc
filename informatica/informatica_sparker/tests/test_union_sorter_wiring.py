@@ -7,7 +7,9 @@ missing its cfg silently drops the transformation in the generated code.
 
 The cfg form is the runtime contract (Tasks 2-4):
   - `union_selects[].df_input` is a DataFrame NAME (the template renders it
-    UNQUOTED); `selects` are (from -> to) port maps rendered via pyrepr;
+    UNQUOTED); `selects` are FROM-only string lists in output-column order
+    (selects[j] aliases positionally to output_columns[j]), rendered via
+    pyrepr one entry per line;
   - `rename_columns` are (from, to) TUPLES (the runtime applies them via
     withColumnRenamed);
   - `sort_columns` keep their {column, direction} dicts.
@@ -76,17 +78,21 @@ def test_every_union_step_carries_union_cfg():
             "flag_column/output_columns"
         )
         for _us in cfg.get("union_selects", []):
-            # df_input must be a NAME (unquoted render), selects (from->to)
+            # df_input must be a NAME (unquoted render); selects are FROM-only
+            # strings in output-column order, at most one per output column
             assert isinstance(_us["df_input"], str), (
                 f"{mapping.name}: {step.step_name} union_select df_input "
                 f"not a df name: {_us['df_input']!r}"
             )
             assert isinstance(_us["selects"], list) and all(
-                isinstance(_s, dict) and "from" in _s and "to" in _s
-                for _s in _us["selects"]
+                isinstance(_s, str) for _s in _us["selects"]
             ), (
                 f"{mapping.name}: {step.step_name} union_selects entries "
-                "must be {'from': ..., 'to': ...} dicts"
+                "must be from-only string lists"
+            )
+            assert len(_us["selects"]) <= len(cfg["output_columns"]), (
+                f"{mapping.name}: {step.step_name} union_selects longer than "
+                "output_columns - positional aliasing would overflow"
             )
     assert seen >= 1, "no ApplyUnionStep found in the workflow"
 
@@ -137,8 +143,9 @@ def test_sequence_steps_absent_or_carry_sequence_cfg():
 
 def test_apply_union_block_renders_parseable_lib_union_call():
     """The APPLY_UNION block must render a parseable lib.union(...) call:
-    union_selects with df_input UNQUOTED (df name) + pyrepr'd selects, the
-    inputs fallback with unquoted df names, and ctx.register_df."""
+    union_selects with df_input UNQUOTED (df name) + pyrepr'd from-only
+    selects (one per line), the inputs fallback with unquoted df names, and
+    ctx.register_df."""
     env = Environment()
     env.filters["pyrepr"] = repr  # matches codegen.py registration
     source = TEMPLATE.read_text()
@@ -165,10 +172,9 @@ def test_apply_union_block_renders_parseable_lib_union_call():
                 "output_columns": ["C1", "C2"],
                 "union_selects": [
                     {"df_input": "df_in_a",
-                     "selects": [{"from": "SRC1", "to": "C1"},
-                                 {"from": "SRC2", "to": "C2"}]},
+                     "selects": ["SRC1", "SRC2"]},
                     {"df_input": "df_in_b",
-                     "selects": [{"from": "SRC1", "to": "C1"}]},
+                     "selects": ["SRC1"]},
                 ],
             }
         },
@@ -176,9 +182,11 @@ def test_apply_union_block_renders_parseable_lib_union_call():
     out = env.from_string(block).render(step=step, IRStepType=IRStepType)
 
     assert "lib.union(" in out
-    # df_input renders UNQUOTED (df name); selects pyrepr'd
-    assert "{'df_input': df_in_a, 'selects': [{'from': 'SRC1', 'to': 'C1'}, {'from': 'SRC2', 'to': 'C2'}]}," in out
-    assert "{'df_input': df_in_b, 'selects': [{'from': 'SRC1', 'to': 'C1'}]}," in out
+    # df_input renders UNQUOTED (df name); selects render as pyrepr'd
+    # from-only string lists, one entry per line (collapsed for the check)
+    _collapsed = "".join(out.split())
+    assert "{'df_input':df_in_a,'selects':['SRC1','SRC2']}," in _collapsed
+    assert "{'df_input':df_in_b,'selects':['SRC1']}," in _collapsed
     # flag_column dead branch NOT rendered when empty
     assert "flag_column=" not in out
     assert "output_columns=['C1', 'C2']," in out
