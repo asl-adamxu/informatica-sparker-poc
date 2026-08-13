@@ -1093,7 +1093,118 @@ git commit -m "feat: standalone SP components documented as lib.stored_procedure
 
 ---
 
-### Task 9: Reconvert WF_EMS_DDS_APLY_MTH and verify (Phase 2 gate)
+### Task 9: `lib.load_mapping_variables` (user-requested mapping-init wrapper)
+
+**Files:**
+- Modify: `informatica_sparker/informatica_sparker/templates/runtime_lib.py.j2`
+- Modify: `informatica_sparker/informatica_sparker/templates/mapping.py.j2` (the mapping-variable loading header block, lines 68-90)
+- Create: `informatica_sparker/tests/test_lib_load_mapping_variables.py`
+
+**Interfaces:**
+- Produces: `load_mapping_variables(config, var_names, logger=None)` → `Dict[str, str]` keyed by clean names (no `$$` prefix).
+  - Reads the UTL_JOB_PARAM file: `config["objects"]["UTL_JOB_PARAM"]["path"]` resolved via `_resolve_path`.
+  - Parses lines `$$var=value`; only listed var_names collected; keys are `var.replace('$','')`.
+  - Missing file → module-level `logging.warning("UTL_JOB_PARAM not found, using default values")` once (behavior parity with the old template's warning), returns `{}`.
+  - Per-variable "Loaded %s=%s from %s" lines move to module-level debug (the old template logged them at INFO on the mapping logger; they are low-value detail — the warning is the visible signal).
+- Template: the generated header becomes
+  ```python
+  _vars = lib.load_mapping_variables(config, ["$$v_x", ...])
+  v_x = _vars.get("v_x", "<default>")
+  ```
+  per variable — defaults from `var_default` exactly as the old `{{ clean_name }} = "{{ var_default }}"` lines.
+
+- [ ] **Step 1: Write the failing test** — `tests/test_lib_load_mapping_variables.py` (conftest fixtures)
+
+```python
+"""Tests for lib.load_mapping_variables. Fixtures come from conftest.py."""
+
+
+def test_loads_and_cleans_names(runtime_lib, tmp_path, monkeypatch):
+    param_file = tmp_path / "UTL_JOB_PARAM"
+    param_file.write_text("$$v_snsh_date=202606\n$$v_init_flag=Y\n$$v_unlisted=Z\n")
+    config = {"objects": {"UTL_JOB_PARAM": {"path": str(param_file)}}}
+    out = runtime_lib.load_mapping_variables(
+        config, ["$$v_snsh_date", "$$v_init_flag"])
+    assert out == {"v_snsh_date": "202606", "v_init_flag": "Y"}
+
+
+def test_missing_file_returns_empty_and_warns(runtime_lib, tmp_path, caplog):
+    config = {"objects": {"UTL_JOB_PARAM": {"path": str(tmp_path / "nope")}}}
+    out = runtime_lib.load_mapping_variables(config, ["$$v_x"])
+    assert out == {}
+    # warning parity with the old template
+    assert any("UTL_JOB_PARAM" in r.message for r in caplog.records)
+
+
+def test_missing_variable_absent_from_result(runtime_lib, tmp_path):
+    param_file = tmp_path / "UTL_JOB_PARAM"
+    param_file.write_text("$$v_a=1\n")
+    config = {"objects": {"UTL_JOB_PARAM": {"path": str(param_file)}}}
+    out = runtime_lib.load_mapping_variables(config, ["$$v_a", "$$v_b"])
+    assert out == {"v_a": "1"}  # v_b absent → caller .get() default
+
+
+def test_no_utl_job_param_object(runtime_lib):
+    out = runtime_lib.load_mapping_variables({}, ["$$v_x"])
+    assert out == {}
+```
+
+- [ ] **Step 2: Run test to verify it fails** — `AttributeError: ... no attribute 'load_mapping_variables'`
+
+- [ ] **Step 3: Implement** — append to `templates/runtime_lib.py.j2` after `sequence`:
+
+```python
+def load_mapping_variables(config, var_names, logger=None):
+    """Read $$ mapping variables from the UTL_JOB_PARAM file (mapping-level
+    init — the wrapper for the per-mapping parameter-loading step).
+
+    Returns {clean_name: value} (no $$ prefix). Missing file → warning + {};
+    variables not listed in the file are absent from the result, so callers
+    .get() their declared defaults.
+    """
+    _out = {}
+    _obj = ((config or {}).get("objects") or {}).get("UTL_JOB_PARAM", {})
+    if not isinstance(_obj, dict):
+        return _out
+    _path = _resolve_path(_obj.get("path"))
+    try:
+        with open(_path, "r") as _f:
+            for _line in _f:
+                _line = _line.strip()
+                for _var in (var_names or []):
+                    if _line.startswith(_var + "="):
+                        _val = _line.split("=", 1)[1]
+                        _out[_var.replace("$", "")] = _val
+                        logging.getLogger(__name__).debug(
+                            "Loaded %s=%s from %s", _var, _val, _path)
+    except Exception:
+        logging.getLogger(__name__).warning(
+            "UTL_JOB_PARAM not found, using default values")
+    return _out
+```
+
+- [ ] **Step 4: Replace the template header block** (mapping.py.j2 lines 68-90) with:
+
+```jinja2
+    {% if mapping_variables %}
+    _vars = lib.load_mapping_variables(config, [{% for var_name, var_default in mapping_variables.items() %} "{{ var_name }}", {% endfor %}])
+    {% for var_name, var_default in mapping_variables.items() %}
+    {% set clean_name = var_name | replace('$', '') %}
+    {{ clean_name }} = _vars.get("{{ clean_name }}", "{{ var_default }}")
+    {% endfor %}
+    {% endif %}
+```
+
+- [ ] **Step 5: Run tests** — unit tests + full suite (must stay green).
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add informatica_sparker/templates/runtime_lib.py.j2 informatica_sparker/templates/mapping.py.j2 tests/test_lib_load_mapping_variables.py
+git commit -m "feat: lib.load_mapping_variables wrapper for the per-mapping UTL_JOB_PARAM init"
+```
+
+### Task 10: Reconvert WF_EMS_DDS_APLY_MTH and verify (Phase 2 gate)
 
 **Files:**
 - Run: build + CLI convert; backup already exists at `PySpark_workflows/dds/_pre_refactor_WF_EMS_DDS_APLY_MTH/` (Phase 1)
@@ -1151,6 +1262,12 @@ Append a Phase 2 subsection to the "Component Methods" section in `/var/lib/airf
 ## Out of scope (this plan)
 
 - Dynamic lookup (`lib.dynamic_lookup`) — already in lib form, untouched.
-- Router, union, sorter, sequence, SQ port handling, update strategy, write target — Phase 3/4, each gets its own plan.
+- Router, union, sorter, sequence, SQ port handling, update strategy, write target — delivered in Phase 3/4 + the API-polish round (all complete).
+- **Mapplet independent-reuse refactor — Phase 5** (user decision 2026-08-13): mapplets become reusable mini-mappings invoked from mappings (lib-level component). Explicitly deferred until after Phase 2 completes and the user verifies.
 - No expression-translation changes (`expr_translator` untouched).
 - No regeneration of other workflows.
+
+## Phase 2 additions over the original plan (user decision 2026-08-13)
+
+- Task 9 (new): `lib.load_mapping_variables` — the per-mapping UTL_JOB_PARAM parameter-loading step is wrapped into a lib method; the generated header becomes `_vars = lib.load_mapping_variables(config, [...])` + per-variable `.get()` defaults.
+- All Phase 2 methods adopt the API-polish conventions from the start: optional `spark`/`config` (rendered only when used — stored_procedure needs spark; static_lookup/joiner/aggregator need neither), field-heavy params one entry per line, no `name=` in generated calls.
