@@ -184,7 +184,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         {% if step.params.get('sq_output_cfg') %}
         {% set sqcfg = step.params['sq_output_cfg'] %}
         {{ step.df_output }} = lib.sq_output(
-            spark=spark,
             input_df={{ step.df_output }},
             port_cols={{ sqcfg['port_cols'] | pyrepr }},
             {% if sqcfg.get('column_types') %}
@@ -199,7 +198,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
             {% if sqcfg.get('distinct') %}
             distinct=True,
             {% endif %}
-            config=config,
         )
         {% endif %}
         {% else %}
@@ -207,7 +205,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         {% if step.params.get('sq_output_cfg') %}
         {% set sqcfg = step.params['sq_output_cfg'] %}
         {{ step.df_output }} = lib.sq_output(
-            spark=spark,
             input_df={{ step.df_output }},
             port_cols={{ sqcfg['port_cols'] | pyrepr }},
             {% if sqcfg.get('column_types') %}
@@ -222,7 +219,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
             {% if sqcfg.get('distinct') %}
             distinct=True,
             {% endif %}
-            config=config,
         )
         {% endif %}
         {% endif %}
@@ -232,7 +228,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Filter: {{ step.step_name }}
         {% set fcfg = step.params.get('lib_filter_cfg', {}) %}
         {{ step.df_output }} = lib.filter(
-            spark=spark,
             input_df={{ step.df_input }},
             {% if fcfg.get('rename_columns') %}
             rename_columns=[
@@ -246,7 +241,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
             {% if fcfg.get('sequence_attach') %}
             sequence_attach={{ fcfg['sequence_attach'] | pyrepr }},
             {% endif %}
-            config=config,
         )
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
 
@@ -254,7 +248,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Expression: {{ step.step_name }}
         {% set ecfg = step.params.get('expression_cfg', {}) %}
         {{ step.df_output }} = lib.expression(
-            spark=spark,
             input_df={{ step.df_input }},
             {% if ecfg.get('rename_columns') %}
             rename_columns=[
@@ -280,12 +273,12 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
             ],
             {% endif %}
             {% if ecfg.get('sp_calls') %}
+            spark=spark,
             sp_calls=[
                 {{ ecfg['sp_calls'] | map('pyrepr') | join(',\n                ') }}
             ],
             sp_conn=conn_oracle,
             {% endif %}
-            config=config,
         )
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
         
@@ -558,7 +551,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Sorter: {{ step.step_name }}
         {% set srtcfg = step.params['sorter_cfg'] %}
         {{ step.df_output }} = lib.sorter(
-            spark=spark,
             input_df={{ step.df_input }},
             {% if srtcfg.get('rename_columns') %}
             rename_columns=[
@@ -570,7 +562,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
                 {{ srtcfg['sort_columns'] | map('pyrepr') | join(',\n                ') }}
             ],
             {% endif %}
-            config=config,
         )
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
         
@@ -578,7 +569,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Union: {{ step.step_name }}
         {% set uncfg = step.params['union_cfg'] %}
         {{ step.df_output }} = lib.union(
-            spark=spark,
             input_df={{ step.df_input }},
             {% if uncfg.get('union_selects') %}
             union_selects=[
@@ -595,7 +585,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
             {% if uncfg.get('output_columns') %}
             output_columns={{ uncfg['output_columns'] | pyrepr }},
             {% endif %}
-            config=config,
         )
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
         
@@ -603,7 +592,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Router: {{ step.step_name }} - splits into multiple output groups
         {% set rtrcfg = step.params['router_cfg'] %}
         _rtr = lib.router(
-            spark=spark,
             {% if not rtrcfg.get('multi_feed') %}
             input_df={{ step.df_input }},
             {% endif %}
@@ -623,7 +611,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
             {% if rtrcfg.get('substitutions') %}
             substitutions={{ '{' }}{% for _k, _v in rtrcfg['substitutions'].items() %}'{{ _k }}': {{ _v }}{% if not loop.last %}, {% endif %}{% endfor %}{{ '}' }},
             {% endif %}
-            config=config,
         )
         {% for _g in rtrcfg['groups'] %}
         {{ _g['df_output'] }} = _rtr[{{ _g['df_output'] | pyrepr }}]
@@ -634,11 +621,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Sequence Generator: {{ step.step_name }}
         {% set seqcfg = step.params['sequence_cfg'] %}
         {{ step.df_output }} = lib.sequence(
-            spark=spark,
             input_df={{ step.df_input }},
             output_col={{ seqcfg.get('output_col', 'NEXTVAL') | pyrepr }},
             start={{ seqcfg.get('start', 1) | pyrepr }},
-            config=config,
         )
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
 
@@ -731,12 +716,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Strategy: {{ step.params.get('strategy_expression', 'DD_INSERT') }}
         {% set uscfg = step.params.get('update_strategy_cfg', {}) %}
         {{ step.df_output }} = lib.update_strategy(
-            spark=spark,
             input_df={{ step.df_input }},
             {% if uscfg.get('strategy_field') %}
             strategy_field={{ uscfg['strategy_field'] | pyrepr }},
             {% endif %}
-            config=config,
         )
         ctx.register_df("{{ step.df_output }}", {{ step.df_output }})
         

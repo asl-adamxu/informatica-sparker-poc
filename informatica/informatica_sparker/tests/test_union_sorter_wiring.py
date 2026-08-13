@@ -183,6 +183,9 @@ def test_apply_union_block_renders_parseable_lib_union_call():
     assert "flag_column=" not in out
     assert "output_columns=['C1', 'C2']," in out
     assert 'ctx.register_df("df_un", df_un)' in out
+    # Opt 1: union renders NEITHER spark=spark NOR config=config
+    assert "spark=" not in out
+    assert "config=" not in out
     # No unreplaced Jinja tags / stray braces leaked into the output
     assert "{%" not in out and "{{" not in out
     ast.parse(textwrap.dedent(out))
@@ -203,6 +206,9 @@ def test_apply_union_block_renders_parseable_lib_union_call():
     )
     out2 = env.from_string(block).render(step=step2, IRStepType=IRStepType)
     assert "inputs=[df_in_a, df_in_b]," in out2
+    # Opt 1: spark/config omitted in the inputs-fallback variant too
+    assert "spark=" not in out2
+    assert "config=" not in out2
     ast.parse(textwrap.dedent(out2))
 
 
@@ -244,6 +250,9 @@ def test_apply_sorter_block_renders_parseable_lib_sorter_call():
     assert "{'column': 'A', 'direction': 'ASC'}" in out
     assert "{'column': 'B', 'direction': 'DESC'}" in out
     assert 'ctx.register_df("df_srt", df_srt)' in out
+    # Opt 1: sorter renders NEITHER spark=spark NOR config=config
+    assert "spark=" not in out
+    assert "config=" not in out
     # No unreplaced Jinja tags / stray braces leaked into the output
     assert "{%" not in out and "{{" not in out
     ast.parse(textwrap.dedent(out))

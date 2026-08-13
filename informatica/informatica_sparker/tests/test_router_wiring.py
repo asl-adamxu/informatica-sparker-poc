@@ -194,6 +194,9 @@ def test_apply_router_block_renders_parseable_lib_router_call():
     assert 'ctx.register_df("df_rtr_G1", df_rtr_G1)' in out
     # substitutions dict braces (the {{ '{' }} escape) render correctly
     assert "substitutions={'$$v_min': v_min}," in out
+    # Opt 1: router renders NEITHER spark=spark NOR config=config
+    assert "spark=" not in out
+    assert "config=" not in out
     # No unreplaced Jinja tags / stray braces leaked into the output
     assert "{%" not in out and "{{" not in out
     ast.parse(textwrap.dedent(out))
@@ -219,4 +222,7 @@ def test_apply_router_block_renders_parseable_lib_router_call():
     )
     assert "input_df=df_in," in out_single
     assert "multi_feed=True" not in out_single
+    # Opt 1: spark/config also omitted in the single-feed variant
+    assert "spark=" not in out_single
+    assert "config=" not in out_single
     ast.parse(textwrap.dedent(out_single))

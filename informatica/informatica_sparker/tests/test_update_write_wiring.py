@@ -197,6 +197,9 @@ def test_apply_update_strategy_block_renders_parseable_lib_call():
     assert "input_df=df_in," in out
     assert "strategy_field='UPDATE_FLAG'," in out
     assert 'ctx.register_df("df_upd", df_upd)' in out
+    # Opt 1: update_strategy renders NEITHER spark=spark NOR config=config
+    assert "spark=" not in out
+    assert "config=" not in out
     # No unreplaced Jinja tags / stray braces leaked into the output
     assert "{%" not in out and "{{" not in out
     ast.parse(textwrap.dedent(out))
@@ -215,7 +218,9 @@ def test_apply_update_strategy_block_renders_parseable_lib_call():
     out2 = env.from_string(block).render(step=step2, IRStepType=IRStepType)
     assert "lib.update_strategy(" in out2
     assert "strategy_field=" not in out2
-    assert "config=config," in out2
+    # Opt 1: spark/config omitted in the static (empty-cfg) variant too
+    assert "spark=" not in out2
+    assert "config=" not in out2
     assert "{%" not in out2 and "{{" not in out2
     ast.parse(textwrap.dedent(out2))
 
@@ -272,6 +277,8 @@ def test_write_target_block_renders_parseable_lib_call():
     assert "cast_nulltype=True," in out
     assert "has_update_flag=True," in out
     assert "static_dd='DD_UPDATE'," in out
+    # Opt 1: write_target keeps BOTH spark=spark and config=config
+    assert "spark=spark," in out
     assert "config=config," in out
     # A statement, not an assignment — lib.write_target returns None
     assert "df_write = lib.write_target" not in out
@@ -332,6 +339,8 @@ def test_write_target_block_omits_dead_kwargs():
     assert "cast_nulltype=" not in out
     assert "has_update_flag=" not in out
     assert "static_dd=" not in out
+    # Opt 1: write_target keeps BOTH spark=spark and config=config
+    assert "spark=spark," in out
     assert "config=config," in out
     assert 'logger.info("write_SMOKE2 write completed")' in out
     assert "{%" not in out and "{{" not in out

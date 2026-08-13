@@ -818,7 +818,7 @@ def _substitute(text, substitutions, or_zero=False):
     return text
 
 
-def expression(spark, input_df, name=None, rename_columns=None,
+def expression(spark=None, input_df=None, name=None, rename_columns=None,
                computed_columns=None, pass_through_cols=None,
                substitutions=None, inline_lookup_joins=None,
                sp_calls=None, sp_conn=None, config=None, **kwargs):
@@ -874,8 +874,9 @@ def expression(spark, input_df, name=None, rename_columns=None,
     return df
 
 
-def filter(spark, input_df, name=None, rename_columns=None, condition=None,
-           substitutions=None, sequence_attach=None, config=None, **kwargs):
+def filter(spark=None, input_df=None, name=None, rename_columns=None,
+           condition=None, substitutions=None, sequence_attach=None,
+           config=None, **kwargs):
     """Convert one Informatica Filter.
 
     Connector renames run BEFORE the condition (the condition references the
@@ -894,8 +895,9 @@ def filter(spark, input_df, name=None, rename_columns=None, condition=None,
     return df
 
 
-def router(spark, input_df, name=None, groups=None, multi_feed=False,
-           feeds=None, substitutions=None, config=None, **kwargs):
+def router(spark=None, input_df=None, name=None, groups=None,
+           multi_feed=False, feeds=None, substitutions=None, config=None,
+           **kwargs):
     """Convert one Informatica Router into its output-group DataFrames.
 
     Returns {df_output: DataFrame}. Multi-input routers first build the input
@@ -965,8 +967,9 @@ def router(spark, input_df, name=None, groups=None, multi_feed=False,
     return _out
 
 
-def union(spark, input_df, name=None, inputs=None, union_selects=None,
-          flag_column="", output_columns=None, config=None, **kwargs):
+def union(spark=None, input_df=None, name=None, inputs=None,
+          union_selects=None, flag_column="", output_columns=None,
+          config=None, **kwargs):
     """Convert one Informatica Union.
 
     Per-input groups are select+aliased to the union's output ports, then
@@ -999,7 +1002,7 @@ def union(spark, input_df, name=None, inputs=None, union_selects=None,
     return df
 
 
-def sorter(spark, input_df, name=None, rename_columns=None,
+def sorter(spark=None, input_df=None, name=None, rename_columns=None,
            sort_columns=None, config=None, **kwargs):
     """Convert one Informatica Sorter.
 
@@ -1018,8 +1021,8 @@ def sorter(spark, input_df, name=None, rename_columns=None,
     return df
 
 
-def sequence(spark, input_df, name=None, output_col="NEXTVAL", start=1,
-             config=None, **kwargs):
+def sequence(spark=None, input_df=None, name=None, output_col="NEXTVAL",
+             start=1, config=None, **kwargs):
     """Convert one standalone Informatica Sequence Generator.
 
     Attaches the next-value column as monotonically_increasing_id() + start.
@@ -1029,9 +1032,9 @@ def sequence(spark, input_df, name=None, output_col="NEXTVAL", start=1,
         output_col, monotonically_increasing_id() + int(start))
 
 
-def sq_output(spark, input_df, name=None, port_cols=None, column_types=None,
-              filter_condition=None, substitutions=None, distinct=False,
-              config=None, **kwargs):
+def sq_output(spark=None, input_df=None, name=None, port_cols=None,
+              column_types=None, filter_condition=None, substitutions=None,
+              distinct=False, config=None, **kwargs):
     """Convert one Source Qualifier's output-port handling.
 
     SQL-pushdown results are renamed to the SQ output ports: name-match first
@@ -1096,8 +1099,8 @@ def sq_output(spark, input_df, name=None, port_cols=None, column_types=None,
     return df
 
 
-def update_strategy(spark, input_df, name=None, strategy_field=None,
-                    config=None, **kwargs):
+def update_strategy(spark=None, input_df=None, name=None,
+                    strategy_field=None, config=None, **kwargs):
     """Convert one Informatica Update Strategy.
 
     Dynamic field strategies derive the _update_flag column (I/U/D) from the

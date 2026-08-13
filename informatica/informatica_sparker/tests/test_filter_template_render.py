@@ -75,6 +75,9 @@ def test_apply_filter_block_renders_parseable_lib_filter_call():
     assert "condition='NEW != 0 AND $$v_rpt_mth >= 0'," in out
     assert "substitutions={'$$v_rpt_mth': v_rpt_mth}," in out
     assert "sequence_attach=[{'col': 'NEXTVAL', 'start': 100}]," in out
+    # Opt 1: filter renders NEITHER spark=spark NOR config=config
+    assert "spark=" not in out
+    assert "config=" not in out
     # No unreplaced Jinja tags / stray braces leaked into the output
     assert "{%" not in out and "{{" not in out
     ast.parse(textwrap.dedent(out))
@@ -93,4 +96,7 @@ def test_apply_filter_block_without_cfg_renders_passthrough():
     out = _render_block(step)
     assert "lib.filter(" in out
     assert "condition='TRUE'," in out
+    # Opt 1: filter renders NEITHER spark=spark NOR config=config
+    assert "spark=" not in out
+    assert "config=" not in out
     ast.parse(textwrap.dedent(out))

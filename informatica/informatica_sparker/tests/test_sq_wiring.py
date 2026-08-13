@@ -170,7 +170,9 @@ def test_apply_source_qualifier_block_renders_parseable_lib_sq_output_call():
     # substitutions value renders UNQUOTED (runtime variable identifier)
     assert "{'$$v_min': v_min}," in out
     assert "distinct=True," in out
-    assert "config=config," in out
+    # Opt 1: sq_output renders NEITHER spark=spark NOR config=config
+    assert "spark=" not in out
+    assert "config=" not in out
     assert 'ctx.register_df("df_sq_smoke", df_sq_smoke)' in out
     # No unreplaced Jinja tags / stray braces leaked into the output
     assert "{%" not in out and "{{" not in out
@@ -209,6 +211,9 @@ def test_apply_source_qualifier_block_renders_parseable_lib_sq_output_call():
     assert "filter_condition=" not in out2
     assert "substitutions=" not in out2
     assert "distinct=" not in out2
+    # Opt 1: spark/config omitted on the pushdown path too
+    assert "spark=" not in out2
+    assert "config=" not in out2
     assert 'ctx.register_df("df_sq_push", df_sq_push)' in out2
     assert "{%" not in out2 and "{{" not in out2
     ast.parse(textwrap.dedent(out2))
@@ -234,6 +239,9 @@ def test_apply_source_qualifier_block_renders_parseable_lib_sq_output_call():
     assert "column_types=" not in out3
     assert "substitutions=" not in out3
     assert "distinct=" not in out3
+    # Opt 1: spark/config omitted in the minimal-cfg variant too
+    assert "spark=" not in out3
+    assert "config=" not in out3
     assert 'ctx.register_df("df_sq_min", df_sq_min)' in out3
     assert "{%" not in out3 and "{{" not in out3
     ast.parse(textwrap.dedent(out3))

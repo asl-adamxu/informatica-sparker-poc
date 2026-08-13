@@ -86,6 +86,10 @@ def test_apply_expression_block_renders_parseable_lib_expression_call():
     assert "('OLD', 'NEW')" in out
     assert "substitutions={'$$v_rpt_mth': v_rpt_mth}," in out
     assert "sp_conn=conn_oracle," in out
+    # Opt 1: spark=spark renders ONLY when sp_calls is present (SP path
+    # needs it); config is NEVER rendered for lib.expression
+    assert "spark=spark," in out
+    assert "config=" not in out
     # No unreplaced Jinja tags / stray braces leaked into the output
     assert "{%" not in out and "{{" not in out
     ast.parse(textwrap.dedent(out))
@@ -103,4 +107,26 @@ def test_apply_expression_block_without_cfg_renders_passthrough():
     )
     out = _render_block(step)
     assert "lib.expression(" in out
+    ast.parse(textwrap.dedent(out))
+
+
+def test_apply_expression_block_omits_spark_and_config_without_sp_calls():
+    """A cfg without sp_calls must render NEITHER spark=spark NOR config=config
+    (Opt 1: expression only needs spark on the SP path)."""
+    step = SimpleNamespace(
+        step_type=IRStepType.APPLY_EXPRESSION,
+        step_name="apply_SMOKE",
+        df_input="df_in",
+        df_output="df_out",
+        params={
+            "expression_cfg": {
+                "computed_columns": [{"name": "C1", "expr": "lit(1)"}],
+            }
+        },
+    )
+    out = _render_block(step)
+    assert "lib.expression(" in out
+    assert "spark=" not in out
+    assert "config=" not in out
+    assert "input_df=df_in," in out
     ast.parse(textwrap.dedent(out))
