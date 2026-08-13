@@ -11,7 +11,7 @@ def test_dual_noop(runtime_lib, spark, monkeypatch):
         conn={}, table="DUAL", mode="append", config={}, name="WT")
 
 
-def test_field_map_and_target_select(runtime_lib, spark, monkeypatch):
+def test_positional_source_target_columns(runtime_lib, spark, monkeypatch):
     written = {}
     monkeypatch.setattr(runtime_lib, "write_table",
                         lambda df, conn, table, mode="append": written.update(
@@ -19,11 +19,33 @@ def test_field_map_and_target_select(runtime_lib, spark, monkeypatch):
     df = spark.createDataFrame([(1, "A")], ["SRC", "V"])
     runtime_lib.write_target(
         spark=spark, df=df, conn={}, table="T", mode="append", config={},
-        field_map={"TGT": "SRC"}, target_columns=["TGT", "V"],
+        source_columns=["SRC", "V"], target_columns=["TGT", "V"],
     )
+    # SRC -> TGT is a drop-first rename; V is an identity keep.
     assert written["table"] == "T" and written["mode"] == "append"
     assert written["df"].columns == ["TGT", "V"]
     assert written["df"].collect()[0]["TGT"] == 1
+    assert written["df"].collect()[0]["V"] == "A"
+
+
+def test_none_entry_fill_skips_src_rowid(runtime_lib, spark, monkeypatch):
+    written = {}
+    monkeypatch.setattr(runtime_lib, "write_table",
+                        lambda df, conn, table, mode="append": written.update(
+                            df=df, table=table, mode=mode))
+    df = spark.createDataFrame([(1, "A")], ["K", "X"])
+    runtime_lib.write_target(
+        spark=spark, df=df, conn={}, table="T", mode="append", config={},
+        source_columns=[None, None, "X"],
+        target_columns=["SRC_ROWID", "C1", "X"],
+    )
+    # SRC_ROWID is an unconnected target but its fill is SKIPPED; C1 is
+    # filled with lit(None).cast(StringType()); X passes through (identity).
+    assert written["df"].columns == ["C1", "X"]
+    assert dict(written["df"].dtypes)["C1"] == "string"
+    row = written["df"].collect()[0]
+    assert row["C1"] is None
+    assert row["X"] == "A"
 
 
 def test_static_dd_update_batches_all_rows(runtime_lib, spark, monkeypatch):

@@ -1126,18 +1126,23 @@ def update_strategy(spark=None, input_df=None, name=None,
 
 
 def write_target(spark, df, conn, table, mode="append", sink_type="delta",
-                 target_columns=None, field_map=None, unmapped_columns=None,
+                 source_columns=None, target_columns=None,
                  is_delete=False, delete_keys=None, cast_nulltype=False,
                  has_update_flag=False, static_dd=None, config=None,
                  name=None, **kwargs):
     """Convert one Informatica Target write.
 
-    Order matches the mapping: DUAL/DEV_NULL no-op → NullType cast → connector
-    field-map rename (BEFORE the _update_flag split, so UPDATE/DELETE use
-    target column names) → static DD_UPDATE (batch_update ALL rows, then an
-    empty INSERT frame) or dynamic I/U/D split (batch delete/update, INSERT
-    flows to the normal write) → static DD_DELETE (batch_delete_composite ALL
-    rows) → unmapped lit(None) fills → target-column select → csv/DB write.
+    Order matches the mapping: DUAL/DEV_NULL no-op → NullType cast → positional
+    source/target handling (connector renames run BEFORE the _update_flag
+    split, so UPDATE/DELETE batch calls use target column names) → static
+    DD_UPDATE (batch_update ALL rows, then an empty INSERT frame) or dynamic
+    I/U/D split (batch delete/update, INSERT flows to the normal write) →
+    static DD_DELETE (batch_delete_composite ALL rows) → unconnected lit(None)
+    fills → target-column select → csv/DB write.
+
+    source_columns is aligned positionally to target_columns: each entry is
+    the source column feeding that target (None = unconnected target, filled
+    with lit(None).cast(StringType()) except SRC_ROWID, which stays skipped).
     """
     _table = table or ""
     if _table.endswith("DEV_NULL") or "/dev/null" in _table.lower() or _table.upper() == "DUAL":
@@ -1148,14 +1153,20 @@ def write_target(spark, df, conn, table, mode="append", sink_type="delta",
         for _c in _df.columns:
             if isinstance(_df.schema[_c].dataType, NullType):
                 _df = _df.withColumn(_c, col(_c).cast(StringType()))
-    _field_map = field_map or {}
-    for _tgt_col, _src_col in _field_map.items():
-        if (_tgt_col.lower() not in [x.lower() for x in _df.columns]
-                and _src_col.lower() in [x.lower() for x in _df.columns]):
-            for _c in list(_df.columns):
-                if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                    _df = _df.drop(_c)
-            _df = _df.withColumnRenamed(_src_col, _tgt_col)
+    _target_columns = target_columns or []
+    _source_columns = source_columns or []
+    # Connector renames (positional, drop-first) — BEFORE the _update_flag
+    # split. Identity entries (src == tgt, case-insensitive) pass through;
+    # None entries are unconnected targets and are filled further down.
+    for _i, _tgt in enumerate(_target_columns):
+        _src = _source_columns[_i] if _i < len(_source_columns) else None
+        if _src is not None and _src.lower() != _tgt.lower():
+            if (_tgt.lower() not in [x.lower() for x in _df.columns]
+                    and _src.lower() in [x.lower() for x in _df.columns]):
+                for _c in list(_df.columns):
+                    if _c.lower() == _tgt.lower() and _c != _src:
+                        _df = _df.drop(_c)
+                _df = _df.withColumnRenamed(_src, _tgt)
     _keys = delete_keys or []
     if has_update_flag:
         if static_dd == "DD_UPDATE":
@@ -1193,11 +1204,12 @@ def write_target(spark, df, conn, table, mode="append", sink_type="delta",
             if _del_rows:
                 batch_delete_composite(spark, conn, _table, _keys, _del_rows, 1000)
     else:
-        for _col in (unmapped_columns or []):
-            if _col.lower() not in ["src_rowid"]:
-                _df = _df.withColumn(_col, lit(None).cast(StringType()))
-        if target_columns:
-            _df = _df.select(*[_c for _c in target_columns
+        for _i, _tgt in enumerate(_target_columns):
+            _src = _source_columns[_i] if _i < len(_source_columns) else None
+            if _src is None and _tgt.lower() != "src_rowid":
+                _df = _df.withColumn(_tgt, lit(None).cast(StringType()))
+        if _target_columns:
+            _df = _df.select(*[_c for _c in _target_columns
                                if _c.lower() in [x.lower() for x in _df.columns]])
         if sink_type == "csv":
             _obj = ((config or {}).get("objects") or {}).get(_table) or {}

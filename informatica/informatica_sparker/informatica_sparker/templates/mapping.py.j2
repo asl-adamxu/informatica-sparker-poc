@@ -777,13 +777,12 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
             sink_type={{ wtcfg['sink_type'] | pyrepr }},
             {% endif %}
             {% if wtcfg.get('target_columns') %}
-            target_columns={{ wtcfg['target_columns'] | pyrepr }},
-            {% endif %}
-            {% if wtcfg.get('field_map') %}
-            field_map={{ wtcfg['field_map'] | pyrepr }},
-            {% endif %}
-            {% if wtcfg.get('unmapped_columns') %}
-            unmapped_columns={{ wtcfg['unmapped_columns'] | pyrepr }},
+            source_columns=[
+                {{ wtcfg['source_columns'] | map('pyrepr') | join(',\n                ') }},
+            ],
+            target_columns=[
+                {{ wtcfg['target_columns'] | map('pyrepr') | join(',\n                ') }},
+            ],
             {% endif %}
             {% if wtcfg.get('is_delete') %}
             is_delete=True,

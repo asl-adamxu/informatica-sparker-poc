@@ -3565,6 +3565,20 @@ class TransformHandlers:
             for f in target.fields:
                 target_column_types[f.name] = f.datatype
 
+        # Positional source_columns aligned to target_columns: the source
+        # column feeding each target (connector field_map entry when renamed),
+        # None for unconnected target fields (filled lit(None) at runtime,
+        # SRC_ROWID skipped), or the column's own name for identity-connected
+        # fields (implicit pass-through).
+        source_columns = []
+        for _tgt in target_columns:
+            if _tgt in field_map:
+                source_columns.append(field_map[_tgt])
+            elif _tgt in unmapped_columns:
+                source_columns.append(None)
+            else:
+                source_columns.append(_tgt)
+
         control_columns = ["_update_flag", "_update_strategy", "del_ins_upd_flag",
                           "del_upd_ins_flag", "ins_upd_del_flag", "DEL_INS_UPD_FLAG",
                           "DEL_UPD_INS_FLAG", "INS_UPD_DEL_FLAG"]
@@ -3645,13 +3659,11 @@ class TransformHandlers:
         if target_columns:
             write_step.params["target_columns"] = target_columns
             write_step.params["target_column_types"] = target_column_types
-            if field_map:
-                write_step.params["field_map"] = field_map
+            write_step.params["source_columns"] = source_columns
             write_step.comments.append("Selecting only target-mapped columns with correct casing and data types")
-
-        if unmapped_columns:
-            write_step.params["unmapped_columns"] = unmapped_columns
-            write_step.comments.append(f"Adding NULL for unmapped columns: {', '.join(unmapped_columns)}")
+            if any(_s is None for _s in source_columns):
+                write_step.comments.append(
+                    f"Adding NULL for unmapped columns: {', '.join(unmapped_columns)}")
 
         if post_sql:
             write_step.params["post_sql"] = post_sql
@@ -3662,16 +3674,14 @@ class TransformHandlers:
             "table": write_step.params.get("table_name", ""),
             "mode": write_step.params.get("mode", "append"),
             "sink_type": write_step.params.get("sink_type", "delta"),
+            "source_columns": write_step.params.get("source_columns", []),
             "target_columns": write_step.params.get("target_columns", []),
-            "unmapped_columns": write_step.params.get("unmapped_columns", []),
             "is_delete": bool(write_step.params.get("is_delete")),
             "delete_keys": write_step.params.get("delete_keys", []),
             "cast_nulltype": bool(write_step.params.get("cast_nulltype")),
             "has_update_flag": bool(write_step.params.get("has_update_flag")),
             "static_dd": write_step.params.get("static_dd"),
         }
-        if write_step.params.get("field_map"):
-            _wt_cfg["field_map"] = write_step.params["field_map"]
         write_step.params["write_target_cfg"] = _wt_cfg
 
         steps.append(write_step)

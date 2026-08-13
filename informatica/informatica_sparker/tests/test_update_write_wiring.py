@@ -83,9 +83,25 @@ def test_every_write_target_step_carries_write_target_cfg():
             f"{mapping.name}: {step.step_name} write_target_cfg "
             "target_columns not a list"
         )
-        assert isinstance(cfg.get("unmapped_columns"), list), (
+        assert isinstance(cfg.get("source_columns"), list), (
             f"{mapping.name}: {step.step_name} write_target_cfg "
-            "unmapped_columns not a list"
+            "source_columns not a list"
+        )
+        # Opt 5: source_columns is aligned positionally to target_columns
+        # (None = unconnected target field -> lit(None) fill at runtime).
+        assert len(cfg["source_columns"]) == len(cfg["target_columns"]), (
+            f"{mapping.name}: {step.step_name} source_columns/target_columns "
+            f"misaligned: {cfg['source_columns']!r} vs {cfg['target_columns']!r}"
+        )
+        for _src in cfg["source_columns"]:
+            assert _src is None or isinstance(_src, str), (
+                f"{mapping.name}: {step.step_name} source_columns entry not "
+                f"None/str: {_src!r}"
+            )
+        # Opt 5: the legacy field_map/unmapped_columns cfg keys are gone
+        assert "field_map" not in cfg and "unmapped_columns" not in cfg, (
+            f"{mapping.name}: {step.step_name} write_target_cfg still "
+            "carries legacy field_map/unmapped_columns"
         )
         assert isinstance(cfg.get("is_delete"), bool) \
             and isinstance(cfg.get("cast_nulltype"), bool) \
@@ -96,6 +112,49 @@ def test_every_write_target_step_carries_write_target_cfg():
     assert seen >= 40, (
         f"expected >= 40 WriteTargetStep in this workflow, found {seen}"
     )
+
+
+def test_write_target_cfg_source_columns_match_connector_wiring():
+    """source_columns[i] must mirror the connector ground truth: the
+    connector's from_field for non-identity mappings (field_map entry),
+    the column's own name for identity-connected fields, and None for
+    unconnected target fields."""
+    checked = 0
+    for mapping, step in _load_steps(WriteTargetStep):
+        cfg = step.params["write_target_cfg"]
+        tgt_cols = cfg.get("target_columns") or []
+        src_cols = cfg.get("source_columns") or []
+        if not tgt_cols:
+            continue
+        instance_name = step.step_name[len("write_"):]
+        field_map = {}
+        mapped = set()
+        for conn in mapping.connectors:
+            if conn.to_instance == instance_name:
+                mapped.add(conn.to_field)
+                if conn.to_field.lower() != conn.from_field.lower():
+                    field_map[conn.to_field] = conn.from_field
+        for _i, _tgt in enumerate(tgt_cols):
+            if _tgt in field_map:
+                assert src_cols[_i] == field_map[_tgt], (
+                    f"{mapping.name}: {step.step_name} source_columns[{_i}] "
+                    f"for renamed target {_tgt} should be {field_map[_tgt]!r}, "
+                    f"got {src_cols[_i]!r}"
+                )
+            elif _tgt in mapped:
+                assert src_cols[_i] == _tgt, (
+                    f"{mapping.name}: {step.step_name} source_columns[{_i}] "
+                    f"for identity-connected target {_tgt} should keep its "
+                    f"own name, got {src_cols[_i]!r}"
+                )
+            else:
+                assert src_cols[_i] is None, (
+                    f"{mapping.name}: {step.step_name} source_columns[{_i}] "
+                    f"for unconnected target {_tgt} should be None, got "
+                    f"{src_cols[_i]!r}"
+                )
+            checked += 1
+    assert checked >= 1, "no aligned source_columns checked in the workflow"
 
 
 def test_every_update_strategy_step_carries_update_strategy_cfg():
@@ -251,14 +310,13 @@ def test_write_target_block_renders_parseable_lib_call():
                 "table": "EMS.FACT",
                 "mode": "append",
                 "sink_type": "delta",
-                "target_columns": ["A", "B"],
-                "unmapped_columns": ["C"],
+                "source_columns": ["A", "SRC_B", None],
+                "target_columns": ["A", "B", "C"],
                 "is_delete": True,
                 "delete_keys": ["A"],
                 "cast_nulltype": True,
                 "has_update_flag": True,
                 "static_dd": "DD_UPDATE",
-                "field_map": {"B": "SRC_B"},
             }
         },
     )
@@ -269,9 +327,14 @@ def test_write_target_block_renders_parseable_lib_call():
     assert "conn=conn_target," in out
     assert "table='EMS.FACT'," in out
     assert "mode='append'," in out
-    assert "target_columns=['A', 'B']," in out
-    assert "unmapped_columns=['C']," in out
-    assert "field_map={'B': 'SRC_B'}," in out
+    # Opt 5: source_columns/target_columns render one entry per line; the
+    # None entry (unconnected target C) renders as a bare None literal.
+    assert "source_columns=[" in out
+    assert "target_columns=[" in out
+    assert "'SRC_B'," in out
+    assert "None," in out
+    assert "field_map=" not in out
+    assert "unmapped_columns=" not in out
     assert "is_delete=True," in out
     assert "delete_keys=['A']," in out
     assert "cast_nulltype=True," in out
@@ -314,8 +377,8 @@ def test_write_target_block_omits_dead_kwargs():
                 "table": "EMS.SIMPLE",
                 "mode": "append",
                 "sink_type": "delta",
+                "source_columns": [],
                 "target_columns": [],
-                "unmapped_columns": [],
                 "is_delete": False,
                 "delete_keys": [],
                 "cast_nulltype": False,
@@ -331,6 +394,7 @@ def test_write_target_block_omits_dead_kwargs():
     assert "mode='append'," in out
     # All optional/dead kwargs omitted
     assert "sink_type=" not in out
+    assert "source_columns=" not in out
     assert "target_columns=" not in out
     assert "unmapped_columns=" not in out
     assert "field_map=" not in out
