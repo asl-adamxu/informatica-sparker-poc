@@ -212,6 +212,7 @@ class Instance(BaseModel):
     transformation_name: str = ""
     transformation_type: str = ""
     description: str = ""
+    table_attributes: Dict[str, str] = Field(default_factory=dict)
 
 
 class Connector(BaseModel):

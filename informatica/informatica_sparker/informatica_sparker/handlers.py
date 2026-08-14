@@ -1872,9 +1872,11 @@ class TransformHandlers:
 
         lookup_df = self._get_df_name("df_lkp", instance)
 
-        lookup_sql = transform.table_attributes.get("Lookup Sql Override", "")
+        lookup_sql = (instance.table_attributes.get("Lookup Sql Override")
+                      or transform.table_attributes.get("Lookup Sql Override", ""))
         lookup_sql = self._normalize_sql_text(lookup_sql, plan)
-        lookup_table = transform.table_attributes.get("Lookup table name", "")
+        lookup_table = (instance.table_attributes.get("Lookup table name")
+                        or transform.table_attributes.get("Lookup table name", ""))
 
         lookup_conn = self._find_lookup_connection(lookup_table or instance.name)
 
@@ -4240,9 +4242,11 @@ class TransformHandlers:
                     )
                     continue
 
-                lookup_sql = lookup_transform.table_attributes.get("Lookup Sql Override", "")
+                lookup_sql = (mpl_inst.table_attributes.get("Lookup Sql Override")
+                              or lookup_transform.table_attributes.get("Lookup Sql Override", ""))
                 lookup_sql = self._normalize_sql_text(lookup_sql, plan)
-                lookup_table = lookup_transform.table_attributes.get("Lookup table name", "")
+                lookup_table = (mpl_inst.table_attributes.get("Lookup table name")
+                                or lookup_transform.table_attributes.get("Lookup table name", ""))
                 lookup_cond = lookup_transform.table_attributes.get("Lookup condition", "")
 
                 # Create lookup read step when we have SQL or table.

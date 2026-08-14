@@ -262,13 +262,25 @@ class InfaXMLParser:
         return transform
 
     def _parse_instance(self, instance_elem) -> Instance:
-        return Instance(
+        instance = Instance(
             name=instance_elem.get("NAME", ""),
             type=instance_elem.get("TYPE", ""),
             transformation_name=instance_elem.get("TRANSFORMATION_NAME", ""),
             transformation_type=instance_elem.get("TRANSFORMATION_TYPE", ""),
             description=instance_elem.get("DESCRIPTION", "")
         )
+
+        # Instance-level TABLEATTRIBUTEs are the session-visible overrides —
+        # e.g. "Lookup Sql Override" on the LKP_DDS_DMNS_EMS_BLK instance holds
+        # the real WHERE-constrained SQL while the transformation definition's
+        # copy is empty. Capture them so handlers can prefer the instance copy.
+        for attr_elem in instance_elem.findall("TABLEATTRIBUTE"):
+            attr_name = attr_elem.get("NAME", "")
+            attr_value = attr_elem.get("VALUE", "")
+            if attr_name:
+                instance.table_attributes[attr_name] = attr_value
+
+        return instance
 
     def _parse_connector(self, connector_elem) -> Connector:
         return Connector(
