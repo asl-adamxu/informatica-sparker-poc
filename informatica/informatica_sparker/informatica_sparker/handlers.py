@@ -3681,6 +3681,14 @@ class TransformHandlers:
             "has_update_flag": bool(write_step.params.get("has_update_flag")),
             "static_dd": write_step.params.get("static_dd"),
         }
+        # DUAL / DEV_NULL targets are /dev/null no-ops — the template emits a
+        # skip comment instead of a lib.write_target call (the old template
+        # skipped them at render time; routing them through the runtime only
+        # produced noisy "Target ? is a no-op" logs).
+        if (_wt_cfg["table"].endswith("DEV_NULL")
+                or "/dev/null" in _wt_cfg["table"].lower()
+                or _wt_cfg["table"].upper() == "DUAL"):
+            _wt_cfg["noop"] = True
         write_step.params["write_target_cfg"] = _wt_cfg
 
         steps.append(write_step)

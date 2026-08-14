@@ -767,6 +767,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         {% elif step.step_type == IRStepType.WRITE_TARGET %}
         # Write to Target: {{ step.step_name }}
         {% set wtcfg = step.params['write_target_cfg'] %}
+        {% if wtcfg.get('noop') %}
+        # /dev/null / DUAL — skip entire write component
+        logger.info("Target {{ step.step_name }} is a no-op target (/dev/null or DUAL), skipping write")
+        {% else %}
         lib.write_target(
             spark=spark,
             df={{ step.df_input }},
@@ -801,6 +805,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
             {% endif %}
             config=config,
         )
+        {% endif %}
 
         logger.info("{{ step.step_name }} write completed")
         {% elif step.step_type == IRStepType.WORKFLOW_DAG %}
