@@ -3944,6 +3944,20 @@ class TransformHandlers:
         independent branches, or the descendant no longer carries a needed
         column).
         """
+        # A df that is IN-PLACE accumulated (a lookup whose input and output
+        # are the SAME df) is a fork point: its name refers to different states
+        # before and after each in-place update, and _build_df_parent_map skips
+        # in-place bindings (out == in), recording only the FIRST. Lineage then
+        # wrongly proves a forked descendant (e.g. the EXPTRANS4 chain) carried
+        # a column added by a LATER in-place lookup on the shared chain (the
+        # CHC lookup adding DSTR_CHC_DSTR_SCD_KEY) — the merge is skipped and
+        # the column is UNRESOLVED. Such a df must never be treated as a
+        # redundant ancestor; emit a real merge instead.
+        for _st in step_map.values():
+            _out = getattr(_st, "df_output", None)
+            _in = getattr(_st, "df_input", None)
+            if _out and _in and _out == _in and _out in (cur_df, extra_df):
+                return None
         if self._is_df_descendant(parent, extra_df, cur_df):
             if self._lineage_preserves_columns(parent, step_map, extra_df, cur_df, needed):
                 return extra_df
