@@ -1175,6 +1175,17 @@ def write_target(spark, df, conn, table, mode="append", sink_type="delta",
     _keys = delete_keys or []
     if has_update_flag:
         if static_dd == "DD_UPDATE":
+            # Align to the target column set BEFORE batch_update so the SET
+            # columns use TARGET names — df may still carry source-named
+            # columns (e.g. DSBL_CODE) that have no connector to this target
+            # and would produce ORA-00904 in the UPDATE statement.
+            for _i, _tgt in enumerate(_target_columns):
+                _src = _source_columns[_i] if _i < len(_source_columns) else None
+                if _src is None and _tgt.lower() != "src_rowid":
+                    _df = _df.withColumn(_tgt, lit(None).cast(StringType()))
+            if _target_columns:
+                _df = _df.select(*[_c for _c in _target_columns
+                                   if _c.lower() in [x.lower() for x in _df.columns]])
             if _keys and not _df.rdd.isEmpty():
                 _set_cols = [c for c in _df.columns
                              if c.lower() not in [k.lower() for k in _keys]

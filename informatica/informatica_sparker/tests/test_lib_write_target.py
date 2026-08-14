@@ -84,3 +84,27 @@ def test_dynamic_split_insert_only_write(runtime_lib, spark, monkeypatch):
     # I rows flow to the normal write; U/D rows handled via batch
     assert written["df"].count() == 1
     assert del_calls == [("T", ["K"], [(3,)])]
+
+
+def test_dd_update_batches_target_column_names(runtime_lib, spark, monkeypatch):
+    """DD_UPDATE must batch-update TARGET column names, not leftover source
+    names. A df carrying a source-named column with no connector to the
+    target (DSBL_CODE feeding DSBL_CATG_CODE via None) must NOT leak DSBL_CODE
+    into the SET columns — it would ORA-00904 the UPDATE."""
+    updates = []
+    monkeypatch.setattr(runtime_lib, "batch_update",
+                        lambda s, c, t, set_c, key_c, rows, b=1000: updates.append(
+                            (t, set_c, key_c, rows)))
+    monkeypatch.setattr(runtime_lib, "write_table",
+                        lambda df, conn, table, mode="append": None)
+    df = spark.createDataFrame([(1, "X")], ["K", "DSBL_CODE"])
+    runtime_lib.write_target(
+        spark=spark, df=df, conn={}, table="T", mode="append", config={},
+        has_update_flag=True, static_dd="DD_UPDATE", delete_keys=["K"],
+        source_columns=["K", None, None],
+        target_columns=["K", "DSBL_CATG_CODE", "IFA_AREA"],
+    )
+    assert len(updates) == 1
+    set_cols = updates[0][1]
+    assert "DSBL_CODE" not in set_cols, set_cols
+    assert "DSBL_CATG_CODE" in set_cols and "IFA_AREA" in set_cols, set_cols
