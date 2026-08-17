@@ -1206,12 +1206,23 @@ def write_target(spark, df, conn, table, mode="append", sink_type="delta",
                 if _del_rows:
                     batch_delete_composite(spark, conn, _table, _keys, _del_rows, 1000)
             if _keys and not _df_upd.rdd.isEmpty():
-                _set_cols = [c for c in _df_upd.columns
-                             if c.lower() not in [k.lower() for k in _keys]]
-                if _set_cols:
-                    _rows = [tuple(r[c] for c in _set_cols + _keys)
+                # Align unconnected targets to NULL and restrict the UPDATE SET
+                # columns to the REAL target columns (target_columns minus
+                # keys). _df_upd may carry non-target columns (DUMMY,
+                # UPDATE_FLAG, ...) from upstream mapplets — emitting them in
+                # UPDATE would raise ORA-00904. Mirrors the static DD_UPDATE
+                # branch above.
+                for _i, _tgt in enumerate(_target_columns):
+                    _src = _source_columns[_i] if _i < len(_source_columns) else None
+                    if _src is None and _tgt.lower() != "src_rowid":
+                        _df_upd = _df_upd.withColumn(_tgt, lit(None).cast(StringType()))
+                _upd_cols = [c for c in _target_columns
+                             if c.lower() not in [k.lower() for k in _keys]
+                             and c.lower() in [x.lower() for x in _df_upd.columns]]
+                if _upd_cols:
+                    _rows = [tuple(r[c] for c in _upd_cols + _keys)
                              for r in _df_upd.collect()]
-                    batch_update(spark, conn, _table, _set_cols, _keys, _rows, 1000)
+                    batch_update(spark, conn, _table, _upd_cols, _keys, _rows, 1000)
             _df = _df_ins
     if is_delete and _keys:
         if not _df.rdd.isEmpty():

@@ -108,3 +108,71 @@ def test_dd_update_batches_target_column_names(runtime_lib, spark, monkeypatch):
     set_cols = updates[0][1]
     assert "DSBL_CODE" not in set_cols, set_cols
     assert "DSBL_CATG_CODE" in set_cols and "IFA_AREA" in set_cols, set_cols
+
+
+def test_dynamic_split_update_batches_target_columns_only(runtime_lib, spark, monkeypatch):
+    """Dynamic I/U/D split: the UPDATE batch must SET only the REAL target
+    columns (minus keys). The frame may carry non-target columns (DUMMY,
+    UPDATE_FLAG) from upstream mapplets — emitting them would ORA-00904 the
+    UPDATE (flat_rent write_DDS_RLS_CNTL regression)."""
+    updates, del_calls, written = [], [], {}
+    monkeypatch.setattr(runtime_lib, "batch_update",
+                        lambda s, c, t, set_c, key_c, rows, b=1000: updates.append(
+                            (t, set_c, key_c, rows)))
+    monkeypatch.setattr(runtime_lib, "batch_delete_composite",
+                        lambda s, c, t, keys, rows, b=1000: del_calls.append(
+                            (t, keys, rows)))
+    monkeypatch.setattr(runtime_lib, "write_table",
+                        lambda df, conn, table, mode="append": written.update(
+                            df=df, table=table))
+    df = spark.createDataFrame(
+        [(1, "A", "DUMMY1", "DD_UPDATE", "U"), (2, "B", "DUMMY2", "DD_INSERT", "I")],
+        ["K", "V", "DUMMY", "UPDATE_FLAG", "_update_flag"],
+    )
+    runtime_lib.write_target(
+        spark=spark, df=df, conn={}, table="T", mode="append", config={},
+        has_update_flag=True, delete_keys=["K"],
+        source_columns=["K", "V"],
+        target_columns=["K", "V"],
+    )
+    assert len(updates) == 1
+    set_cols = updates[0][1]
+    assert set_cols == ["V"], set_cols
+    assert "DUMMY" not in set_cols and "UPDATE_FLAG" not in set_cols, set_cols
+    assert [r for r in updates[0][3]] == [("A", 1)]  # row 1 is the U row: (set V, key K)
+    # INSERT row flows to the normal write
+    assert written["df"].count() == 1
+
+
+def test_dynamic_split_update_batches_target_columns_only(runtime_lib, spark, monkeypatch):
+    """Dynamic I/U/D split: the UPDATE batch must SET only the REAL target
+    columns (minus keys). The frame may carry non-target columns (DUMMY,
+    UPDATE_FLAG) from upstream mapplets — emitting them would ORA-00904 the
+    UPDATE (flat_rent write_DDS_RLS_CNTL regression)."""
+    updates, del_calls, written = [], [], {}
+    monkeypatch.setattr(runtime_lib, "batch_update",
+                        lambda s, c, t, set_c, key_c, rows, b=1000: updates.append(
+                            (t, set_c, key_c, rows)))
+    monkeypatch.setattr(runtime_lib, "batch_delete_composite",
+                        lambda s, c, t, keys, rows, b=1000: del_calls.append(
+                            (t, keys, rows)))
+    monkeypatch.setattr(runtime_lib, "write_table",
+                        lambda df, conn, table, mode="append": written.update(
+                            df=df, table=table))
+    df = spark.createDataFrame(
+        [(1, "A", "DUMMY1", "DD_UPDATE", "U"), (2, "B", "DUMMY2", "DD_INSERT", "I")],
+        ["K", "V", "DUMMY", "UPDATE_FLAG", "_update_flag"],
+    )
+    runtime_lib.write_target(
+        spark=spark, df=df, conn={}, table="T", mode="append", config={},
+        has_update_flag=True, delete_keys=["K"],
+        source_columns=["K", "V"],
+        target_columns=["K", "V"],
+    )
+    assert len(updates) == 1
+    set_cols = updates[0][1]
+    assert set_cols == ["V"], set_cols
+    assert "DUMMY" not in set_cols and "UPDATE_FLAG" not in set_cols, set_cols
+    assert [r for r in updates[0][3]] == [("A", 1)]  # row 1 is the U row: (set V, key K)
+    # INSERT row flows to the normal write
+    assert written["df"].count() == 1
