@@ -21,13 +21,13 @@ EXECUTION_PLAN = [
     "type": "parallel_group",
     "steps": [
       {
+        "type": "task",
+        "name": "T_RM_CMS_CACHE_FACT"
+      },
+      {
         "type": "session",
         "name": "S_CMS_ETL_FACT_TRUNCATE",
         "mapping_name": "M_UTL_DPA_TRUNCATE"
-      },
-      {
-        "type": "task",
-        "name": "T_RM_CMS_CACHE_FACT"
       },
       {
         "type": "session",
@@ -45,13 +45,13 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_FACT_CMS_CASE_SMRY",
-            "mapping_name": "M_DPA_SUMMARIZE_FACT_CMS_CASE_SMRY"
+            "name": "S_DPA_SUMMARIZE_FACT_CMS_CASE_PRNT_SMRY",
+            "mapping_name": "M_DPA_SUMMARIZE_FACT_CMS_CASE_PRNT_SMRY"
           },
           {
             "type": "session",
-            "name": "S_DPA_SUMMARIZE_FACT_CMS_CASE_PRNT_SMRY",
-            "mapping_name": "M_DPA_SUMMARIZE_FACT_CMS_CASE_PRNT_SMRY"
+            "name": "S_DPA_SUMMARIZE_FACT_CMS_CASE_SMRY",
+            "mapping_name": "M_DPA_SUMMARIZE_FACT_CMS_CASE_SMRY"
           }
         ]
       },
@@ -76,13 +76,13 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_DDS_APLY_FACT_CMS_CASE_PRNT_SMRY",
-            "mapping_name": "M_DDS_APLY_FACT_CMS_CASE_PRNT_SMRY"
+            "name": "S_DDS_APLY_FACT_CMS_CASE_SMRY",
+            "mapping_name": "M_DDS_APLY_FACT_CMS_CASE_SMRY"
           },
           {
             "type": "session",
-            "name": "S_DDS_APLY_FACT_CMS_CASE_SMRY",
-            "mapping_name": "M_DDS_APLY_FACT_CMS_CASE_SMRY"
+            "name": "S_DDS_APLY_FACT_CMS_CASE_PRNT_SMRY",
+            "mapping_name": "M_DDS_APLY_FACT_CMS_CASE_PRNT_SMRY"
           }
         ]
       },

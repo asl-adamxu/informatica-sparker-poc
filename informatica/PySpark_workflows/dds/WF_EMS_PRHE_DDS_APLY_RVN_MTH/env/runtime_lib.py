@@ -553,8 +553,16 @@ def _dynamic_lookup_output_schema(input_df, lookup_df, cfg):
         seen.add(lower)
     for of in out_fields:
         lower = of["name"].lower()
+        ref = str(of.get("ref_field") or "").upper()
         lf = lookup_fields.get(lower)
-        if lf is not None and not isinstance(lf.dataType, NullType):
+        if ref == "SEQUENCE-ID":
+            # Sequence-Id values come from the pre-allocated bigint key
+            # (__dyn_seq_key), never from the lookup source column type
+            # (often Oracle NUMBER → Decimal(38,0)); declare long so the
+            # pandas UDF round-trips as int64 without an Arrow cast
+            # (int64 → decimal128(38,0) raises PySparkValueError).
+            sf = StructField(of["name"], LongType(), True)
+        elif lf is not None and not isinstance(lf.dataType, NullType):
             sf = lf
         else:
             sf = StructField(
@@ -708,6 +716,12 @@ def dynamic_lookup(spark: SparkSession, input_df: DataFrame,
             raise ValueError(
                 "Lookup %s: sequence output column '%s' not found in lookup "
                 "source" % (name, seq_col))
+        # The base cache's sequence column is Oracle NUMBER → Decimal(38,0) in
+        # Spark, while the pre-allocated key is a long. Normalize to bigint so
+        # the pandas UDF sees one int64 dtype for both base hits and inserts
+        # (a mixed decimal/int64 Series breaks the Arrow conversion too).
+        joined = joined.withColumn(
+            base_seq_col, col(base_seq_col).cast("bigint"))
         seq_start = joined.agg(max(col(base_seq_col))).collect()[0][0]
         if seq_start is None:
             seq_start = 0
@@ -740,6 +754,500 @@ def dynamic_lookup(spark: SparkSession, input_df: DataFrame,
         "dynamic_lookup %s: pyarrow missing/too old or executor=rdd — using "
         "the equivalent RDD fallback", name)
     return _dynamic_lookup_rdd(spark, joined, cfg, output_schema)
+
+
+# ---------------------------------------------------------------------------
+# Shared component-method helpers (used by lib.<component> wrappers)
+# ---------------------------------------------------------------------------
+
+_API_EXPR_MARKERS = ('row_number()', 'monotonically_increasing_id', 'last(when(')
+_PYSPARK_API_NS = None
+
+
+def _api_namespace():
+    """Lazily build the namespace used to evaluate direct PySpark API
+    expressions (the generator renders these as Python source, not SQL)."""
+    global _PYSPARK_API_NS
+    if _PYSPARK_API_NS is None:
+        from pyspark.sql.window import Window as _Window
+        _ns = dict(globals())
+        _ns['Window'] = _Window
+        _PYSPARK_API_NS = _ns
+    return _PYSPARK_API_NS
+
+
+def _with_column(df, name, expr_str):
+    """Add column `name` with a translated expression.
+
+    Spark SQL text is wrapped in expr(). Text containing a direct PySpark API
+    marker (row_number() / monotonically_increasing_id / last(when() — the
+    generator emits these as Python source) is evaluated against the pyspark
+    namespace instead.
+    """
+    if any(_m in expr_str for _m in _API_EXPR_MARKERS):
+        return df.withColumn(name, eval(expr_str, {"__builtins__": {}}, _api_namespace()))
+    return df.withColumn(name, expr(expr_str))
+
+
+def _rename_columns(df, renames):
+    """Apply connector renames (drop target first, skip src == tgt)."""
+    for _old, _new in (renames or []):
+        if _old.lower() == _new.lower():
+            continue
+        df = df.drop(_new).withColumnRenamed(_old, _new)
+    return df
+
+
+def _fill_missing(df, cols):
+    """Add lit(None) for any listed column absent from df (case-insensitive)."""
+    for _c in (cols or []):
+        if _c.lower() not in [x.lower() for x in df.columns]:
+            df = df.withColumn(_c, lit(None))
+    return df
+
+
+def _substitute(text, substitutions, or_zero=False):
+    """Replace $$ mapping variables in translated text with runtime values.
+
+    or_zero=True (Filter/SQ conditions): str(v or "0") so an empty value
+    cannot produce invalid SQL. or_zero=False (Expression columns): str(v).
+    """
+    for _var, _val in (substitutions or {}).items():
+        if _var in text:
+            text = text.replace(_var, str(_val or "0") if or_zero else str(_val))
+    return text
+
+
+def expression(spark=None, input_df=None, name=None, rename_columns=None,
+               computed_columns=None, pass_through_cols=None,
+               substitutions=None, inline_lookup_joins=None,
+               sp_calls=None, sp_conn=None, config=None, **kwargs):
+    """Convert one Informatica Expression into PySpark column operations.
+
+    Order matches the Informatica mapping:
+      1. Connector renames (drop target first, case-insensitive dup guard).
+      2. Inline lookup joins (:LKP.xxx() ports): broadcast left join with
+         prefixed join keys, dropped after the join.
+      3. Computed columns in port order ($$ mapping variables substituted;
+         direct-API expressions detected inside _with_column).
+      4. Stored-procedure calls (:SP.xxx()): collect argument columns on the
+         driver, call call_stored_procedure per row, set the column to
+         'SUCCESS'.
+      5. Pass-through fills: output ports absent from the frame become
+         lit(None).
+    All upstream columns are preserved.
+    """
+    df = _rename_columns(input_df, rename_columns or [])
+    for _lkp in (inline_lookup_joins or []):
+        _lkp_df = _lkp["lookup_df"]
+        _sub = _lkp_df.select(
+            *[col(_jp["lookup_col"]).alias("_lkp_jk_" + _jp["lookup_col"])
+              for _jp in _lkp["join_predicates"]],
+            col(_lkp["return_port"]),
+        )
+        _cond = None
+        for _jp in _lkp["join_predicates"]:
+            _part = df[_jp["source_col"]] == _sub["_lkp_jk_" + _jp["lookup_col"]]
+            _cond = _part if _cond is None else (_cond & _part)
+        df = df.join(broadcast(_sub), on=_cond, how="left")
+        for _jp in _lkp["join_predicates"]:
+            df = df.drop("_lkp_jk_" + _jp["lookup_col"])
+    for _col_def in (computed_columns or []):
+        df = _with_column(df, _col_def["name"],
+                          _substitute(_col_def["expr"], substitutions))
+    for _sp in (sp_calls or []):
+        _sp_call = _sp["sp_call"]
+        if _sp.get("sp_schema"):
+            _schema = (sp_conn or {}).get("schema", "") or _sp["sp_schema"]
+            _sp_call = _schema + "." + _sp_call
+        _args = _sp["args"]
+        if len(_args) == 1:
+            _vals = [r[_args[0]] for r in df.select(_args[0]).collect()]
+            for _v in _vals:
+                call_stored_procedure(spark, sp_conn, _sp_call, [_v])
+        else:
+            _rows = [r for r in df.select(*_args).collect()]
+            for _r in _rows:
+                call_stored_procedure(spark, sp_conn, _sp_call, [_r[c] for c in _args])
+        df = df.withColumn(_sp["col"], lit("SUCCESS"))
+    df = _fill_missing(df, pass_through_cols or [])
+    return df
+
+
+def filter(spark=None, input_df=None, name=None, rename_columns=None,
+           condition=None, substitutions=None, sequence_attach=None,
+           config=None, **kwargs):
+    """Convert one Informatica Filter.
+
+    Connector renames run BEFORE the condition (the condition references the
+    filter's input port names). Connected Sequence Generators attach NEXTVAL
+    AFTER the filter (post-filter placement). $$ mapping variables in the
+    condition use the str(v or "0") rule so an empty value cannot produce
+    invalid SQL.
+    """
+    df = _rename_columns(input_df, rename_columns or [])
+    if not condition:
+        raise ValueError("Filter %s: empty condition" % (name or "?"))
+    df = df.filter(expr(_substitute(condition, substitutions, or_zero=True)))
+    for _att in (sequence_attach or []):
+        df = df.withColumn(_att["col"],
+                           monotonically_increasing_id() + int(_att["start"]))
+    return df
+
+
+def router(spark=None, input_df=None, name=None, groups=None,
+           multi_feed=False, feeds=None, substitutions=None, config=None,
+           **kwargs):
+    """Convert one Informatica Router into its output-group DataFrames.
+
+    Returns {df_output: DataFrame}. Multi-input routers first build the input
+    as a UNION of all feeds (NULL-filled per Router INPUT port, port aliases
+    from the XML connectors), then the ORDERED group split runs (first match
+    wins). Each group carries ONE condition (raw translated text, may hold
+    $$ markers) substituted at runtime; DEFAULT groups compose via
+    default_negated (negated chain of named groups' conditions); an empty
+    condition is a pass-through. Connector renames apply after the filter,
+    drop-first.
+    """
+    if multi_feed:
+        _feeds = feeds or []
+        _rtr_ports = []
+        for _df, _aliases in _feeds:
+            for _c in _df.columns:
+                _p = _aliases.get(_c, _c)
+                if _p.lower() not in [x.lower() for x in _rtr_ports]:
+                    _rtr_ports.append(_p)
+        _feed_views = []
+        for _df, _aliases in _feeds:
+            _rev = {_v: _k for _k, _v in _aliases.items()}
+            _sel = []
+            for _p in _rtr_ports:
+                if _p in _rev:
+                    if _rev[_p].lower() in [x.lower() for x in _df.columns]:
+                        _sel.append(col(_rev[_p]).alias(_p))
+                    else:
+                        _sel.append(lit(None).alias(_p))
+                elif _p.lower() in [x.lower() for x in _df.columns] and _p not in _aliases:
+                    _sel.append(col(_p))
+                else:
+                    _sel.append(lit(None).alias(_p))
+            _feed_views.append(_df.select(*_sel))
+        _rtr_in = _feed_views[0]
+        for _v in _feed_views[1:]:
+            _rtr_in = _rtr_in.unionByName(_v)
+    else:
+        _rtr_in = input_df
+    # One condition per group (raw translated text; may carry $$ markers).
+    # Substitute $$ variables once, then run the ordered split (first match
+    # wins). The single _conds build replaces the old _prepared/_conds pair.
+    _conds = {}
+    for _g in groups or []:
+        _c = _g.get("condition") or ""
+        if _c and "$$" in _c:
+            _c = _substitute(_c, substitutions)
+        _conds[_g["name"]] = _c
+    _out = {}
+    for _g in groups or []:
+        _name, _df_out = _g["name"], _g["df_output"]
+        _c = _conds.get(_name) or ""
+        if _g.get("default_negated"):
+            _df = _rtr_in
+            for _neg in _g["default_negated"]:
+                _df = _df.filter(~expr(_conds.get(_neg) or ""))
+        elif _c:
+            _df = _rtr_in.filter(expr(_c))
+        else:
+            _df = _rtr_in
+        _df = _rename_columns(_df, _g.get("renames") or [])
+        _out[_df_out] = _df
+    return _out
+
+
+def union(spark=None, input_df=None, name=None, inputs=None,
+          union_selects=None, flag_column="", output_columns=None,
+          config=None, **kwargs):
+    """Convert one Informatica Union.
+
+    Per-input groups are select+aliased to the union's output ports, then
+    unionByName(allowMissingColumns=True). `selects` are FROM column names in
+    output-column order - selects[j] aliases to output_columns[j]. A None
+    entry marks a GAP position (this group has no connected source for that
+    output port) and is skipped - no select is emitted, so the value of a
+    later position can never shift onto the gap; the port is lit(None)-filled
+    after the union. Output ports absent from a group stay missing and are
+    filled with lit(None) after the union; the frame is then re-selected to
+    the output column list.
+    """
+    if flag_column:
+        raise ValueError(
+            "Union %s: flag_column unions are not supported" % (name or "?"))
+    _sels = union_selects or []
+    _oc = output_columns or []
+    if _sels:
+        _views = []
+        for _us in _sels:
+            _view_cols = []
+            for _i, _s in enumerate(_us["selects"] or []):
+                if _s is None:
+                    # gap position: no connected source for this output port
+                    continue
+                _port = _oc[_i] if _i < len(_oc) else None
+                if _port is None or _s.lower() == _port.lower():
+                    _view_cols.append(col(_s))
+                else:
+                    _view_cols.append(col(_s).alias(_port))
+            _views.append(_us["df_input"].select(*_view_cols))
+        df = _views[0]
+        for _v in _views[1:]:
+            df = df.unionByName(_v, allowMissingColumns=True)
+    else:
+        df = (inputs or [input_df])[0]
+        for _v in (inputs or [input_df])[1:]:
+            df = df.unionByName(_v, allowMissingColumns=True)
+    if output_columns:
+        df = _fill_missing(df, output_columns)
+        df = df.select(*output_columns)
+    return df
+
+
+def sorter(spark=None, input_df=None, name=None, rename_columns=None,
+           sort_columns=None, config=None, **kwargs):
+    """Convert one Informatica Sorter.
+
+    Connector renames apply first, then orderBy over the sort keys (ASC by
+    default, DESC when the direction says so).
+    """
+    df = _rename_columns(input_df, rename_columns or [])
+    if sort_columns:
+        _sorts = []
+        for _sc in sort_columns:
+            if (_sc.get("direction") or "ASC").upper() == "DESC":
+                _sorts.append(desc(_sc["column"]))
+            else:
+                _sorts.append(asc(_sc["column"]))
+        df = df.orderBy(*_sorts)
+    return df
+
+
+def sequence(spark=None, input_df=None, name=None, output_col="NEXTVAL",
+             start=1, config=None, **kwargs):
+    """Convert one standalone Informatica Sequence Generator.
+
+    Attaches the next-value column as monotonically_increasing_id() + start.
+    (Connected sequences attach via lib.filter's sequence_attach.)
+    """
+    return input_df.withColumn(
+        output_col, monotonically_increasing_id() + int(start))
+
+
+def sq_output(spark=None, input_df=None, name=None, port_cols=None,
+              filter_condition=None, substitutions=None,
+              distinct=False, config=None, **kwargs):
+    """Convert one Source Qualifier's output-port handling.
+
+    port_cols is an ordered dict {port_name: cast_type} — dict insertion order
+    is the port order (drives the two-pass rename AND the final select). The
+    value is the cast type ('' or None → no cast).
+
+    SQL-pushdown results are renamed to the SQ output ports: name-match first
+    (case-insensitive), then positional fallback for unaliased expression
+    columns (backtick-quoted so dots/pipes stay part of the column name), then
+    the port select with lit(None) for missing ports, then type casts.
+    Non-pushdown SQs apply the optional filter condition ($$ with the
+    str(v or "0") rule) and DISTINCT before the same port select.
+    """
+    df = input_df
+    if filter_condition:
+        df = df.filter(expr(_substitute(filter_condition, substitutions, or_zero=True)))
+    if distinct:
+        df = df.distinct()
+    _port_names = list(port_cols or [])
+    if _port_names:
+        _sql_cols = list(df.columns)
+        _rename_map = {}
+        _used = set()
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_names):
+                if _pi not in _used and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used.add(_pi)
+                    break
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used:
+                _pi += 1
+            if _pi < len(_port_names):
+                _rename_map[_sc] = _port_names[_pi]
+                _used.add(_pi)
+                _pi += 1
+        if _rename_map:
+            df = df.select(*[col("`" + _old + "`").alias(_new)
+                             for _old, _new in _rename_map.items()])
+        df = df.select([
+            col(_c) if _c.lower() in [x.lower() for x in df.columns]
+            else lit(None).alias(_c)
+            for _c in _port_names
+        ])
+    for _cname, _ctype in (port_cols or {}).items():
+        _lower = _cname.lower()
+        _cast = None
+        _t = str(_ctype or "").upper()
+        if _t in ("INTEGER", "INT", "BIGINT", "SMALLINT", "TINYINT"):
+            _cast = LongType()
+        elif _t in ("FLOAT", "DOUBLE", "REAL"):
+            _cast = DoubleType()
+        elif "DECIMAL" in _t or "NUMERIC" in _t or _t == "NUMBER":
+            _cast = DecimalType(38, 10)
+        elif _t in ("DATE",):
+            _cast = DateType()
+        elif _t in ("DATETIME", "TIMESTAMP"):
+            _cast = TimestampType()
+        if _cast is not None:
+            for _c in df.columns:
+                if _c.lower() == _lower:
+                    df = df.withColumn(_c, col(_c).cast(_cast))
+    return df
+
+
+def update_strategy(spark=None, input_df=None, name=None,
+                    strategy_field=None, config=None, **kwargs):
+    """Convert one Informatica Update Strategy.
+
+    Dynamic field strategies derive the _update_flag column (I/U/D) from the
+    strategy field. Static strategies (DD_INSERT/DD_UPDATE/DD_DELETE) pass
+    through — the target write applies them directly.
+    """
+    if strategy_field:
+        return input_df.withColumn(
+            "_update_flag",
+            when(col(strategy_field) == "DD_INSERT", lit("I"))
+            .when(col(strategy_field) == "DD_UPDATE", lit("U"))
+            .when(col(strategy_field) == "DD_DELETE", lit("D"))
+            .otherwise(lit("I")),
+        )
+    return input_df
+
+
+def write_target(spark, df, conn, table, mode="append", sink_type="delta",
+                 source_columns=None, target_columns=None,
+                 is_delete=False, delete_keys=None, cast_nulltype=False,
+                 has_update_flag=False, static_dd=None, config=None,
+                 name=None, **kwargs):
+    """Convert one Informatica Target write.
+
+    Order matches the mapping: DUAL/DEV_NULL no-op → NullType cast → positional
+    source/target handling (connector renames run BEFORE the _update_flag
+    split, so UPDATE/DELETE batch calls use target column names) → static
+    DD_UPDATE (batch_update ALL rows, then an empty INSERT frame) or dynamic
+    I/U/D split (batch delete/update, INSERT flows to the normal write) →
+    static DD_DELETE (batch_delete_composite ALL rows) → unconnected lit(None)
+    fills → target-column select → csv/DB write.
+
+    source_columns is aligned positionally to target_columns: each entry is
+    the source column feeding that target (None = unconnected target, filled
+    with lit(None).cast(StringType()) except SRC_ROWID, which stays skipped).
+    """
+    _table = table or ""
+    if _table.endswith("DEV_NULL") or "/dev/null" in _table.lower() or _table.upper() == "DUAL":
+        logging.info("Target %s is a no-op target (/dev/null or DUAL), skipping write", name or "?")
+        return
+    _df = df
+    if cast_nulltype:
+        for _c in _df.columns:
+            if isinstance(_df.schema[_c].dataType, NullType):
+                _df = _df.withColumn(_c, col(_c).cast(StringType()))
+    _target_columns = target_columns or []
+    _source_columns = source_columns or []
+    # Connector renames (positional, drop-first) — BEFORE the _update_flag
+    # split. Identity entries (src == tgt, case-insensitive) pass through;
+    # None entries are unconnected targets and are filled further down.
+    for _i, _tgt in enumerate(_target_columns):
+        _src = _source_columns[_i] if _i < len(_source_columns) else None
+        if _src is not None and _src.lower() != _tgt.lower():
+            if (_tgt.lower() not in [x.lower() for x in _df.columns]
+                    and _src.lower() in [x.lower() for x in _df.columns]):
+                for _c in list(_df.columns):
+                    if _c.lower() == _tgt.lower() and _c != _src:
+                        _df = _df.drop(_c)
+                _df = _df.withColumnRenamed(_src, _tgt)
+    _keys = delete_keys or []
+    if has_update_flag:
+        if static_dd == "DD_UPDATE":
+            # Align to the target column set BEFORE batch_update so the SET
+            # columns use TARGET names — df may still carry source-named
+            # columns (e.g. DSBL_CODE) that have no connector to this target
+            # and would produce ORA-00904 in the UPDATE statement.
+            for _i, _tgt in enumerate(_target_columns):
+                _src = _source_columns[_i] if _i < len(_source_columns) else None
+                if _src is None and _tgt.lower() != "src_rowid":
+                    _df = _df.withColumn(_tgt, lit(None).cast(StringType()))
+            if _target_columns:
+                _df = _df.select(*[_c for _c in _target_columns
+                                   if _c.lower() in [x.lower() for x in _df.columns]])
+            if _keys and not _df.rdd.isEmpty():
+                _set_cols = [c for c in _df.columns
+                             if c.lower() not in [k.lower() for k in _keys]
+                             and c != "_update_flag"]
+                if _set_cols:
+                    _rows = [tuple(r[c] for c in _set_cols + _keys)
+                             for r in _df.collect()]
+                    batch_update(spark, conn, _table, _set_cols, _keys, _rows, 1000)
+            _df = _df.filter(lit(False))
+        else:
+            _df_ins = _df.filter(col("_update_flag") == "I").drop("_update_flag")
+            _df_upd = _df.filter(col("_update_flag") == "U").drop("_update_flag")
+            _df_del = _df.filter(col("_update_flag") == "D").drop("_update_flag")
+            _df = _df.drop("_update_flag")
+            if _keys and not _df_del.rdd.isEmpty():
+                _del_rows = [tuple(r[c] for c in _keys)
+                             for r in _df_del.select(*_keys).distinct().collect()]
+                if _del_rows:
+                    batch_delete_composite(spark, conn, _table, _keys, _del_rows, 1000)
+            if _keys and not _df_upd.rdd.isEmpty():
+                # Align unconnected targets to NULL and restrict the UPDATE SET
+                # columns to the REAL target columns (target_columns minus
+                # keys). _df_upd may carry non-target columns (DUMMY,
+                # UPDATE_FLAG, ...) from upstream mapplets — emitting them in
+                # UPDATE would raise ORA-00904. Mirrors the static DD_UPDATE
+                # branch above.
+                for _i, _tgt in enumerate(_target_columns):
+                    _src = _source_columns[_i] if _i < len(_source_columns) else None
+                    if _src is None and _tgt.lower() != "src_rowid":
+                        _df_upd = _df_upd.withColumn(_tgt, lit(None).cast(StringType()))
+                _upd_cols = [c for c in _target_columns
+                             if c.lower() not in [k.lower() for k in _keys]
+                             and c.lower() in [x.lower() for x in _df_upd.columns]]
+                if _upd_cols:
+                    _rows = [tuple(r[c] for c in _upd_cols + _keys)
+                             for r in _df_upd.collect()]
+                    batch_update(spark, conn, _table, _upd_cols, _keys, _rows, 1000)
+            _df = _df_ins
+    if is_delete and _keys:
+        if not _df.rdd.isEmpty():
+            _del_rows = [tuple(r[c] for c in _keys)
+                         for r in _df.select(*_keys).distinct().collect()]
+            if _del_rows:
+                batch_delete_composite(spark, conn, _table, _keys, _del_rows, 1000)
+    else:
+        for _i, _tgt in enumerate(_target_columns):
+            _src = _source_columns[_i] if _i < len(_source_columns) else None
+            if _src is None and _tgt.lower() != "src_rowid":
+                _df = _df.withColumn(_tgt, lit(None).cast(StringType()))
+        if _target_columns:
+            _df = _df.select(*[_c for _c in _target_columns
+                               if _c.lower() in [x.lower() for x in _df.columns]])
+        if sink_type == "csv":
+            _obj = ((config or {}).get("objects") or {}).get(_table) or {}
+            _path = _obj.get("path", "/tmp/" + _table)
+            _fmt = _obj.get("format", sink_type)
+            if _path and _path.strip() in ("/dev/null", "NUL"):
+                logging.info("Target %s resolved to /dev/null, skipping write", name or "?")
+            else:
+                write_file(_df, _path, format=_fmt, mode="overwrite")
+        else:
+            write_table(_df, conn, _table, mode=mode)
 
 
 def _read_local_csv(spark: SparkSession, local_path: str, opts: Dict[str, Any]) -> DataFrame:

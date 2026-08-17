@@ -112,35 +112,13 @@ and d.BD_CMPLT_DATE <= to_date('$$v_snsh_date','YYYYMMDD')
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_No_of_Completion = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_No_of_Completion.columns
-        _port_cols = ["RGN_CODE", "DSTR_CODE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_No_of_Completion = df_No_of_Completion.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_No_of_Completion = df_No_of_Completion.select([col(c) if c.lower() in [x.lower() for x in df_No_of_Completion.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_No_of_Completion = lib.sq_output(
+            input_df=df_No_of_Completion,
+            port_cols={
+                'RGN_CODE': 'string',
+                'DSTR_CODE': 'string',
+            },
+        )
         ctx.register_df("df_No_of_Completion", df_No_of_Completion)
         
         logger.info("Step: apply_No_of_Cases_Refer_to_PHRM")
@@ -176,35 +154,13 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_No_of_Cases_Refer_to_PHRM = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_No_of_Cases_Refer_to_PHRM.columns
-        _port_cols = ["RGN_CODE", "DSTR_CODE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_No_of_Cases_Refer_to_PHRM = df_No_of_Cases_Refer_to_PHRM.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_No_of_Cases_Refer_to_PHRM = df_No_of_Cases_Refer_to_PHRM.select([col(c) if c.lower() in [x.lower() for x in df_No_of_Cases_Refer_to_PHRM.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_No_of_Cases_Refer_to_PHRM = lib.sq_output(
+            input_df=df_No_of_Cases_Refer_to_PHRM,
+            port_cols={
+                'RGN_CODE': 'string',
+                'DSTR_CODE': 'string',
+            },
+        )
         ctx.register_df("df_No_of_Cases_Refer_to_PHRM", df_No_of_Cases_Refer_to_PHRM)
         
         logger.info("Step: apply_No_of_Form_Returned")
@@ -244,35 +200,13 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_No_of_Form_Returned = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_No_of_Form_Returned.columns
-        _port_cols = ["RGN_CODE", "DSTR_CODE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_No_of_Form_Returned = df_No_of_Form_Returned.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_No_of_Form_Returned = df_No_of_Form_Returned.select([col(c) if c.lower() in [x.lower() for x in df_No_of_Form_Returned.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_No_of_Form_Returned = lib.sq_output(
+            input_df=df_No_of_Form_Returned,
+            port_cols={
+                'RGN_CODE': 'string',
+                'DSTR_CODE': 'string',
+            },
+        )
         ctx.register_df("df_No_of_Form_Returned", df_No_of_Form_Returned)
         
         logger.info("Step: apply_No_of_Form_Printed")
@@ -312,35 +246,13 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_No_of_Form_Printed = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_No_of_Form_Printed.columns
-        _port_cols = ["RGN_CODE", "DSTR_CODE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_No_of_Form_Printed = df_No_of_Form_Printed.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_No_of_Form_Printed = df_No_of_Form_Printed.select([col(c) if c.lower() in [x.lower() for x in df_No_of_Form_Printed.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_No_of_Form_Printed = lib.sq_output(
+            input_df=df_No_of_Form_Printed,
+            port_cols={
+                'RGN_CODE': 'string',
+                'DSTR_CODE': 'string',
+            },
+        )
         ctx.register_df("df_No_of_Form_Printed", df_No_of_Form_Printed)
         
         logger.info("Step: apply_Total_No_of_Existing_Tenancies")
@@ -399,35 +311,13 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_rgn.BGN_DATE AND est_rgn.EN
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_Total_No_of_Existing_Tenancies = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_Total_No_of_Existing_Tenancies.columns
-        _port_cols = ["RGN_CODE", "DSTR_CODE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_Total_No_of_Existing_Tenancies = df_Total_No_of_Existing_Tenancies.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_Total_No_of_Existing_Tenancies = df_Total_No_of_Existing_Tenancies.select([col(c) if c.lower() in [x.lower() for x in df_Total_No_of_Existing_Tenancies.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_Total_No_of_Existing_Tenancies = lib.sq_output(
+            input_df=df_Total_No_of_Existing_Tenancies,
+            port_cols={
+                'RGN_CODE': 'string',
+                'DSTR_CODE': 'string',
+            },
+        )
         ctx.register_df("df_Total_No_of_Existing_Tenancies", df_Total_No_of_Existing_Tenancies)
         
         logger.info("Step: apply_Biennial_Declaration_Cycle")
@@ -455,35 +345,15 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN cycl_sts.BD_CYCL_BGN_DATE AND c
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_Biennial_Declaration_Cycle = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_Biennial_Declaration_Cycle.columns
-        _port_cols = ["RGN_CODE", "DSTR_CODE", "BD_CYCL_BGN_DATE", "BD_CYCL_END_DATE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_Biennial_Declaration_Cycle = df_Biennial_Declaration_Cycle.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_Biennial_Declaration_Cycle = df_Biennial_Declaration_Cycle.select([col(c) if c.lower() in [x.lower() for x in df_Biennial_Declaration_Cycle.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_Biennial_Declaration_Cycle = lib.sq_output(
+            input_df=df_Biennial_Declaration_Cycle,
+            port_cols={
+                'RGN_CODE': 'string',
+                'DSTR_CODE': 'string',
+                'BD_CYCL_BGN_DATE': 'date/time',
+                'BD_CYCL_END_DATE': 'date/time',
+            },
+        )
         ctx.register_df("df_Biennial_Declaration_Cycle", df_Biennial_Declaration_Cycle)
         
         logger.info("Step: apply_AGGTRANS4")
@@ -548,71 +418,104 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN cycl_sts.BD_CYCL_BGN_DATE AND c
         
         logger.info("Step: apply_Union_Transformation")
         # Union: apply_Union_Transformation
-        # Select + rename upstream columns per input, then union
-        df_Union_Transformation_date_range = df_Biennial_Declaration_Cycle.select(
-            col("RGN_CODE").alias("RGN_CODE"),
-            col("DSTR_CODE").alias("DSTR_CODE"),
-            col("BD_CYCL_BGN_DATE").alias("BD_CYCL_BGN_DATE"),
-            col("BD_CYCL_END_DATE").alias("BD_CYCL_END_DATE")        )
-        df_Union_Transformation_exst_tncy = df_AGGTRANS.select(
-            col("RGN_CODE").alias("RGN_CODE"),
-            col("DSTR_CODE").alias("DSTR_CODE"),
-            col("EXST_TNCY_CNT").alias("EXST_TNCY_CNT")        )
-        df_Union_Transformation_prn_form = df_AGGTRANS1.select(
-            col("RGN_CODE").alias("RGN_CODE"),
-            col("DSTR_CODE").alias("DSTR_CODE"),
-            col("PRN_FORM_CNT").alias("PRN_FORM_CNT")        )
-        df_Union_Transformation_rtn_form = df_AGGTRANS2.select(
-            col("RGN_CODE").alias("RGN_CODE"),
-            col("DSTR_CODE").alias("DSTR_CODE"),
-            col("RTN_FORM_CNT").alias("RTN_FORM_CNT")        )
-        df_Union_Transformation_task_force_case = df_AGGTRANS3.select(
-            col("RGN_CODE").alias("RGN_CODE"),
-            col("DSTR_CODE").alias("DSTR_CODE"),
-            col("TASK_FORCE_CASE_CNT").alias("TASK_FORCE_CASE_CNT")        )
-        df_Union_Transformation_cmpt = df_AGGTRANS4.select(
-            col("RGN_CODE").alias("RGN_CODE"),
-            col("DSTR_CODE").alias("DSTR_CODE"),
-            col("CMPT_CNT").alias("CMPT_CNT")        )
-        df_Union_Transformation = df_Union_Transformation_date_range
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_exst_tncy, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_prn_form, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_rtn_form, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_task_force_case, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_cmpt, allowMissingColumns=True)
-        # Select only union output columns (add lit(None) for any missing)
-        for _col in ["RGN_CODE", "DSTR_CODE", "BD_CYCL_BGN_DATE", "BD_CYCL_END_DATE", "EXST_TNCY_CNT", "PRN_FORM_CNT", "RTN_FORM_CNT", "TASK_FORCE_CASE_CNT", "CMPT_CNT"]:
-            if _col.lower() not in [x.lower() for x in df_Union_Transformation.columns]:
-                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
-        df_Union_Transformation = df_Union_Transformation.select("RGN_CODE", "DSTR_CODE", "BD_CYCL_BGN_DATE", "BD_CYCL_END_DATE", "EXST_TNCY_CNT", "PRN_FORM_CNT", "RTN_FORM_CNT", "TASK_FORCE_CASE_CNT", "CMPT_CNT")
+        df_Union_Transformation = lib.union(
+            input_df=df_AGGTRANS4,
+            union_selects=[
+                {'df_input': df_Biennial_Declaration_Cycle, 'selects': [
+                    'RGN_CODE',
+                    'DSTR_CODE',
+                    'BD_CYCL_BGN_DATE',
+                    'BD_CYCL_END_DATE',
+                    None,
+                    None,
+                    None,
+                    None,
+                    None
+                ]},
+                {'df_input': df_AGGTRANS, 'selects': [
+                    'RGN_CODE',
+                    'DSTR_CODE',
+                    None,
+                    None,
+                    'EXST_TNCY_CNT',
+                    None,
+                    None,
+                    None,
+                    None
+                ]},
+                {'df_input': df_AGGTRANS1, 'selects': [
+                    'RGN_CODE',
+                    'DSTR_CODE',
+                    None,
+                    None,
+                    None,
+                    'PRN_FORM_CNT',
+                    None,
+                    None,
+                    None
+                ]},
+                {'df_input': df_AGGTRANS2, 'selects': [
+                    'RGN_CODE',
+                    'DSTR_CODE',
+                    None,
+                    None,
+                    None,
+                    None,
+                    'RTN_FORM_CNT',
+                    None,
+                    None
+                ]},
+                {'df_input': df_AGGTRANS3, 'selects': [
+                    'RGN_CODE',
+                    'DSTR_CODE',
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    'TASK_FORCE_CASE_CNT',
+                    None
+                ]},
+                {'df_input': df_AGGTRANS4, 'selects': [
+                    'RGN_CODE',
+                    'DSTR_CODE',
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    'CMPT_CNT'
+                ]},
+            ],
+            output_columns=['RGN_CODE', 'DSTR_CODE', 'BD_CYCL_BGN_DATE', 'BD_CYCL_END_DATE', 'EXST_TNCY_CNT', 'PRN_FORM_CNT', 'RTN_FORM_CNT', 'TASK_FORCE_CASE_CNT', 'CMPT_CNT'],
+        )
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_Union_Transformation
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE", expr("current_timestamp()"))
-        _expr = """to_date(cast(concat('$$v_rpt_mth', '01') as string), 'yyyymmdd')"""
-        _expr = _expr.replace("$$v_snsh_date", str(v_snsh_date))
-        _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TIME", expr(_expr))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RGN_SCHM_CODE", expr("'RM'"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DSTR_SCHM_CODE", expr("'NEW'"))
-        _expr = """datediff(add_months(to_date('$$v_rpt_mth' || '01', 'yyyymmdd'), 1), BD_CYCL_BGN_DATE) / datediff(BD_CYCL_END_DATE, BD_CYCL_BGN_DATE) * 100"""
-        _expr = _expr.replace("$$v_snsh_date", str(v_snsh_date))
-        _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TRGT_CMPLT_PCT", expr(_expr))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["RGN_CODE", "DSTR_CODE", "BD_CYCL_BGN_DATE", "BD_CYCL_END_DATE", "EXST_TNCY_CNT", "PRN_FORM_CNT", "RTN_FORM_CNT", "TASK_FORCE_CASE_CNT", "CMPT_CNT"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_Union_Transformation,
+            computed_columns=[
+                {'name': 'LAST_REC_TXN_DATE', 'expr': 'current_timestamp()'},
+                {'name': 'TIME', 'expr': "to_date(cast(concat('$$v_rpt_mth', '01') as string), 'yyyyMMdd')"},
+                {'name': 'RGN_SCHM_CODE', 'expr': "'RM'"},
+                {'name': 'DSTR_SCHM_CODE', 'expr': "'NEW'"},
+                {'name': 'TRGT_CMPLT_PCT', 'expr': "datediff(add_months(to_date('$$v_rpt_mth' || '01', 'yyyyMMdd'), 1), BD_CYCL_BGN_DATE) / datediff(BD_CYCL_END_DATE, BD_CYCL_BGN_DATE) * 100"}
+            ],
+            substitutions={'$$v_rpt_mth': v_rpt_mth},
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: read_LKP_DDS_DMNS_TIME_1")
         # Reading Data From Source - read_LKP_DDS_DMNS_TIME_1
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_LKP_DDS_DMNS_TIME_1 = lib.read_sql(spark, _conn, table="DDS_DMNS_TIME")
+        query = f"""SELECT DDS_DMNS_TIME.TIME_DMNS_KEY as TIME_DMNS_KEY, DDS_DMNS_TIME.CLDR_MTH_DAY as CLDR_MTH_DAY, DDS_DMNS_TIME.CLDR_MTH as CLDR_MTH, DDS_DMNS_TIME.CLDR_MTH_NAME as CLDR_MTH_NAME, DDS_DMNS_TIME.CLDR_YEAR as CLDR_YEAR, DDS_DMNS_TIME.CLDR_QTR as CLDR_QTR, DDS_DMNS_TIME.FSCL_MTH as FSCL_MTH, DDS_DMNS_TIME.FSCL_MTH_SEQ_NUM as FSCL_MTH_SEQ_NUM, DDS_DMNS_TIME.FSCL_QTR as FSCL_QTR, DDS_DMNS_TIME.FSCL_YEAR as FSCL_YEAR, DDS_DMNS_TIME.FSCL_QTR_SEQ_NUM as FSCL_QTR_SEQ_NUM, DDS_DMNS_TIME.CLDR_WKDY_NUM as CLDR_WKDY_NUM, DDS_DMNS_TIME.CLDR_HLDY_IND as CLDR_HLDY_IND, DDS_DMNS_TIME.FSCL_YEAR_SEQ_NUM as FSCL_YEAR_SEQ_NUM, DDS_DMNS_TIME.CLDR_HLDY_NAME as CLDR_HLDY_NAME, DDS_DMNS_TIME.TIME_VAL_DATE as TIME_VAL_DATE FROM DDS_DMNS_TIME
+WHERE DDS_DMNS_TIME.TIME_DMNS_KEY like '2%'"""
+        query = query.replace("$$v_snsh_date", v_snsh_date)
+        query = query.replace("$$v_rpt_mth", v_rpt_mth)
+        df_LKP_DDS_DMNS_TIME_1 = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_LKP_DDS_DMNS_TIME_1")
         # Lookup: apply_LKP_DDS_DMNS_TIME_1
@@ -623,7 +526,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN cycl_sts.BD_CYCL_BGN_DATE AND c
         _lkp_input = _lkp_input.withColumn("IN_TIME_VAL_DATE", col("TIME"))
         # Join condition: IN_TIME_VAL_DATE=TIME_VAL_DATE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_TIME_1).alias("_lkp"),
             (col("_main.IN_TIME_VAL_DATE") == col("_lkp.TIME_VAL_DATE")),
             "left"
@@ -631,7 +534,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN cycl_sts.BD_CYCL_BGN_DATE AND c
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_DDS_DMNS_TIME_1[c] for c in df_LKP_DDS_DMNS_TIME_1.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
+        ctx.register_df("df_lkp_merge_EXPTRANS", df_lkp_merge_EXPTRANS)        
         logger.info("Step: read_LKP_DDS_DMNS_EMS_DSTR")
         # Reading Data From Source - read_LKP_DDS_DMNS_EMS_DSTR
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -643,12 +546,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN cycl_sts.BD_CYCL_BGN_DATE AND c
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_DSTR = df_LKP_DDS_DMNS_EMS_DSTR.dropDuplicates(subset=["DSTR_CODE", "DSTR_SCHM_CODE"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_1
+        _lkp_input = df_lkp_merge_EXPTRANS
         _lkp_input = _lkp_input.withColumn("IN_DSTR_CODE", col("DSTR_CODE"))
         _lkp_input = _lkp_input.withColumn("IN_DSTR_SCHM_CODE", col("DSTR_SCHM_CODE"))
         # Join condition: IN_DSTR_CODE=DSTR_CODE AND IN_DSTR_SCHM_CODE=DSTR_SCHM_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_DSTR).alias("_lkp"),
             (col("_main.IN_DSTR_CODE") == col("_lkp.DSTR_CODE")) &
             (col("_main.IN_DSTR_SCHM_CODE") == col("_lkp.DSTR_SCHM_CODE")),
@@ -669,12 +572,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN cycl_sts.BD_CYCL_BGN_DATE AND c
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_RGN = df_LKP_DDS_DMNS_EMS_RGN.dropDuplicates(subset=["RGN_CODE", "RGN_SCHM_CODE"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_1
+        _lkp_input = df_lkp_merge_EXPTRANS
         _lkp_input = _lkp_input.withColumn("IN_RGN_CODE", col("RGN_CODE"))
         _lkp_input = _lkp_input.withColumn("IN_RGN_SCHM_CODE", col("RGN_SCHM_CODE"))
         # Join condition: IN_RGN_CODE=RGN_CODE AND IN_RGN_SCHM_CODE=RGN_SCHM_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_RGN).alias("_lkp"),
             (col("_main.IN_RGN_CODE") == col("_lkp.RGN_CODE")) &
             (col("_main.IN_RGN_SCHM_CODE") == col("_lkp.RGN_SCHM_CODE")),
@@ -686,27 +589,46 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN cycl_sts.BD_CYCL_BGN_DATE AND c
         
         logger.info("Step: write_DPA_FACT_EMS_BD")
         # Write to Target: write_DPA_FACT_EMS_BD
-        df_write = df_lkp_merge_1
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BD_CYCL_BGN_DATE": "BD_CYCL_BGN_DATE", "BD_CYCL_END_DATE": "BD_CYCL_END_DATE", "BD_FORM_PRN_CNT": "PRN_FORM_CNT", "BD_FORM_RTN_CNT": "RTN_FORM_CNT", "CMPLT_CNT": "CMPT_CNT", "DSTR_DMNS_KEY": "DSTR_DMNS_KEY", "EXST_TNCY_CNT": "EXST_TNCY_CNT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "RGN_DMNS_KEY": "RGN_DMNS_KEY", "TF_CASE_CNT": "TASK_FORCE_CASE_CNT", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TRGT_CMPLT_PCT": "TRGT_CMPLT_PCT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("REC_RLS_IND", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['EXST_TNCY_CNT', 'BD_FORM_PRN_CNT', 'BD_FORM_RTN_CNT', 'BD_CYCL_BGN_DATE', 'TF_CASE_CNT', 'BD_CYCL_END_DATE', 'CMPLT_CNT', 'TIME_DMNS_KEY', 'RGN_DMNS_KEY', 'DSTR_DMNS_KEY', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND', 'TRGT_CMPLT_PCT']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DPA_FACT_EMS_BD", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_lkp_merge_EXPTRANS,
+            conn=conn_target,
+            table='DPA_FACT_EMS_BD',
+            mode='append',
+            source_columns=[
+                'EXST_TNCY_CNT',
+                'PRN_FORM_CNT',
+                'RTN_FORM_CNT',
+                'BD_CYCL_BGN_DATE',
+                'TASK_FORCE_CASE_CNT',
+                'BD_CYCL_END_DATE',
+                'CMPT_CNT',
+                'TIME_DMNS_KEY',
+                'RGN_DMNS_KEY',
+                'DSTR_DMNS_KEY',
+                'LAST_REC_TXN_DATE',
+                None,
+                None,
+                'TRGT_CMPLT_PCT',
+            ],
+            target_columns=[
+                'EXST_TNCY_CNT',
+                'BD_FORM_PRN_CNT',
+                'BD_FORM_RTN_CNT',
+                'BD_CYCL_BGN_DATE',
+                'TF_CASE_CNT',
+                'BD_CYCL_END_DATE',
+                'CMPLT_CNT',
+                'TIME_DMNS_KEY',
+                'RGN_DMNS_KEY',
+                'DSTR_DMNS_KEY',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'REC_RLS_IND',
+                'TRGT_CMPLT_PCT',
+            ],
+            config=config,
+        )
 
         logger.info("write_DPA_FACT_EMS_BD write completed")
         

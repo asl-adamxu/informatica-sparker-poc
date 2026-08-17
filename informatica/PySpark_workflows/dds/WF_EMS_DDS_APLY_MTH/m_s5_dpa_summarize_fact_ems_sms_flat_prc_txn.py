@@ -92,35 +92,13 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.columns
-        _port_cols = ["SCHM_CODE", "PCHS_PRC_AMT"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS = lib.sq_output(
+            input_df=df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS,
+            port_cols={
+                'SCHM_CODE': 'string',
+                'PCHS_PRC_AMT': 'decimal',
+            },
+        )
         ctx.register_df("df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS", df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS)
         
         logger.info("Step: apply_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS")
@@ -145,398 +123,505 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS.columns
-        _port_cols = ["SCHM_CODE", "PCHS_PRC_AMT"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS = df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS = df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS = lib.sq_output(
+            input_df=df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS,
+            port_cols={
+                'SCHM_CODE': 'string',
+                'PCHS_PRC_AMT': 'decimal',
+            },
+        )
         ctx.register_df("df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS", df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS)
         
         logger.info("Step: apply_RTRTRANS1")
         # Router: apply_RTRTRANS1 - splits into multiple output groups
-        df_rtr_group_under_1000000_1 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.filter(expr("PCHS_PRC_AMT<100000"))
-        df_rtr_group_under_1000000_1 = df_rtr_group_under_1000000_1.drop("PCHS_PRC_AMT2").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT2")
-        df_rtr_group_under_1000000_1 = df_rtr_group_under_1000000_1.drop("SCHM_CODE2").withColumnRenamed("SCHM_CODE", "SCHM_CODE2")
-        ctx.register_df("df_rtr_group_under_1000000_1", df_rtr_group_under_1000000_1)
-        df_rtr_group_100000_to_300000_2 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.filter(expr("PCHS_PRC_AMT>=100000 AND PCHS_PRC_AMT<=300000"))
-        df_rtr_group_100000_to_300000_2 = df_rtr_group_100000_to_300000_2.drop("PCHS_PRC_AMT3").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT3")
-        df_rtr_group_100000_to_300000_2 = df_rtr_group_100000_to_300000_2.drop("SCHM_CODE3").withColumnRenamed("SCHM_CODE", "SCHM_CODE3")
-        ctx.register_df("df_rtr_group_100000_to_300000_2", df_rtr_group_100000_to_300000_2)
-        df_rtr_group_300001_to_500000_3 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.filter(expr("PCHS_PRC_AMT>=300001 AND PCHS_PRC_AMT<=500000"))
-        df_rtr_group_300001_to_500000_3 = df_rtr_group_300001_to_500000_3.drop("PCHS_PRC_AMT4").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT4")
-        df_rtr_group_300001_to_500000_3 = df_rtr_group_300001_to_500000_3.drop("SCHM_CODE4").withColumnRenamed("SCHM_CODE", "SCHM_CODE4")
-        ctx.register_df("df_rtr_group_300001_to_500000_3", df_rtr_group_300001_to_500000_3)
-        df_rtr_group_500001_to_700000_4 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.filter(expr("PCHS_PRC_AMT>=500001 AND PCHS_PRC_AMT<=700000"))
-        df_rtr_group_500001_to_700000_4 = df_rtr_group_500001_to_700000_4.drop("PCHS_PRC_AMT5").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT5")
-        df_rtr_group_500001_to_700000_4 = df_rtr_group_500001_to_700000_4.drop("SCHM_CODE5").withColumnRenamed("SCHM_CODE", "SCHM_CODE5")
-        ctx.register_df("df_rtr_group_500001_to_700000_4", df_rtr_group_500001_to_700000_4)
-        df_rtr_group_700001_to_900000_5 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.filter(expr("PCHS_PRC_AMT>=700001 AND PCHS_PRC_AMT<=900000"))
-        df_rtr_group_700001_to_900000_5 = df_rtr_group_700001_to_900000_5.drop("PCHS_PRC_AMT6").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT6")
-        df_rtr_group_700001_to_900000_5 = df_rtr_group_700001_to_900000_5.drop("SCHM_CODE6").withColumnRenamed("SCHM_CODE", "SCHM_CODE6")
-        ctx.register_df("df_rtr_group_700001_to_900000_5", df_rtr_group_700001_to_900000_5)
-        df_rtr_group_900001_to_1100000_6 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.filter(expr("PCHS_PRC_AMT>=900001 AND PCHS_PRC_AMT<=1100000"))
-        df_rtr_group_900001_to_1100000_6 = df_rtr_group_900001_to_1100000_6.drop("PCHS_PRC_AMT7").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT7")
-        df_rtr_group_900001_to_1100000_6 = df_rtr_group_900001_to_1100000_6.drop("SCHM_CODE7").withColumnRenamed("SCHM_CODE", "SCHM_CODE7")
-        ctx.register_df("df_rtr_group_900001_to_1100000_6", df_rtr_group_900001_to_1100000_6)
-        df_rtr_group_1100001_to_1300000_7 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.filter(expr("PCHS_PRC_AMT>=1100001 AND PCHS_PRC_AMT<=1300000"))
-        df_rtr_group_1100001_to_1300000_7 = df_rtr_group_1100001_to_1300000_7.drop("PCHS_PRC_AMT8").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT8")
-        df_rtr_group_1100001_to_1300000_7 = df_rtr_group_1100001_to_1300000_7.drop("SCHM_CODE8").withColumnRenamed("SCHM_CODE", "SCHM_CODE8")
-        ctx.register_df("df_rtr_group_1100001_to_1300000_7", df_rtr_group_1100001_to_1300000_7)
-        df_rtr_group_1300001_to_1500000_8 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.filter(expr("PCHS_PRC_AMT>= 1300001 AND PCHS_PRC_AMT<=1500000"))
-        df_rtr_group_1300001_to_1500000_8 = df_rtr_group_1300001_to_1500000_8.drop("PCHS_PRC_AMT10").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT10")
-        df_rtr_group_1300001_to_1500000_8 = df_rtr_group_1300001_to_1500000_8.drop("SCHM_CODE10").withColumnRenamed("SCHM_CODE", "SCHM_CODE10")
-        ctx.register_df("df_rtr_group_1300001_to_1500000_8", df_rtr_group_1300001_to_1500000_8)
-        df_rtr_group_over_1500000_9 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.filter(expr("PCHS_PRC_AMT>1500000"))
-        df_rtr_group_over_1500000_9 = df_rtr_group_over_1500000_9.drop("PCHS_PRC_AMT9").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT9")
-        df_rtr_group_over_1500000_9 = df_rtr_group_over_1500000_9.drop("SCHM_CODE9").withColumnRenamed("SCHM_CODE", "SCHM_CODE9")
-        ctx.register_df("df_rtr_group_over_1500000_9", df_rtr_group_over_1500000_9)
-        df_rtr_default_10 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS.filter(~(expr("PCHS_PRC_AMT<100000")) & ~(expr("PCHS_PRC_AMT>=100000 AND PCHS_PRC_AMT<=300000")) & ~(expr("PCHS_PRC_AMT>=300001 AND PCHS_PRC_AMT<=500000")) & ~(expr("PCHS_PRC_AMT>=500001 AND PCHS_PRC_AMT<=700000")) & ~(expr("PCHS_PRC_AMT>=700001 AND PCHS_PRC_AMT<=900000")) & ~(expr("PCHS_PRC_AMT>=900001 AND PCHS_PRC_AMT<=1100000")) & ~(expr("PCHS_PRC_AMT>=1100001 AND PCHS_PRC_AMT<=1300000")) & ~(expr("PCHS_PRC_AMT>= 1300001 AND PCHS_PRC_AMT<=1500000")) & ~(expr("PCHS_PRC_AMT>1500000")))
-        df_rtr_default_10 = df_rtr_default_10.drop("PCHS_PRC_AMT1").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT1")
-        df_rtr_default_10 = df_rtr_default_10.drop("SCHM_CODE1").withColumnRenamed("SCHM_CODE", "SCHM_CODE1")
-        ctx.register_df("df_rtr_default_10", df_rtr_default_10)
-        
+        _rtr = lib.router(
+            input_df=df_SQ_SOR_EMS_SMS_LN_APLY_STS_TPS,
+            groups=[
+                {
+                    'name': 'GROUP_Under_1000000',
+                    'df_output': 'df_rtr_RTRTRANS1_GROUP_Under_1000000',
+                    'condition': 'PCHS_PRC_AMT<100000',
+                    'renames': [
+                        ('PCHS_PRC_AMT', 'PCHS_PRC_AMT2'),
+                        ('SCHM_CODE', 'SCHM_CODE2'),
+                    ],
+                },
+                {
+                    'name': 'GROUP_100000_to_300000',
+                    'df_output': 'df_rtr_RTRTRANS1_GROUP_100000_to_300000',
+                    'condition': 'PCHS_PRC_AMT>=100000 AND PCHS_PRC_AMT<=300000',
+                    'renames': [
+                        ('PCHS_PRC_AMT', 'PCHS_PRC_AMT3'),
+                        ('SCHM_CODE', 'SCHM_CODE3'),
+                    ],
+                },
+                {
+                    'name': 'GROUP_300001_to_500000',
+                    'df_output': 'df_rtr_RTRTRANS1_GROUP_300001_to_500000',
+                    'condition': 'PCHS_PRC_AMT>=300001 AND PCHS_PRC_AMT<=500000',
+                    'renames': [
+                        ('PCHS_PRC_AMT', 'PCHS_PRC_AMT4'),
+                        ('SCHM_CODE', 'SCHM_CODE4'),
+                    ],
+                },
+                {
+                    'name': 'GROUP_500001_to_700000',
+                    'df_output': 'df_rtr_RTRTRANS1_GROUP_500001_to_700000',
+                    'condition': 'PCHS_PRC_AMT>=500001 AND PCHS_PRC_AMT<=700000',
+                    'renames': [
+                        ('PCHS_PRC_AMT', 'PCHS_PRC_AMT5'),
+                        ('SCHM_CODE', 'SCHM_CODE5'),
+                    ],
+                },
+                {
+                    'name': 'GROUP_700001_to_900000',
+                    'df_output': 'df_rtr_RTRTRANS1_GROUP_700001_to_900000',
+                    'condition': 'PCHS_PRC_AMT>=700001 AND PCHS_PRC_AMT<=900000',
+                    'renames': [
+                        ('PCHS_PRC_AMT', 'PCHS_PRC_AMT6'),
+                        ('SCHM_CODE', 'SCHM_CODE6'),
+                    ],
+                },
+                {
+                    'name': 'GROUP_900001_to_1100000',
+                    'df_output': 'df_rtr_RTRTRANS1_GROUP_900001_to_1100000',
+                    'condition': 'PCHS_PRC_AMT>=900001 AND PCHS_PRC_AMT<=1100000',
+                    'renames': [
+                        ('PCHS_PRC_AMT', 'PCHS_PRC_AMT7'),
+                        ('SCHM_CODE', 'SCHM_CODE7'),
+                    ],
+                },
+                {
+                    'name': 'GROUP_1100001_to_1300000',
+                    'df_output': 'df_rtr_RTRTRANS1_GROUP_1100001_to_1300000',
+                    'condition': 'PCHS_PRC_AMT>=1100001 AND PCHS_PRC_AMT<=1300000',
+                    'renames': [
+                        ('PCHS_PRC_AMT', 'PCHS_PRC_AMT8'),
+                        ('SCHM_CODE', 'SCHM_CODE8'),
+                    ],
+                },
+                {
+                    'name': 'GROUP_1300001_to_1500000',
+                    'df_output': 'df_rtr_RTRTRANS1_GROUP_1300001_to_1500000',
+                    'condition': 'PCHS_PRC_AMT>= 1300001 AND PCHS_PRC_AMT<=1500000',
+                    'renames': [
+                        ('PCHS_PRC_AMT', 'PCHS_PRC_AMT10'),
+                        ('SCHM_CODE', 'SCHM_CODE10'),
+                    ],
+                },
+                {
+                    'name': 'GROUP_Over_1500000',
+                    'df_output': 'df_rtr_RTRTRANS1_GROUP_Over_1500000',
+                    'condition': 'PCHS_PRC_AMT>1500000',
+                    'renames': [
+                        ('PCHS_PRC_AMT', 'PCHS_PRC_AMT9'),
+                        ('SCHM_CODE', 'SCHM_CODE9'),
+                    ],
+                },
+                {
+                    'name': 'DEFAULT',
+                    'df_output': 'df_rtr_RTRTRANS1_DEFAULT',
+                    'default_negated': ['GROUP_Under_1000000', 'GROUP_100000_to_300000', 'GROUP_300001_to_500000', 'GROUP_500001_to_700000', 'GROUP_700001_to_900000', 'GROUP_900001_to_1100000', 'GROUP_1100001_to_1300000', 'GROUP_1300001_to_1500000', 'GROUP_Over_1500000'],
+                    'renames': [
+                        ('PCHS_PRC_AMT', 'PCHS_PRC_AMT1'),
+                        ('SCHM_CODE', 'SCHM_CODE1'),
+                    ],
+                },
+            ],
+        )
+        df_rtr_RTRTRANS1_GROUP_Under_1000000 = _rtr['df_rtr_RTRTRANS1_GROUP_Under_1000000']
+        ctx.register_df("df_rtr_RTRTRANS1_GROUP_Under_1000000", df_rtr_RTRTRANS1_GROUP_Under_1000000)
+        df_rtr_RTRTRANS1_GROUP_100000_to_300000 = _rtr['df_rtr_RTRTRANS1_GROUP_100000_to_300000']
+        ctx.register_df("df_rtr_RTRTRANS1_GROUP_100000_to_300000", df_rtr_RTRTRANS1_GROUP_100000_to_300000)
+        df_rtr_RTRTRANS1_GROUP_300001_to_500000 = _rtr['df_rtr_RTRTRANS1_GROUP_300001_to_500000']
+        ctx.register_df("df_rtr_RTRTRANS1_GROUP_300001_to_500000", df_rtr_RTRTRANS1_GROUP_300001_to_500000)
+        df_rtr_RTRTRANS1_GROUP_500001_to_700000 = _rtr['df_rtr_RTRTRANS1_GROUP_500001_to_700000']
+        ctx.register_df("df_rtr_RTRTRANS1_GROUP_500001_to_700000", df_rtr_RTRTRANS1_GROUP_500001_to_700000)
+        df_rtr_RTRTRANS1_GROUP_700001_to_900000 = _rtr['df_rtr_RTRTRANS1_GROUP_700001_to_900000']
+        ctx.register_df("df_rtr_RTRTRANS1_GROUP_700001_to_900000", df_rtr_RTRTRANS1_GROUP_700001_to_900000)
+        df_rtr_RTRTRANS1_GROUP_900001_to_1100000 = _rtr['df_rtr_RTRTRANS1_GROUP_900001_to_1100000']
+        ctx.register_df("df_rtr_RTRTRANS1_GROUP_900001_to_1100000", df_rtr_RTRTRANS1_GROUP_900001_to_1100000)
+        df_rtr_RTRTRANS1_GROUP_1100001_to_1300000 = _rtr['df_rtr_RTRTRANS1_GROUP_1100001_to_1300000']
+        ctx.register_df("df_rtr_RTRTRANS1_GROUP_1100001_to_1300000", df_rtr_RTRTRANS1_GROUP_1100001_to_1300000)
+        df_rtr_RTRTRANS1_GROUP_1300001_to_1500000 = _rtr['df_rtr_RTRTRANS1_GROUP_1300001_to_1500000']
+        ctx.register_df("df_rtr_RTRTRANS1_GROUP_1300001_to_1500000", df_rtr_RTRTRANS1_GROUP_1300001_to_1500000)
+        df_rtr_RTRTRANS1_GROUP_Over_1500000 = _rtr['df_rtr_RTRTRANS1_GROUP_Over_1500000']
+        ctx.register_df("df_rtr_RTRTRANS1_GROUP_Over_1500000", df_rtr_RTRTRANS1_GROUP_Over_1500000)
+        df_rtr_RTRTRANS1_DEFAULT = _rtr['df_rtr_RTRTRANS1_DEFAULT']
+        ctx.register_df("df_rtr_RTRTRANS1_DEFAULT", df_rtr_RTRTRANS1_DEFAULT)
+
         logger.info("Step: apply_RTRTRANS")
         # Router: apply_RTRTRANS - splits into multiple output groups
-        df_rtr_group_under_1000000_11 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS.filter(expr("PCHS_PRC_AMT<1000000"))
-        df_rtr_group_under_1000000_11 = df_rtr_group_under_1000000_11.drop("PCHS_PRC_AMT2").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT2")
-        df_rtr_group_under_1000000_11 = df_rtr_group_under_1000000_11.drop("SCHM_CODE2").withColumnRenamed("SCHM_CODE", "SCHM_CODE2")
-        ctx.register_df("df_rtr_group_under_1000000_11", df_rtr_group_under_1000000_11)
-        df_rtr_group_1000000_to_1500000_12 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS.filter(expr("PCHS_PRC_AMT>=1000000 AND PCHS_PRC_AMT<=1500000"))
-        df_rtr_group_1000000_to_1500000_12 = df_rtr_group_1000000_to_1500000_12.drop("PCHS_PRC_AMT3").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT3")
-        df_rtr_group_1000000_to_1500000_12 = df_rtr_group_1000000_to_1500000_12.drop("SCHM_CODE3").withColumnRenamed("SCHM_CODE", "SCHM_CODE3")
-        ctx.register_df("df_rtr_group_1000000_to_1500000_12", df_rtr_group_1000000_to_1500000_12)
-        df_rtr_group_1500001_to_2000000_13 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS.filter(expr("PCHS_PRC_AMT>=1500001 AND PCHS_PRC_AMT<=2000000"))
-        df_rtr_group_1500001_to_2000000_13 = df_rtr_group_1500001_to_2000000_13.drop("PCHS_PRC_AMT4").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT4")
-        df_rtr_group_1500001_to_2000000_13 = df_rtr_group_1500001_to_2000000_13.drop("SCHM_CODE4").withColumnRenamed("SCHM_CODE", "SCHM_CODE4")
-        ctx.register_df("df_rtr_group_1500001_to_2000000_13", df_rtr_group_1500001_to_2000000_13)
-        df_rtr_group_2000000_to_2500000_14 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS.filter(expr("PCHS_PRC_AMT>=2000001 AND PCHS_PRC_AMT<=2500000"))
-        df_rtr_group_2000000_to_2500000_14 = df_rtr_group_2000000_to_2500000_14.drop("PCHS_PRC_AMT5").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT5")
-        df_rtr_group_2000000_to_2500000_14 = df_rtr_group_2000000_to_2500000_14.drop("SCHM_CODE5").withColumnRenamed("SCHM_CODE", "SCHM_CODE5")
-        ctx.register_df("df_rtr_group_2000000_to_2500000_14", df_rtr_group_2000000_to_2500000_14)
-        df_rtr_group_2500001_to_3000000_15 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS.filter(expr("PCHS_PRC_AMT>=2500001 AND PCHS_PRC_AMT<=3000000"))
-        df_rtr_group_2500001_to_3000000_15 = df_rtr_group_2500001_to_3000000_15.drop("PCHS_PRC_AMT6").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT6")
-        df_rtr_group_2500001_to_3000000_15 = df_rtr_group_2500001_to_3000000_15.drop("SCHM_CODE6").withColumnRenamed("SCHM_CODE", "SCHM_CODE6")
-        ctx.register_df("df_rtr_group_2500001_to_3000000_15", df_rtr_group_2500001_to_3000000_15)
-        df_rtr_group_3000001_to_3500000_16 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS.filter(expr("PCHS_PRC_AMT>=3000001 AND PCHS_PRC_AMT<=3500000"))
-        df_rtr_group_3000001_to_3500000_16 = df_rtr_group_3000001_to_3500000_16.drop("PCHS_PRC_AMT7").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT7")
-        df_rtr_group_3000001_to_3500000_16 = df_rtr_group_3000001_to_3500000_16.drop("SCHM_CODE7").withColumnRenamed("SCHM_CODE", "SCHM_CODE7")
-        ctx.register_df("df_rtr_group_3000001_to_3500000_16", df_rtr_group_3000001_to_3500000_16)
-        df_rtr_group_3500001_to_4000000_17 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS.filter(expr("PCHS_PRC_AMT>=3500001 AND PCHS_PRC_AMT<=4000000"))
-        df_rtr_group_3500001_to_4000000_17 = df_rtr_group_3500001_to_4000000_17.drop("PCHS_PRC_AMT8").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT8")
-        df_rtr_group_3500001_to_4000000_17 = df_rtr_group_3500001_to_4000000_17.drop("SCHM_CODE8").withColumnRenamed("SCHM_CODE", "SCHM_CODE8")
-        ctx.register_df("df_rtr_group_3500001_to_4000000_17", df_rtr_group_3500001_to_4000000_17)
-        df_rtr_group_over_4000000_18 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS.filter(expr("PCHS_PRC_AMT>4000000"))
-        df_rtr_group_over_4000000_18 = df_rtr_group_over_4000000_18.drop("PCHS_PRC_AMT9").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT9")
-        df_rtr_group_over_4000000_18 = df_rtr_group_over_4000000_18.drop("SCHM_CODE9").withColumnRenamed("SCHM_CODE", "SCHM_CODE9")
-        ctx.register_df("df_rtr_group_over_4000000_18", df_rtr_group_over_4000000_18)
-        df_rtr_default_19 = df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS.filter(~(expr("PCHS_PRC_AMT<1000000")) & ~(expr("PCHS_PRC_AMT>=1000000 AND PCHS_PRC_AMT<=1500000")) & ~(expr("PCHS_PRC_AMT>=1500001 AND PCHS_PRC_AMT<=2000000")) & ~(expr("PCHS_PRC_AMT>=2000001 AND PCHS_PRC_AMT<=2500000")) & ~(expr("PCHS_PRC_AMT>=2500001 AND PCHS_PRC_AMT<=3000000")) & ~(expr("PCHS_PRC_AMT>=3000001 AND PCHS_PRC_AMT<=3500000")) & ~(expr("PCHS_PRC_AMT>=3500001 AND PCHS_PRC_AMT<=4000000")) & ~(expr("PCHS_PRC_AMT>4000000")))
-        df_rtr_default_19 = df_rtr_default_19.drop("PCHS_PRC_AMT1").withColumnRenamed("PCHS_PRC_AMT", "PCHS_PRC_AMT1")
-        df_rtr_default_19 = df_rtr_default_19.drop("SCHM_CODE1").withColumnRenamed("SCHM_CODE", "SCHM_CODE1")
-        ctx.register_df("df_rtr_default_19", df_rtr_default_19)
-        
+        _rtr = lib.router(
+            input_df=df_SQ_SOR_EMS_SMS_LN_APLY_STS_HOS,
+            groups=[
+                {
+                    'name': 'GROUP_Under_1000000',
+                    'df_output': 'df_rtr_RTRTRANS_GROUP_Under_1000000',
+                    'condition': 'PCHS_PRC_AMT<1000000',
+                    'renames': [
+                        ('PCHS_PRC_AMT', 'PCHS_PRC_AMT2'),
+                        ('SCHM_CODE', 'SCHM_CODE2'),
+                    ],
+                },
+                {
+                    'name': 'GROUP_1000000_to_1500000',
+                    'df_output': 'df_rtr_RTRTRANS_GROUP_1000000_to_1500000',
+                    'condition': 'PCHS_PRC_AMT>=1000000 AND PCHS_PRC_AMT<=1500000',
+                    'renames': [
+                        ('PCHS_PRC_AMT', 'PCHS_PRC_AMT3'),
+                        ('SCHM_CODE', 'SCHM_CODE3'),
+                    ],
+                },
+                {
+                    'name': 'GROUP_1500001_to_2000000',
+                    'df_output': 'df_rtr_RTRTRANS_GROUP_1500001_to_2000000',
+                    'condition': 'PCHS_PRC_AMT>=1500001 AND PCHS_PRC_AMT<=2000000',
+                    'renames': [
+                        ('PCHS_PRC_AMT', 'PCHS_PRC_AMT4'),
+                        ('SCHM_CODE', 'SCHM_CODE4'),
+                    ],
+                },
+                {
+                    'name': 'GROUP_2000000_to_2500000',
+                    'df_output': 'df_rtr_RTRTRANS_GROUP_2000000_to_2500000',
+                    'condition': 'PCHS_PRC_AMT>=2000001 AND PCHS_PRC_AMT<=2500000',
+                    'renames': [
+                        ('PCHS_PRC_AMT', 'PCHS_PRC_AMT5'),
+                        ('SCHM_CODE', 'SCHM_CODE5'),
+                    ],
+                },
+                {
+                    'name': 'GROUP_2500001_to_3000000',
+                    'df_output': 'df_rtr_RTRTRANS_GROUP_2500001_to_3000000',
+                    'condition': 'PCHS_PRC_AMT>=2500001 AND PCHS_PRC_AMT<=3000000',
+                    'renames': [
+                        ('PCHS_PRC_AMT', 'PCHS_PRC_AMT6'),
+                        ('SCHM_CODE', 'SCHM_CODE6'),
+                    ],
+                },
+                {
+                    'name': 'GROUP_3000001_to_3500000',
+                    'df_output': 'df_rtr_RTRTRANS_GROUP_3000001_to_3500000',
+                    'condition': 'PCHS_PRC_AMT>=3000001 AND PCHS_PRC_AMT<=3500000',
+                    'renames': [
+                        ('PCHS_PRC_AMT', 'PCHS_PRC_AMT7'),
+                        ('SCHM_CODE', 'SCHM_CODE7'),
+                    ],
+                },
+                {
+                    'name': 'GROUP_3500001_to_4000000',
+                    'df_output': 'df_rtr_RTRTRANS_GROUP_3500001_to_4000000',
+                    'condition': 'PCHS_PRC_AMT>=3500001 AND PCHS_PRC_AMT<=4000000',
+                    'renames': [
+                        ('PCHS_PRC_AMT', 'PCHS_PRC_AMT8'),
+                        ('SCHM_CODE', 'SCHM_CODE8'),
+                    ],
+                },
+                {
+                    'name': 'GROUP_Over_4000000',
+                    'df_output': 'df_rtr_RTRTRANS_GROUP_Over_4000000',
+                    'condition': 'PCHS_PRC_AMT>4000000',
+                    'renames': [
+                        ('PCHS_PRC_AMT', 'PCHS_PRC_AMT9'),
+                        ('SCHM_CODE', 'SCHM_CODE9'),
+                    ],
+                },
+                {
+                    'name': 'DEFAULT',
+                    'df_output': 'df_rtr_RTRTRANS_DEFAULT',
+                    'default_negated': ['GROUP_Under_1000000', 'GROUP_1000000_to_1500000', 'GROUP_1500001_to_2000000', 'GROUP_2000000_to_2500000', 'GROUP_2500001_to_3000000', 'GROUP_3000001_to_3500000', 'GROUP_3500001_to_4000000', 'GROUP_Over_4000000'],
+                    'renames': [
+                        ('PCHS_PRC_AMT', 'PCHS_PRC_AMT1'),
+                        ('SCHM_CODE', 'SCHM_CODE1'),
+                    ],
+                },
+            ],
+        )
+        df_rtr_RTRTRANS_GROUP_Under_1000000 = _rtr['df_rtr_RTRTRANS_GROUP_Under_1000000']
+        ctx.register_df("df_rtr_RTRTRANS_GROUP_Under_1000000", df_rtr_RTRTRANS_GROUP_Under_1000000)
+        df_rtr_RTRTRANS_GROUP_1000000_to_1500000 = _rtr['df_rtr_RTRTRANS_GROUP_1000000_to_1500000']
+        ctx.register_df("df_rtr_RTRTRANS_GROUP_1000000_to_1500000", df_rtr_RTRTRANS_GROUP_1000000_to_1500000)
+        df_rtr_RTRTRANS_GROUP_1500001_to_2000000 = _rtr['df_rtr_RTRTRANS_GROUP_1500001_to_2000000']
+        ctx.register_df("df_rtr_RTRTRANS_GROUP_1500001_to_2000000", df_rtr_RTRTRANS_GROUP_1500001_to_2000000)
+        df_rtr_RTRTRANS_GROUP_2000000_to_2500000 = _rtr['df_rtr_RTRTRANS_GROUP_2000000_to_2500000']
+        ctx.register_df("df_rtr_RTRTRANS_GROUP_2000000_to_2500000", df_rtr_RTRTRANS_GROUP_2000000_to_2500000)
+        df_rtr_RTRTRANS_GROUP_2500001_to_3000000 = _rtr['df_rtr_RTRTRANS_GROUP_2500001_to_3000000']
+        ctx.register_df("df_rtr_RTRTRANS_GROUP_2500001_to_3000000", df_rtr_RTRTRANS_GROUP_2500001_to_3000000)
+        df_rtr_RTRTRANS_GROUP_3000001_to_3500000 = _rtr['df_rtr_RTRTRANS_GROUP_3000001_to_3500000']
+        ctx.register_df("df_rtr_RTRTRANS_GROUP_3000001_to_3500000", df_rtr_RTRTRANS_GROUP_3000001_to_3500000)
+        df_rtr_RTRTRANS_GROUP_3500001_to_4000000 = _rtr['df_rtr_RTRTRANS_GROUP_3500001_to_4000000']
+        ctx.register_df("df_rtr_RTRTRANS_GROUP_3500001_to_4000000", df_rtr_RTRTRANS_GROUP_3500001_to_4000000)
+        df_rtr_RTRTRANS_GROUP_Over_4000000 = _rtr['df_rtr_RTRTRANS_GROUP_Over_4000000']
+        ctx.register_df("df_rtr_RTRTRANS_GROUP_Over_4000000", df_rtr_RTRTRANS_GROUP_Over_4000000)
+        df_rtr_RTRTRANS_DEFAULT = _rtr['df_rtr_RTRTRANS_DEFAULT']
+        ctx.register_df("df_rtr_RTRTRANS_DEFAULT", df_rtr_RTRTRANS_DEFAULT)
+
         logger.info("Step: apply_EXPTRANS91")
         # Expression: apply_EXPTRANS91
-        df_EXPTRANS91 = df_rtr_group_over_1500000_9
-        df_EXPTRANS91 = df_EXPTRANS91.withColumn("UNIT_PRC_CODE", expr("'I'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["PCHS_PRC_AMT9", "SCHM_CODE9"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS91.columns]:
-                df_EXPTRANS91 = df_EXPTRANS91.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS91 = lib.expression(
+            input_df=df_rtr_RTRTRANS1_GROUP_Over_1500000,
+            computed_columns=[
+                {'name': 'UNIT_PRC_CODE', 'expr': "'I'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS91", df_EXPTRANS91)
         
         logger.info("Step: apply_EXPTRANS81")
         # Expression: apply_EXPTRANS81
-        df_EXPTRANS81 = df_rtr_group_1300001_to_1500000_8
-        df_EXPTRANS81 = df_EXPTRANS81.withColumn("PCHS_PRC_AMT9", expr("PCHS_PRC_AMT10"))
-        df_EXPTRANS81 = df_EXPTRANS81.withColumn("SCHM_CODE9", expr("SCHM_CODE10"))
-        df_EXPTRANS81 = df_EXPTRANS81.withColumn("UNIT_PRC_CODE", expr("'H'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS81 = lib.expression(
+            input_df=df_rtr_RTRTRANS1_GROUP_1300001_to_1500000,
+            computed_columns=[
+                {'name': 'PCHS_PRC_AMT9', 'expr': 'PCHS_PRC_AMT10'},
+                {'name': 'SCHM_CODE9', 'expr': 'SCHM_CODE10'},
+                {'name': 'UNIT_PRC_CODE', 'expr': "'H'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS81", df_EXPTRANS81)
         
         logger.info("Step: apply_EXPTRANS71")
         # Expression: apply_EXPTRANS71
-        df_EXPTRANS71 = df_rtr_group_1100001_to_1300000_7
-        df_EXPTRANS71 = df_EXPTRANS71.withColumn("UNIT_PRC_CODE", expr("'G'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["PCHS_PRC_AMT8", "SCHM_CODE8"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS71.columns]:
-                df_EXPTRANS71 = df_EXPTRANS71.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS71 = lib.expression(
+            input_df=df_rtr_RTRTRANS1_GROUP_1100001_to_1300000,
+            computed_columns=[
+                {'name': 'UNIT_PRC_CODE', 'expr': "'G'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS71", df_EXPTRANS71)
         
         logger.info("Step: apply_EXPTRANS61")
         # Expression: apply_EXPTRANS61
-        df_EXPTRANS61 = df_rtr_group_900001_to_1100000_6
-        df_EXPTRANS61 = df_EXPTRANS61.withColumn("UNIT_PRC_CODE", expr("'F'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["PCHS_PRC_AMT7", "SCHM_CODE7"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS61.columns]:
-                df_EXPTRANS61 = df_EXPTRANS61.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS61 = lib.expression(
+            input_df=df_rtr_RTRTRANS1_GROUP_900001_to_1100000,
+            computed_columns=[
+                {'name': 'UNIT_PRC_CODE', 'expr': "'F'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS61", df_EXPTRANS61)
         
         logger.info("Step: apply_EXPTRANS51")
         # Expression: apply_EXPTRANS51
-        df_EXPTRANS51 = df_rtr_group_700001_to_900000_5
-        df_EXPTRANS51 = df_EXPTRANS51.withColumn("UNIT_PRC_CODE", expr("'E'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["PCHS_PRC_AMT6", "SCHM_CODE6"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS51.columns]:
-                df_EXPTRANS51 = df_EXPTRANS51.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS51 = lib.expression(
+            input_df=df_rtr_RTRTRANS1_GROUP_700001_to_900000,
+            computed_columns=[
+                {'name': 'UNIT_PRC_CODE', 'expr': "'E'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS51", df_EXPTRANS51)
         
         logger.info("Step: apply_EXPTRANS41")
         # Expression: apply_EXPTRANS41
-        df_EXPTRANS41 = df_rtr_group_500001_to_700000_4
-        df_EXPTRANS41 = df_EXPTRANS41.withColumn("UNIT_PRC_CODE", expr("'D'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["PCHS_PRC_AMT5", "SCHM_CODE5"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS41.columns]:
-                df_EXPTRANS41 = df_EXPTRANS41.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS41 = lib.expression(
+            input_df=df_rtr_RTRTRANS1_GROUP_500001_to_700000,
+            computed_columns=[
+                {'name': 'UNIT_PRC_CODE', 'expr': "'D'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS41", df_EXPTRANS41)
         
         logger.info("Step: apply_EXPTRANS31")
         # Expression: apply_EXPTRANS31
-        df_EXPTRANS31 = df_rtr_group_300001_to_500000_3
-        df_EXPTRANS31 = df_EXPTRANS31.withColumn("UNIT_PRC_CODE", expr("'C'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["PCHS_PRC_AMT4", "SCHM_CODE4"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS31.columns]:
-                df_EXPTRANS31 = df_EXPTRANS31.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS31 = lib.expression(
+            input_df=df_rtr_RTRTRANS1_GROUP_300001_to_500000,
+            computed_columns=[
+                {'name': 'UNIT_PRC_CODE', 'expr': "'C'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS31", df_EXPTRANS31)
         
         logger.info("Step: apply_EXPTRANS21")
         # Expression: apply_EXPTRANS21
-        df_EXPTRANS21 = df_rtr_group_100000_to_300000_2
-        df_EXPTRANS21 = df_EXPTRANS21.withColumn("UNIT_PRC_CODE", expr("'B'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["PCHS_PRC_AMT3", "SCHM_CODE3"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS21.columns]:
-                df_EXPTRANS21 = df_EXPTRANS21.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS21 = lib.expression(
+            input_df=df_rtr_RTRTRANS1_GROUP_100000_to_300000,
+            computed_columns=[
+                {'name': 'UNIT_PRC_CODE', 'expr': "'B'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS21", df_EXPTRANS21)
         
         logger.info("Step: apply_EXPTRANS11")
         # Expression: apply_EXPTRANS11
-        df_EXPTRANS11 = df_rtr_group_under_1000000_1
-        df_EXPTRANS11 = df_EXPTRANS11.withColumn("UNIT_PRC_CODE", expr("'A'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["PCHS_PRC_AMT2", "SCHM_CODE2"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS11.columns]:
-                df_EXPTRANS11 = df_EXPTRANS11.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS11 = lib.expression(
+            input_df=df_rtr_RTRTRANS1_GROUP_Under_1000000,
+            computed_columns=[
+                {'name': 'UNIT_PRC_CODE', 'expr': "'A'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS11", df_EXPTRANS11)
         
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
-        df_EXPTRANS1 = df_rtr_group_under_1000000_11
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("UNIT_PRC_CODE", expr("'1'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["PCHS_PRC_AMT2", "SCHM_CODE2"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS1.columns]:
-                df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS1 = lib.expression(
+            input_df=df_rtr_RTRTRANS_GROUP_Under_1000000,
+            computed_columns=[
+                {'name': 'UNIT_PRC_CODE', 'expr': "'1'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
         
         logger.info("Step: apply_EXPTRANS2")
         # Expression: apply_EXPTRANS2
-        df_EXPTRANS2 = df_rtr_group_1000000_to_1500000_12
-        df_EXPTRANS2 = df_EXPTRANS2.withColumn("UNIT_PRC_CODE", expr("'2'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["PCHS_PRC_AMT3", "SCHM_CODE3"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS2.columns]:
-                df_EXPTRANS2 = df_EXPTRANS2.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS2 = lib.expression(
+            input_df=df_rtr_RTRTRANS_GROUP_1000000_to_1500000,
+            computed_columns=[
+                {'name': 'UNIT_PRC_CODE', 'expr': "'2'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS2", df_EXPTRANS2)
         
         logger.info("Step: apply_EXPTRANS3")
         # Expression: apply_EXPTRANS3
-        df_EXPTRANS3 = df_rtr_group_1500001_to_2000000_13
-        df_EXPTRANS3 = df_EXPTRANS3.withColumn("UNIT_PRC_CODE", expr("'3'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["PCHS_PRC_AMT4", "SCHM_CODE4"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS3.columns]:
-                df_EXPTRANS3 = df_EXPTRANS3.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS3 = lib.expression(
+            input_df=df_rtr_RTRTRANS_GROUP_1500001_to_2000000,
+            computed_columns=[
+                {'name': 'UNIT_PRC_CODE', 'expr': "'3'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS3", df_EXPTRANS3)
         
         logger.info("Step: apply_EXPTRANS4")
         # Expression: apply_EXPTRANS4
-        df_EXPTRANS4 = df_rtr_group_2000000_to_2500000_14
-        df_EXPTRANS4 = df_EXPTRANS4.withColumn("UNIT_PRC_CODE", expr("'4'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["PCHS_PRC_AMT5", "SCHM_CODE5"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS4.columns]:
-                df_EXPTRANS4 = df_EXPTRANS4.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS4 = lib.expression(
+            input_df=df_rtr_RTRTRANS_GROUP_2000000_to_2500000,
+            computed_columns=[
+                {'name': 'UNIT_PRC_CODE', 'expr': "'4'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS4", df_EXPTRANS4)
         
         logger.info("Step: apply_EXPTRANS5")
         # Expression: apply_EXPTRANS5
-        df_EXPTRANS5 = df_rtr_group_2500001_to_3000000_15
-        df_EXPTRANS5 = df_EXPTRANS5.withColumn("UNIT_PRC_CODE", expr("'5'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["PCHS_PRC_AMT6", "SCHM_CODE6"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS5.columns]:
-                df_EXPTRANS5 = df_EXPTRANS5.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS5 = lib.expression(
+            input_df=df_rtr_RTRTRANS_GROUP_2500001_to_3000000,
+            computed_columns=[
+                {'name': 'UNIT_PRC_CODE', 'expr': "'5'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS5", df_EXPTRANS5)
         
         logger.info("Step: apply_EXPTRANS6")
         # Expression: apply_EXPTRANS6
-        df_EXPTRANS6 = df_rtr_group_3000001_to_3500000_16
-        df_EXPTRANS6 = df_EXPTRANS6.withColumn("UNIT_PRC_CODE", expr("'6'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["PCHS_PRC_AMT7", "SCHM_CODE7"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS6.columns]:
-                df_EXPTRANS6 = df_EXPTRANS6.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS6 = lib.expression(
+            input_df=df_rtr_RTRTRANS_GROUP_3000001_to_3500000,
+            computed_columns=[
+                {'name': 'UNIT_PRC_CODE', 'expr': "'6'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS6", df_EXPTRANS6)
         
         logger.info("Step: apply_EXPTRANS7")
         # Expression: apply_EXPTRANS7
-        df_EXPTRANS7 = df_rtr_group_3500001_to_4000000_17
-        df_EXPTRANS7 = df_EXPTRANS7.withColumn("UNIT_PRC_CODE", expr("'7'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["PCHS_PRC_AMT8", "SCHM_CODE8"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS7.columns]:
-                df_EXPTRANS7 = df_EXPTRANS7.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS7 = lib.expression(
+            input_df=df_rtr_RTRTRANS_GROUP_3500001_to_4000000,
+            computed_columns=[
+                {'name': 'UNIT_PRC_CODE', 'expr': "'7'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS7", df_EXPTRANS7)
         
         logger.info("Step: apply_EXPTRANS8")
         # Expression: apply_EXPTRANS8
-        df_EXPTRANS8 = df_rtr_group_over_4000000_18
-        df_EXPTRANS8 = df_EXPTRANS8.withColumn("UNIT_PRC_CODE", expr("'8'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["PCHS_PRC_AMT9", "SCHM_CODE9"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS8.columns]:
-                df_EXPTRANS8 = df_EXPTRANS8.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS8 = lib.expression(
+            input_df=df_rtr_RTRTRANS_GROUP_Over_4000000,
+            computed_columns=[
+                {'name': 'UNIT_PRC_CODE', 'expr': "'8'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS8", df_EXPTRANS8)
         
         logger.info("Step: apply_Union_Transformation")
         # Union: apply_Union_Transformation
-        # Select + rename upstream columns per input, then union
-        df_Union_Transformation_newgroup = df_EXPTRANS1.select(
-            col("PCHS_PRC_AMT2").alias("PCHS_PRC_AMT2"),
-            col("SCHM_CODE2").alias("SCHM_CODE2"),
-            col("UNIT_PRC_CODE").alias("UNIT_PRC_CODE")        )
-        df_Union_Transformation_newgroup1 = df_EXPTRANS2.select(
-            col("PCHS_PRC_AMT3").alias("PCHS_PRC_AMT2"),
-            col("SCHM_CODE3").alias("SCHM_CODE2"),
-            col("UNIT_PRC_CODE").alias("UNIT_PRC_CODE")        )
-        df_Union_Transformation_newgroup2 = df_EXPTRANS3.select(
-            col("PCHS_PRC_AMT4").alias("PCHS_PRC_AMT2"),
-            col("SCHM_CODE4").alias("SCHM_CODE2"),
-            col("UNIT_PRC_CODE").alias("UNIT_PRC_CODE")        )
-        df_Union_Transformation_newgroup3 = df_EXPTRANS4.select(
-            col("PCHS_PRC_AMT5").alias("PCHS_PRC_AMT2"),
-            col("SCHM_CODE5").alias("SCHM_CODE2"),
-            col("UNIT_PRC_CODE").alias("UNIT_PRC_CODE")        )
-        df_Union_Transformation_newgroup4 = df_EXPTRANS5.select(
-            col("PCHS_PRC_AMT6").alias("PCHS_PRC_AMT2"),
-            col("SCHM_CODE6").alias("SCHM_CODE2"),
-            col("UNIT_PRC_CODE").alias("UNIT_PRC_CODE")        )
-        df_Union_Transformation_newgroup5 = df_EXPTRANS6.select(
-            col("PCHS_PRC_AMT7").alias("PCHS_PRC_AMT2"),
-            col("SCHM_CODE7").alias("SCHM_CODE2"),
-            col("UNIT_PRC_CODE").alias("UNIT_PRC_CODE")        )
-        df_Union_Transformation_newgroup6 = df_EXPTRANS7.select(
-            col("PCHS_PRC_AMT8").alias("PCHS_PRC_AMT2"),
-            col("SCHM_CODE8").alias("SCHM_CODE2"),
-            col("UNIT_PRC_CODE").alias("UNIT_PRC_CODE")        )
-        df_Union_Transformation_newgroup7 = df_EXPTRANS8.select(
-            col("PCHS_PRC_AMT9").alias("PCHS_PRC_AMT2"),
-            col("SCHM_CODE9").alias("SCHM_CODE2"),
-            col("UNIT_PRC_CODE").alias("UNIT_PRC_CODE")        )
-        df_Union_Transformation_newgroup8 = df_EXPTRANS11.select(
-            col("PCHS_PRC_AMT2").alias("PCHS_PRC_AMT2"),
-            col("SCHM_CODE2").alias("SCHM_CODE2"),
-            col("UNIT_PRC_CODE").alias("UNIT_PRC_CODE")        )
-        df_Union_Transformation_newgroup9 = df_EXPTRANS21.select(
-            col("PCHS_PRC_AMT3").alias("PCHS_PRC_AMT2"),
-            col("SCHM_CODE3").alias("SCHM_CODE2"),
-            col("UNIT_PRC_CODE").alias("UNIT_PRC_CODE")        )
-        df_Union_Transformation_newgroup10 = df_EXPTRANS31.select(
-            col("PCHS_PRC_AMT4").alias("PCHS_PRC_AMT2"),
-            col("SCHM_CODE4").alias("SCHM_CODE2"),
-            col("UNIT_PRC_CODE").alias("UNIT_PRC_CODE")        )
-        df_Union_Transformation_newgroup11 = df_EXPTRANS41.select(
-            col("PCHS_PRC_AMT5").alias("PCHS_PRC_AMT2"),
-            col("SCHM_CODE5").alias("SCHM_CODE2"),
-            col("UNIT_PRC_CODE").alias("UNIT_PRC_CODE")        )
-        df_Union_Transformation_newgroup12 = df_EXPTRANS51.select(
-            col("PCHS_PRC_AMT6").alias("PCHS_PRC_AMT2"),
-            col("SCHM_CODE6").alias("SCHM_CODE2"),
-            col("UNIT_PRC_CODE").alias("UNIT_PRC_CODE")        )
-        df_Union_Transformation_newgroup13 = df_EXPTRANS61.select(
-            col("PCHS_PRC_AMT7").alias("PCHS_PRC_AMT2"),
-            col("SCHM_CODE7").alias("SCHM_CODE2"),
-            col("UNIT_PRC_CODE").alias("UNIT_PRC_CODE")        )
-        df_Union_Transformation_newgroup14 = df_EXPTRANS71.select(
-            col("PCHS_PRC_AMT8").alias("PCHS_PRC_AMT2"),
-            col("SCHM_CODE8").alias("SCHM_CODE2"),
-            col("UNIT_PRC_CODE").alias("UNIT_PRC_CODE")        )
-        df_Union_Transformation_newgroup15 = df_EXPTRANS81.select(
-            col("PCHS_PRC_AMT9").alias("PCHS_PRC_AMT2"),
-            col("SCHM_CODE9").alias("SCHM_CODE2"),
-            col("UNIT_PRC_CODE").alias("UNIT_PRC_CODE")        )
-        df_Union_Transformation_newgroup16 = df_EXPTRANS91.select(
-            col("PCHS_PRC_AMT9").alias("PCHS_PRC_AMT2"),
-            col("SCHM_CODE9").alias("SCHM_CODE2"),
-            col("UNIT_PRC_CODE").alias("UNIT_PRC_CODE")        )
-        df_Union_Transformation = df_Union_Transformation_newgroup
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup1, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup2, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup3, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup4, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup5, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup6, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup7, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup8, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup9, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup10, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup11, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup12, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup13, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup14, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup15, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup16, allowMissingColumns=True)
-        # Select only union output columns (add lit(None) for any missing)
-        for _col in ["PCHS_PRC_AMT2", "SCHM_CODE2", "UNIT_PRC_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_Union_Transformation.columns]:
-                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
-        df_Union_Transformation = df_Union_Transformation.select("PCHS_PRC_AMT2", "SCHM_CODE2", "UNIT_PRC_CODE")
+        df_Union_Transformation = lib.union(
+            input_df=df_EXPTRANS91,
+            union_selects=[
+                {'df_input': df_EXPTRANS1, 'selects': [
+                    'PCHS_PRC_AMT2',
+                    'SCHM_CODE2',
+                    'UNIT_PRC_CODE'
+                ]},
+                {'df_input': df_EXPTRANS2, 'selects': [
+                    'PCHS_PRC_AMT3',
+                    'SCHM_CODE3',
+                    'UNIT_PRC_CODE'
+                ]},
+                {'df_input': df_EXPTRANS3, 'selects': [
+                    'PCHS_PRC_AMT4',
+                    'SCHM_CODE4',
+                    'UNIT_PRC_CODE'
+                ]},
+                {'df_input': df_EXPTRANS4, 'selects': [
+                    'PCHS_PRC_AMT5',
+                    'SCHM_CODE5',
+                    'UNIT_PRC_CODE'
+                ]},
+                {'df_input': df_EXPTRANS5, 'selects': [
+                    'PCHS_PRC_AMT6',
+                    'SCHM_CODE6',
+                    'UNIT_PRC_CODE'
+                ]},
+                {'df_input': df_EXPTRANS6, 'selects': [
+                    'PCHS_PRC_AMT7',
+                    'SCHM_CODE7',
+                    'UNIT_PRC_CODE'
+                ]},
+                {'df_input': df_EXPTRANS7, 'selects': [
+                    'PCHS_PRC_AMT8',
+                    'SCHM_CODE8',
+                    'UNIT_PRC_CODE'
+                ]},
+                {'df_input': df_EXPTRANS8, 'selects': [
+                    'PCHS_PRC_AMT9',
+                    'SCHM_CODE9',
+                    'UNIT_PRC_CODE'
+                ]},
+                {'df_input': df_EXPTRANS11, 'selects': [
+                    'PCHS_PRC_AMT2',
+                    'SCHM_CODE2',
+                    'UNIT_PRC_CODE'
+                ]},
+                {'df_input': df_EXPTRANS21, 'selects': [
+                    'PCHS_PRC_AMT3',
+                    'SCHM_CODE3',
+                    'UNIT_PRC_CODE'
+                ]},
+                {'df_input': df_EXPTRANS31, 'selects': [
+                    'PCHS_PRC_AMT4',
+                    'SCHM_CODE4',
+                    'UNIT_PRC_CODE'
+                ]},
+                {'df_input': df_EXPTRANS41, 'selects': [
+                    'PCHS_PRC_AMT5',
+                    'SCHM_CODE5',
+                    'UNIT_PRC_CODE'
+                ]},
+                {'df_input': df_EXPTRANS51, 'selects': [
+                    'PCHS_PRC_AMT6',
+                    'SCHM_CODE6',
+                    'UNIT_PRC_CODE'
+                ]},
+                {'df_input': df_EXPTRANS61, 'selects': [
+                    'PCHS_PRC_AMT7',
+                    'SCHM_CODE7',
+                    'UNIT_PRC_CODE'
+                ]},
+                {'df_input': df_EXPTRANS71, 'selects': [
+                    'PCHS_PRC_AMT8',
+                    'SCHM_CODE8',
+                    'UNIT_PRC_CODE'
+                ]},
+                {'df_input': df_EXPTRANS81, 'selects': [
+                    'PCHS_PRC_AMT9',
+                    'SCHM_CODE9',
+                    'UNIT_PRC_CODE'
+                ]},
+                {'df_input': df_EXPTRANS91, 'selects': [
+                    'PCHS_PRC_AMT9',
+                    'SCHM_CODE9',
+                    'UNIT_PRC_CODE'
+                ]},
+            ],
+            output_columns=['PCHS_PRC_AMT2', 'SCHM_CODE2', 'UNIT_PRC_CODE'],
+        )
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
         logger.info("Step: apply_AGGTRANS")
@@ -554,29 +639,30 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_AGGTRANS
-        _expr = """to_date(cast(concat('$$v_rpt_mth', '01') as string), 'yyyymmdd')"""
-        _expr = _expr.replace("$$v_snsh_date", str(v_snsh_date))
-        _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TIME", expr(_expr))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE", expr("current_timestamp()"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("UNIT_TYPE", expr("CASE WHEN SCHM_CODE = 'T' THEN 'TPS' ELSE 'HOS' END"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DESP_DTL", expr("'no_of_tran'"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("UNIT_PRC_SCHM_CODE", expr("'SMS'"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("UNIT_TYPE_SCHM_CODE", expr("'SMS'"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DESP_DTL_SCHM_CODE", expr("'SMS'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["UNIT_PRC_CODE", "CNT"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_AGGTRANS,
+            computed_columns=[
+                {'name': 'TIME', 'expr': "to_date(cast(concat('$$v_rpt_mth', '01') as string), 'yyyyMMdd')"},
+                {'name': 'LAST_REC_TXN_DATE', 'expr': 'current_timestamp()'},
+                {'name': 'UNIT_TYPE', 'expr': "CASE WHEN SCHM_CODE = 'T' THEN 'TPS' ELSE 'HOS' END"},
+                {'name': 'DESP_DTL', 'expr': "'no_of_tran'"},
+                {'name': 'UNIT_PRC_SCHM_CODE', 'expr': "'SMS'"},
+                {'name': 'UNIT_TYPE_SCHM_CODE', 'expr': "'SMS'"},
+                {'name': 'DESP_DTL_SCHM_CODE', 'expr': "'SMS'"}
+            ],
+            substitutions={'$$v_rpt_mth': v_rpt_mth},
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: read_LKP_DDS_DMNS_TIME_1")
         # Reading Data From Source - read_LKP_DDS_DMNS_TIME_1
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_LKP_DDS_DMNS_TIME_1 = lib.read_sql(spark, _conn, table="DDS_DMNS_TIME")
+        query = f"""SELECT DDS_DMNS_TIME.TIME_DMNS_KEY as TIME_DMNS_KEY, DDS_DMNS_TIME.CLDR_MTH_DAY as CLDR_MTH_DAY, DDS_DMNS_TIME.CLDR_MTH as CLDR_MTH, DDS_DMNS_TIME.CLDR_MTH_NAME as CLDR_MTH_NAME, DDS_DMNS_TIME.CLDR_YEAR as CLDR_YEAR, DDS_DMNS_TIME.CLDR_QTR as CLDR_QTR, DDS_DMNS_TIME.FSCL_MTH as FSCL_MTH, DDS_DMNS_TIME.FSCL_MTH_SEQ_NUM as FSCL_MTH_SEQ_NUM, DDS_DMNS_TIME.FSCL_QTR as FSCL_QTR, DDS_DMNS_TIME.FSCL_YEAR as FSCL_YEAR, DDS_DMNS_TIME.FSCL_QTR_SEQ_NUM as FSCL_QTR_SEQ_NUM, DDS_DMNS_TIME.CLDR_WKDY_NUM as CLDR_WKDY_NUM, DDS_DMNS_TIME.CLDR_HLDY_IND as CLDR_HLDY_IND, DDS_DMNS_TIME.FSCL_YEAR_SEQ_NUM as FSCL_YEAR_SEQ_NUM, DDS_DMNS_TIME.CLDR_HLDY_NAME as CLDR_HLDY_NAME, DDS_DMNS_TIME.TIME_VAL_DATE as TIME_VAL_DATE FROM DDS_DMNS_TIME
+WHERE DDS_DMNS_TIME.TIME_DMNS_KEY like '2%'"""
+        query = query.replace("$$v_snsh_date", v_snsh_date)
+        query = query.replace("$$v_rpt_mth", v_rpt_mth)
+        df_LKP_DDS_DMNS_TIME_1 = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_LKP_DDS_DMNS_TIME_1")
         # Lookup: apply_LKP_DDS_DMNS_TIME_1
@@ -587,7 +673,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
         _lkp_input = _lkp_input.withColumn("IN_TIME_VAL_DATE", col("TIME"))
         # Join condition: IN_TIME_VAL_DATE=TIME_VAL_DATE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_20 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_TIME_1).alias("_lkp"),
             (col("_main.IN_TIME_VAL_DATE") == col("_lkp.TIME_VAL_DATE")),
             "left"
@@ -595,7 +681,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_DDS_DMNS_TIME_1[c] for c in df_LKP_DDS_DMNS_TIME_1.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_20", df_lkp_merge_20)        
+        ctx.register_df("df_lkp_merge_EXPTRANS", df_lkp_merge_EXPTRANS)        
         logger.info("Step: read_LKP_DDS_DMNS_EMS_DESP_DTL")
         # Reading Data From Source - read_LKP_DDS_DMNS_EMS_DESP_DTL
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -607,12 +693,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_DESP_DTL = df_LKP_DDS_DMNS_EMS_DESP_DTL.dropDuplicates(subset=["DESP_DTL_CODE", "DESP_DTL_SCHM_CODE"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_20
+        _lkp_input = df_lkp_merge_EXPTRANS
         _lkp_input = _lkp_input.withColumn("IN_DESP_DTL_CODE", col("DESP_DTL"))
         _lkp_input = _lkp_input.withColumn("IN_DESP_DTL_SCHM_CODE", col("DESP_DTL_SCHM_CODE"))
         # Join condition: IN_DESP_DTL_CODE=DESP_DTL_CODE AND IN_DESP_DTL_SCHM_CODE=DESP_DTL_SCHM_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_20 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_DESP_DTL).alias("_lkp"),
             (col("_main.IN_DESP_DTL_CODE") == col("_lkp.DESP_DTL_CODE")) &
             (col("_main.IN_DESP_DTL_SCHM_CODE") == col("_lkp.DESP_DTL_SCHM_CODE")),
@@ -633,12 +719,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_UNIT_PRC = df_LKP_DDS_DMNS_EMS_UNIT_PRC.dropDuplicates(subset=["UNIT_PRC_CODE", "UNIT_PRC_SCHM_CODE"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_20
+        _lkp_input = df_lkp_merge_EXPTRANS
         _lkp_input = _lkp_input.withColumn("IN_UNIT_PRC_CODE", col("UNIT_PRC_CODE"))
         _lkp_input = _lkp_input.withColumn("IN_UNIT_PRC_SCHM_CODE", col("UNIT_PRC_SCHM_CODE"))
         # Join condition: IN_UNIT_PRC_CODE=UNIT_PRC_CODE AND IN_UNIT_PRC_SCHM_CODE=UNIT_PRC_SCHM_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_20 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_UNIT_PRC).alias("_lkp"),
             (col("_main.IN_UNIT_PRC_CODE") == col("_lkp.UNIT_PRC_CODE")) &
             (col("_main.IN_UNIT_PRC_SCHM_CODE") == col("_lkp.UNIT_PRC_SCHM_CODE")),
@@ -659,12 +745,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_UNIT_TYPE = df_LKP_DDS_DMNS_EMS_UNIT_TYPE.dropDuplicates(subset=["UNIT_TYPE_CODE", "UNIT_TYPE_SCHM_CODE"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_20
+        _lkp_input = df_lkp_merge_EXPTRANS
         _lkp_input = _lkp_input.withColumn("IN_UNIT_TYPE_CODE", col("UNIT_TYPE"))
         _lkp_input = _lkp_input.withColumn("IN_UNIT_TYPE_SCHM_CODE", col("UNIT_TYPE_SCHM_CODE"))
         # Join condition: IN_UNIT_TYPE_CODE=UNIT_TYPE_CODE AND IN_UNIT_TYPE_SCHM_CODE=UNIT_TYPE_SCHM_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_20 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_UNIT_TYPE).alias("_lkp"),
             (col("_main.IN_UNIT_TYPE_CODE") == col("_lkp.UNIT_TYPE_CODE")) &
             (col("_main.IN_UNIT_TYPE_SCHM_CODE") == col("_lkp.UNIT_TYPE_SCHM_CODE")),
@@ -676,27 +762,34 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
         
         logger.info("Step: write_DPA_FACT_EMS_SMS_FLAT_PRC_TXN")
         # Write to Target: write_DPA_FACT_EMS_SMS_FLAT_PRC_TXN
-        df_write = df_lkp_merge_20
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"DESP_DTL_DMNS_KEY": "DESP_DTL_DMNS_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TXN_CNT": "CNT", "UNIT_PRC_DMNS_KEY": "UNIT_PRC_DMNS_KEY", "UNIT_TYPE_DMNS_KEY": "UNIT_TYPE_DMNS_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("REC_RLS_IND", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['DESP_DTL_DMNS_KEY', 'UNIT_TYPE_DMNS_KEY', 'UNIT_PRC_DMNS_KEY', 'TIME_DMNS_KEY', 'TXN_CNT', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DPA_FACT_EMS_SMS_FLAT_PRC_TXN", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_lkp_merge_EXPTRANS,
+            conn=conn_target,
+            table='DPA_FACT_EMS_SMS_FLAT_PRC_TXN',
+            mode='append',
+            source_columns=[
+                'DESP_DTL_DMNS_KEY',
+                'UNIT_TYPE_DMNS_KEY',
+                'UNIT_PRC_DMNS_KEY',
+                'TIME_DMNS_KEY',
+                'CNT',
+                'LAST_REC_TXN_DATE',
+                None,
+                None,
+            ],
+            target_columns=[
+                'DESP_DTL_DMNS_KEY',
+                'UNIT_TYPE_DMNS_KEY',
+                'UNIT_PRC_DMNS_KEY',
+                'TIME_DMNS_KEY',
+                'TXN_CNT',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'REC_RLS_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_DPA_FACT_EMS_SMS_FLAT_PRC_TXN write completed")
         

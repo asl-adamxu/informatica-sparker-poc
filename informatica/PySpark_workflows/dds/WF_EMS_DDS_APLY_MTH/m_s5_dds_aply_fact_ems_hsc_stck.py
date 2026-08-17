@@ -77,32 +77,48 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SP_DELETE")
         # Source Qualifier: apply_SQ_SP_DELETE
         df_SQ_SP_DELETE = df_DPA_FACT_EMS_HSC_FLAT
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["TIME_DMNS_KEY"]
-        df_SQ_SP_DELETE = df_SQ_SP_DELETE.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SP_DELETE.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SP_DELETE = lib.sq_output(
+            input_df=df_SQ_SP_DELETE,
+            port_cols={
+                'TIME_DMNS_KEY': 'decimal',
+            },
+        )
         ctx.register_df("df_SQ_SP_DELETE", df_SQ_SP_DELETE)
         
         logger.info("Step: apply_SQ_DPA_FACT_EMS_HSC_FLAT")
         # Source Qualifier: apply_SQ_DPA_FACT_EMS_HSC_FLAT
         df_SQ_DPA_FACT_EMS_HSC_FLAT = df_DPA_FACT_EMS_HSC_FLAT
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["MIN_FLR_NUM", "MAX_FLR_NUM", "OCPY_STCK_CNT", "VCNT_STCK_CNT", "RGN_DMNS_KEY", "EST_DMNS_KEY", "HSC_TYPE_DMNS_KEY", "HSC_UNIT_TYPE_DMNS_KEY", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "REC_RLS_IND", "TIME_DMNS_KEY", "BLK_DMNS_KEY"]
-        df_SQ_DPA_FACT_EMS_HSC_FLAT = df_SQ_DPA_FACT_EMS_HSC_FLAT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DPA_FACT_EMS_HSC_FLAT.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DPA_FACT_EMS_HSC_FLAT = lib.sq_output(
+            input_df=df_SQ_DPA_FACT_EMS_HSC_FLAT,
+            port_cols={
+                'MIN_FLR_NUM': 'decimal',
+                'MAX_FLR_NUM': 'decimal',
+                'OCPY_STCK_CNT': 'decimal',
+                'VCNT_STCK_CNT': 'decimal',
+                'RGN_DMNS_KEY': 'decimal',
+                'EST_DMNS_KEY': 'decimal',
+                'HSC_TYPE_DMNS_KEY': 'decimal',
+                'HSC_UNIT_TYPE_DMNS_KEY': 'decimal',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'REC_RLS_IND': 'string',
+                'TIME_DMNS_KEY': 'decimal',
+                'BLK_DMNS_KEY': 'decimal',
+            },
+        )
         ctx.register_df("df_SQ_DPA_FACT_EMS_HSC_FLAT", df_SQ_DPA_FACT_EMS_HSC_FLAT)
         
         logger.info("Step: apply_EXP_SET_DEL_INFO")
         # Expression: apply_EXP_SET_DEL_INFO
-        df_EXP_SET_DEL_INFO = df_SQ_SP_DELETE
-        df_EXP_SET_DEL_INFO = df_EXP_SET_DEL_INFO.withColumn("TBL_NAME", expr("'DDS_FACT_EMS_HSC_FLAT'"))
-        df_EXP_SET_DEL_INFO = df_EXP_SET_DEL_INFO.withColumn("RM_FLG", expr("'Y'"))
-        _expr = """'$$v_REC_RLS_IND'"""
-        _expr = _expr.replace("$$v_REC_RLS_IND", str(v_REC_RLS_IND))
-        df_EXP_SET_DEL_INFO = df_EXP_SET_DEL_INFO.withColumn("RSL_CTL_IND", expr(_expr))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["TIME_DMNS_KEY"]:
-            if _col.lower() not in [x.lower() for x in df_EXP_SET_DEL_INFO.columns]:
-                df_EXP_SET_DEL_INFO = df_EXP_SET_DEL_INFO.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_SET_DEL_INFO = lib.expression(
+            input_df=df_SQ_SP_DELETE,
+            computed_columns=[
+                {'name': 'TBL_NAME', 'expr': "'DDS_FACT_EMS_HSC_FLAT'"},
+                {'name': 'RM_FLG', 'expr': "'Y'"},
+                {'name': 'RSL_CTL_IND', 'expr': "'$$v_REC_RLS_IND'"}
+            ],
+            substitutions={'$$v_REC_RLS_IND': v_REC_RLS_IND},
+        )
         ctx.register_df("df_EXP_SET_DEL_INFO", df_EXP_SET_DEL_INFO)
         
         logger.info("Step: apply_AGGTRANS")
@@ -131,13 +147,12 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         
         logger.info("Step: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS")
         # Expression: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS
-        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS = df_EXP_SET_DEL_INFO
-        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS.withColumn("RLS_CNTL_DMNS_TYPE_CODE", expr("substring(cast(TIME_DMNS_KEY as string),1,1)"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["TIME_DMNS_KEY", "TBL_NAME", "RM_FLG", "RSL_CTL_IND"]:
-            if _col.lower() not in [x.lower() for x in df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS.columns]:
-                df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS = lib.expression(
+            input_df=df_EXP_SET_DEL_INFO,
+            computed_columns=[
+                {'name': 'RLS_CNTL_DMNS_TYPE_CODE', 'expr': 'substring(cast(TIME_DMNS_KEY as string),1,1)'}
+            ],
+        )
         ctx.register_df("df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS", df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXPTRANS)
         
         logger.info("Step: apply_df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_AGGTRANS")
@@ -164,11 +179,13 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         
         logger.info("Step: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_LKPTRANS")
         # Lookup: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_LKPTRANS
+        # Use First Value / Use Any Value: dedup by join keys
+        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_LKPTRANS = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_LKPTRANS.dropDuplicates(subset=["RLS_CNTL_FACT_TBL_NAME", "RLS_CNTL_DMNS_TYPE_CODE"])
         # Rename upstream columns to match lookup input port names before join
         _lkp_input = df_df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_AGGTRANS
         # Join condition: TBL_NAME=RLS_CNTL_FACT_TBL_NAME AND RLS_CNTL_DMNS_TYPE_CODE=RLS_CNTL_DMNS_TYPE_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_mplt_lkp_chain_1 = _lkp_input.alias("_main").join(
+        df_mplt_lkp_chain_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_AGGTRANS = _lkp_input.alias("_main").join(
             broadcast(df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_LKPTRANS).alias("_lkp"),
             (col("_main.TBL_NAME") == col("_lkp.RLS_CNTL_FACT_TBL_NAME")) &
             (col("_main.RLS_CNTL_DMNS_TYPE_CODE") == col("_lkp.RLS_CNTL_DMNS_TYPE_CODE")),
@@ -177,134 +194,141 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_LKPTRANS[c] for c in df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_LKPTRANS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_mplt_lkp_chain_1", df_mplt_lkp_chain_1)        
+        ctx.register_df("df_mplt_lkp_chain_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_AGGTRANS", df_mplt_lkp_chain_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_AGGTRANS)        
         logger.info("Step: rename_EXP_SP_DELETE")
         # Expression: rename_EXP_SP_DELETE
-        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_rename_2 = df_mplt_lkp_chain_1
-        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_rename_2 = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_rename_2.drop("DDS_RLS_CNTL_DMNS_TYPE_CODE").withColumnRenamed("RLS_CNTL_DMNS_TYPE_CODE", "DDS_RLS_CNTL_DMNS_TYPE_CODE")
-        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_rename_2 = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_rename_2.drop("DDS_RLS_CNTL_BGN_TIME_DMNS_KEY").withColumnRenamed("RLS_CNTL_BGN_TIME_DMNS_KEY", "DDS_RLS_CNTL_BGN_TIME_DMNS_KEY")
-        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_rename_2 = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_rename_2.drop("DDS_RLS_CNTL_END_TIME_DMNS_KEY").withColumnRenamed("RLS_CNTL_END_TIME_DMNS_KEY", "DDS_RLS_CNTL_END_TIME_DMNS_KEY")
-        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_rename_2 = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_rename_2.drop("REMOVE_ALL_FLG").withColumnRenamed("RM_FLG", "REMOVE_ALL_FLG")
-        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_rename_2 = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_rename_2.drop("FACT_TBL_NAME").withColumnRenamed("TBL_NAME", "FACT_TBL_NAME")
-        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_rename_2 = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_rename_2.drop("DDS_RLS_CNTL_FACT_TBL_NAME").withColumnRenamed("RLS_CNTL_FACT_TBL_NAME", "DDS_RLS_CNTL_FACT_TBL_NAME")
-        ctx.register_df("df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_rename_2", df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_rename_2)
+        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_rename_EXP_SP_DELETE = lib.expression(
+            input_df=df_mplt_lkp_chain_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_AGGTRANS,
+            rename_columns=[
+                ('RLS_CNTL_DMNS_TYPE_CODE', 'DDS_RLS_CNTL_DMNS_TYPE_CODE'),
+                ('RLS_CNTL_BGN_TIME_DMNS_KEY', 'DDS_RLS_CNTL_BGN_TIME_DMNS_KEY'),
+                ('RLS_CNTL_END_TIME_DMNS_KEY', 'DDS_RLS_CNTL_END_TIME_DMNS_KEY'),
+                ('RM_FLG', 'REMOVE_ALL_FLG'),
+                ('TBL_NAME', 'FACT_TBL_NAME'),
+                ('RLS_CNTL_FACT_TBL_NAME', 'DDS_RLS_CNTL_FACT_TBL_NAME')
+            ],
+        )
+        ctx.register_df("df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_rename_EXP_SP_DELETE", df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_rename_EXP_SP_DELETE)
         
         logger.info("Step: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE")
         # Expression: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE
-        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_rename_2
-        # Execute stored procedure for each input value via JDBC
-        _sp_conn = conn_oracle
-        _sp_call = "SP_DELETE_DDS_FACT"
-        _sp_input_cols = ["FACT_TBL_NAME", "MIN_TIME_DMNS_KEY", "REMOVE_ALL_FLG"]
-        _input_rows = [row for row in df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_rename_2.select(*_sp_input_cols).collect()]
-        for _row in _input_rows:
-            _arg_vals = [ _row[c] for c in _sp_input_cols ]
-            lib.call_stored_procedure(spark, _sp_conn, _sp_call, _arg_vals)
-        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE.withColumn("CALL_SP", lit("SUCCESS"))
-        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE.withColumn("RLS_CNTL_BGN_DMNS_KEY", expr("CASE WHEN (DDS_RLS_CNTL_BGN_TIME_DMNS_KEY IS NULL) OR (MIN_TIME_DMNS_KEY < DDS_RLS_CNTL_BGN_TIME_DMNS_KEY) THEN MIN_TIME_DMNS_KEY ELSE DDS_RLS_CNTL_BGN_TIME_DMNS_KEY END"))
-        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE.withColumn("RLS_CNTL_END_DMNS_KEY", expr("CASE WHEN (DDS_RLS_CNTL_END_TIME_DMNS_KEY IS NULL) OR (MAX_TIME_DMNS_KEY > DDS_RLS_CNTL_END_TIME_DMNS_KEY) THEN MAX_TIME_DMNS_KEY ELSE DDS_RLS_CNTL_END_TIME_DMNS_KEY END"))
-        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE.withColumn("UPDATE_FLAG", expr("CASE WHEN (DDS_RLS_CNTL_FACT_TBL_NAME IS NULL) THEN 'DD_INSERT' ELSE 'DD_UPDATE' END"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["FACT_TBL_NAME", "RLS_CNTL_DMNS_TYPE_CODE", "RSL_CTL_IND"]:
-            if _col.lower() not in [x.lower() for x in df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE.columns]:
-                df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE = lib.expression(
+            input_df=df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_rename_EXP_SP_DELETE,
+            computed_columns=[
+                {'name': 'RLS_CNTL_BGN_DMNS_KEY', 'expr': 'CASE WHEN (DDS_RLS_CNTL_BGN_TIME_DMNS_KEY IS NULL) OR (MIN_TIME_DMNS_KEY < DDS_RLS_CNTL_BGN_TIME_DMNS_KEY) THEN MIN_TIME_DMNS_KEY ELSE DDS_RLS_CNTL_BGN_TIME_DMNS_KEY END'},
+                {'name': 'RLS_CNTL_END_DMNS_KEY', 'expr': 'CASE WHEN (DDS_RLS_CNTL_END_TIME_DMNS_KEY IS NULL) OR (MAX_TIME_DMNS_KEY > DDS_RLS_CNTL_END_TIME_DMNS_KEY) THEN MAX_TIME_DMNS_KEY ELSE DDS_RLS_CNTL_END_TIME_DMNS_KEY END'},
+                {'name': 'UPDATE_FLAG', 'expr': "CASE WHEN (DDS_RLS_CNTL_FACT_TBL_NAME IS NULL) THEN 'DD_INSERT' ELSE 'DD_UPDATE' END"}
+            ],
+            spark=spark,
+            sp_calls=[
+                {'col': 'CALL_SP', 'sp_call': 'SP_DELETE_DDS_FACT', 'sp_schema': '', 'args': ['FACT_TBL_NAME', 'MIN_TIME_DMNS_KEY', 'REMOVE_ALL_FLG']}
+            ],
+            sp_conn=conn_oracle,
+        )
         ctx.register_df("df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE", df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE)
         
         logger.info("Step: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_FILTRANS")
         # Filter: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_FILTRANS
-        __fil_input = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE
-        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_FILTRANS = __fil_input.filter(expr("RSL_CTL_IND = '1'"))
+        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_FILTRANS = lib.filter(
+            input_df=df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_EXP_SP_DELETE,
+            condition="RSL_CTL_IND = '1'",
+        )
         ctx.register_df("df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_FILTRANS", df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_FILTRANS)
 
         logger.info("Step: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD")
         # Expression: apply_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD
-        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_FILTRANS
-        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD.drop("RLS_CNTL_FACT_TBL_NAME").withColumnRenamed("FACT_TBL_NAME", "RLS_CNTL_FACT_TBL_NAME")
-        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD.drop("RLS_CNTL_BGN_TIME_DMNS_KEY").withColumnRenamed("RLS_CNTL_BGN_DMNS_KEY", "RLS_CNTL_BGN_TIME_DMNS_KEY")
-        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD.drop("RLS_CNTL_END_TIME_DMNS_KEY").withColumnRenamed("RLS_CNTL_END_DMNS_KEY", "RLS_CNTL_END_TIME_DMNS_KEY")
+        df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD = lib.expression(
+            input_df=df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD_FILTRANS,
+            rename_columns=[
+                ('FACT_TBL_NAME', 'RLS_CNTL_FACT_TBL_NAME'),
+                ('RLS_CNTL_BGN_DMNS_KEY', 'RLS_CNTL_BGN_TIME_DMNS_KEY'),
+                ('RLS_CNTL_END_DMNS_KEY', 'RLS_CNTL_END_TIME_DMNS_KEY')
+            ],
+            pass_through_cols=['DUMMY', 'RLS_CNTL_FACT_TBL_NAME', 'RLS_CNTL_DMNS_TYPE_CODE', 'RLS_CNTL_BGN_TIME_DMNS_KEY', 'RLS_CNTL_END_TIME_DMNS_KEY', 'UPDATE_FLAG'],
+        )
         ctx.register_df("df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD", df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD)
         
         logger.info("Step: write_DDS_FACT_EMS_HSC_FLAT")
         # Write to Target: write_DDS_FACT_EMS_HSC_FLAT
-        df_write = df_AGGTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BLK_DMNS_KEY": "BLK_DMNS_KEY", "EST_DMNS_KEY": "EST_DMNS_KEY", "HSC_TYPE_DMNS_KEY": "HSC_TYPE_DMNS_KEY", "HSC_UNIT_TYPE_DMNS_KEY": "HSC_UNIT_TYPE_DMNS_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "MAX_FLR_NUM": "MAX_FLR_NUM", "MIN_FLR_NUM": "MIN_FLR_NUM", "OCPY_STCK_CNT": "OCPY_STCK_CNT_OUT", "REC_RLS_IND": "REC_RLS_IND", "RGN_DMNS_KEY": "RGN_DMNS_KEY", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "VCNT_STCK_CNT": "VCNT_STCK_CNT_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['MIN_FLR_NUM', 'MAX_FLR_NUM', 'OCPY_STCK_CNT', 'VCNT_STCK_CNT', 'RGN_DMNS_KEY', 'EST_DMNS_KEY', 'HSC_TYPE_DMNS_KEY', 'HSC_UNIT_TYPE_DMNS_KEY', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND', 'TIME_DMNS_KEY', 'BLK_DMNS_KEY']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DDS_FACT_EMS_HSC_FLAT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_AGGTRANS,
+            conn=conn_target,
+            table='DDS_FACT_EMS_HSC_FLAT',
+            mode='append',
+            source_columns=[
+                'MIN_FLR_NUM',
+                'MAX_FLR_NUM',
+                'OCPY_STCK_CNT_OUT',
+                'VCNT_STCK_CNT_OUT',
+                'RGN_DMNS_KEY',
+                'EST_DMNS_KEY',
+                'HSC_TYPE_DMNS_KEY',
+                'HSC_UNIT_TYPE_DMNS_KEY',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'REC_RLS_IND',
+                'TIME_DMNS_KEY',
+                'BLK_DMNS_KEY',
+            ],
+            target_columns=[
+                'MIN_FLR_NUM',
+                'MAX_FLR_NUM',
+                'OCPY_STCK_CNT',
+                'VCNT_STCK_CNT',
+                'RGN_DMNS_KEY',
+                'EST_DMNS_KEY',
+                'HSC_TYPE_DMNS_KEY',
+                'HSC_UNIT_TYPE_DMNS_KEY',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'REC_RLS_IND',
+                'TIME_DMNS_KEY',
+                'BLK_DMNS_KEY',
+            ],
+            config=config,
+        )
 
         logger.info("write_DDS_FACT_EMS_HSC_FLAT write completed")
         logger.info("Step: write_UTL_DEV_NULL")
         # Write to Target: write_UTL_DEV_NULL
-        # /dev/null / DUAL — skip entire write component 
+        # /dev/null / DUAL — skip entire write component
         logger.info("Target write_UTL_DEV_NULL is a no-op target (/dev/null or DUAL), skipping write")
 
         logger.info("write_UTL_DEV_NULL write completed")
         logger.info("Step: apply_UPD_RLS_CNTL")
         # Update Strategy: apply_UPD_RLS_CNTL
         # Strategy: UPDATE_FLAG
-        # Dynamic strategy from field — split rows by _update_flag
-        df_UPD_RLS_CNTL = df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD.withColumn("_update_flag",
-            when(col("UPDATE_FLAG") == "DD_INSERT", lit("I"))
-            .when(col("UPDATE_FLAG") == "DD_UPDATE", lit("U"))
-            .when(col("UPDATE_FLAG") == "DD_DELETE", lit("D"))
-            .otherwise(lit("I"))
+        df_UPD_RLS_CNTL = lib.update_strategy(
+            input_df=df_MPLT_DDS_APPLY_DELETE_AFFECT_RECORD,
+            strategy_field='UPDATE_FLAG',
         )
         ctx.register_df("df_UPD_RLS_CNTL", df_UPD_RLS_CNTL)
         
         logger.info("Step: write_DDS_RLS_CNTL")
         # Write to Target: write_DDS_RLS_CNTL
-        df_write = df_UPD_RLS_CNTL
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"RLS_CNTL_BGN_TIME_DMNS_KEY": "RLS_CNTL_BGN_TIME_DMNS_KEY", "RLS_CNTL_DMNS_TYPE_CODE": "RLS_CNTL_DMNS_TYPE_CODE", "RLS_CNTL_END_TIME_DMNS_KEY": "RLS_CNTL_END_TIME_DMNS_KEY", "RLS_CNTL_FACT_TBL_NAME": "RLS_CNTL_FACT_TBL_NAME"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Dynamic field strategy — split by _update_flag operation (INSERT/UPDATE/DELETE)
-        _df_ins = df_write.filter(col("_update_flag") == "I").drop("_update_flag")
-        _df_upd = df_write.filter(col("_update_flag") == "U").drop("_update_flag")
-        _df_del = df_write.filter(col("_update_flag") == "D").drop("_update_flag")
-        df_write = df_write.drop("_update_flag")
-        # DELETE: composite key batch delete (all key columns together)
-        _del_key_cols = ['RLS_CNTL_FACT_TBL_NAME', 'RLS_CNTL_DMNS_TYPE_CODE']
-        if not _df_del.rdd.isEmpty():
-            _del_rows = [tuple(r[c] for c in _del_key_cols) for r in _df_del.select(*_del_key_cols).distinct().collect()]
-            if _del_rows:
-                lib.batch_delete_composite(spark, conn_target, "DDS_RLS_CNTL", _del_key_cols, _del_rows, 1000)
-        # UPDATE: batch update via JDBC
-        if not _df_upd.rdd.isEmpty():
-            _upd_key_cols = ['RLS_CNTL_FACT_TBL_NAME', 'RLS_CNTL_DMNS_TYPE_CODE']
-            _upd_set_cols = [c for c in _df_upd.columns if c.lower() not in [k.lower() for k in _upd_key_cols]]
-            if _upd_set_cols:
-                _upd_rows = [tuple(r[c] for c in _upd_set_cols + _upd_key_cols) for r in _df_upd.collect()]
-                lib.batch_update(spark, conn_target, "DDS_RLS_CNTL", _upd_set_cols, _upd_key_cols, _upd_rows, 1000)
-        # INSERT — set df_write to _df_ins so it flows through normal write path
-        df_write = _df_ins
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['RLS_CNTL_FACT_TBL_NAME', 'RLS_CNTL_DMNS_TYPE_CODE', 'RLS_CNTL_BGN_TIME_DMNS_KEY', 'RLS_CNTL_END_TIME_DMNS_KEY']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DDS_RLS_CNTL", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_UPD_RLS_CNTL,
+            conn=conn_target,
+            table='DDS_RLS_CNTL',
+            mode='append',
+            source_columns=[
+                'RLS_CNTL_FACT_TBL_NAME',
+                'RLS_CNTL_DMNS_TYPE_CODE',
+                'RLS_CNTL_BGN_TIME_DMNS_KEY',
+                'RLS_CNTL_END_TIME_DMNS_KEY',
+            ],
+            target_columns=[
+                'RLS_CNTL_FACT_TBL_NAME',
+                'RLS_CNTL_DMNS_TYPE_CODE',
+                'RLS_CNTL_BGN_TIME_DMNS_KEY',
+                'RLS_CNTL_END_TIME_DMNS_KEY',
+            ],
+            delete_keys=['RLS_CNTL_FACT_TBL_NAME', 'RLS_CNTL_DMNS_TYPE_CODE'],
+            has_update_flag=True,
+            config=config,
+        )
 
         logger.info("write_DDS_RLS_CNTL write completed")
         

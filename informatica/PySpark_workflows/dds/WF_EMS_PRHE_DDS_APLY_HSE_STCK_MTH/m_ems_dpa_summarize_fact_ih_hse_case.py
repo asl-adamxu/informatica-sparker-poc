@@ -191,82 +191,76 @@ ORDER BY
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         query = query.replace("$$v_snsh_date", v_snsh_date)
         df_SQ_DATA = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_SQ_DATA.columns
-        _port_cols = ["UNIT_ADDR_CODE", "HSE_SRVC_APLY_NUM", "CATG_USER_TYPE_CODE", "FMLY_SIZE_NUM", "MIN_UNIT_HEAD_CNT", "MAX_UNIT_HEAD_CNT", "UNIT_IFA_AREA", "RENT_FCTR_CODE", "RVS_INTK_DATE", "PREV_CODE_ADDR"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_SQ_DATA = df_SQ_DATA.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_DATA = df_SQ_DATA.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DATA.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_SQ_DATA = lib.sq_output(
+            input_df=df_SQ_DATA,
+            port_cols={
+                'UNIT_ADDR_CODE': 'string',
+                'HSE_SRVC_APLY_NUM': 'string',
+                'CATG_USER_TYPE_CODE': 'string',
+                'FMLY_SIZE_NUM': 'decimal',
+                'MIN_UNIT_HEAD_CNT': 'decimal',
+                'MAX_UNIT_HEAD_CNT': 'decimal',
+                'UNIT_IFA_AREA': 'decimal',
+                'RENT_FCTR_CODE': 'decimal',
+                'RVS_INTK_DATE': 'date/time',
+                'PREV_CODE_ADDR': 'string',
+            },
+        )
         ctx.register_df("df_SQ_DATA", df_SQ_DATA)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_DATA
-        df_EXPTRANS = df_EXPTRANS.withColumn("FMLY_SIZE_NUM", expr("cast(FMLY_SIZE_NUM as string)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("MIN_UNIT_HEAD_CNT", expr("cast(MIN_UNIT_HEAD_CNT as string)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("MAX_UNIT_HEAD_CNT", expr("cast(MAX_UNIT_HEAD_CNT as string)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("UNIT_IFA_AREA", expr("cast(UNIT_IFA_AREA as string)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RENT_FCTR_CODE", expr("cast(RENT_FCTR_CODE as string)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RVS_INTK_DATE", expr("date_format(RVS_INTK_DATE, 'yyyy-mm-dd')"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("EST_CODE", expr("substring(UNIT_ADDR_CODE,2,5)"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["UNIT_ADDR_CODE", "HSE_SRVC_APLY_NUM", "CATG_USER_TYPE_CODE", "PREV_CODE_ADDR"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_DATA,
+            computed_columns=[
+                {'name': 'FMLY_SIZE_NUM', 'expr': 'cast(FMLY_SIZE_NUM as string)'},
+                {'name': 'MIN_UNIT_HEAD_CNT', 'expr': 'cast(MIN_UNIT_HEAD_CNT as string)'},
+                {'name': 'MAX_UNIT_HEAD_CNT', 'expr': 'cast(MAX_UNIT_HEAD_CNT as string)'},
+                {'name': 'UNIT_IFA_AREA', 'expr': 'cast(UNIT_IFA_AREA as string)'},
+                {'name': 'RENT_FCTR_CODE', 'expr': 'cast(RENT_FCTR_CODE as string)'},
+                {'name': 'RVS_INTK_DATE', 'expr': "date_format(RVS_INTK_DATE, 'yyyy-MM-dd')"},
+                {'name': 'EST_CODE', 'expr': 'substring(UNIT_ADDR_CODE,2,5)'}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_FLAT_EMS_IH_HSE_CASE")
         # Write to Target: write_FLAT_EMS_IH_HSE_CASE
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"Application_No": "HSE_SRVC_APLY_NUM", "Category_Code": "CATG_USER_TYPE_CODE", "Code_Address": "UNIT_ADDR_CODE", "Estate_Code": "EST_CODE", "Family_Size": "FMLY_SIZE_NUM", "Head_Max": "MAX_UNIT_HEAD_CNT", "Head_Min": "MIN_UNIT_HEAD_CNT", "IFA": "UNIT_IFA_AREA", "Intake_Date": "RVS_INTK_DATE", "Original_Code_Address": "PREV_CODE_ADDR", "Rent_Factor": "RENT_FCTR_CODE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['Estate_Code', 'Code_Address', 'Application_No', 'Category_Code', 'Family_Size', 'Head_Min', 'Head_Max', 'IFA', 'Rent_Factor', 'Intake_Date', 'Original_Code_Address']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to flat file — prefer config.yml objects metadata, then derived default path
-        _write_obj = objects.get("FLAT_EMS_IH_HSE_CASE")
-        if _write_obj and isinstance(_write_obj, dict):
-            _write_path = _write_obj.get('path', '/tmp/FLAT_EMS_IH_HSE_CASE')
-            _write_fmt = _write_obj.get('format', 'csv')
-        # Runtime fallback: skip write if path resolves to /dev/null
-        if _write_path and _write_path.strip() in ("/dev/null", "NUL"):
-            logger.info("Target %s resolved to /dev/null, skipping write", "write_FLAT_EMS_IH_HSE_CASE")
-        else:
-            lib.write_file(df_write, _write_path, format=_write_fmt, mode="overwrite")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='FLAT_EMS_IH_HSE_CASE',
+            mode='append',
+            sink_type='csv',
+            source_columns=[
+                'EST_CODE',
+                'UNIT_ADDR_CODE',
+                'HSE_SRVC_APLY_NUM',
+                'CATG_USER_TYPE_CODE',
+                'FMLY_SIZE_NUM',
+                'MIN_UNIT_HEAD_CNT',
+                'MAX_UNIT_HEAD_CNT',
+                'UNIT_IFA_AREA',
+                'RENT_FCTR_CODE',
+                'RVS_INTK_DATE',
+                'PREV_CODE_ADDR',
+            ],
+            target_columns=[
+                'Estate_Code',
+                'Code_Address',
+                'Application_No',
+                'Category_Code',
+                'Family_Size',
+                'Head_Min',
+                'Head_Max',
+                'IFA',
+                'Rent_Factor',
+                'Intake_Date',
+                'Original_Code_Address',
+            ],
+            config=config,
+        )
 
         logger.info("write_FLAT_EMS_IH_HSE_CASE write completed")
         

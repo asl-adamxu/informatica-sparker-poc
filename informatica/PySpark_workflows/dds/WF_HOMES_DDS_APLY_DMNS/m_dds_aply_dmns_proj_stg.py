@@ -58,38 +58,43 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_DPA_DMNS_PROJ_STG")
         # Source Qualifier: apply_SQ_DPA_DMNS_PROJ_STG
         df_SQ_DPA_DMNS_PROJ_STG = df_DPA_DMNS_PROJ_STG
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["DMNS_PROJ_STG_KEY", "PROJ_STG_CODE", "PROJ_STG_DESP", "PROJ_STG_DISP_SEQ_NUM"]
-        df_SQ_DPA_DMNS_PROJ_STG = df_SQ_DPA_DMNS_PROJ_STG.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DPA_DMNS_PROJ_STG.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DPA_DMNS_PROJ_STG = lib.sq_output(
+            input_df=df_SQ_DPA_DMNS_PROJ_STG,
+            port_cols={
+                'DMNS_PROJ_STG_KEY': 'double',
+                'PROJ_STG_CODE': 'string',
+                'PROJ_STG_DESP': 'string',
+                'PROJ_STG_DISP_SEQ_NUM': 'double',
+            },
+        )
         ctx.register_df("df_SQ_DPA_DMNS_PROJ_STG", df_SQ_DPA_DMNS_PROJ_STG)
         
         logger.info("Step: write_DDS_DMNS_PROJ_STG")
         # Write to Target: write_DDS_DMNS_PROJ_STG
-        df_write = df_SQ_DPA_DMNS_PROJ_STG
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"DMNS_PROJ_STG_KEY": "DMNS_PROJ_STG_KEY", "PROJ_STG_CODE": "PROJ_STG_CODE", "PROJ_STG_DESP": "PROJ_STG_DESP", "PROJ_STG_DISP_SEQ_NUM": "PROJ_STG_DISP_SEQ_NUM"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("DMNS_PROJ_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PROJ_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PROJ_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PHASE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PROJ_TTL", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PROJ_DISP_SEQ_NUM", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['DMNS_PROJ_KEY', 'PROJ_KEY', 'PROJ_NUM', 'PHASE_CODE', 'PROJ_TTL', 'PROJ_DISP_SEQ_NUM']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DDS_DMNS_PROJ", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_DPA_DMNS_PROJ_STG,
+            conn=conn_target,
+            table='DDS_DMNS_PROJ',
+            mode='append',
+            source_columns=[
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ],
+            target_columns=[
+                'DMNS_PROJ_KEY',
+                'PROJ_KEY',
+                'PROJ_NUM',
+                'PHASE_CODE',
+                'PROJ_TTL',
+                'PROJ_DISP_SEQ_NUM',
+            ],
+            config=config,
+        )
 
         logger.info("write_DDS_DMNS_PROJ_STG write completed")
         

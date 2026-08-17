@@ -45,7 +45,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
     metrics = metrics or lib.NullMetrics()
     metrics.start()
 
-    conn_target = lib.get_db_config(config, "DPA")
 
     v_snsh_date = ""
     # Load mapping variables from job_params or UTL_JOB_PARAM file
@@ -253,35 +252,17 @@ and c.copy_ver_num = -1
 ) y"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         df_SQ_SOR_HOM_BUD_COPY = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_SQ_SOR_HOM_BUD_COPY.columns
-        _port_cols = ["dmns_year", "dmns_mth", "disp_fin_year_text", "disp_mth_text", "disp_qtr_text", "mth_disp_seq_num"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_SQ_SOR_HOM_BUD_COPY = df_SQ_SOR_HOM_BUD_COPY.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_SOR_HOM_BUD_COPY = df_SQ_SOR_HOM_BUD_COPY.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_HOM_BUD_COPY.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_SQ_SOR_HOM_BUD_COPY = lib.sq_output(
+            input_df=df_SQ_SOR_HOM_BUD_COPY,
+            port_cols={
+                'dmns_year': 'decimal',
+                'dmns_mth': 'decimal',
+                'disp_fin_year_text': 'string',
+                'disp_mth_text': 'string',
+                'disp_qtr_text': 'string',
+                'mth_disp_seq_num': 'decimal',
+            },
+        )
         ctx.register_df("df_SQ_SOR_HOM_BUD_COPY", df_SQ_SOR_HOM_BUD_COPY)
         
         logger.info("Step: read_LKP_DDS_DMNS_MTN")
@@ -300,7 +281,7 @@ and c.copy_ver_num = -1
         _lkp_input = _lkp_input.withColumn("IN_DMNS_MTH", col("dmns_mth"))
         # Join condition: IN_DMNS_YEAR=DMNS_YEAR AND IN_DMNS_MTH=DMNS_MTH
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = _lkp_input.alias("_main").join(
+        df_lkp_merge_SQ_SOR_HOM_BUD_COPY = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_MTN).alias("_lkp"),
             (col("_main.IN_DMNS_YEAR") == col("_lkp.DMNS_YEAR")) &
             (col("_main.IN_DMNS_MTH") == col("_lkp.DMNS_MTH")),
@@ -309,94 +290,29 @@ and c.copy_ver_num = -1
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_DDS_DMNS_MTN[c] for c in df_LKP_DDS_DMNS_MTN.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
+        ctx.register_df("df_lkp_merge_SQ_SOR_HOM_BUD_COPY", df_lkp_merge_SQ_SOR_HOM_BUD_COPY)        
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_lkp_merge_1
-        df_EXPTRANS = df_EXPTRANS.withColumn("IN_disp_fin_year_text", expr("disp_fin_year_text"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("IN_disp_mth_text", expr("disp_mth_text"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("IN_disp_qtr_text", expr("disp_qtr_text"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("IN_mth_disp_seq_num", expr("mth_disp_seq_num"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_MTH_KEY IS NULL) OR CASE WHEN DMNS_YEAR = IN_DMNS_YEAR THEN false ELSE true END OR CASE WHEN DISP_FIN_YEAR_TEXT = disp_fin_year_text THEN false ELSE true END OR CASE WHEN DISP_MTH_TEXT = disp_mth_text THEN false ELSE true END OR CASE WHEN DISP_QTR_TEXT = disp_qtr_text THEN false ELSE true END OR CASE WHEN DMNS_MTH = IN_DMNS_MTH THEN false ELSE true END THEN 1 ELSE 0 END"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["DMNS_MTH_KEY", "DISP_FIN_YEAR_TEXT", "DISP_QTR_TEXT", "IN_DMNS_YEAR", "DMNS_YEAR", "DMNS_MTH", "IN_DMNS_MTH", "DISP_MTH_TEXT", "MTH_DISP_SEQ_NUM"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_lkp_merge_SQ_SOR_HOM_BUD_COPY,
+            computed_columns=[
+                {'name': 'IN_disp_fin_year_text', 'expr': 'disp_fin_year_text'},
+                {'name': 'IN_disp_mth_text', 'expr': 'disp_mth_text'},
+                {'name': 'IN_disp_qtr_text', 'expr': 'disp_qtr_text'},
+                {'name': 'IN_mth_disp_seq_num', 'expr': 'mth_disp_seq_num'},
+                {'name': 'CHANGE_FLAG', 'expr': 'CASE WHEN (DMNS_MTH_KEY IS NULL) OR CASE WHEN DMNS_YEAR = IN_DMNS_YEAR THEN false ELSE true END OR CASE WHEN DISP_FIN_YEAR_TEXT = disp_fin_year_text THEN false ELSE true END OR CASE WHEN DISP_MTH_TEXT = disp_mth_text THEN false ELSE true END OR CASE WHEN DISP_QTR_TEXT = disp_qtr_text THEN false ELSE true END OR CASE WHEN DMNS_MTH = IN_DMNS_MTH THEN false ELSE true END THEN 1 ELSE 0 END'}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
-        logger.info("Step: apply_FIL_NEW")
-        # Filter: apply_FIL_NEW
-        __fil_input = df_EXPTRANS
-        df_FIL_NEW = __fil_input.filter(expr("CHANGE_FLAG = 1 AND (DMNS_MTH_KEY IS NULL)"))
-        ctx.register_df("df_FIL_NEW", df_FIL_NEW)
-        # Connected sequence generator: attach NEXTVAL (start 0)
-        df_FIL_NEW = df_FIL_NEW.withColumn(
-            "NEXTVAL",
-            monotonically_increasing_id() + 0
-        )
-        ctx.register_df("df_FIL_NEW", df_FIL_NEW)
-
         logger.info("Step: apply_FIL_CHANGE")
         # Filter: apply_FIL_CHANGE
-        __fil_input = df_EXPTRANS
-        df_FIL_CHANGE = __fil_input.filter(expr("CHANGE_FLAG = 1 AND ( NOT (DMNS_MTH_KEY IS NULL))"))
+        df_FIL_CHANGE = lib.filter(
+            input_df=df_EXPTRANS,
+            condition='CHANGE_FLAG = 1 AND ( NOT (DMNS_MTH_KEY IS NULL))',
+        )
         ctx.register_df("df_FIL_CHANGE", df_FIL_CHANGE)
 
-        logger.info("Step: apply_Union_Transformation")
-        # Union: apply_Union_Transformation
-        # Select + rename upstream columns per input, then union
-        df_Union_Transformation_change = df_FIL_CHANGE.select(
-            col("DMNS_MTH_KEY").alias("DMNS_MTH_KEY"),
-            col("IN_DMNS_YEAR").alias("IN_DMNS_YEAR"),
-            col("IN_DMNS_MTH").alias("IN_DMNS_MTH"),
-            col("IN_disp_fin_year_text").alias("IN_disp_fin_year_text"),
-            col("IN_disp_mth_text").alias("IN_disp_mth_text"),
-            col("IN_disp_qtr_text").alias("IN_disp_qtr_text"),
-            col("IN_mth_disp_seq_num").alias("IN_mth_disp_seq_num")        )
-        df_Union_Transformation_new = df_FIL_NEW.select(
-            col("NEXTVAL").alias("DMNS_MTH_KEY"),
-            col("IN_DMNS_YEAR").alias("IN_DMNS_YEAR"),
-            col("IN_DMNS_MTH").alias("IN_DMNS_MTH"),
-            col("IN_disp_fin_year_text").alias("IN_disp_fin_year_text"),
-            col("IN_disp_mth_text").alias("IN_disp_mth_text"),
-            col("IN_disp_qtr_text").alias("IN_disp_qtr_text"),
-            col("IN_mth_disp_seq_num").alias("IN_mth_disp_seq_num")        )
-        df_Union_Transformation = df_Union_Transformation_change
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_new, allowMissingColumns=True)
-        # Select only union output columns (add lit(None) for any missing)
-        for _col in ["DMNS_MTH_KEY", "IN_DMNS_YEAR", "IN_DMNS_MTH", "IN_disp_fin_year_text", "IN_disp_mth_text", "IN_disp_qtr_text", "IN_mth_disp_seq_num"]:
-            if _col.lower() not in [x.lower() for x in df_Union_Transformation.columns]:
-                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
-        df_Union_Transformation = df_Union_Transformation.select("DMNS_MTH_KEY", "IN_DMNS_YEAR", "IN_DMNS_MTH", "IN_disp_fin_year_text", "IN_disp_mth_text", "IN_disp_qtr_text", "IN_mth_disp_seq_num")
-        ctx.register_df("df_Union_Transformation", df_Union_Transformation)
-        
-        logger.info("Step: write_DPA_DMNS_MTH")
-        # Write to Target: write_DPA_DMNS_MTH
-        df_write = df_Union_Transformation
-        # Cast NullType columns to StringType
-        for _c in df_write.columns:
-            if isinstance(df_write.schema[_c].dataType, NullType):
-                df_write = df_write.withColumn(_c, col(_c).cast(StringType()))
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"DISP_FIN_YEAR_TEXT": "IN_disp_fin_year_text", "DISP_MTH_TEXT": "IN_disp_mth_text", "DISP_QTR_TEXT": "IN_disp_qtr_text", "DMNS_MTH": "IN_DMNS_MTH", "DMNS_MTH_KEY": "DMNS_MTH_KEY", "DMNS_YEAR": "IN_DMNS_YEAR", "MTH_DISP_SEQ_NUM": "IN_mth_disp_seq_num"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['DMNS_MTH_KEY', 'DMNS_YEAR', 'DMNS_MTH', 'DISP_FIN_YEAR_TEXT', 'DISP_MTH_TEXT', 'DISP_QTR_TEXT', 'MTH_DISP_SEQ_NUM']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DPA_DMNS_MTH", mode="append")
-
-        logger.info("write_DPA_DMNS_MTH write completed")
         
         metrics.complete()
         logger.info("Mapping M_DPA_SUMMARIZE_DMNS_MTH completed: SUCCESS")

@@ -76,39 +76,80 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_DPA_FACT_GMS_DLY_MSD_INCDT")
         # Source Qualifier: apply_SQ_DPA_FACT_GMS_DLY_MSD_INCDT
         df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT = df_DPA_FACT_GMS_DLY_MSD_INCDT
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["MSD_INCDT_DATE_DMNS_KEY", "MSD_CRE_DATE_DMNS_KEY", "EST_SCD_KEY", "OFCR_TYPE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MSD_CODE_SCD_KEY", "OFNDR_GNDR_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY", "AFT_CMLT_WRT_WARN_CASE_CNT", "CMLT_PNT_ALLT_CASE_CNT", "CMLT_MSD_TOT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE"]
-        df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT = df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT = lib.sq_output(
+            input_df=df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT,
+            port_cols={
+                'MSD_INCDT_DATE_DMNS_KEY': 'decimal',
+                'MSD_CRE_DATE_DMNS_KEY': 'decimal',
+                'EST_SCD_KEY': 'decimal',
+                'OFCR_TYPE_DMNS_KEY': 'decimal',
+                'HSHLD_SIZE_DMNS_KEY': 'decimal',
+                'MSD_CODE_SCD_KEY': 'decimal',
+                'OFNDR_GNDR_DMNS_KEY': 'decimal',
+                'OFNDR_AGE_GRP_DMNS_KEY': 'decimal',
+                'OFNC_SCORE_GRP_DMNS_KEY': 'decimal',
+                'AFT_CMLT_WRT_WARN_CASE_CNT': 'decimal',
+                'CMLT_PNT_ALLT_CASE_CNT': 'decimal',
+                'CMLT_MSD_TOT_CASE_CNT': 'decimal',
+                'REC_RLS_IND': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+            },
+        )
         ctx.register_df("df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT", df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT)
         
         logger.info("Step: apply_UPDTRANS")
         # Update Strategy: apply_UPDTRANS
         # Strategy: DD_INSERT
-        # Static DD_INSERT — pass through; the target write
-        # step applies the strategy directly (append / batch_update / batch_delete).
-        df_UPDTRANS = df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT
+        df_UPDTRANS = lib.update_strategy(
+            input_df=df_SQ_DPA_FACT_GMS_DLY_MSD_INCDT,
+        )
         ctx.register_df("df_UPDTRANS", df_UPDTRANS)
         
         logger.info("Step: write_DDS_FACT_GMS_DLY_MSD_INCDT")
         # Write to Target: write_DDS_FACT_GMS_DLY_MSD_INCDT
-        df_write = df_UPDTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AFT_CMLT_WRT_WARN_CASE_CNT": "AFT_CMLT_WRT_WARN_CASE_CNT", "CMLT_MSD_TOT_CASE_CNT": "CMLT_MSD_TOT_CASE_CNT", "CMLT_PNT_ALLT_CASE_CNT": "CMLT_PNT_ALLT_CASE_CNT", "EST_SCD_KEY": "EST_SCD_KEY", "HSHLD_SIZE_DMNS_KEY": "HSHLD_SIZE_DMNS_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "MSD_CODE_SCD_KEY": "MSD_CODE_SCD_KEY", "MSD_CRE_DATE_DMNS_KEY": "MSD_CRE_DATE_DMNS_KEY", "MSD_INCDT_DATE_DMNS_KEY": "MSD_INCDT_DATE_DMNS_KEY", "OFCR_TYPE_DMNS_KEY": "OFCR_TYPE_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY": "OFNC_SCORE_GRP_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY": "OFNDR_AGE_GRP_DMNS_KEY", "OFNDR_GNDR_DMNS_KEY": "OFNDR_GNDR_DMNS_KEY", "REC_RLS_IND": "REC_RLS_IND"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['MSD_INCDT_DATE_DMNS_KEY', 'MSD_CRE_DATE_DMNS_KEY', 'EST_SCD_KEY', 'OFCR_TYPE_DMNS_KEY', 'HSHLD_SIZE_DMNS_KEY', 'MSD_CODE_SCD_KEY', 'OFNDR_GNDR_DMNS_KEY', 'OFNDR_AGE_GRP_DMNS_KEY', 'OFNC_SCORE_GRP_DMNS_KEY', 'AFT_CMLT_WRT_WARN_CASE_CNT', 'CMLT_PNT_ALLT_CASE_CNT', 'CMLT_MSD_TOT_CASE_CNT', 'REC_RLS_IND', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DDS_FACT_GMS_DLY_MSD_INCDT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_UPDTRANS,
+            conn=conn_target,
+            table='DDS_FACT_GMS_DLY_MSD_INCDT',
+            mode='append',
+            source_columns=[
+                'MSD_INCDT_DATE_DMNS_KEY',
+                'MSD_CRE_DATE_DMNS_KEY',
+                'EST_SCD_KEY',
+                'OFCR_TYPE_DMNS_KEY',
+                'HSHLD_SIZE_DMNS_KEY',
+                'MSD_CODE_SCD_KEY',
+                'OFNDR_GNDR_DMNS_KEY',
+                'OFNDR_AGE_GRP_DMNS_KEY',
+                'OFNC_SCORE_GRP_DMNS_KEY',
+                'AFT_CMLT_WRT_WARN_CASE_CNT',
+                'CMLT_PNT_ALLT_CASE_CNT',
+                'CMLT_MSD_TOT_CASE_CNT',
+                'REC_RLS_IND',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+            ],
+            target_columns=[
+                'MSD_INCDT_DATE_DMNS_KEY',
+                'MSD_CRE_DATE_DMNS_KEY',
+                'EST_SCD_KEY',
+                'OFCR_TYPE_DMNS_KEY',
+                'HSHLD_SIZE_DMNS_KEY',
+                'MSD_CODE_SCD_KEY',
+                'OFNDR_GNDR_DMNS_KEY',
+                'OFNDR_AGE_GRP_DMNS_KEY',
+                'OFNC_SCORE_GRP_DMNS_KEY',
+                'AFT_CMLT_WRT_WARN_CASE_CNT',
+                'CMLT_PNT_ALLT_CASE_CNT',
+                'CMLT_MSD_TOT_CASE_CNT',
+                'REC_RLS_IND',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+            ],
+            config=config,
+        )
 
         logger.info("write_DDS_FACT_GMS_DLY_MSD_INCDT write completed")
         

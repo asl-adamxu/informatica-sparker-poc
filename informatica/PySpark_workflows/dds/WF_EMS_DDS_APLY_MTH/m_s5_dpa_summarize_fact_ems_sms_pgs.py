@@ -81,35 +81,14 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_SQ_DPA_FACT_EMS_SMS_PGS11 = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_SQ_DPA_FACT_EMS_SMS_PGS11.columns
-        _port_cols = ["TIME_DMNS_KEY", "CNT", "LAST_REC_TXN_DATE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_SQ_DPA_FACT_EMS_SMS_PGS11 = df_SQ_DPA_FACT_EMS_SMS_PGS11.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_DPA_FACT_EMS_SMS_PGS11 = df_SQ_DPA_FACT_EMS_SMS_PGS11.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DPA_FACT_EMS_SMS_PGS11.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_SQ_DPA_FACT_EMS_SMS_PGS11 = lib.sq_output(
+            input_df=df_SQ_DPA_FACT_EMS_SMS_PGS11,
+            port_cols={
+                'TIME_DMNS_KEY': 'decimal',
+                'CNT': 'decimal',
+                'LAST_REC_TXN_DATE': 'date/time',
+            },
+        )
         ctx.register_df("df_SQ_DPA_FACT_EMS_SMS_PGS11", df_SQ_DPA_FACT_EMS_SMS_PGS11)
         
         logger.info("Step: apply_SQ_DPA_FACT_EMS_SMS_PGS1")
@@ -123,35 +102,14 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_SQ_DPA_FACT_EMS_SMS_PGS1 = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_SQ_DPA_FACT_EMS_SMS_PGS1.columns
-        _port_cols = ["TIME_DMNS_KEY", "CNT", "LAST_REC_TXN_DATE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_SQ_DPA_FACT_EMS_SMS_PGS1 = df_SQ_DPA_FACT_EMS_SMS_PGS1.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_DPA_FACT_EMS_SMS_PGS1 = df_SQ_DPA_FACT_EMS_SMS_PGS1.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DPA_FACT_EMS_SMS_PGS1.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_SQ_DPA_FACT_EMS_SMS_PGS1 = lib.sq_output(
+            input_df=df_SQ_DPA_FACT_EMS_SMS_PGS1,
+            port_cols={
+                'TIME_DMNS_KEY': 'decimal',
+                'CNT': 'decimal',
+                'LAST_REC_TXN_DATE': 'date/time',
+            },
+        )
         ctx.register_df("df_SQ_DPA_FACT_EMS_SMS_PGS1", df_SQ_DPA_FACT_EMS_SMS_PGS1)
         
         logger.info("Step: apply_No_of_Application_Created_LN")
@@ -168,35 +126,13 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_No_of_Application_Created_LN = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_No_of_Application_Created_LN.columns
-        _port_cols = ["SCHM_CODE", "LN_APLY_DATE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_No_of_Application_Created_LN = df_No_of_Application_Created_LN.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_No_of_Application_Created_LN = df_No_of_Application_Created_LN.select([col(c) if c.lower() in [x.lower() for x in df_No_of_Application_Created_LN.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_No_of_Application_Created_LN = lib.sq_output(
+            input_df=df_No_of_Application_Created_LN,
+            port_cols={
+                'SCHM_CODE': 'string',
+                'LN_APLY_DATE': 'date/time',
+            },
+        )
         ctx.register_df("df_No_of_Application_Created_LN", df_No_of_Application_Created_LN)
         
         logger.info("Step: apply_No_of_Certificates_Issued_CEP")
@@ -213,35 +149,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN cert_sts.BGN_DATE AND cert_sts.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_No_of_Certificates_Issued_CEP = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_No_of_Certificates_Issued_CEP.columns
-        _port_cols = ["CEP_CERT_ISS_DATE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_No_of_Certificates_Issued_CEP = df_No_of_Certificates_Issued_CEP.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_No_of_Certificates_Issued_CEP = df_No_of_Certificates_Issued_CEP.select([col(c) if c.lower() in [x.lower() for x in df_No_of_Certificates_Issued_CEP.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_No_of_Certificates_Issued_CEP = lib.sq_output(
+            input_df=df_No_of_Certificates_Issued_CEP,
+            port_cols={
+                'CEP_CERT_ISS_DATE': 'date/time',
+            },
+        )
         ctx.register_df("df_No_of_Certificates_Issued_CEP", df_No_of_Certificates_Issued_CEP)
         
         logger.info("Step: apply_No_of_Certificates_Issued_CAS")
@@ -258,35 +171,13 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN cert_sts.BGN_DATE AND cert_sts.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_No_of_Certificates_Issued_CAS = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_No_of_Certificates_Issued_CAS.columns
-        _port_cols = ["SCHM_CODE", "CAS_ISS_DATE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_No_of_Certificates_Issued_CAS = df_No_of_Certificates_Issued_CAS.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_No_of_Certificates_Issued_CAS = df_No_of_Certificates_Issued_CAS.select([col(c) if c.lower() in [x.lower() for x in df_No_of_Certificates_Issued_CAS.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_No_of_Certificates_Issued_CAS = lib.sq_output(
+            input_df=df_No_of_Certificates_Issued_CAS,
+            port_cols={
+                'SCHM_CODE': 'string',
+                'CAS_ISS_DATE': 'date/time',
+            },
+        )
         ctx.register_df("df_No_of_Certificates_Issued_CAS", df_No_of_Certificates_Issued_CAS)
         
         logger.info("Step: apply_No_of_Transaction_Recorded")
@@ -304,35 +195,13 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN ln_sts.BGN_DATE AND ln_sts.END_
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_No_of_Transaction_Recorded = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_No_of_Transaction_Recorded.columns
-        _port_cols = ["SCHM_CODE", "LN_ISS_DATE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_No_of_Transaction_Recorded = df_No_of_Transaction_Recorded.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_No_of_Transaction_Recorded = df_No_of_Transaction_Recorded.select([col(c) if c.lower() in [x.lower() for x in df_No_of_Transaction_Recorded.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_No_of_Transaction_Recorded = lib.sq_output(
+            input_df=df_No_of_Transaction_Recorded,
+            port_cols={
+                'SCHM_CODE': 'string',
+                'LN_ISS_DATE': 'date/time',
+            },
+        )
         ctx.register_df("df_No_of_Transaction_Recorded", df_No_of_Transaction_Recorded)
         
         logger.info("Step: apply_No_of_Application_Created_CEP")
@@ -349,35 +218,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_No_of_Application_Created_CEP = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_No_of_Application_Created_CEP.columns
-        _port_cols = ["CEP_APLY_DATE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_No_of_Application_Created_CEP = df_No_of_Application_Created_CEP.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_No_of_Application_Created_CEP = df_No_of_Application_Created_CEP.select([col(c) if c.lower() in [x.lower() for x in df_No_of_Application_Created_CEP.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_No_of_Application_Created_CEP = lib.sq_output(
+            input_df=df_No_of_Application_Created_CEP,
+            port_cols={
+                'CEP_APLY_DATE': 'date/time',
+            },
+        )
         ctx.register_df("df_No_of_Application_Created_CEP", df_No_of_Application_Created_CEP)
         
         logger.info("Step: apply_No_of_Application_Created_CAS")
@@ -394,35 +240,13 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN aply_sts.BGN_DATE AND aply_sts.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_No_of_Application_Created_CAS = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_No_of_Application_Created_CAS.columns
-        _port_cols = ["SCHM_CODE", "CAS_APLY_DATE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_No_of_Application_Created_CAS = df_No_of_Application_Created_CAS.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_No_of_Application_Created_CAS = df_No_of_Application_Created_CAS.select([col(c) if c.lower() in [x.lower() for x in df_No_of_Application_Created_CAS.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_No_of_Application_Created_CAS = lib.sq_output(
+            input_df=df_No_of_Application_Created_CAS,
+            port_cols={
+                'SCHM_CODE': 'string',
+                'CAS_APLY_DATE': 'date/time',
+            },
+        )
         ctx.register_df("df_No_of_Application_Created_CAS", df_No_of_Application_Created_CAS)
         
         logger.info("Step: apply_SQ_DPA_FACT_EMS_SMS_PGS")
@@ -436,35 +260,14 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_SQ_DPA_FACT_EMS_SMS_PGS = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_SQ_DPA_FACT_EMS_SMS_PGS.columns
-        _port_cols = ["TIME_DMNS_KEY", "CNT", "LAST_REC_TXN_DATE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_SQ_DPA_FACT_EMS_SMS_PGS = df_SQ_DPA_FACT_EMS_SMS_PGS.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_DPA_FACT_EMS_SMS_PGS = df_SQ_DPA_FACT_EMS_SMS_PGS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DPA_FACT_EMS_SMS_PGS.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_SQ_DPA_FACT_EMS_SMS_PGS = lib.sq_output(
+            input_df=df_SQ_DPA_FACT_EMS_SMS_PGS,
+            port_cols={
+                'TIME_DMNS_KEY': 'decimal',
+                'CNT': 'decimal',
+                'LAST_REC_TXN_DATE': 'date/time',
+            },
+        )
         ctx.register_df("df_SQ_DPA_FACT_EMS_SMS_PGS", df_SQ_DPA_FACT_EMS_SMS_PGS)
         
         logger.info("Step: read_LKP_DPA_FACT_EMS_SMS_PGS41")
@@ -489,7 +292,7 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         _lkp_input = _lkp_input.withColumn("IN_TIME_DMNS_KEY", col("TIME_DMNS_KEY"))
         # Join condition: IN_TIME_DMNS_KEY=TIME_DMNS_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = _lkp_input.alias("_main").join(
+        df_lkp_merge_SQ_DPA_FACT_EMS_SMS_PGS11 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DPA_FACT_EMS_SMS_PGS41).alias("_lkp"),
             (col("_main.IN_TIME_DMNS_KEY") == col("_lkp.TIME_DMNS_KEY")),
             "left"
@@ -497,7 +300,7 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_DPA_FACT_EMS_SMS_PGS41[c] for c in df_LKP_DPA_FACT_EMS_SMS_PGS41.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
+        ctx.register_df("df_lkp_merge_SQ_DPA_FACT_EMS_SMS_PGS11", df_lkp_merge_SQ_DPA_FACT_EMS_SMS_PGS11)        
         logger.info("Step: read_LKP_DPA_FACT_EMS_SMS_PGS4")
         # Reading Data From Source - read_LKP_DPA_FACT_EMS_SMS_PGS4
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -520,7 +323,7 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         _lkp_input = _lkp_input.withColumn("IN_TIME_DMNS_KEY", col("TIME_DMNS_KEY"))
         # Join condition: IN_TIME_DMNS_KEY=TIME_DMNS_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_2 = _lkp_input.alias("_main").join(
+        df_lkp_merge_SQ_DPA_FACT_EMS_SMS_PGS1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DPA_FACT_EMS_SMS_PGS4).alias("_lkp"),
             (col("_main.IN_TIME_DMNS_KEY") == col("_lkp.TIME_DMNS_KEY")),
             "left"
@@ -528,7 +331,7 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_DPA_FACT_EMS_SMS_PGS4[c] for c in df_LKP_DPA_FACT_EMS_SMS_PGS4.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)        
+        ctx.register_df("df_lkp_merge_SQ_DPA_FACT_EMS_SMS_PGS1", df_lkp_merge_SQ_DPA_FACT_EMS_SMS_PGS1)        
         logger.info("Step: read_LKP_DPA_FACT_EMS_SMS_PGS11")
         # Reading Data From Source - read_LKP_DPA_FACT_EMS_SMS_PGS11
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -547,11 +350,11 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DPA_FACT_EMS_SMS_PGS11 = df_LKP_DPA_FACT_EMS_SMS_PGS11.dropDuplicates(subset=["TIME_DMNS_KEY"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_2
+        _lkp_input = df_lkp_merge_SQ_DPA_FACT_EMS_SMS_PGS1
         _lkp_input = _lkp_input.withColumn("IN_TIME_DMNS_KEY", col("TIME_DMNS_KEY"))
         # Join condition: IN_TIME_DMNS_KEY=TIME_DMNS_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_2 = _lkp_input.alias("_main").join(
+        df_lkp_merge_SQ_DPA_FACT_EMS_SMS_PGS1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DPA_FACT_EMS_SMS_PGS11).alias("_lkp"),
             (col("_main.IN_TIME_DMNS_KEY") == col("_lkp.TIME_DMNS_KEY")),
             "left"
@@ -562,68 +365,62 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         
         logger.info("Step: apply_EXPTRANS2")
         # Expression: apply_EXPTRANS2
-        df_EXPTRANS2 = df_No_of_Application_Created_LN
-        df_EXPTRANS2 = df_EXPTRANS2.withColumn("GNRL_STAT_CODE", expr("CASE WHEN SCHM_CODE = 'T' THEN 'TPS_LN' ELSE 'HOS_LN' END"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["SCHM_CODE", "LN_APLY_DATE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS2.columns]:
-                df_EXPTRANS2 = df_EXPTRANS2.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS2 = lib.expression(
+            input_df=df_No_of_Application_Created_LN,
+            computed_columns=[
+                {'name': 'GNRL_STAT_CODE', 'expr': "CASE WHEN SCHM_CODE = 'T' THEN 'TPS_LN' ELSE 'HOS_LN' END"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS2", df_EXPTRANS2)
         
         logger.info("Step: apply_EXPTRANS3")
         # Expression: apply_EXPTRANS3
-        df_EXPTRANS3 = df_No_of_Certificates_Issued_CEP
-        df_EXPTRANS3 = df_EXPTRANS3.withColumn("GNRL_STAT_CODE", expr("'CEP2'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["CEP_CERT_ISS_DATE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS3.columns]:
-                df_EXPTRANS3 = df_EXPTRANS3.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS3 = lib.expression(
+            input_df=df_No_of_Certificates_Issued_CEP,
+            computed_columns=[
+                {'name': 'GNRL_STAT_CODE', 'expr': "'CEP2'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS3", df_EXPTRANS3)
         
         logger.info("Step: apply_EXPTRANS4")
         # Expression: apply_EXPTRANS4
-        df_EXPTRANS4 = df_No_of_Certificates_Issued_CAS
-        df_EXPTRANS4 = df_EXPTRANS4.withColumn("GNRL_STAT_CODE", expr("CASE WHEN SCHM_CODE = 'T' THEN 'TPS_CAS2' ELSE 'HOS_CAS2' END"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["SCHM_CODE", "CAS_ISS_DATE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS4.columns]:
-                df_EXPTRANS4 = df_EXPTRANS4.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS4 = lib.expression(
+            input_df=df_No_of_Certificates_Issued_CAS,
+            computed_columns=[
+                {'name': 'GNRL_STAT_CODE', 'expr': "CASE WHEN SCHM_CODE = 'T' THEN 'TPS_CAS2' ELSE 'HOS_CAS2' END"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS4", df_EXPTRANS4)
         
         logger.info("Step: apply_EXPTRANS5")
         # Expression: apply_EXPTRANS5
-        df_EXPTRANS5 = df_No_of_Transaction_Recorded
-        df_EXPTRANS5 = df_EXPTRANS5.withColumn("GNRL_STAT_CODE", expr("CASE WHEN SCHM_CODE = 'T' THEN 'TPS_tra_rec' ELSE 'HOS_tra_rec' END"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["SCHM_CODE", "LN_ISS_DATE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS5.columns]:
-                df_EXPTRANS5 = df_EXPTRANS5.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS5 = lib.expression(
+            input_df=df_No_of_Transaction_Recorded,
+            computed_columns=[
+                {'name': 'GNRL_STAT_CODE', 'expr': "CASE WHEN SCHM_CODE = 'T' THEN 'TPS_tra_rec' ELSE 'HOS_tra_rec' END"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS5", df_EXPTRANS5)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_No_of_Application_Created_CEP
-        df_EXPTRANS = df_EXPTRANS.withColumn("GNRL_STAT_CODE", expr("'CEP'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["CEP_APLY_DATE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_No_of_Application_Created_CEP,
+            computed_columns=[
+                {'name': 'GNRL_STAT_CODE', 'expr': "'CEP'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
-        df_EXPTRANS1 = df_No_of_Application_Created_CAS
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("GNRL_STAT_CODE", expr("CASE WHEN SCHM_CODE = 'T' THEN 'TPS_CAS' ELSE 'HOS_CAS' END"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["SCHM_CODE", "CAS_APLY_DATE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS1.columns]:
-                df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS1 = lib.expression(
+            input_df=df_No_of_Application_Created_CAS,
+            computed_columns=[
+                {'name': 'GNRL_STAT_CODE', 'expr': "CASE WHEN SCHM_CODE = 'T' THEN 'TPS_CAS' ELSE 'HOS_CAS' END"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
         
         logger.info("Step: read_LKP_DPA_FACT_EMS_SMS_PGS3")
@@ -648,7 +445,7 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         _lkp_input = _lkp_input.withColumn("IN_TIME_DMNS_KEY", col("TIME_DMNS_KEY"))
         # Join condition: IN_TIME_DMNS_KEY=TIME_DMNS_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_3 = _lkp_input.alias("_main").join(
+        df_lkp_merge_SQ_DPA_FACT_EMS_SMS_PGS = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DPA_FACT_EMS_SMS_PGS3).alias("_lkp"),
             (col("_main.IN_TIME_DMNS_KEY") == col("_lkp.TIME_DMNS_KEY")),
             "left"
@@ -656,7 +453,7 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_DPA_FACT_EMS_SMS_PGS3[c] for c in df_LKP_DPA_FACT_EMS_SMS_PGS3.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_3", df_lkp_merge_3)        
+        ctx.register_df("df_lkp_merge_SQ_DPA_FACT_EMS_SMS_PGS", df_lkp_merge_SQ_DPA_FACT_EMS_SMS_PGS)        
         logger.info("Step: read_LKP_DPA_FACT_EMS_SMS_PGS2")
         # Reading Data From Source - read_LKP_DPA_FACT_EMS_SMS_PGS2
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -675,11 +472,11 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DPA_FACT_EMS_SMS_PGS2 = df_LKP_DPA_FACT_EMS_SMS_PGS2.dropDuplicates(subset=["TIME_DMNS_KEY"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_3
+        _lkp_input = df_lkp_merge_SQ_DPA_FACT_EMS_SMS_PGS
         _lkp_input = _lkp_input.withColumn("IN_TIME_DMNS_KEY", col("TIME_DMNS_KEY"))
         # Join condition: IN_TIME_DMNS_KEY=TIME_DMNS_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_3 = _lkp_input.alias("_main").join(
+        df_lkp_merge_SQ_DPA_FACT_EMS_SMS_PGS = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DPA_FACT_EMS_SMS_PGS2).alias("_lkp"),
             (col("_main.IN_TIME_DMNS_KEY") == col("_lkp.TIME_DMNS_KEY")),
             "left"
@@ -706,11 +503,11 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DPA_FACT_EMS_SMS_PGS1 = df_LKP_DPA_FACT_EMS_SMS_PGS1.dropDuplicates(subset=["TIME_DMNS_KEY"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_3
+        _lkp_input = df_lkp_merge_SQ_DPA_FACT_EMS_SMS_PGS
         _lkp_input = _lkp_input.withColumn("IN_TIME_DMNS_KEY", col("TIME_DMNS_KEY"))
         # Join condition: IN_TIME_DMNS_KEY=TIME_DMNS_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_3 = _lkp_input.alias("_main").join(
+        df_lkp_merge_SQ_DPA_FACT_EMS_SMS_PGS = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DPA_FACT_EMS_SMS_PGS1).alias("_lkp"),
             (col("_main.IN_TIME_DMNS_KEY") == col("_lkp.TIME_DMNS_KEY")),
             "left"
@@ -737,11 +534,11 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DPA_FACT_EMS_SMS_PGS = df_LKP_DPA_FACT_EMS_SMS_PGS.dropDuplicates(subset=["TIME_DMNS_KEY"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_3
+        _lkp_input = df_lkp_merge_SQ_DPA_FACT_EMS_SMS_PGS
         _lkp_input = _lkp_input.withColumn("IN_TIME_DMNS_KEY", col("TIME_DMNS_KEY"))
         # Join condition: IN_TIME_DMNS_KEY=TIME_DMNS_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_3 = _lkp_input.alias("_main").join(
+        df_lkp_merge_SQ_DPA_FACT_EMS_SMS_PGS = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DPA_FACT_EMS_SMS_PGS).alias("_lkp"),
             (col("_main.IN_TIME_DMNS_KEY") == col("_lkp.TIME_DMNS_KEY")),
             "left"
@@ -752,92 +549,89 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         
         logger.info("Step: apply_EXPTRANS711")
         # Expression: apply_EXPTRANS711
-        df_EXPTRANS711 = df_lkp_merge_1
-        df_EXPTRANS711 = df_EXPTRANS711.withColumn("GNRL_STAT_CODE", expr("'tra_rec'"))
-        df_EXPTRANS711 = df_EXPTRANS711.withColumn("SCHM_CODE", expr("'SMS'"))
-        df_EXPTRANS711 = df_EXPTRANS711.withColumn("CNT_V", expr("CASE WHEN (CNT IS NULL) THEN 0 ELSE CNT END"))
-        df_EXPTRANS711 = df_EXPTRANS711.withColumn("CNT1", expr("CNT"))
-        df_EXPTRANS711 = df_EXPTRANS711.withColumn("CNT1_V", expr("CASE WHEN (CNT IS NULL) THEN 0 ELSE CNT END"))
-        df_EXPTRANS711 = df_EXPTRANS711.withColumn("SUM", expr("CNT_V + CNT1_V"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["CNT", "TIME_DMNS_KEY", "LAST_REC_TXN_DATE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS711.columns]:
-                df_EXPTRANS711 = df_EXPTRANS711.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS711 = lib.expression(
+            input_df=df_lkp_merge_SQ_DPA_FACT_EMS_SMS_PGS11,
+            computed_columns=[
+                {'name': 'GNRL_STAT_CODE', 'expr': "'tra_rec'"},
+                {'name': 'SCHM_CODE', 'expr': "'SMS'"},
+                {'name': 'CNT_V', 'expr': 'CASE WHEN (CNT IS NULL) THEN 0 ELSE CNT END'},
+                {'name': 'CNT1', 'expr': 'CNT'},
+                {'name': 'CNT1_V', 'expr': 'CASE WHEN (CNT IS NULL) THEN 0 ELSE CNT END'},
+                {'name': 'SUM', 'expr': 'CNT_V + CNT1_V'}
+            ],
+        )
         ctx.register_df("df_EXPTRANS711", df_EXPTRANS711)
         
         logger.info("Step: apply_EXPTRANS71")
         # Expression: apply_EXPTRANS71
-        df_EXPTRANS71 = df_lkp_merge_2
-        df_EXPTRANS71 = df_EXPTRANS71.withColumn("GNRL_STAT_CODE", expr("'cer_iss'"))
-        df_EXPTRANS71 = df_EXPTRANS71.withColumn("SCHM_CODE", expr("'SMS'"))
-        df_EXPTRANS71 = df_EXPTRANS71.withColumn("CNT_V", expr("CASE WHEN (CNT IS NULL) THEN 0 ELSE CNT END"))
-        df_EXPTRANS71 = df_EXPTRANS71.withColumn("CNT1", expr("CNT"))
-        df_EXPTRANS71 = df_EXPTRANS71.withColumn("CNT1_V", expr("CASE WHEN (CNT IS NULL) THEN 0 ELSE CNT END"))
-        df_EXPTRANS71 = df_EXPTRANS71.withColumn("CNT2", expr("CNT"))
-        df_EXPTRANS71 = df_EXPTRANS71.withColumn("CNT2_V", expr("CASE WHEN (CNT IS NULL) THEN 0 ELSE CNT END"))
-        df_EXPTRANS71 = df_EXPTRANS71.withColumn("SUM", expr("CNT_V + CNT1_V + CNT2_V"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["CNT", "TIME_DMNS_KEY", "LAST_REC_TXN_DATE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS71.columns]:
-                df_EXPTRANS71 = df_EXPTRANS71.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS71 = lib.expression(
+            input_df=df_lkp_merge_SQ_DPA_FACT_EMS_SMS_PGS1,
+            computed_columns=[
+                {'name': 'GNRL_STAT_CODE', 'expr': "'cer_iss'"},
+                {'name': 'SCHM_CODE', 'expr': "'SMS'"},
+                {'name': 'CNT_V', 'expr': 'CASE WHEN (CNT IS NULL) THEN 0 ELSE CNT END'},
+                {'name': 'CNT1', 'expr': 'CNT'},
+                {'name': 'CNT1_V', 'expr': 'CASE WHEN (CNT IS NULL) THEN 0 ELSE CNT END'},
+                {'name': 'CNT2', 'expr': 'CNT'},
+                {'name': 'CNT2_V', 'expr': 'CASE WHEN (CNT IS NULL) THEN 0 ELSE CNT END'},
+                {'name': 'SUM', 'expr': 'CNT_V + CNT1_V + CNT2_V'}
+            ],
+        )
         ctx.register_df("df_EXPTRANS71", df_EXPTRANS71)
         
         logger.info("Step: apply_Union_Transformation")
         # Union: apply_Union_Transformation
-        # Select + rename upstream columns per input, then union
-        df_Union_Transformation_newgroup = df_EXPTRANS.select(
-            col("CEP_APLY_DATE").alias("APLY_DATE"),
-            col("GNRL_STAT_CODE").alias("GNRL_STAT_CODE")        )
-        df_Union_Transformation_newgroup1 = df_EXPTRANS1.select(
-            col("CAS_APLY_DATE").alias("APLY_DATE"),
-            col("GNRL_STAT_CODE").alias("GNRL_STAT_CODE")        )
-        df_Union_Transformation_newgroup2 = df_EXPTRANS2.select(
-            col("LN_APLY_DATE").alias("APLY_DATE"),
-            col("GNRL_STAT_CODE").alias("GNRL_STAT_CODE")        )
-        df_Union_Transformation_newgroup3 = df_EXPTRANS3.select(
-            col("CEP_CERT_ISS_DATE").alias("APLY_DATE"),
-            col("GNRL_STAT_CODE").alias("GNRL_STAT_CODE")        )
-        df_Union_Transformation_newgroup4 = df_EXPTRANS4.select(
-            col("CAS_ISS_DATE").alias("APLY_DATE"),
-            col("GNRL_STAT_CODE").alias("GNRL_STAT_CODE")        )
-        df_Union_Transformation_newgroup5 = df_EXPTRANS5.select(
-            col("LN_ISS_DATE").alias("APLY_DATE"),
-            col("GNRL_STAT_CODE").alias("GNRL_STAT_CODE")        )
-        df_Union_Transformation = df_Union_Transformation_newgroup
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup1, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup2, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup3, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup4, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup5, allowMissingColumns=True)
-        # Select only union output columns (add lit(None) for any missing)
-        for _col in ["APLY_DATE", "GNRL_STAT_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_Union_Transformation.columns]:
-                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
-        df_Union_Transformation = df_Union_Transformation.select("APLY_DATE", "GNRL_STAT_CODE")
+        df_Union_Transformation = lib.union(
+            input_df=df_EXPTRANS,
+            union_selects=[
+                {'df_input': df_EXPTRANS, 'selects': [
+                    'CEP_APLY_DATE',
+                    'GNRL_STAT_CODE'
+                ]},
+                {'df_input': df_EXPTRANS1, 'selects': [
+                    'CAS_APLY_DATE',
+                    'GNRL_STAT_CODE'
+                ]},
+                {'df_input': df_EXPTRANS2, 'selects': [
+                    'LN_APLY_DATE',
+                    'GNRL_STAT_CODE'
+                ]},
+                {'df_input': df_EXPTRANS3, 'selects': [
+                    'CEP_CERT_ISS_DATE',
+                    'GNRL_STAT_CODE'
+                ]},
+                {'df_input': df_EXPTRANS4, 'selects': [
+                    'CAS_ISS_DATE',
+                    'GNRL_STAT_CODE'
+                ]},
+                {'df_input': df_EXPTRANS5, 'selects': [
+                    'LN_ISS_DATE',
+                    'GNRL_STAT_CODE'
+                ]},
+            ],
+            output_columns=['APLY_DATE', 'GNRL_STAT_CODE'],
+        )
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
         logger.info("Step: apply_EXPTRANS7")
         # Expression: apply_EXPTRANS7
-        df_EXPTRANS7 = df_lkp_merge_3
-        df_EXPTRANS7 = df_EXPTRANS7.withColumn("GNRL_STAT_CODE", expr("'app_rec'"))
-        df_EXPTRANS7 = df_EXPTRANS7.withColumn("SCHM_CODE", expr("'SMS'"))
-        df_EXPTRANS7 = df_EXPTRANS7.withColumn("CNT_V", expr("CASE WHEN (CNT IS NULL) THEN 0 ELSE CNT END"))
-        df_EXPTRANS7 = df_EXPTRANS7.withColumn("CNT1", expr("CNT"))
-        df_EXPTRANS7 = df_EXPTRANS7.withColumn("CNT1_V", expr("CASE WHEN (CNT IS NULL) THEN 0 ELSE CNT END"))
-        df_EXPTRANS7 = df_EXPTRANS7.withColumn("CNT2", expr("CNT"))
-        df_EXPTRANS7 = df_EXPTRANS7.withColumn("CNT2_V", expr("CASE WHEN (CNT IS NULL) THEN 0 ELSE CNT END"))
-        df_EXPTRANS7 = df_EXPTRANS7.withColumn("CNT3", expr("CNT"))
-        df_EXPTRANS7 = df_EXPTRANS7.withColumn("CNT3_V", expr("CASE WHEN (CNT IS NULL) THEN 0 ELSE CNT END"))
-        df_EXPTRANS7 = df_EXPTRANS7.withColumn("CNT4", expr("CNT"))
-        df_EXPTRANS7 = df_EXPTRANS7.withColumn("CNT4_V", expr("CASE WHEN (CNT IS NULL) THEN 0 ELSE CNT END"))
-        df_EXPTRANS7 = df_EXPTRANS7.withColumn("SUM", expr("CNT_V + CNT1_V + CNT2_V + CNT3_V + CNT4_V"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["CNT", "TIME_DMNS_KEY", "LAST_REC_TXN_DATE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS7.columns]:
-                df_EXPTRANS7 = df_EXPTRANS7.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS7 = lib.expression(
+            input_df=df_lkp_merge_SQ_DPA_FACT_EMS_SMS_PGS,
+            computed_columns=[
+                {'name': 'GNRL_STAT_CODE', 'expr': "'app_rec'"},
+                {'name': 'SCHM_CODE', 'expr': "'SMS'"},
+                {'name': 'CNT_V', 'expr': 'CASE WHEN (CNT IS NULL) THEN 0 ELSE CNT END'},
+                {'name': 'CNT1', 'expr': 'CNT'},
+                {'name': 'CNT1_V', 'expr': 'CASE WHEN (CNT IS NULL) THEN 0 ELSE CNT END'},
+                {'name': 'CNT2', 'expr': 'CNT'},
+                {'name': 'CNT2_V', 'expr': 'CASE WHEN (CNT IS NULL) THEN 0 ELSE CNT END'},
+                {'name': 'CNT3', 'expr': 'CNT'},
+                {'name': 'CNT3_V', 'expr': 'CASE WHEN (CNT IS NULL) THEN 0 ELSE CNT END'},
+                {'name': 'CNT4', 'expr': 'CNT'},
+                {'name': 'CNT4_V', 'expr': 'CASE WHEN (CNT IS NULL) THEN 0 ELSE CNT END'},
+                {'name': 'SUM', 'expr': 'CNT_V + CNT1_V + CNT2_V + CNT3_V + CNT4_V'}
+            ],
+        )
         ctx.register_df("df_EXPTRANS7", df_EXPTRANS7)
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_GNRL_STAT111")
@@ -856,7 +650,7 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         _lkp_input = _lkp_input.withColumn("IN_GNRL_STAT_CODE", col("GNRL_STAT_CODE"))
         # Join condition: IN_GNRL_STAT_CODE=GNRL_STAT_CODE AND IN_GNRL_STAT_SCHM_CODE=GNRL_STAT_SCHM_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_4 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS711 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_GNRL_STAT111).alias("_lkp"),
             (col("_main.IN_GNRL_STAT_CODE") == col("_lkp.GNRL_STAT_CODE")) &
             (col("_main.IN_GNRL_STAT_SCHM_CODE") == col("_lkp.GNRL_STAT_SCHM_CODE")),
@@ -865,7 +659,7 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_DDS_DMNS_EMS_GNRL_STAT111[c] for c in df_LKP_DDS_DMNS_EMS_GNRL_STAT111.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_4", df_lkp_merge_4)        
+        ctx.register_df("df_lkp_merge_EXPTRANS711", df_lkp_merge_EXPTRANS711)        
         logger.info("Step: read_LKP_DDS_DMNS_EMS_GNRL_STAT11")
         # Reading Data From Source - read_LKP_DDS_DMNS_EMS_GNRL_STAT11
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -882,7 +676,7 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         _lkp_input = _lkp_input.withColumn("IN_GNRL_STAT_CODE", col("GNRL_STAT_CODE"))
         # Join condition: IN_GNRL_STAT_CODE=GNRL_STAT_CODE AND IN_GNRL_STAT_SCHM_CODE=GNRL_STAT_SCHM_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_5 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS71 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_GNRL_STAT11).alias("_lkp"),
             (col("_main.IN_GNRL_STAT_CODE") == col("_lkp.GNRL_STAT_CODE")) &
             (col("_main.IN_GNRL_STAT_SCHM_CODE") == col("_lkp.GNRL_STAT_SCHM_CODE")),
@@ -891,7 +685,7 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_DDS_DMNS_EMS_GNRL_STAT11[c] for c in df_LKP_DDS_DMNS_EMS_GNRL_STAT11.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_5", df_lkp_merge_5)        
+        ctx.register_df("df_lkp_merge_EXPTRANS71", df_lkp_merge_EXPTRANS71)        
         logger.info("Step: apply_AGGTRANS")
         # Aggregator: apply_AGGTRANS
         # Select only mapped upstream columns with correct port names
@@ -920,7 +714,7 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         _lkp_input = _lkp_input.withColumn("IN_GNRL_STAT_CODE", col("GNRL_STAT_CODE"))
         # Join condition: IN_GNRL_STAT_CODE=GNRL_STAT_CODE AND IN_GNRL_STAT_SCHM_CODE=GNRL_STAT_SCHM_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_6 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS7 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_GNRL_STAT1).alias("_lkp"),
             (col("_main.IN_GNRL_STAT_CODE") == col("_lkp.GNRL_STAT_CODE")) &
             (col("_main.IN_GNRL_STAT_SCHM_CODE") == col("_lkp.GNRL_STAT_SCHM_CODE")),
@@ -929,92 +723,100 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_DDS_DMNS_EMS_GNRL_STAT1[c] for c in df_LKP_DDS_DMNS_EMS_GNRL_STAT1.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_6", df_lkp_merge_6)        
+        ctx.register_df("df_lkp_merge_EXPTRANS7", df_lkp_merge_EXPTRANS7)        
         logger.info("Step: write_DPA_FACT_EMS_SMS_PGS111")
         # Write to Target: write_DPA_FACT_EMS_SMS_PGS111
-        df_write = df_lkp_merge_4
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"CNT": "SUM", "GNRL_STAT_DMNS_KEY": "GNRL_STAT_DMNS_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("REC_RLS_IND", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['GNRL_STAT_DMNS_KEY', 'TIME_DMNS_KEY', 'CNT', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DPA_FACT_EMS_SMS_PGS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_lkp_merge_EXPTRANS711,
+            conn=conn_target,
+            table='DPA_FACT_EMS_SMS_PGS',
+            mode='append',
+            source_columns=[
+                'GNRL_STAT_DMNS_KEY',
+                'TIME_DMNS_KEY',
+                'SUM',
+                'LAST_REC_TXN_DATE',
+                None,
+                None,
+            ],
+            target_columns=[
+                'GNRL_STAT_DMNS_KEY',
+                'TIME_DMNS_KEY',
+                'CNT',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'REC_RLS_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_DPA_FACT_EMS_SMS_PGS111 write completed")
         logger.info("Step: write_DPA_FACT_EMS_SMS_PGS11")
         # Write to Target: write_DPA_FACT_EMS_SMS_PGS11
-        df_write = df_lkp_merge_5
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"CNT": "SUM", "GNRL_STAT_DMNS_KEY": "GNRL_STAT_DMNS_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("REC_RLS_IND", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['GNRL_STAT_DMNS_KEY', 'TIME_DMNS_KEY', 'CNT', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DPA_FACT_EMS_SMS_PGS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_lkp_merge_EXPTRANS71,
+            conn=conn_target,
+            table='DPA_FACT_EMS_SMS_PGS',
+            mode='append',
+            source_columns=[
+                'GNRL_STAT_DMNS_KEY',
+                'TIME_DMNS_KEY',
+                'SUM',
+                'LAST_REC_TXN_DATE',
+                None,
+                None,
+            ],
+            target_columns=[
+                'GNRL_STAT_DMNS_KEY',
+                'TIME_DMNS_KEY',
+                'CNT',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'REC_RLS_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_DPA_FACT_EMS_SMS_PGS11 write completed")
         logger.info("Step: apply_EXPTRANS6")
         # Expression: apply_EXPTRANS6
-        df_EXPTRANS6 = df_AGGTRANS
-        df_EXPTRANS6 = df_EXPTRANS6.withColumn("LAST_REC_TXN_DATE", expr("current_timestamp()"))
-        df_EXPTRANS6 = df_EXPTRANS6.withColumn("SCHM_CODE", expr("'SMS'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["APLY_DATE", "GNRL_STAT_CODE", "CNT"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS6.columns]:
-                df_EXPTRANS6 = df_EXPTRANS6.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS6 = lib.expression(
+            input_df=df_AGGTRANS,
+            computed_columns=[
+                {'name': 'LAST_REC_TXN_DATE', 'expr': 'current_timestamp()'},
+                {'name': 'SCHM_CODE', 'expr': "'SMS'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS6", df_EXPTRANS6)
         
         logger.info("Step: write_DPA_FACT_EMS_SMS_PGS1")
         # Write to Target: write_DPA_FACT_EMS_SMS_PGS1
-        df_write = df_lkp_merge_6
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"CNT": "SUM", "GNRL_STAT_DMNS_KEY": "GNRL_STAT_DMNS_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("REC_RLS_IND", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['GNRL_STAT_DMNS_KEY', 'TIME_DMNS_KEY', 'CNT', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DPA_FACT_EMS_SMS_PGS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_lkp_merge_EXPTRANS7,
+            conn=conn_target,
+            table='DPA_FACT_EMS_SMS_PGS',
+            mode='append',
+            source_columns=[
+                'GNRL_STAT_DMNS_KEY',
+                'TIME_DMNS_KEY',
+                'SUM',
+                'LAST_REC_TXN_DATE',
+                None,
+                None,
+            ],
+            target_columns=[
+                'GNRL_STAT_DMNS_KEY',
+                'TIME_DMNS_KEY',
+                'CNT',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'REC_RLS_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_DPA_FACT_EMS_SMS_PGS1 write completed")
         logger.info("Step: read_LKP_DDS_DMNS_EMS_GNRL_STAT")
@@ -1033,7 +835,7 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         _lkp_input = _lkp_input.withColumn("IN_GNRL_STAT_SCHM_CODE", col("SCHM_CODE"))
         # Join condition: IN_GNRL_STAT_CODE=GNRL_STAT_CODE AND IN_GNRL_STAT_SCHM_CODE=GNRL_STAT_SCHM_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_7 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS6 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_GNRL_STAT).alias("_lkp"),
             (col("_main.IN_GNRL_STAT_CODE") == col("_lkp.GNRL_STAT_CODE")) &
             (col("_main.IN_GNRL_STAT_SCHM_CODE") == col("_lkp.GNRL_STAT_SCHM_CODE")),
@@ -1042,23 +844,27 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_DDS_DMNS_EMS_GNRL_STAT[c] for c in df_LKP_DDS_DMNS_EMS_GNRL_STAT.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_7", df_lkp_merge_7)        
+        ctx.register_df("df_lkp_merge_EXPTRANS6", df_lkp_merge_EXPTRANS6)        
         logger.info("Step: read_LKP_DDS_DMNS_TIME_1")
         # Reading Data From Source - read_LKP_DDS_DMNS_TIME_1
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_LKP_DDS_DMNS_TIME_1 = lib.read_sql(spark, _conn, table="DDS_DMNS_TIME")
+        query = f"""SELECT DDS_DMNS_TIME.TIME_DMNS_KEY as TIME_DMNS_KEY, DDS_DMNS_TIME.CLDR_MTH_DAY as CLDR_MTH_DAY, DDS_DMNS_TIME.CLDR_MTH as CLDR_MTH, DDS_DMNS_TIME.CLDR_MTH_NAME as CLDR_MTH_NAME, DDS_DMNS_TIME.CLDR_YEAR as CLDR_YEAR, DDS_DMNS_TIME.CLDR_QTR as CLDR_QTR, DDS_DMNS_TIME.FSCL_MTH as FSCL_MTH, DDS_DMNS_TIME.FSCL_MTH_SEQ_NUM as FSCL_MTH_SEQ_NUM, DDS_DMNS_TIME.FSCL_QTR as FSCL_QTR, DDS_DMNS_TIME.FSCL_YEAR as FSCL_YEAR, DDS_DMNS_TIME.FSCL_QTR_SEQ_NUM as FSCL_QTR_SEQ_NUM, DDS_DMNS_TIME.CLDR_WKDY_NUM as CLDR_WKDY_NUM, DDS_DMNS_TIME.CLDR_HLDY_IND as CLDR_HLDY_IND, DDS_DMNS_TIME.FSCL_YEAR_SEQ_NUM as FSCL_YEAR_SEQ_NUM, DDS_DMNS_TIME.CLDR_HLDY_NAME as CLDR_HLDY_NAME, DDS_DMNS_TIME.TIME_VAL_DATE as TIME_VAL_DATE FROM DDS_DMNS_TIME
+WHERE DDS_DMNS_TIME.TIME_DMNS_KEY like '2%'"""
+        query = query.replace("$$v_snsh_date", v_snsh_date)
+        query = query.replace("$$v_rpt_mth", v_rpt_mth)
+        df_LKP_DDS_DMNS_TIME_1 = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_LKP_DDS_DMNS_TIME_1")
         # Lookup: apply_LKP_DDS_DMNS_TIME_1
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_TIME_1 = df_LKP_DDS_DMNS_TIME_1.dropDuplicates(subset=["TIME_VAL_DATE"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_7
+        _lkp_input = df_lkp_merge_EXPTRANS6
         _lkp_input = _lkp_input.withColumn("IN_TIME_VAL_DATE", col("APLY_DATE"))
         # Join condition: IN_TIME_VAL_DATE=TIME_VAL_DATE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_7 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS6 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_TIME_1).alias("_lkp"),
             (col("_main.IN_TIME_VAL_DATE") == col("_lkp.TIME_VAL_DATE")),
             "left"
@@ -1069,27 +875,30 @@ GROUP BY GNRL_STAT_DMNS_KEY, TIME_DMNS_KEY, CNT"""
         
         logger.info("Step: write_DPA_FACT_EMS_SMS_PGS")
         # Write to Target: write_DPA_FACT_EMS_SMS_PGS
-        df_write = df_lkp_merge_7
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"CNT": "CNT", "GNRL_STAT_DMNS_KEY": "GNRL_STAT_DMNS_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("REC_RLS_IND", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['GNRL_STAT_DMNS_KEY', 'TIME_DMNS_KEY', 'CNT', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DPA_FACT_EMS_SMS_PGS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_lkp_merge_EXPTRANS6,
+            conn=conn_target,
+            table='DPA_FACT_EMS_SMS_PGS',
+            mode='append',
+            source_columns=[
+                'GNRL_STAT_DMNS_KEY',
+                'TIME_DMNS_KEY',
+                'CNT',
+                'LAST_REC_TXN_DATE',
+                None,
+                None,
+            ],
+            target_columns=[
+                'GNRL_STAT_DMNS_KEY',
+                'TIME_DMNS_KEY',
+                'CNT',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'REC_RLS_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_DPA_FACT_EMS_SMS_PGS write completed")
         

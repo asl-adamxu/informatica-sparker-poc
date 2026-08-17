@@ -76,17 +76,46 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_DPA_FACT_EMS_PRH_VCNT_TERM")
         # Source Qualifier: apply_SQ_DPA_FACT_EMS_PRH_VCNT_TERM
         df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM = df_DPA_FACT_EMS_PRH_VCNT_TERM
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["TIME_DMNS_KEY", "VCNT_FLAT_TYPE_DMNS_KEY", "BLK_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_ADVS_ENV_IND", "STA_VCNT_UNIT_ALCT_CNT", "TOT_UNIT_MTH_RENT_AMT"]
-        df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM = df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM = lib.sq_output(
+            input_df=df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM,
+            port_cols={
+                'TIME_DMNS_KEY': 'decimal',
+                'VCNT_FLAT_TYPE_DMNS_KEY': 'decimal',
+                'BLK_SCD_KEY': 'decimal',
+                'DSTR_BRD_DSTR_DMNS_KEY': 'decimal',
+                'DSTR_CHC_DSTR_SCD_KEY': 'decimal',
+                'FLAT_TYPE_DMNS_KEY': 'decimal',
+                'UNIT_SIZE_DMNS_KEY': 'decimal',
+                'MAX_UNIT_HEAD_CNT': 'decimal',
+                'MIN_UNIT_HEAD_CNT': 'decimal',
+                'UNIT_ADVS_ENV_IND': 'string',
+                'STA_VCNT_UNIT_ALCT_CNT': 'decimal',
+                'TOT_UNIT_MTH_RENT_AMT': 'decimal',
+            },
+        )
         ctx.register_df("df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM", df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM)
         
         logger.info("Step: apply_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1")
         # Source Qualifier: apply_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1
         df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1 = df_DPA_FACT_EMS_PRH_VCNT_TERM
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["TIME_DMNS_KEY", "VCNT_FLAT_TYPE_DMNS_KEY", "BLK_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_ADVS_ENV_IND", "STA_VCNT_UNIT_ALCT_CNT", "TOT_UNIT_MTH_RENT_AMT", "REC_RLS_IND"]
-        df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1 = df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1 = lib.sq_output(
+            input_df=df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1,
+            port_cols={
+                'TIME_DMNS_KEY': 'decimal',
+                'VCNT_FLAT_TYPE_DMNS_KEY': 'decimal',
+                'BLK_SCD_KEY': 'decimal',
+                'DSTR_BRD_DSTR_DMNS_KEY': 'decimal',
+                'DSTR_CHC_DSTR_SCD_KEY': 'decimal',
+                'FLAT_TYPE_DMNS_KEY': 'decimal',
+                'UNIT_SIZE_DMNS_KEY': 'decimal',
+                'MAX_UNIT_HEAD_CNT': 'decimal',
+                'MIN_UNIT_HEAD_CNT': 'decimal',
+                'UNIT_ADVS_ENV_IND': 'string',
+                'STA_VCNT_UNIT_ALCT_CNT': 'decimal',
+                'TOT_UNIT_MTH_RENT_AMT': 'decimal',
+                'REC_RLS_IND': 'string',
+            },
+        )
         ctx.register_df("df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1", df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1)
         
         logger.info("Step: apply_AGGTRANS")
@@ -115,69 +144,109 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_UPDTRANS")
         # Update Strategy: apply_UPDTRANS
         # Strategy: DD_DELETE
-        # Static DD_DELETE — pass through; the target write
-        # step applies the strategy directly (append / batch_update / batch_delete).
-        df_UPDTRANS = df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1
+        df_UPDTRANS = lib.update_strategy(
+            input_df=df_SQ_DPA_FACT_EMS_PRH_VCNT_TERM1,
+        )
         ctx.register_df("df_UPDTRANS", df_UPDTRANS)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_AGGTRANS
-        df_EXPTRANS = df_EXPTRANS.withColumn("STA_VCNT_UNIT_ALCT_CNT", expr("STA_VCNT_UNIT_ALCT_CNT_out"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TOT_UNIT_MTH_RENT_AMT", expr("TOT_UNIT_MTH_RENT_AMT_out"))
-        _expr = """'$$v_REC_RLS_IND'"""
-        _expr = _expr.replace("$$v_REC_RLS_IND", str(v_REC_RLS_IND))
-        df_EXPTRANS = df_EXPTRANS.withColumn("REC_RLS_IND", expr(_expr))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["TIME_DMNS_KEY", "VCNT_FLAT_TYPE_DMNS_KEY", "BLK_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_ADVS_ENV_IND"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_AGGTRANS,
+            computed_columns=[
+                {'name': 'STA_VCNT_UNIT_ALCT_CNT', 'expr': 'STA_VCNT_UNIT_ALCT_CNT_out'},
+                {'name': 'TOT_UNIT_MTH_RENT_AMT', 'expr': 'TOT_UNIT_MTH_RENT_AMT_out'},
+                {'name': 'REC_RLS_IND', 'expr': "'$$v_REC_RLS_IND'"}
+            ],
+            substitutions={'$$v_REC_RLS_IND': v_REC_RLS_IND},
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_DDS_FACT_EMS_PRH_VCNT_TERM1")
         # Write to Target: write_DDS_FACT_EMS_PRH_VCNT_TERM1
-        df_write = df_UPDTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"TIME_DMNS_KEY": "TIME_DMNS_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Static DD_DELETE: composite primary-key delete of all rows
-        _del_key_cols = ['TIME_DMNS_KEY', 'VCNT_FLAT_TYPE_DMNS_KEY', 'BLK_SCD_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'FLAT_TYPE_DMNS_KEY', 'UNIT_SIZE_DMNS_KEY', 'MAX_UNIT_HEAD_CNT', 'MIN_UNIT_HEAD_CNT', 'UNIT_ADVS_ENV_IND']
-        if not df_write.rdd.isEmpty():
-            _del_rows = [tuple(r[c] for c in _del_key_cols) for r in df_write.select(*_del_key_cols).distinct().collect()]
-            if _del_rows:
-                lib.batch_delete_composite(spark, conn_target, "DDS_FACT_EMS_PRH_VCNT_TERM", _del_key_cols, _del_rows, 1000)
+        lib.write_target(
+            spark=spark,
+            df=df_UPDTRANS,
+            conn=conn_target,
+            table='DDS_FACT_EMS_PRH_VCNT_TERM',
+            mode='append',
+            source_columns=[
+                'TIME_DMNS_KEY',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ],
+            target_columns=[
+                'TIME_DMNS_KEY',
+                'VCNT_FLAT_TYPE_DMNS_KEY',
+                'BLK_SCD_KEY',
+                'DSTR_BRD_DSTR_DMNS_KEY',
+                'DSTR_CHC_DSTR_SCD_KEY',
+                'FLAT_TYPE_DMNS_KEY',
+                'UNIT_SIZE_DMNS_KEY',
+                'MAX_UNIT_HEAD_CNT',
+                'MIN_UNIT_HEAD_CNT',
+                'UNIT_ADVS_ENV_IND',
+                'STA_VCNT_UNIT_ALCT_CNT',
+                'TOT_UNIT_MTH_RENT_AMT',
+                'REC_RLS_IND',
+            ],
+            is_delete=True,
+            delete_keys=['TIME_DMNS_KEY', 'VCNT_FLAT_TYPE_DMNS_KEY', 'BLK_SCD_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'FLAT_TYPE_DMNS_KEY', 'UNIT_SIZE_DMNS_KEY', 'MAX_UNIT_HEAD_CNT', 'MIN_UNIT_HEAD_CNT', 'UNIT_ADVS_ENV_IND'],
+            static_dd='DD_DELETE',
+            config=config,
+        )
 
         logger.info("write_DDS_FACT_EMS_PRH_VCNT_TERM1 write completed")
         logger.info("Step: write_DDS_FACT_EMS_PRH_VCNT_TERM")
         # Write to Target: write_DDS_FACT_EMS_PRH_VCNT_TERM
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BLK_SCD_KEY": "BLK_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY": "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY": "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY": "FLAT_TYPE_DMNS_KEY", "MAX_UNIT_HEAD_CNT": "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT": "MIN_UNIT_HEAD_CNT", "REC_RLS_IND": "REC_RLS_IND", "STA_VCNT_UNIT_ALCT_CNT": "STA_VCNT_UNIT_ALCT_CNT", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TOT_UNIT_MTH_RENT_AMT": "TOT_UNIT_MTH_RENT_AMT", "UNIT_ADVS_ENV_IND": "UNIT_ADVS_ENV_IND", "UNIT_SIZE_DMNS_KEY": "UNIT_SIZE_DMNS_KEY", "VCNT_FLAT_TYPE_DMNS_KEY": "VCNT_FLAT_TYPE_DMNS_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['TIME_DMNS_KEY', 'VCNT_FLAT_TYPE_DMNS_KEY', 'BLK_SCD_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'FLAT_TYPE_DMNS_KEY', 'UNIT_SIZE_DMNS_KEY', 'MAX_UNIT_HEAD_CNT', 'MIN_UNIT_HEAD_CNT', 'UNIT_ADVS_ENV_IND', 'STA_VCNT_UNIT_ALCT_CNT', 'TOT_UNIT_MTH_RENT_AMT', 'REC_RLS_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DDS_FACT_EMS_PRH_VCNT_TERM", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='DDS_FACT_EMS_PRH_VCNT_TERM',
+            mode='append',
+            source_columns=[
+                'TIME_DMNS_KEY',
+                'VCNT_FLAT_TYPE_DMNS_KEY',
+                'BLK_SCD_KEY',
+                'DSTR_BRD_DSTR_DMNS_KEY',
+                'DSTR_CHC_DSTR_SCD_KEY',
+                'FLAT_TYPE_DMNS_KEY',
+                'UNIT_SIZE_DMNS_KEY',
+                'MAX_UNIT_HEAD_CNT',
+                'MIN_UNIT_HEAD_CNT',
+                'UNIT_ADVS_ENV_IND',
+                'STA_VCNT_UNIT_ALCT_CNT',
+                'TOT_UNIT_MTH_RENT_AMT',
+                'REC_RLS_IND',
+            ],
+            target_columns=[
+                'TIME_DMNS_KEY',
+                'VCNT_FLAT_TYPE_DMNS_KEY',
+                'BLK_SCD_KEY',
+                'DSTR_BRD_DSTR_DMNS_KEY',
+                'DSTR_CHC_DSTR_SCD_KEY',
+                'FLAT_TYPE_DMNS_KEY',
+                'UNIT_SIZE_DMNS_KEY',
+                'MAX_UNIT_HEAD_CNT',
+                'MIN_UNIT_HEAD_CNT',
+                'UNIT_ADVS_ENV_IND',
+                'STA_VCNT_UNIT_ALCT_CNT',
+                'TOT_UNIT_MTH_RENT_AMT',
+                'REC_RLS_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_DDS_FACT_EMS_PRH_VCNT_TERM write completed")
         

@@ -58,19 +58,108 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_DPA_FACT_CMS_CASE_SMRY")
         # Source Qualifier: apply_SQ_DPA_FACT_CMS_CASE_SMRY
         df_SQ_DPA_FACT_CMS_CASE_SMRY = df_DPA_FACT_CMS_CASE_SMRY
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["TIME_DMNS_KEY", "RQS_CHNL_DMNS_KEY", "CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "HSHLD_SIZE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "CASE_CATG_SCD_KEY", "RSDN_LNG_DMNS_KEY", "BLK_SCD_KEY", "HSHLD_AEM_IND", "HSHLD_ELDR_IND", "HSHLD_DSBL_IND", "CMS_CASE_CNT", "CMS_CASE_CMPLT_CNT", "CMS_CASE_RPET_CNT", "CMS_CASE_NEW_CNT", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "CMS_BLK_SCD_KEY", "EST_SCD_KEY", "CMS_EST_SCD_KEY", "CMS_RCPT_PRN_CNT", "CMS_CASE_ITEM_CNT", "CMS_CASE_ITEM_CMPLT_CNT", "CMS_CASE_ITEM_RPET_CNT", "CMS_CASE_ITEM_NEW_CNT"]
-        df_SQ_DPA_FACT_CMS_CASE_SMRY = df_SQ_DPA_FACT_CMS_CASE_SMRY.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DPA_FACT_CMS_CASE_SMRY.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DPA_FACT_CMS_CASE_SMRY = lib.sq_output(
+            input_df=df_SQ_DPA_FACT_CMS_CASE_SMRY,
+            port_cols={
+                'TIME_DMNS_KEY': 'decimal',
+                'RQS_CHNL_DMNS_KEY': 'decimal',
+                'CASE_TYPE_SCD_KEY': 'decimal',
+                'BLK_AGE_DMNS_KEY': 'decimal',
+                'EST_OFFC_SCD_KEY': 'decimal',
+                'HSHLD_SIZE_DMNS_KEY': 'decimal',
+                'UNIT_SIZE_DMNS_KEY': 'decimal',
+                'CASE_CATG_SCD_KEY': 'decimal',
+                'RSDN_LNG_DMNS_KEY': 'decimal',
+                'BLK_SCD_KEY': 'decimal',
+                'HSHLD_AEM_IND': 'string',
+                'HSHLD_ELDR_IND': 'string',
+                'HSHLD_DSBL_IND': 'string',
+                'CMS_CASE_CNT': 'decimal',
+                'CMS_CASE_CMPLT_CNT': 'decimal',
+                'CMS_CASE_RPET_CNT': 'decimal',
+                'CMS_CASE_NEW_CNT': 'decimal',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'CMS_BLK_SCD_KEY': 'decimal',
+                'EST_SCD_KEY': 'decimal',
+                'CMS_EST_SCD_KEY': 'decimal',
+                'CMS_RCPT_PRN_CNT': 'decimal',
+                'CMS_CASE_ITEM_CNT': 'decimal',
+                'CMS_CASE_ITEM_CMPLT_CNT': 'decimal',
+                'CMS_CASE_ITEM_RPET_CNT': 'decimal',
+                'CMS_CASE_ITEM_NEW_CNT': 'decimal',
+            },
+        )
         ctx.register_df("df_SQ_DPA_FACT_CMS_CASE_SMRY", df_SQ_DPA_FACT_CMS_CASE_SMRY)
         
         logger.info("Step: write_DDS_FACT_CMS_CASE_SMRY")
         # Write to Target: write_DDS_FACT_CMS_CASE_SMRY
-        df_write = df_SQ_DPA_FACT_CMS_CASE_SMRY
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['TIME_DMNS_KEY', 'RQS_CHNL_DMNS_KEY', 'CASE_TYPE_SCD_KEY', 'BLK_AGE_DMNS_KEY', 'EST_OFFC_SCD_KEY', 'HSHLD_SIZE_DMNS_KEY', 'UNIT_SIZE_DMNS_KEY', 'CASE_CATG_SCD_KEY', 'RSDN_LNG_DMNS_KEY', 'BLK_SCD_KEY', 'HSHLD_AEM_IND', 'HSHLD_ELDR_IND', 'HSHLD_DSBL_IND', 'CMS_CASE_CNT', 'CMS_CASE_CMPLT_CNT', 'CMS_CASE_RPET_CNT', 'CMS_CASE_NEW_CNT', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'CMS_BLK_SCD_KEY', 'EST_SCD_KEY', 'CMS_EST_SCD_KEY', 'CMS_RCPT_PRN_CNT', 'CMS_CASE_ITEM_CNT', 'CMS_CASE_ITEM_CMPLT_CNT', 'CMS_CASE_ITEM_RPET_CNT', 'CMS_CASE_ITEM_NEW_CNT']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DDS_FACT_CMS_CASE_SMRY", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_DPA_FACT_CMS_CASE_SMRY,
+            conn=conn_target,
+            table='DDS_FACT_CMS_CASE_SMRY',
+            mode='append',
+            source_columns=[
+                'TIME_DMNS_KEY',
+                'RQS_CHNL_DMNS_KEY',
+                'CASE_TYPE_SCD_KEY',
+                'BLK_AGE_DMNS_KEY',
+                'EST_OFFC_SCD_KEY',
+                'HSHLD_SIZE_DMNS_KEY',
+                'UNIT_SIZE_DMNS_KEY',
+                'CASE_CATG_SCD_KEY',
+                'RSDN_LNG_DMNS_KEY',
+                'BLK_SCD_KEY',
+                'HSHLD_AEM_IND',
+                'HSHLD_ELDR_IND',
+                'HSHLD_DSBL_IND',
+                'CMS_CASE_CNT',
+                'CMS_CASE_CMPLT_CNT',
+                'CMS_CASE_RPET_CNT',
+                'CMS_CASE_NEW_CNT',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'CMS_BLK_SCD_KEY',
+                'EST_SCD_KEY',
+                'CMS_EST_SCD_KEY',
+                'CMS_RCPT_PRN_CNT',
+                'CMS_CASE_ITEM_CNT',
+                'CMS_CASE_ITEM_CMPLT_CNT',
+                'CMS_CASE_ITEM_RPET_CNT',
+                'CMS_CASE_ITEM_NEW_CNT',
+            ],
+            target_columns=[
+                'TIME_DMNS_KEY',
+                'RQS_CHNL_DMNS_KEY',
+                'CASE_TYPE_SCD_KEY',
+                'BLK_AGE_DMNS_KEY',
+                'EST_OFFC_SCD_KEY',
+                'HSHLD_SIZE_DMNS_KEY',
+                'UNIT_SIZE_DMNS_KEY',
+                'CASE_CATG_SCD_KEY',
+                'RSDN_LNG_DMNS_KEY',
+                'BLK_SCD_KEY',
+                'HSHLD_AEM_IND',
+                'HSHLD_ELDR_IND',
+                'HSHLD_DSBL_IND',
+                'CMS_CASE_CNT',
+                'CMS_CASE_CMPLT_CNT',
+                'CMS_CASE_RPET_CNT',
+                'CMS_CASE_NEW_CNT',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'CMS_BLK_SCD_KEY',
+                'EST_SCD_KEY',
+                'CMS_EST_SCD_KEY',
+                'CMS_RCPT_PRN_CNT',
+                'CMS_CASE_ITEM_CNT',
+                'CMS_CASE_ITEM_CMPLT_CNT',
+                'CMS_CASE_ITEM_RPET_CNT',
+                'CMS_CASE_ITEM_NEW_CNT',
+            ],
+            config=config,
+        )
 
         logger.info("write_DDS_FACT_CMS_CASE_SMRY write completed")
         

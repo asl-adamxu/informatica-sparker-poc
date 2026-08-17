@@ -45,7 +45,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
     metrics = metrics or lib.NullMetrics()
     metrics.start()
 
-    conn_target = lib.get_db_config(config, "DPA")
 
     v_snsh_date = ""
     # Load mapping variables from job_params or UTL_JOB_PARAM file
@@ -89,35 +88,17 @@ select 'OTHR' rgn_code, 'Others' rgn_name, 'OTHR' dstr_code, 'Others'
   from dual"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         df_SQ_SOR_HOM_REF_DSTR = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_SQ_SOR_HOM_REF_DSTR.columns
-        _port_cols = ["RGN_CODE", "RGN_NAME", "DSTR_CODE", "DSTR_NAME", "RGN_DISP_SEQ_NUM", "DSTR_DISP_SEQ_NUM"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_SQ_SOR_HOM_REF_DSTR = df_SQ_SOR_HOM_REF_DSTR.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_SOR_HOM_REF_DSTR = df_SQ_SOR_HOM_REF_DSTR.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_HOM_REF_DSTR.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_SQ_SOR_HOM_REF_DSTR = lib.sq_output(
+            input_df=df_SQ_SOR_HOM_REF_DSTR,
+            port_cols={
+                'RGN_CODE': 'string',
+                'RGN_NAME': 'string',
+                'DSTR_CODE': 'string',
+                'DSTR_NAME': 'string',
+                'RGN_DISP_SEQ_NUM': 'decimal',
+                'DSTR_DISP_SEQ_NUM': 'decimal',
+            },
+        )
         ctx.register_df("df_SQ_SOR_HOM_REF_DSTR", df_SQ_SOR_HOM_REF_DSTR)
         
         logger.info("Step: read_LKP_DDS_DMNS_DSTR")
@@ -136,7 +117,7 @@ select 'OTHR' rgn_code, 'Others' rgn_name, 'OTHR' dstr_code, 'Others'
         _lkp_input = _lkp_input.withColumn("IN_DSTR_CODE", col("DSTR_CODE"))
         # Join condition: IN_RGN_CODE=RGN_CODE AND IN_DSTR_CODE=DSTR_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = _lkp_input.alias("_main").join(
+        df_lkp_merge_SQ_SOR_HOM_REF_DSTR = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_DSTR).alias("_lkp"),
             (col("_main.IN_RGN_CODE") == col("_lkp.RGN_CODE")) &
             (col("_main.IN_DSTR_CODE") == col("_lkp.DSTR_CODE")),
@@ -145,94 +126,29 @@ select 'OTHR' rgn_code, 'Others' rgn_name, 'OTHR' dstr_code, 'Others'
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_DDS_DMNS_DSTR[c] for c in df_LKP_DDS_DMNS_DSTR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
+        ctx.register_df("df_lkp_merge_SQ_SOR_HOM_REF_DSTR", df_lkp_merge_SQ_SOR_HOM_REF_DSTR)        
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_lkp_merge_1
-        df_EXPTRANS = df_EXPTRANS.withColumn("IN_DSTR_NAME", expr("DSTR_NAME"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_DSTR_KEY IS NULL) OR CASE WHEN RGN_NAME = RGN_NAME THEN false ELSE true END OR CASE WHEN DSTR_NAME = DSTR_NAME THEN false ELSE true END THEN 1 ELSE 0 END"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("IN_RGN_NAME", expr("RGN_NAME"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("IN_RGN_DISP_SEQ_NUM", expr("RGN_DISP_SEQ_NUM"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("IN_DSTR_DISP_SEQ_NUM", expr("DSTR_DISP_SEQ_NUM"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["DMNS_DSTR_KEY", "DSTR_NAME", "RGN_NAME", "RGN_CODE", "DSTR_CODE", "RGN_DISP_SEQ_NUM", "DSTR_DISP_SEQ_NUM", "IN_RGN_CODE", "IN_DSTR_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_lkp_merge_SQ_SOR_HOM_REF_DSTR,
+            computed_columns=[
+                {'name': 'IN_DSTR_NAME', 'expr': 'DSTR_NAME'},
+                {'name': 'CHANGE_FLAG', 'expr': 'CASE WHEN (DMNS_DSTR_KEY IS NULL) OR CASE WHEN RGN_NAME = RGN_NAME THEN false ELSE true END OR CASE WHEN DSTR_NAME = DSTR_NAME THEN false ELSE true END THEN 1 ELSE 0 END'},
+                {'name': 'IN_RGN_NAME', 'expr': 'RGN_NAME'},
+                {'name': 'IN_RGN_DISP_SEQ_NUM', 'expr': 'RGN_DISP_SEQ_NUM'},
+                {'name': 'IN_DSTR_DISP_SEQ_NUM', 'expr': 'DSTR_DISP_SEQ_NUM'}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: apply_FIL_CHANGE")
         # Filter: apply_FIL_CHANGE
-        __fil_input = df_EXPTRANS
-        df_FIL_CHANGE = __fil_input.filter(expr("CHANGE_FLAG = 1 AND ( NOT (DMNS_DSTR_KEY IS NULL))"))
+        df_FIL_CHANGE = lib.filter(
+            input_df=df_EXPTRANS,
+            condition='CHANGE_FLAG = 1 AND ( NOT (DMNS_DSTR_KEY IS NULL))',
+        )
         ctx.register_df("df_FIL_CHANGE", df_FIL_CHANGE)
 
-        logger.info("Step: apply_FIL_NEW")
-        # Filter: apply_FIL_NEW
-        __fil_input = df_EXPTRANS
-        df_FIL_NEW = __fil_input.filter(expr("CHANGE_FLAG = 1 AND (DMNS_DSTR_KEY IS NULL)"))
-        ctx.register_df("df_FIL_NEW", df_FIL_NEW)
-        # Connected sequence generator: attach NEXTVAL (start 0)
-        df_FIL_NEW = df_FIL_NEW.withColumn(
-            "NEXTVAL",
-            monotonically_increasing_id() + 0
-        )
-        ctx.register_df("df_FIL_NEW", df_FIL_NEW)
-
-        logger.info("Step: apply_Union_Transformation")
-        # Union: apply_Union_Transformation
-        # Select + rename upstream columns per input, then union
-        df_Union_Transformation_change = df_FIL_CHANGE.select(
-            col("DMNS_DSTR_KEY").alias("DMNS_DSTR_KEY"),
-            col("IN_RGN_CODE").alias("IN_RGN_CODE"),
-            col("IN_DSTR_CODE").alias("IN_DSTR_CODE"),
-            col("IN_RGN_NAME").alias("IN_RGN_NAME"),
-            col("IN_DSTR_NAME").alias("IN_DSTR_NAME"),
-            col("IN_RGN_DISP_SEQ_NUM").alias("IN_RGN_DISP_SEQ_NUM"),
-            col("IN_DSTR_DISP_SEQ_NUM").alias("IN_DSTR_DISP_SEQ_NUM")        )
-        df_Union_Transformation_new = df_FIL_NEW.select(
-            col("NEXTVAL").alias("DMNS_DSTR_KEY"),
-            col("IN_RGN_CODE").alias("IN_RGN_CODE"),
-            col("IN_DSTR_CODE").alias("IN_DSTR_CODE"),
-            col("IN_RGN_NAME").alias("IN_RGN_NAME"),
-            col("IN_DSTR_NAME").alias("IN_DSTR_NAME"),
-            col("IN_RGN_DISP_SEQ_NUM").alias("IN_RGN_DISP_SEQ_NUM"),
-            col("IN_DSTR_DISP_SEQ_NUM").alias("IN_DSTR_DISP_SEQ_NUM")        )
-        df_Union_Transformation = df_Union_Transformation_change
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_new, allowMissingColumns=True)
-        # Select only union output columns (add lit(None) for any missing)
-        for _col in ["DMNS_DSTR_KEY", "IN_RGN_CODE", "IN_DSTR_CODE", "IN_RGN_NAME", "IN_DSTR_NAME", "IN_RGN_DISP_SEQ_NUM", "IN_DSTR_DISP_SEQ_NUM"]:
-            if _col.lower() not in [x.lower() for x in df_Union_Transformation.columns]:
-                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
-        df_Union_Transformation = df_Union_Transformation.select("DMNS_DSTR_KEY", "IN_RGN_CODE", "IN_DSTR_CODE", "IN_RGN_NAME", "IN_DSTR_NAME", "IN_RGN_DISP_SEQ_NUM", "IN_DSTR_DISP_SEQ_NUM")
-        ctx.register_df("df_Union_Transformation", df_Union_Transformation)
-        
-        logger.info("Step: write_DPA_DMNS_DSTR")
-        # Write to Target: write_DPA_DMNS_DSTR
-        df_write = df_Union_Transformation
-        # Cast NullType columns to StringType
-        for _c in df_write.columns:
-            if isinstance(df_write.schema[_c].dataType, NullType):
-                df_write = df_write.withColumn(_c, col(_c).cast(StringType()))
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"DMNS_DSTR_KEY": "DMNS_DSTR_KEY", "DSTR_CODE": "IN_DSTR_CODE", "DSTR_DISP_SEQ_NUM": "IN_DSTR_DISP_SEQ_NUM", "DSTR_NAME": "IN_DSTR_NAME", "RGN_CODE": "IN_RGN_CODE", "RGN_DISP_SEQ_NUM": "IN_RGN_DISP_SEQ_NUM", "RGN_NAME": "IN_RGN_NAME"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['DMNS_DSTR_KEY', 'RGN_CODE', 'RGN_NAME', 'DSTR_CODE', 'DSTR_NAME', 'RGN_DISP_SEQ_NUM', 'DSTR_DISP_SEQ_NUM']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DPA_DMNS_DSTR", mode="append")
-
-        logger.info("write_DPA_DMNS_DSTR write completed")
         
         metrics.complete()
         logger.info("Mapping M_DPA_SUMMARIZE_DMNS_DSTR completed: SUCCESS")

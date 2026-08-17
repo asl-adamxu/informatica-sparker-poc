@@ -5,6 +5,7 @@ Provides helper functions for database connections, file reading, transformation
 import logging
 import os
 import sys
+import time
 import yaml
 import inspect
 from datetime import datetime
@@ -133,6 +134,10 @@ def init_logger(log_name: str = None):
         # messages written to the first caller's log file.
         if not any(isinstance(h, logging.FileHandler) for h in root_logger.handlers):
             root_logger.addHandler(file_handler)
+
+    # Quiet py4j's own chatty INFO logs (e.g. "Closing down clientserver
+    # connection" on every gateway connection close) — keep WARNING+ only.
+    logging.getLogger("py4j").setLevel(logging.WARNING)
 
     return logger
 
@@ -325,6 +330,14 @@ def read_sql(spark: SparkSession, conn_config: Dict[str, Any],
         .option("driver", driver) \
         .option("isolationLevel", "READ_COMMITTED")
 
+    # Oracle rejects boolean literals (TRUE/FALSE) in WHERE clauses. Spark's
+    # JDBC predicate pushdown emits them when a pushed filter contains a
+    # non-table column (e.g. computed NewLookupRow / _update_flag), which fails
+    # with ORA-00920. Keep predicate pushdown disabled for Oracle so those
+    # filters are evaluated by Spark after the read.
+    if str(conn_config.get("type", "oracle")).lower() == "oracle":
+        reader = reader.option("pushDownPredicate", "false")
+
     if query:
         reader = reader.option("query", query)
     elif table:
@@ -333,6 +346,908 @@ def read_sql(spark: SparkSession, conn_config: Dict[str, Any],
         raise ValueError("Either table or query must be provided")
     
     return reader.load()
+
+
+def _dynamic_lookup_is_null(value):
+    if value is None:
+        return True
+    try:
+        return bool(value != value)
+    except Exception:
+        return False
+
+
+def _dynamic_lookup_normalize(value):
+    if _dynamic_lookup_is_null(value):
+        return None
+    if isinstance(value, bytes):
+        try:
+            return value.decode("utf-8")
+        except Exception:
+            return value
+    return value
+
+
+def _dynamic_lookup_equal(a, b, case_sensitive=False):
+    a = _dynamic_lookup_normalize(a)
+    b = _dynamic_lookup_normalize(b)
+    if a is None or b is None:
+        return a is None and b is None
+    if isinstance(a, str) or isinstance(b, str):
+        if not case_sensitive:
+            return str(a).lower() == str(b).lower()
+        return str(a) == str(b)
+    try:
+        return bool(a == b)
+    except Exception:
+        return str(a) == str(b)
+
+
+def _dynamic_lookup_candidate(row, out_field, cfg):
+    ref = out_field.get("ref_field") or ""
+    if ref.upper() == "SEQUENCE-ID":
+        return row.get("__dyn_seq_key")
+    if ref and ref in row:
+        return _dynamic_lookup_normalize(row.get(ref))
+    if out_field.get("name") in row:
+        return _dynamic_lookup_normalize(row.get(out_field["name"]))
+    return None
+
+
+def _dynamic_lookup_condition_holds(row, cache_state, cfg):
+    expr = str(cfg.get("update_condition") or "TRUE").strip()
+    if not expr or expr.upper() == "TRUE":
+        return True
+    if expr.upper() == "FALSE":
+        return False
+    # Minimal evaluator for the simple boolean expressions Informatica stores
+    # in "Update Dynamic Cache Condition". Current NHS/EMS mappings all use
+    # TRUE; anything more complex is evaluated best-effort and falls back to
+    # TRUE with a warning.
+    try:
+        _e = _re.sub(r"\bIS\s+NOT\s+NULL\b", " is not None ", expr, flags=_re.IGNORECASE)
+        _e = _re.sub(r"\bIS\s+NULL\b", " is None ", _e, flags=_re.IGNORECASE)
+        _e = _re.sub(r"(?<![=!<>])=(?!=)", "==", _e)
+        _e = _e.replace("'", '"')
+        def _sub(m):
+            _name = m.group(1)
+            _val = cache_state.get(_name, row.get(_name))
+            if _val is None:
+                return "None"
+            if isinstance(_val, str):
+                return '"' + _val.replace('"', '\\"') + '"'
+            return repr(_val)
+        _e = _re.sub(r"\b([A-Za-z_][A-Za-z0-9_]*)\b", _sub, _e)
+        return bool(eval(_e, {"__builtins__": {}}, {}))
+    except Exception as _exc:
+        logging.warning(
+            "Update Dynamic Cache Condition '%s' could not be evaluated (%s); "
+            "treating as TRUE", expr, _exc)
+        return True
+
+
+def _process_dynamic_lookup_rows(rows, cfg):
+    """Run the dynamic-cache state machine over one join-key group.
+
+    rows are dicts carrying the input columns, prefixed base columns
+    (__lkp_<output>), __base_exists, __dyn_seq and __dyn_seq_key. The same
+    key's rows are processed in __dyn_seq order, so each row sees the cache
+    state left by the previous row (Informatica row-by-row semantics).
+    """
+    input_columns = list(cfg.get("_input_columns") or [])
+    out_fields = cfg.get("lookup_output_fields") or []
+    new_lookup_row_col = cfg.get("new_lookup_row_col") or "NewLookupRow"
+    insert_else_update = bool(cfg.get("insert_else_update"))
+    output_old_value = bool(cfg.get("output_old_value_on_update"))
+    case_sensitive = bool(cfg.get("case_sensitive_string_comparison"))
+
+    normalized = [
+        {k: _dynamic_lookup_normalize(v) for k, v in row.items()}
+        for row in rows
+    ]
+    normalized.sort(key=lambda r: (r.get("__dyn_seq") is None, r.get("__dyn_seq")))
+
+    results = []
+    cache_state = None
+    cache_present = False
+    for row in normalized:
+        if not cache_present:
+            cache_state = {}
+            if row.get("__base_exists"):
+                for f in out_fields:
+                    cache_state[f["name"]] = row.get("__lkp_" + f["name"])
+                new_lookup_row = 0
+            else:
+                for f in out_fields:
+                    ref = f.get("ref_field") or ""
+                    if ref.upper() == "SEQUENCE-ID":
+                        cache_state[f["name"]] = row.get("__dyn_seq_key")
+                    else:
+                        cache_state[f["name"]] = _dynamic_lookup_candidate(row, f, cfg)
+                new_lookup_row = 1
+            cache_present = True
+            output_vals = dict(cache_state)
+        else:
+            candidates = {}
+            changed = False
+            for f in out_fields:
+                ref = f.get("ref_field") or ""
+                if ref.upper() == "SEQUENCE-ID":
+                    # Sequence-Id surrogate keys are immutable once inserted:
+                    # a hit always keeps the cache value and never triggers an
+                    # update comparison.
+                    cand = cache_state.get(f["name"])
+                else:
+                    cand = _dynamic_lookup_candidate(row, f, cfg)
+                if (f.get("ignore_null_inputs")
+                        and ref and ref.upper() != "SEQUENCE-ID"
+                        and _dynamic_lookup_is_null(row.get(ref))):
+                    cand = cache_state.get(f["name"])
+                candidates[f["name"]] = cand
+                if (not f.get("ignore_in_compare")
+                        and not _dynamic_lookup_equal(
+                            cand, cache_state.get(f["name"]), case_sensitive)):
+                    changed = True
+            if (insert_else_update and changed
+                    and _dynamic_lookup_condition_holds(row, cache_state, cfg)):
+                new_lookup_row = 2
+                old_vals = dict(cache_state)
+                for f in out_fields:
+                    ref = f.get("ref_field") or ""
+                    if ref.upper() == "SEQUENCE-ID":
+                        continue
+                    if (f.get("ignore_null_inputs") and ref
+                            and _dynamic_lookup_is_null(row.get(ref))):
+                        continue
+                    cache_state[f["name"]] = candidates[f["name"]]
+                output_vals = old_vals if output_old_value else dict(cache_state)
+            else:
+                new_lookup_row = 0
+                output_vals = dict(cache_state)
+
+        out = {name: row.get(name) for name in input_columns}
+        for f in out_fields:
+            out[f["name"]] = output_vals.get(f["name"])
+        out[new_lookup_row_col] = new_lookup_row
+        results.append(out)
+    return results
+
+
+def _dynamic_lookup_spark_type(datatype):
+    t = str(datatype or "").lower()
+    if "bigint" in t or "long" in t:
+        return LongType()
+    if "integer" in t or "int" in t:
+        return IntegerType()
+    if "smallint" in t or "short" in t:
+        return ShortType()
+    if "decimal" in t or "number" in t:
+        return DecimalType(38, 10)
+    if "date/time" in t or "timestamp" in t:
+        return TimestampType()
+    if "date" in t:
+        return DateType()
+    if "float" in t or "double" in t:
+        return DoubleType()
+    if "binary" in t:
+        return BinaryType()
+    return StringType()
+
+
+def _dynamic_lookup_output_schema(input_df, lookup_df, cfg):
+    out_fields = cfg.get("lookup_output_fields") or []
+    new_col = cfg.get("new_lookup_row_col") or "NewLookupRow"
+    lookup_fields = {f.name.lower(): f for f in lookup_df.schema.fields}
+    fields = []
+    seen = set()
+    for f in input_df.schema.fields:
+        lower = f.name.lower()
+        if lower == new_col.lower():
+            continue
+        if isinstance(f.dataType, NullType):
+            # Arrow cannot carry Spark NullType; a typed NULL string is
+            # semantically equivalent and safe for downstream expressions.
+            fields.append(StructField(f.name, StringType(), True))
+        else:
+            fields.append(f)
+        seen.add(lower)
+    for of in out_fields:
+        lower = of["name"].lower()
+        ref = str(of.get("ref_field") or "").upper()
+        lf = lookup_fields.get(lower)
+        if ref == "SEQUENCE-ID":
+            # Sequence-Id values come from the pre-allocated bigint key
+            # (__dyn_seq_key), never from the lookup source column type
+            # (often Oracle NUMBER → Decimal(38,0)); declare long so the
+            # pandas UDF round-trips as int64 without an Arrow cast
+            # (int64 → decimal128(38,0) raises PySparkValueError).
+            sf = StructField(of["name"], LongType(), True)
+        elif lf is not None and not isinstance(lf.dataType, NullType):
+            sf = lf
+        else:
+            sf = StructField(
+                of["name"], _dynamic_lookup_spark_type(of.get("datatype")), True)
+        if lower in seen:
+            fields = [sf if f.name.lower() == lower else f for f in fields]
+        else:
+            fields.append(sf)
+            seen.add(lower)
+    fields.append(StructField(new_col, IntegerType(), True))
+    return StructType(fields)
+
+
+def _dynamic_lookup_pyarrow_ok():
+    try:
+        import pandas  # noqa: F401
+        import pyarrow  # noqa: F401
+        from pyspark.sql.pandas.utils import require_minimum_pyarrow_version
+        require_minimum_pyarrow_version()
+        return True
+    except Exception:
+        return False
+
+
+def _dynamic_lookup_apply_in_pandas(spark, joined, cfg, output_schema):
+    import pandas as pd
+    output_columns = [f.name for f in output_schema.fields]
+
+    def _process_group(pdf):
+        rows = pdf.to_dict("records")
+        return pd.DataFrame(
+            _process_dynamic_lookup_rows(rows, cfg),
+            columns=output_columns,
+        )
+
+    return joined.groupBy("__dyn_key").applyInPandas(
+        _process_group, schema=output_schema)
+
+
+def _dynamic_lookup_rdd(spark, joined, cfg, output_schema):
+    from pyspark.sql import Row
+
+    def _key(row):
+        k = row["__dyn_key"]
+        if isinstance(k, Row):
+            return tuple(k)
+        return (k,)
+
+    def _flat(kv):
+        return _process_dynamic_lookup_rows(
+            [r.asDict() for r in kv[1]], cfg)
+
+    results = joined.rdd.map(lambda r: (_key(r), r)).groupByKey().flatMap(_flat)
+    return spark.createDataFrame(results, schema=output_schema)
+
+
+def dynamic_lookup(spark: SparkSession, input_df: DataFrame,
+                   lookup_df: DataFrame, cfg: Dict[str, Any] = None,
+                   config: Dict[str, Any] = None,
+                   **dl_kwargs: Any) -> DataFrame:
+    """Convert one Informatica dynamic lookup into a precise PySpark step.
+
+    The implementation is distributed but deterministic:
+      1. The base lookup source is checked for duplicate condition keys and
+         fails with Report Error / CMN_1650 semantics.
+      2. Input rows are left-joined to the base cache and grouped by the join
+         key (null keys get a unique per-row key).
+      3. applyInPandas runs the row-by-row dynamic-cache state machine inside
+         each group (fallback: equivalent RDD cogroup when pyarrow is missing
+         or below the Spark minimum).
+      4. Sequence-Id surrogate keys are pre-allocated outside the UDF, so the
+         same key is never generated twice across executors.
+
+    The lookup configuration may be passed either as a positional dict (legacy
+    generated code, tests) or as individual keyword arguments (current
+    generated code) — the two are merged and equivalent.
+    """
+    cfg = dict(cfg or {})
+    cfg.update(dl_kwargs)
+    cfg["_input_columns"] = list(input_df.columns)
+    name = cfg.get("name") or "dynamic_lookup"
+    join_predicates = cfg.get("join_predicates") or []
+    if not join_predicates:
+        raise ValueError(
+            "dynamic_lookup requires at least one join predicate")
+    source_cols = [jp.get("source_col") for jp in join_predicates]
+    lookup_cols = [jp.get("lookup_col") for jp in join_predicates]
+    for sc in source_cols:
+        if sc not in input_df.columns:
+            raise ValueError(
+                "Lookup %s: input column '%s' not found" % (name, sc))
+    for lc in lookup_cols:
+        if lc not in lookup_df.columns:
+            raise ValueError(
+                "Lookup %s: lookup column '%s' not found" % (name, lc))
+
+    # Report Error: duplicate condition keys in the base cache must fail the
+    # session (CMN_1650). Duplicate keys in the *input* stream are legal and
+    # are handled by the state machine below (1/2/0 classification).
+    dup_cnt = lookup_df.groupBy(*[col(c) for c in lookup_cols]) \
+        .count().filter(col("count") > 1).count()
+    if dup_cnt:
+        raise RuntimeError(
+            "Lookup %s: %d duplicate keys found in lookup source — dynamic "
+            "cache only supports unique condition keys (Report Error / CMN_1650)"
+            % (name, dup_cnt))
+
+    joined = input_df
+    order_by = cfg.get("order_by_columns") or []
+    if order_by:
+        joined = joined.orderBy(*[col(c) for c in order_by])
+    joined = joined.withColumn("__dyn_seq", monotonically_increasing_id())
+
+    base_aliases = {c: "__lkp_" + c for c in lookup_df.columns}
+    base_df = lookup_df.select(*[
+        col(c).alias(base_aliases[c]) for c in lookup_df.columns])
+    on_cond = None
+    for sc, lc in zip(source_cols, lookup_cols):
+        part = joined[sc] == base_df[base_aliases[lc]]
+        on_cond = part if on_cond is None else (on_cond & part)
+    joined = joined.join(base_df, on=on_cond, how="left")
+    joined = joined.withColumn(
+        "__base_exists",
+        when(base_df[base_aliases[lookup_cols[0]]].isNotNull(), lit(1))
+        .otherwise(lit(0)),
+    )
+
+    # Group key: a same-typed struct of stringified join keys. SQL '=' never
+    # matches NULL, so each null-key input row gets a unique __dyn_seq-derived
+    # value and is treated as its own miss; non-null rows with the same key
+    # share one group and advance the cache state row by row.
+    key_exprs = []
+    for _i, sc in enumerate(source_cols):
+        key_exprs.append(
+            when(col(sc).isNull(),
+                 concat(lit("__NULL__:"),
+                        col("__dyn_seq").cast("string")))
+            .otherwise(concat(lit("V:"), col(sc).cast("string")))
+            .alias("k%d" % _i)
+        )
+    joined = joined.withColumn("__dyn_key", struct(*key_exprs))
+
+    # Sequence-Id pre-allocation: only the first input row of a key that misses
+    # the base cache can insert, so exactly those rows get a globally unique
+    # surrogate key before applyInPandas runs.
+    seq_cfg = cfg.get("sequence_config")
+    if seq_cfg and seq_cfg.get("output_col"):
+        seq_col = seq_cfg["output_col"]
+        base_seq_col = "__lkp_" + seq_col
+        if base_seq_col not in joined.columns:
+            raise ValueError(
+                "Lookup %s: sequence output column '%s' not found in lookup "
+                "source" % (name, seq_col))
+        # The base cache's sequence column is Oracle NUMBER → Decimal(38,0) in
+        # Spark, while the pre-allocated key is a long. Normalize to bigint so
+        # the pandas UDF sees one int64 dtype for both base hits and inserts
+        # (a mixed decimal/int64 Series breaks the Arrow conversion too).
+        joined = joined.withColumn(
+            base_seq_col, col(base_seq_col).cast("bigint"))
+        seq_start = joined.agg(max(col(base_seq_col))).collect()[0][0]
+        if seq_start is None:
+            seq_start = 0
+        seq_start = cfg.get("sequence_start", seq_start)
+        from pyspark.sql.window import Window as DynamicWindow
+        w_first = DynamicWindow.partitionBy("__dyn_key").orderBy("__dyn_seq")
+        w_all = DynamicWindow.orderBy("__dyn_seq")
+        prealloc = joined.withColumn("__rn", row_number().over(w_first))
+        prealloc = prealloc.filter(
+            (col("__base_exists") == 0) & (col("__rn") == 1))
+        prealloc = prealloc.withColumn("__seq_idx", row_number().over(w_all))
+        prealloc = prealloc.withColumn(
+            "__dyn_seq_key", lit(seq_start) + col("__seq_idx"))
+        joined = joined.join(
+            prealloc.select("__dyn_seq", "__dyn_seq_key"),
+            on="__dyn_seq", how="left")
+    else:
+        joined = joined.withColumn("__dyn_seq_key", lit(None).cast("long"))
+
+    output_schema = _dynamic_lookup_output_schema(input_df, lookup_df, cfg)
+    executor = "apply_in_pandas"
+    if config:
+        dl_config = config.get("dynamic_lookup") or {}
+        executor = dl_config.get("executor", "apply_in_pandas")
+
+    if executor == "apply_in_pandas" and _dynamic_lookup_pyarrow_ok():
+        return _dynamic_lookup_apply_in_pandas(spark, joined, cfg, output_schema)
+
+    logging.warning(
+        "dynamic_lookup %s: pyarrow missing/too old or executor=rdd — using "
+        "the equivalent RDD fallback", name)
+    return _dynamic_lookup_rdd(spark, joined, cfg, output_schema)
+
+
+# ---------------------------------------------------------------------------
+# Shared component-method helpers (used by lib.<component> wrappers)
+# ---------------------------------------------------------------------------
+
+_API_EXPR_MARKERS = ('row_number()', 'monotonically_increasing_id', 'last(when(')
+_PYSPARK_API_NS = None
+
+
+def _api_namespace():
+    """Lazily build the namespace used to evaluate direct PySpark API
+    expressions (the generator renders these as Python source, not SQL)."""
+    global _PYSPARK_API_NS
+    if _PYSPARK_API_NS is None:
+        from pyspark.sql.window import Window as _Window
+        _ns = dict(globals())
+        _ns['Window'] = _Window
+        _PYSPARK_API_NS = _ns
+    return _PYSPARK_API_NS
+
+
+def _with_column(df, name, expr_str):
+    """Add column `name` with a translated expression.
+
+    Spark SQL text is wrapped in expr(). Text containing a direct PySpark API
+    marker (row_number() / monotonically_increasing_id / last(when() — the
+    generator emits these as Python source) is evaluated against the pyspark
+    namespace instead.
+    """
+    if any(_m in expr_str for _m in _API_EXPR_MARKERS):
+        return df.withColumn(name, eval(expr_str, {"__builtins__": {}}, _api_namespace()))
+    return df.withColumn(name, expr(expr_str))
+
+
+def _rename_columns(df, renames):
+    """Apply connector renames (drop target first, skip src == tgt)."""
+    for _old, _new in (renames or []):
+        if _old.lower() == _new.lower():
+            continue
+        df = df.drop(_new).withColumnRenamed(_old, _new)
+    return df
+
+
+def _fill_missing(df, cols):
+    """Add lit(None) for any listed column absent from df (case-insensitive)."""
+    for _c in (cols or []):
+        if _c.lower() not in [x.lower() for x in df.columns]:
+            df = df.withColumn(_c, lit(None))
+    return df
+
+
+def _substitute(text, substitutions, or_zero=False):
+    """Replace $$ mapping variables in translated text with runtime values.
+
+    or_zero=True (Filter/SQ conditions): str(v or "0") so an empty value
+    cannot produce invalid SQL. or_zero=False (Expression columns): str(v).
+    """
+    for _var, _val in (substitutions or {}).items():
+        if _var in text:
+            text = text.replace(_var, str(_val or "0") if or_zero else str(_val))
+    return text
+
+
+def expression(spark=None, input_df=None, name=None, rename_columns=None,
+               computed_columns=None, pass_through_cols=None,
+               substitutions=None, inline_lookup_joins=None,
+               sp_calls=None, sp_conn=None, config=None, **kwargs):
+    """Convert one Informatica Expression into PySpark column operations.
+
+    Order matches the Informatica mapping:
+      1. Connector renames (drop target first, case-insensitive dup guard).
+      2. Inline lookup joins (:LKP.xxx() ports): broadcast left join with
+         prefixed join keys, dropped after the join.
+      3. Computed columns in port order ($$ mapping variables substituted;
+         direct-API expressions detected inside _with_column).
+      4. Stored-procedure calls (:SP.xxx()): collect argument columns on the
+         driver, call call_stored_procedure per row, set the column to
+         'SUCCESS'.
+      5. Pass-through fills: output ports absent from the frame become
+         lit(None).
+    All upstream columns are preserved.
+    """
+    df = _rename_columns(input_df, rename_columns or [])
+    for _lkp in (inline_lookup_joins or []):
+        _lkp_df = _lkp["lookup_df"]
+        _sub = _lkp_df.select(
+            *[col(_jp["lookup_col"]).alias("_lkp_jk_" + _jp["lookup_col"])
+              for _jp in _lkp["join_predicates"]],
+            col(_lkp["return_port"]),
+        )
+        _cond = None
+        for _jp in _lkp["join_predicates"]:
+            _part = df[_jp["source_col"]] == _sub["_lkp_jk_" + _jp["lookup_col"]]
+            _cond = _part if _cond is None else (_cond & _part)
+        df = df.join(broadcast(_sub), on=_cond, how="left")
+        for _jp in _lkp["join_predicates"]:
+            df = df.drop("_lkp_jk_" + _jp["lookup_col"])
+    for _col_def in (computed_columns or []):
+        df = _with_column(df, _col_def["name"],
+                          _substitute(_col_def["expr"], substitutions))
+    for _sp in (sp_calls or []):
+        _sp_call = _sp["sp_call"]
+        if _sp.get("sp_schema"):
+            _schema = (sp_conn or {}).get("schema", "") or _sp["sp_schema"]
+            _sp_call = _schema + "." + _sp_call
+        _args = _sp["args"]
+        if len(_args) == 1:
+            _vals = [r[_args[0]] for r in df.select(_args[0]).collect()]
+            for _v in _vals:
+                call_stored_procedure(spark, sp_conn, _sp_call, [_v])
+        else:
+            _rows = [r for r in df.select(*_args).collect()]
+            for _r in _rows:
+                call_stored_procedure(spark, sp_conn, _sp_call, [_r[c] for c in _args])
+        df = df.withColumn(_sp["col"], lit("SUCCESS"))
+    df = _fill_missing(df, pass_through_cols or [])
+    return df
+
+
+def filter(spark=None, input_df=None, name=None, rename_columns=None,
+           condition=None, substitutions=None, sequence_attach=None,
+           config=None, **kwargs):
+    """Convert one Informatica Filter.
+
+    Connector renames run BEFORE the condition (the condition references the
+    filter's input port names). Connected Sequence Generators attach NEXTVAL
+    AFTER the filter (post-filter placement). $$ mapping variables in the
+    condition use the str(v or "0") rule so an empty value cannot produce
+    invalid SQL.
+    """
+    df = _rename_columns(input_df, rename_columns or [])
+    if not condition:
+        raise ValueError("Filter %s: empty condition" % (name or "?"))
+    df = df.filter(expr(_substitute(condition, substitutions, or_zero=True)))
+    for _att in (sequence_attach or []):
+        df = df.withColumn(_att["col"],
+                           monotonically_increasing_id() + int(_att["start"]))
+    return df
+
+
+def router(spark=None, input_df=None, name=None, groups=None,
+           multi_feed=False, feeds=None, substitutions=None, config=None,
+           **kwargs):
+    """Convert one Informatica Router into its output-group DataFrames.
+
+    Returns {df_output: DataFrame}. Multi-input routers first build the input
+    as a UNION of all feeds (NULL-filled per Router INPUT port, port aliases
+    from the XML connectors), then the ORDERED group split runs (first match
+    wins). Each group carries ONE condition (raw translated text, may hold
+    $$ markers) substituted at runtime; DEFAULT groups compose via
+    default_negated (negated chain of named groups' conditions); an empty
+    condition is a pass-through. Connector renames apply after the filter,
+    drop-first.
+    """
+    if multi_feed:
+        _feeds = feeds or []
+        _rtr_ports = []
+        for _df, _aliases in _feeds:
+            for _c in _df.columns:
+                _p = _aliases.get(_c, _c)
+                if _p.lower() not in [x.lower() for x in _rtr_ports]:
+                    _rtr_ports.append(_p)
+        _feed_views = []
+        for _df, _aliases in _feeds:
+            _rev = {_v: _k for _k, _v in _aliases.items()}
+            _sel = []
+            for _p in _rtr_ports:
+                if _p in _rev:
+                    if _rev[_p].lower() in [x.lower() for x in _df.columns]:
+                        _sel.append(col(_rev[_p]).alias(_p))
+                    else:
+                        _sel.append(lit(None).alias(_p))
+                elif _p.lower() in [x.lower() for x in _df.columns] and _p not in _aliases:
+                    _sel.append(col(_p))
+                else:
+                    _sel.append(lit(None).alias(_p))
+            _feed_views.append(_df.select(*_sel))
+        _rtr_in = _feed_views[0]
+        for _v in _feed_views[1:]:
+            _rtr_in = _rtr_in.unionByName(_v)
+    else:
+        _rtr_in = input_df
+    # One condition per group (raw translated text; may carry $$ markers).
+    # Substitute $$ variables once, then run the ordered split (first match
+    # wins). The single _conds build replaces the old _prepared/_conds pair.
+    _conds = {}
+    for _g in groups or []:
+        _c = _g.get("condition") or ""
+        if _c and "$$" in _c:
+            _c = _substitute(_c, substitutions)
+        _conds[_g["name"]] = _c
+    _out = {}
+    for _g in groups or []:
+        _name, _df_out = _g["name"], _g["df_output"]
+        _c = _conds.get(_name) or ""
+        if _g.get("default_negated"):
+            _df = _rtr_in
+            for _neg in _g["default_negated"]:
+                _df = _df.filter(~expr(_conds.get(_neg) or ""))
+        elif _c:
+            _df = _rtr_in.filter(expr(_c))
+        else:
+            _df = _rtr_in
+        _df = _rename_columns(_df, _g.get("renames") or [])
+        _out[_df_out] = _df
+    return _out
+
+
+def union(spark=None, input_df=None, name=None, inputs=None,
+          union_selects=None, flag_column="", output_columns=None,
+          config=None, **kwargs):
+    """Convert one Informatica Union.
+
+    Per-input groups are select+aliased to the union's output ports, then
+    unionByName(allowMissingColumns=True). `selects` are FROM column names in
+    output-column order - selects[j] aliases to output_columns[j]. A None
+    entry marks a GAP position (this group has no connected source for that
+    output port) and is skipped - no select is emitted, so the value of a
+    later position can never shift onto the gap; the port is lit(None)-filled
+    after the union. Output ports absent from a group stay missing and are
+    filled with lit(None) after the union; the frame is then re-selected to
+    the output column list.
+    """
+    if flag_column:
+        raise ValueError(
+            "Union %s: flag_column unions are not supported" % (name or "?"))
+    _sels = union_selects or []
+    _oc = output_columns or []
+    if _sels:
+        _views = []
+        for _us in _sels:
+            _view_cols = []
+            for _i, _s in enumerate(_us["selects"] or []):
+                if _s is None:
+                    # gap position: no connected source for this output port
+                    continue
+                _port = _oc[_i] if _i < len(_oc) else None
+                if _port is None or _s.lower() == _port.lower():
+                    _view_cols.append(col(_s))
+                else:
+                    _view_cols.append(col(_s).alias(_port))
+            _views.append(_us["df_input"].select(*_view_cols))
+        df = _views[0]
+        for _v in _views[1:]:
+            df = df.unionByName(_v, allowMissingColumns=True)
+    else:
+        df = (inputs or [input_df])[0]
+        for _v in (inputs or [input_df])[1:]:
+            df = df.unionByName(_v, allowMissingColumns=True)
+    if output_columns:
+        df = _fill_missing(df, output_columns)
+        df = df.select(*output_columns)
+    return df
+
+
+def sorter(spark=None, input_df=None, name=None, rename_columns=None,
+           sort_columns=None, config=None, **kwargs):
+    """Convert one Informatica Sorter.
+
+    Connector renames apply first, then orderBy over the sort keys (ASC by
+    default, DESC when the direction says so).
+    """
+    df = _rename_columns(input_df, rename_columns or [])
+    if sort_columns:
+        _sorts = []
+        for _sc in sort_columns:
+            if (_sc.get("direction") or "ASC").upper() == "DESC":
+                _sorts.append(desc(_sc["column"]))
+            else:
+                _sorts.append(asc(_sc["column"]))
+        df = df.orderBy(*_sorts)
+    return df
+
+
+def sequence(spark=None, input_df=None, name=None, output_col="NEXTVAL",
+             start=1, config=None, **kwargs):
+    """Convert one standalone Informatica Sequence Generator.
+
+    Attaches the next-value column as monotonically_increasing_id() + start.
+    (Connected sequences attach via lib.filter's sequence_attach.)
+    """
+    return input_df.withColumn(
+        output_col, monotonically_increasing_id() + int(start))
+
+
+def sq_output(spark=None, input_df=None, name=None, port_cols=None,
+              filter_condition=None, substitutions=None,
+              distinct=False, config=None, **kwargs):
+    """Convert one Source Qualifier's output-port handling.
+
+    port_cols is an ordered dict {port_name: cast_type} — dict insertion order
+    is the port order (drives the two-pass rename AND the final select). The
+    value is the cast type ('' or None → no cast).
+
+    SQL-pushdown results are renamed to the SQ output ports: name-match first
+    (case-insensitive), then positional fallback for unaliased expression
+    columns (backtick-quoted so dots/pipes stay part of the column name), then
+    the port select with lit(None) for missing ports, then type casts.
+    Non-pushdown SQs apply the optional filter condition ($$ with the
+    str(v or "0") rule) and DISTINCT before the same port select.
+    """
+    df = input_df
+    if filter_condition:
+        df = df.filter(expr(_substitute(filter_condition, substitutions, or_zero=True)))
+    if distinct:
+        df = df.distinct()
+    _port_names = list(port_cols or [])
+    if _port_names:
+        _sql_cols = list(df.columns)
+        _rename_map = {}
+        _used = set()
+        for _sc in _sql_cols:
+            for _pi, _port in enumerate(_port_names):
+                if _pi not in _used and _sc.lower() == _port.lower():
+                    _rename_map[_sc] = _port
+                    _used.add(_pi)
+                    break
+        _pi = 0
+        for _sc in _sql_cols:
+            if _sc in _rename_map:
+                continue
+            while _pi in _used:
+                _pi += 1
+            if _pi < len(_port_names):
+                _rename_map[_sc] = _port_names[_pi]
+                _used.add(_pi)
+                _pi += 1
+        if _rename_map:
+            df = df.select(*[col("`" + _old + "`").alias(_new)
+                             for _old, _new in _rename_map.items()])
+        df = df.select([
+            col(_c) if _c.lower() in [x.lower() for x in df.columns]
+            else lit(None).alias(_c)
+            for _c in _port_names
+        ])
+    for _cname, _ctype in (port_cols or {}).items():
+        _lower = _cname.lower()
+        _cast = None
+        _t = str(_ctype or "").upper()
+        if _t in ("INTEGER", "INT", "BIGINT", "SMALLINT", "TINYINT"):
+            _cast = LongType()
+        elif _t in ("FLOAT", "DOUBLE", "REAL"):
+            _cast = DoubleType()
+        elif "DECIMAL" in _t or "NUMERIC" in _t or _t == "NUMBER":
+            _cast = DecimalType(38, 10)
+        elif _t in ("DATE",):
+            _cast = DateType()
+        elif _t in ("DATETIME", "TIMESTAMP"):
+            _cast = TimestampType()
+        if _cast is not None:
+            for _c in df.columns:
+                if _c.lower() == _lower:
+                    df = df.withColumn(_c, col(_c).cast(_cast))
+    return df
+
+
+def update_strategy(spark=None, input_df=None, name=None,
+                    strategy_field=None, config=None, **kwargs):
+    """Convert one Informatica Update Strategy.
+
+    Dynamic field strategies derive the _update_flag column (I/U/D) from the
+    strategy field. Static strategies (DD_INSERT/DD_UPDATE/DD_DELETE) pass
+    through — the target write applies them directly.
+    """
+    if strategy_field:
+        return input_df.withColumn(
+            "_update_flag",
+            when(col(strategy_field) == "DD_INSERT", lit("I"))
+            .when(col(strategy_field) == "DD_UPDATE", lit("U"))
+            .when(col(strategy_field) == "DD_DELETE", lit("D"))
+            .otherwise(lit("I")),
+        )
+    return input_df
+
+
+def write_target(spark, df, conn, table, mode="append", sink_type="delta",
+                 source_columns=None, target_columns=None,
+                 is_delete=False, delete_keys=None, cast_nulltype=False,
+                 has_update_flag=False, static_dd=None, config=None,
+                 name=None, **kwargs):
+    """Convert one Informatica Target write.
+
+    Order matches the mapping: DUAL/DEV_NULL no-op → NullType cast → positional
+    source/target handling (connector renames run BEFORE the _update_flag
+    split, so UPDATE/DELETE batch calls use target column names) → static
+    DD_UPDATE (batch_update ALL rows, then an empty INSERT frame) or dynamic
+    I/U/D split (batch delete/update, INSERT flows to the normal write) →
+    static DD_DELETE (batch_delete_composite ALL rows) → unconnected lit(None)
+    fills → target-column select → csv/DB write.
+
+    source_columns is aligned positionally to target_columns: each entry is
+    the source column feeding that target (None = unconnected target, filled
+    with lit(None).cast(StringType()) except SRC_ROWID, which stays skipped).
+    """
+    _table = table or ""
+    if _table.endswith("DEV_NULL") or "/dev/null" in _table.lower() or _table.upper() == "DUAL":
+        logging.info("Target %s is a no-op target (/dev/null or DUAL), skipping write", name or "?")
+        return
+    _df = df
+    if cast_nulltype:
+        for _c in _df.columns:
+            if isinstance(_df.schema[_c].dataType, NullType):
+                _df = _df.withColumn(_c, col(_c).cast(StringType()))
+    _target_columns = target_columns or []
+    _source_columns = source_columns or []
+    # Connector renames (positional, drop-first) — BEFORE the _update_flag
+    # split. Identity entries (src == tgt, case-insensitive) pass through;
+    # None entries are unconnected targets and are filled further down.
+    for _i, _tgt in enumerate(_target_columns):
+        _src = _source_columns[_i] if _i < len(_source_columns) else None
+        if _src is not None and _src.lower() != _tgt.lower():
+            if (_tgt.lower() not in [x.lower() for x in _df.columns]
+                    and _src.lower() in [x.lower() for x in _df.columns]):
+                for _c in list(_df.columns):
+                    if _c.lower() == _tgt.lower() and _c != _src:
+                        _df = _df.drop(_c)
+                _df = _df.withColumnRenamed(_src, _tgt)
+    _keys = delete_keys or []
+    if has_update_flag:
+        if static_dd == "DD_UPDATE":
+            # Align to the target column set BEFORE batch_update so the SET
+            # columns use TARGET names — df may still carry source-named
+            # columns (e.g. DSBL_CODE) that have no connector to this target
+            # and would produce ORA-00904 in the UPDATE statement.
+            for _i, _tgt in enumerate(_target_columns):
+                _src = _source_columns[_i] if _i < len(_source_columns) else None
+                if _src is None and _tgt.lower() != "src_rowid":
+                    _df = _df.withColumn(_tgt, lit(None).cast(StringType()))
+            if _target_columns:
+                _df = _df.select(*[_c for _c in _target_columns
+                                   if _c.lower() in [x.lower() for x in _df.columns]])
+            if _keys and not _df.rdd.isEmpty():
+                _set_cols = [c for c in _df.columns
+                             if c.lower() not in [k.lower() for k in _keys]
+                             and c != "_update_flag"]
+                if _set_cols:
+                    _rows = [tuple(r[c] for c in _set_cols + _keys)
+                             for r in _df.collect()]
+                    batch_update(spark, conn, _table, _set_cols, _keys, _rows, 1000)
+            _df = _df.filter(lit(False))
+        else:
+            _df_ins = _df.filter(col("_update_flag") == "I").drop("_update_flag")
+            _df_upd = _df.filter(col("_update_flag") == "U").drop("_update_flag")
+            _df_del = _df.filter(col("_update_flag") == "D").drop("_update_flag")
+            _df = _df.drop("_update_flag")
+            if _keys and not _df_del.rdd.isEmpty():
+                _del_rows = [tuple(r[c] for c in _keys)
+                             for r in _df_del.select(*_keys).distinct().collect()]
+                if _del_rows:
+                    batch_delete_composite(spark, conn, _table, _keys, _del_rows, 1000)
+            if _keys and not _df_upd.rdd.isEmpty():
+                # Align unconnected targets to NULL and restrict the UPDATE SET
+                # columns to the REAL target columns (target_columns minus
+                # keys). _df_upd may carry non-target columns (DUMMY,
+                # UPDATE_FLAG, ...) from upstream mapplets — emitting them in
+                # UPDATE would raise ORA-00904. Mirrors the static DD_UPDATE
+                # branch above.
+                for _i, _tgt in enumerate(_target_columns):
+                    _src = _source_columns[_i] if _i < len(_source_columns) else None
+                    if _src is None and _tgt.lower() != "src_rowid":
+                        _df_upd = _df_upd.withColumn(_tgt, lit(None).cast(StringType()))
+                _upd_cols = [c for c in _target_columns
+                             if c.lower() not in [k.lower() for k in _keys]
+                             and c.lower() in [x.lower() for x in _df_upd.columns]]
+                if _upd_cols:
+                    _rows = [tuple(r[c] for c in _upd_cols + _keys)
+                             for r in _df_upd.collect()]
+                    batch_update(spark, conn, _table, _upd_cols, _keys, _rows, 1000)
+            _df = _df_ins
+    if is_delete and _keys:
+        if not _df.rdd.isEmpty():
+            _del_rows = [tuple(r[c] for c in _keys)
+                         for r in _df.select(*_keys).distinct().collect()]
+            if _del_rows:
+                batch_delete_composite(spark, conn, _table, _keys, _del_rows, 1000)
+    else:
+        for _i, _tgt in enumerate(_target_columns):
+            _src = _source_columns[_i] if _i < len(_source_columns) else None
+            if _src is None and _tgt.lower() != "src_rowid":
+                _df = _df.withColumn(_tgt, lit(None).cast(StringType()))
+        if _target_columns:
+            _df = _df.select(*[_c for _c in _target_columns
+                               if _c.lower() in [x.lower() for x in _df.columns]])
+        if sink_type == "csv":
+            _obj = ((config or {}).get("objects") or {}).get(_table) or {}
+            _path = _obj.get("path", "/tmp/" + _table)
+            _fmt = _obj.get("format", sink_type)
+            if _path and _path.strip() in ("/dev/null", "NUL"):
+                logging.info("Target %s resolved to /dev/null, skipping write", name or "?")
+            else:
+                write_file(_df, _path, format=_fmt, mode="overwrite")
+        else:
+            write_table(_df, conn, _table, mode=mode)
 
 
 def _read_local_csv(spark: SparkSession, local_path: str, opts: Dict[str, Any]) -> DataFrame:
@@ -941,6 +1856,24 @@ def get_spark_session(app_name: str, config: Dict[str, Any] = None) -> SparkSess
     #     on the executor nodes.
     builder = builder.config("spark.pyspark.python", sys.executable)
 
+    # 4c. Make this workflow's env package importable on executor Python workers.
+    #     Worker-side closures in env.runtime_lib (e.g. the dynamic lookup state
+    #     machine) are cloudpickled BY REFERENCE (env.runtime_lib.<function>), so
+    #     executors must be able to `import env`. YARN executors do not share the
+    #     driver's cwd/sys.path — prepend the workflow root directory (parent of
+    #     this env/ package) to spark.executorEnv.PYTHONPATH, alongside Spark's
+    #     own python + py4j paths already configured in config.yml.
+    _wf_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _epp_key = "spark.executorEnv.PYTHONPATH"
+    _epp = ""
+    for _src in (profile.get("config", {}), spark_cfg.get("config", {})):
+        if str(_src.get(_epp_key) or ""):
+            _epp = str(_src[_epp_key])
+            break
+    if _wf_root not in _epp.split(os.pathsep):
+        _epp = _wf_root + os.pathsep + _epp if _epp else _wf_root
+    builder = builder.config(_epp_key, _epp)
+
     # 5. Spark log level — spark.log.level is read at SparkContext construction
     #    (before setLogLevel below), suppressing init-time WARN noise.
     try:
@@ -951,6 +1884,31 @@ def get_spark_session(app_name: str, config: Dict[str, Any] = None) -> SparkSess
         pass
 
     spark = builder.getOrCreate()
+
+    # 4d. Ship this workflow's env package to executors. Worker-side closures
+    #     in env.runtime_lib (e.g. the dynamic lookup state machine) are
+    #     cloudpickled BY REFERENCE (env.runtime_lib.<function>), so the Python
+    #     workers must be able to `import env`. YARN executors run on other
+    #     nodes that do NOT have this workflow's directory on disk — the
+    #     PYTHONPATH entry from 4c alone is not enough. addPyFile ships a small
+    #     zip of env/ (regular package: __init__.py + all *.py) to every
+    #     executor; local mode already has the files, so this is best-effort.
+    try:
+        import io as _io  # noqa: F401
+        import zipfile as _zf
+        import tempfile as _tf
+        _env_dir = os.path.join(_wf_root, "env")
+        _zip_path = os.path.join(
+            _tf.gettempdir(),
+            "pcis_env_%s.zip" % os.path.basename(_wf_root))
+        with _zf.ZipFile(_zip_path, "w", _zf.ZIP_DEFLATED) as _z:
+            _z.writestr("env/__init__.py", "")
+            for _f in sorted(os.listdir(_env_dir)):
+                if _f.endswith(".py"):
+                    _z.write(os.path.join(_env_dir, _f), "env/" + _f)
+        spark.sparkContext.addPyFile(_zip_path)
+    except Exception as _exc:
+        print("WARN: could not ship env/ to executors: %s" % _exc)
 
     # Apply Spark log level from config (spark.log_level, e.g. ERROR) to suppress
     # the default WARN noise and Java log4j chatter.
@@ -1289,7 +2247,9 @@ def validate_execution_plan(execution_plan, mapping_functions, task_info=None):
         elif stype == "task":
             name = step.get("name", "")
             if name and task_info and name not in task_info:
-                logger.warning("Task '%s' has no TASK_INFO entry, will skip", name)
+                # No special handler for this task (e.g. a Decision with no
+                # condition) — it is a pass-through; do not alarm users.
+                logger.debug("Task '%s' has no special handler, pass-through", name)
 
     for i, step in enumerate(execution_plan):
         _validate_step(step, f"Step[{i}]")
@@ -1379,6 +2339,23 @@ def run_sessions_parallel(sessions_list, mapping_functions, ctx, metrics_cls,
     return completed, failed, results
 
 
+def _apply_task_timer(tcfg, task_name):
+    """Apply Informatica Timer task semantics: a Timer task starts counting
+    when its previous task completes (START_RELATIVE_TO_PREVIOUSTASK) and
+    fires after the RECURRING interval — wait that interval before the
+    downstream tasks are allowed to run."""
+    if not tcfg or tcfg.get("type") != "timer":
+        return
+    _tmr = tcfg.get("timer", {}) or {}
+    _days = int(_tmr.get("days", 0) or 0)
+    _hours = int(_tmr.get("hours", 0) or 0)
+    _mins = int(_tmr.get("minutes", 0) or 0)
+    _secs = _days * 86400 + _hours * 3600 + _mins * 60
+    if _secs > 0:
+        logger.info("Task '%s' timer: waiting %d seconds (%dd %dh %dm)", task_name, _secs, _days, _hours, _mins)
+        time.sleep(_secs)
+
+
 def execute_plan_step(step, mapping_functions, ctx, metrics_cls,
                       fail_fast, job_params, workflow_name="",
                       task_info=None, send_email_fn=None,
@@ -1424,6 +2401,7 @@ def execute_plan_step(step, mapping_functions, ctx, metrics_cls,
                 logger.info("Processing task: %s", task_name)
                 try:
                     tcfg = task_info.get(task_name, {}) if task_info else {}
+                    _apply_task_timer(tcfg, task_name)
                     if tcfg.get("type") == "email" and send_email_fn:
                         ctx_data = {
                             "session_name": task_name,
@@ -1488,6 +2466,7 @@ def execute_plan_step(step, mapping_functions, ctx, metrics_cls,
         logger.info("Processing task: %s", task_name)
         try:
             tcfg = task_info.get(task_name, {}) if task_info else {}
+            _apply_task_timer(tcfg, task_name)
             if tcfg.get("type") == "email" and send_email_fn:
                 ctx_data = {
                     "session_name": task_name,

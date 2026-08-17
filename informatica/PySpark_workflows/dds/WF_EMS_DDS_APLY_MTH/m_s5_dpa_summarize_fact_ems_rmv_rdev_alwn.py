@@ -100,35 +100,14 @@ group by opr.opr_code"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_No_of_Families_Rehoused_to_PH = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_No_of_Families_Rehoused_to_PH.columns
-        _port_cols = ["OPR_CODE", "CNT", "SCHM_CODE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_No_of_Families_Rehoused_to_PH = df_No_of_Families_Rehoused_to_PH.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_No_of_Families_Rehoused_to_PH = df_No_of_Families_Rehoused_to_PH.select([col(c) if c.lower() in [x.lower() for x in df_No_of_Families_Rehoused_to_PH.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_No_of_Families_Rehoused_to_PH = lib.sq_output(
+            input_df=df_No_of_Families_Rehoused_to_PH,
+            port_cols={
+                'OPR_CODE': 'string',
+                'CNT': 'decimal',
+                'SCHM_CODE': 'string',
+            },
+        )
         ctx.register_df("df_No_of_Families_Rehoused_to_PH", df_No_of_Families_Rehoused_to_PH)
         
         logger.info("Step: apply_two_P_Domestic_Removal_Allowance_Redev")
@@ -157,35 +136,14 @@ and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_two_P_Domestic_Removal_Allowance_Redev = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_two_P_Domestic_Removal_Allowance_Redev.columns
-        _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_two_P_Domestic_Removal_Allowance_Redev = df_two_P_Domestic_Removal_Allowance_Redev.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_two_P_Domestic_Removal_Allowance_Redev = df_two_P_Domestic_Removal_Allowance_Redev.select([col(c) if c.lower() in [x.lower() for x in df_two_P_Domestic_Removal_Allowance_Redev.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_two_P_Domestic_Removal_Allowance_Redev = lib.sq_output(
+            input_df=df_two_P_Domestic_Removal_Allowance_Redev,
+            port_cols={
+                'OPR_CODE': 'string',
+                'AMT': 'decimal',
+                'SCHM_CODE': 'string',
+            },
+        )
         ctx.register_df("df_two_P_Domestic_Removal_Allowance_Redev", df_two_P_Domestic_Removal_Allowance_Redev)
         
         logger.info("Step: apply_one_P_Domestic_Removal_Allowance_Redev")
@@ -214,35 +172,14 @@ and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_one_P_Domestic_Removal_Allowance_Redev = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_one_P_Domestic_Removal_Allowance_Redev.columns
-        _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_one_P_Domestic_Removal_Allowance_Redev = df_one_P_Domestic_Removal_Allowance_Redev.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_one_P_Domestic_Removal_Allowance_Redev = df_one_P_Domestic_Removal_Allowance_Redev.select([col(c) if c.lower() in [x.lower() for x in df_one_P_Domestic_Removal_Allowance_Redev.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_one_P_Domestic_Removal_Allowance_Redev = lib.sq_output(
+            input_df=df_one_P_Domestic_Removal_Allowance_Redev,
+            port_cols={
+                'OPR_CODE': 'string',
+                'AMT': 'decimal',
+                'SCHM_CODE': 'string',
+            },
+        )
         ctx.register_df("df_one_P_Domestic_Removal_Allowance_Redev", df_one_P_Domestic_Removal_Allowance_Redev)
         
         logger.info("Step: apply_two_P_Exgratia_Allowance")
@@ -271,35 +208,14 @@ and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_two_P_Exgratia_Allowance = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_two_P_Exgratia_Allowance.columns
-        _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_two_P_Exgratia_Allowance = df_two_P_Exgratia_Allowance.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_two_P_Exgratia_Allowance = df_two_P_Exgratia_Allowance.select([col(c) if c.lower() in [x.lower() for x in df_two_P_Exgratia_Allowance.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_two_P_Exgratia_Allowance = lib.sq_output(
+            input_df=df_two_P_Exgratia_Allowance,
+            port_cols={
+                'OPR_CODE': 'string',
+                'AMT': 'decimal',
+                'SCHM_CODE': 'string',
+            },
+        )
         ctx.register_df("df_two_P_Exgratia_Allowance", df_two_P_Exgratia_Allowance)
         
         logger.info("Step: apply_one_P_Exgratia_Allowance")
@@ -328,35 +244,14 @@ and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_one_P_Exgratia_Allowance = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_one_P_Exgratia_Allowance.columns
-        _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_one_P_Exgratia_Allowance = df_one_P_Exgratia_Allowance.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_one_P_Exgratia_Allowance = df_one_P_Exgratia_Allowance.select([col(c) if c.lower() in [x.lower() for x in df_one_P_Exgratia_Allowance.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_one_P_Exgratia_Allowance = lib.sq_output(
+            input_df=df_one_P_Exgratia_Allowance,
+            port_cols={
+                'OPR_CODE': 'string',
+                'AMT': 'decimal',
+                'SCHM_CODE': 'string',
+            },
+        )
         ctx.register_df("df_one_P_Exgratia_Allowance", df_one_P_Exgratia_Allowance)
         
         logger.info("Step: apply_two_P_Special_Allowance")
@@ -385,35 +280,14 @@ and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_two_P_Special_Allowance = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_two_P_Special_Allowance.columns
-        _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_two_P_Special_Allowance = df_two_P_Special_Allowance.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_two_P_Special_Allowance = df_two_P_Special_Allowance.select([col(c) if c.lower() in [x.lower() for x in df_two_P_Special_Allowance.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_two_P_Special_Allowance = lib.sq_output(
+            input_df=df_two_P_Special_Allowance,
+            port_cols={
+                'OPR_CODE': 'string',
+                'AMT': 'decimal',
+                'SCHM_CODE': 'string',
+            },
+        )
         ctx.register_df("df_two_P_Special_Allowance", df_two_P_Special_Allowance)
         
         logger.info("Step: apply_one_P_Special_Allowance")
@@ -442,35 +316,14 @@ and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_one_P_Special_Allowance = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_one_P_Special_Allowance.columns
-        _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_one_P_Special_Allowance = df_one_P_Special_Allowance.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_one_P_Special_Allowance = df_one_P_Special_Allowance.select([col(c) if c.lower() in [x.lower() for x in df_one_P_Special_Allowance.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_one_P_Special_Allowance = lib.sq_output(
+            input_df=df_one_P_Special_Allowance,
+            port_cols={
+                'OPR_CODE': 'string',
+                'AMT': 'decimal',
+                'SCHM_CODE': 'string',
+            },
+        )
         ctx.register_df("df_one_P_Special_Allowance", df_one_P_Special_Allowance)
         
         logger.info("Step: apply_two_P_Domestic_Removal_Allowance")
@@ -499,35 +352,14 @@ and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_two_P_Domestic_Removal_Allowance = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_two_P_Domestic_Removal_Allowance.columns
-        _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_two_P_Domestic_Removal_Allowance = df_two_P_Domestic_Removal_Allowance.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_two_P_Domestic_Removal_Allowance = df_two_P_Domestic_Removal_Allowance.select([col(c) if c.lower() in [x.lower() for x in df_two_P_Domestic_Removal_Allowance.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_two_P_Domestic_Removal_Allowance = lib.sq_output(
+            input_df=df_two_P_Domestic_Removal_Allowance,
+            port_cols={
+                'OPR_CODE': 'string',
+                'AMT': 'decimal',
+                'SCHM_CODE': 'string',
+            },
+        )
         ctx.register_df("df_two_P_Domestic_Removal_Allowance", df_two_P_Domestic_Removal_Allowance)
         
         logger.info("Step: apply_one_P_Domestic_Removal_Allowance")
@@ -556,35 +388,14 @@ and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_one_P_Domestic_Removal_Allowance = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_one_P_Domestic_Removal_Allowance.columns
-        _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_one_P_Domestic_Removal_Allowance = df_one_P_Domestic_Removal_Allowance.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_one_P_Domestic_Removal_Allowance = df_one_P_Domestic_Removal_Allowance.select([col(c) if c.lower() in [x.lower() for x in df_one_P_Domestic_Removal_Allowance.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_one_P_Domestic_Removal_Allowance = lib.sq_output(
+            input_df=df_one_P_Domestic_Removal_Allowance,
+            port_cols={
+                'OPR_CODE': 'string',
+                'AMT': 'decimal',
+                'SCHM_CODE': 'string',
+            },
+        )
         ctx.register_df("df_one_P_Domestic_Removal_Allowance", df_one_P_Domestic_Removal_Allowance)
         
         logger.info("Step: apply_Total_No_of_2P_Family")
@@ -616,35 +427,14 @@ group by opr.opr_code"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_Total_No_of_2P_Family = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_Total_No_of_2P_Family.columns
-        _port_cols = ["OPR_CODE", "CNT", "SCHM_CODE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_Total_No_of_2P_Family = df_Total_No_of_2P_Family.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_Total_No_of_2P_Family = df_Total_No_of_2P_Family.select([col(c) if c.lower() in [x.lower() for x in df_Total_No_of_2P_Family.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_Total_No_of_2P_Family = lib.sq_output(
+            input_df=df_Total_No_of_2P_Family,
+            port_cols={
+                'OPR_CODE': 'string',
+                'CNT': 'decimal',
+                'SCHM_CODE': 'string',
+            },
+        )
         ctx.register_df("df_Total_No_of_2P_Family", df_Total_No_of_2P_Family)
         
         logger.info("Step: apply_Total_No_of_1P_Family")
@@ -676,35 +466,14 @@ group by opr.opr_code"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_Total_No_of_1P_Family = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_Total_No_of_1P_Family.columns
-        _port_cols = ["OPR_CODE", "CNT", "SCHM_CODE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_Total_No_of_1P_Family = df_Total_No_of_1P_Family.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_Total_No_of_1P_Family = df_Total_No_of_1P_Family.select([col(c) if c.lower() in [x.lower() for x in df_Total_No_of_1P_Family.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_Total_No_of_1P_Family = lib.sq_output(
+            input_df=df_Total_No_of_1P_Family,
+            port_cols={
+                'OPR_CODE': 'string',
+                'CNT': 'decimal',
+                'SCHM_CODE': 'string',
+            },
+        )
         ctx.register_df("df_Total_No_of_1P_Family", df_Total_No_of_1P_Family)
         
         logger.info("Step: apply_Domestic_Removal_Allowance_Redev")
@@ -733,35 +502,14 @@ and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_Domestic_Removal_Allowance_Redev = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_Domestic_Removal_Allowance_Redev.columns
-        _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_Domestic_Removal_Allowance_Redev = df_Domestic_Removal_Allowance_Redev.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_Domestic_Removal_Allowance_Redev = df_Domestic_Removal_Allowance_Redev.select([col(c) if c.lower() in [x.lower() for x in df_Domestic_Removal_Allowance_Redev.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_Domestic_Removal_Allowance_Redev = lib.sq_output(
+            input_df=df_Domestic_Removal_Allowance_Redev,
+            port_cols={
+                'OPR_CODE': 'string',
+                'AMT': 'decimal',
+                'SCHM_CODE': 'string',
+            },
+        )
         ctx.register_df("df_Domestic_Removal_Allowance_Redev", df_Domestic_Removal_Allowance_Redev)
         
         logger.info("Step: apply_Special_Allowance")
@@ -790,35 +538,14 @@ and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_Special_Allowance = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_Special_Allowance.columns
-        _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_Special_Allowance = df_Special_Allowance.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_Special_Allowance = df_Special_Allowance.select([col(c) if c.lower() in [x.lower() for x in df_Special_Allowance.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_Special_Allowance = lib.sq_output(
+            input_df=df_Special_Allowance,
+            port_cols={
+                'OPR_CODE': 'string',
+                'AMT': 'decimal',
+                'SCHM_CODE': 'string',
+            },
+        )
         ctx.register_df("df_Special_Allowance", df_Special_Allowance)
         
         logger.info("Step: apply_Domestic_Removal_Allowance")
@@ -847,35 +574,14 @@ and to_date('$$v_snsh_date', 'YYYYMMDD') between stat_sts.bgn_date AND stat_sts.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_Domestic_Removal_Allowance = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_Domestic_Removal_Allowance.columns
-        _port_cols = ["OPR_CODE", "AMT", "SCHM_CODE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_Domestic_Removal_Allowance = df_Domestic_Removal_Allowance.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_Domestic_Removal_Allowance = df_Domestic_Removal_Allowance.select([col(c) if c.lower() in [x.lower() for x in df_Domestic_Removal_Allowance.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_Domestic_Removal_Allowance = lib.sq_output(
+            input_df=df_Domestic_Removal_Allowance,
+            port_cols={
+                'OPR_CODE': 'string',
+                'AMT': 'decimal',
+                'SCHM_CODE': 'string',
+            },
+        )
         ctx.register_df("df_Domestic_Removal_Allowance", df_Domestic_Removal_Allowance)
         
         logger.info("Step: apply_No_of_Cases_Settled_by_Other_Means")
@@ -908,35 +614,14 @@ group by opr.opr_code"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_No_of_Cases_Settled_by_Other_Means = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_No_of_Cases_Settled_by_Other_Means.columns
-        _port_cols = ["OPR_CODE", "CNT", "SCHM_CODE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_No_of_Cases_Settled_by_Other_Means = df_No_of_Cases_Settled_by_Other_Means.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_No_of_Cases_Settled_by_Other_Means = df_No_of_Cases_Settled_by_Other_Means.select([col(c) if c.lower() in [x.lower() for x in df_No_of_Cases_Settled_by_Other_Means.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_No_of_Cases_Settled_by_Other_Means = lib.sq_output(
+            input_df=df_No_of_Cases_Settled_by_Other_Means,
+            port_cols={
+                'OPR_CODE': 'string',
+                'CNT': 'decimal',
+                'SCHM_CODE': 'string',
+            },
+        )
         ctx.register_df("df_No_of_Cases_Settled_by_Other_Means", df_No_of_Cases_Settled_by_Other_Means)
         
         logger.info("Step: apply_No_of_HPL_Purchaser_Families_Included")
@@ -969,35 +654,14 @@ group by opr.opr_code"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_No_of_HPL_Purchaser_Families_Included = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_No_of_HPL_Purchaser_Families_Included.columns
-        _port_cols = ["OPR_CODE", "CNT", "SCHM_CODE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_No_of_HPL_Purchaser_Families_Included = df_No_of_HPL_Purchaser_Families_Included.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_No_of_HPL_Purchaser_Families_Included = df_No_of_HPL_Purchaser_Families_Included.select([col(c) if c.lower() in [x.lower() for x in df_No_of_HPL_Purchaser_Families_Included.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_No_of_HPL_Purchaser_Families_Included = lib.sq_output(
+            input_df=df_No_of_HPL_Purchaser_Families_Included,
+            port_cols={
+                'OPR_CODE': 'string',
+                'CNT': 'decimal',
+                'SCHM_CODE': 'string',
+            },
+        )
         ctx.register_df("df_No_of_HPL_Purchaser_Families_Included", df_No_of_HPL_Purchaser_Families_Included)
         
         logger.info("Step: apply_No_of_HOS_Purchaser_Families_Included")
@@ -1030,35 +694,14 @@ group by opr.opr_code"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_No_of_HOS_Purchaser_Families_Included = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_No_of_HOS_Purchaser_Families_Included.columns
-        _port_cols = ["OPR_CODE", "CNT", "SCHM_CODE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_No_of_HOS_Purchaser_Families_Included = df_No_of_HOS_Purchaser_Families_Included.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_No_of_HOS_Purchaser_Families_Included = df_No_of_HOS_Purchaser_Families_Included.select([col(c) if c.lower() in [x.lower() for x in df_No_of_HOS_Purchaser_Families_Included.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_No_of_HOS_Purchaser_Families_Included = lib.sq_output(
+            input_df=df_No_of_HOS_Purchaser_Families_Included,
+            port_cols={
+                'OPR_CODE': 'string',
+                'CNT': 'decimal',
+                'SCHM_CODE': 'string',
+            },
+        )
         ctx.register_df("df_No_of_HOS_Purchaser_Families_Included", df_No_of_HOS_Purchaser_Families_Included)
         
         logger.info("Step: apply_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS")
@@ -1077,239 +720,202 @@ and opr.opr_code not in ('1994R0009', '1995R0001')"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS.columns
-        _port_cols = ["OPR_CODE", "CRP_PYMT_STAT_LAST_EXTRC_DATE", "CRP_PYMT_STAT_EXTRC_DATE", "SCHM_CODE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS = df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS = df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS = lib.sq_output(
+            input_df=df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS,
+            port_cols={
+                'OPR_CODE': 'string',
+                'CRP_PYMT_STAT_LAST_EXTRC_DATE': 'date/time',
+                'CRP_PYMT_STAT_EXTRC_DATE': 'date/time',
+                'SCHM_CODE': 'string',
+            },
+        )
         ctx.register_df("df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS", df_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS)
         
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
-        df_EXPTRANS1 = df_No_of_Families_Rehoused_to_PH
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("RMV_CASE_CODE", expr("'RE'"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("AMT", expr("0"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["OPR_CODE", "CNT", "SCHM_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS1.columns]:
-                df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS1 = lib.expression(
+            input_df=df_No_of_Families_Rehoused_to_PH,
+            computed_columns=[
+                {'name': 'RMV_CASE_CODE', 'expr': "'RE'"},
+                {'name': 'AMT', 'expr': '0'}
+            ],
+        )
         ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
         
         logger.info("Step: apply_EXPTRANS1111122111112")
         # Expression: apply_EXPTRANS1111122111112
-        df_EXPTRANS1111122111112 = df_two_P_Domestic_Removal_Allowance_Redev
-        df_EXPTRANS1111122111112 = df_EXPTRANS1111122111112.withColumn("CNT", expr("0"))
-        df_EXPTRANS1111122111112 = df_EXPTRANS1111122111112.withColumn("RMV_CASE_CODE", expr("'DRAR2'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["OPR_CODE", "AMT", "SCHM_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS1111122111112.columns]:
-                df_EXPTRANS1111122111112 = df_EXPTRANS1111122111112.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS1111122111112 = lib.expression(
+            input_df=df_two_P_Domestic_Removal_Allowance_Redev,
+            computed_columns=[
+                {'name': 'CNT', 'expr': '0'},
+                {'name': 'RMV_CASE_CODE', 'expr': "'DRAR2'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS1111122111112", df_EXPTRANS1111122111112)
         
         logger.info("Step: apply_EXPTRANS1111122111111")
         # Expression: apply_EXPTRANS1111122111111
-        df_EXPTRANS1111122111111 = df_one_P_Domestic_Removal_Allowance_Redev
-        df_EXPTRANS1111122111111 = df_EXPTRANS1111122111111.withColumn("CNT", expr("0"))
-        df_EXPTRANS1111122111111 = df_EXPTRANS1111122111111.withColumn("RMV_CASE_CODE", expr("'DRAR1'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["OPR_CODE", "AMT", "SCHM_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS1111122111111.columns]:
-                df_EXPTRANS1111122111111 = df_EXPTRANS1111122111111.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS1111122111111 = lib.expression(
+            input_df=df_one_P_Domestic_Removal_Allowance_Redev,
+            computed_columns=[
+                {'name': 'CNT', 'expr': '0'},
+                {'name': 'RMV_CASE_CODE', 'expr': "'DRAR1'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS1111122111111", df_EXPTRANS1111122111111)
         
         logger.info("Step: apply_EXPTRANS111112211111")
         # Expression: apply_EXPTRANS111112211111
-        df_EXPTRANS111112211111 = df_two_P_Exgratia_Allowance
-        df_EXPTRANS111112211111 = df_EXPTRANS111112211111.withColumn("CNT", expr("0"))
-        df_EXPTRANS111112211111 = df_EXPTRANS111112211111.withColumn("RMV_CASE_CODE", expr("'EA2'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["OPR_CODE", "AMT", "SCHM_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS111112211111.columns]:
-                df_EXPTRANS111112211111 = df_EXPTRANS111112211111.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS111112211111 = lib.expression(
+            input_df=df_two_P_Exgratia_Allowance,
+            computed_columns=[
+                {'name': 'CNT', 'expr': '0'},
+                {'name': 'RMV_CASE_CODE', 'expr': "'EA2'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS111112211111", df_EXPTRANS111112211111)
         
         logger.info("Step: apply_EXPTRANS11111221111")
         # Expression: apply_EXPTRANS11111221111
-        df_EXPTRANS11111221111 = df_one_P_Exgratia_Allowance
-        df_EXPTRANS11111221111 = df_EXPTRANS11111221111.withColumn("CNT", expr("0"))
-        df_EXPTRANS11111221111 = df_EXPTRANS11111221111.withColumn("RMV_CASE_CODE", expr("'EA1'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["OPR_CODE", "AMT", "SCHM_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS11111221111.columns]:
-                df_EXPTRANS11111221111 = df_EXPTRANS11111221111.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS11111221111 = lib.expression(
+            input_df=df_one_P_Exgratia_Allowance,
+            computed_columns=[
+                {'name': 'CNT', 'expr': '0'},
+                {'name': 'RMV_CASE_CODE', 'expr': "'EA1'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS11111221111", df_EXPTRANS11111221111)
         
         logger.info("Step: apply_EXPTRANS1111122111")
         # Expression: apply_EXPTRANS1111122111
-        df_EXPTRANS1111122111 = df_two_P_Special_Allowance
-        df_EXPTRANS1111122111 = df_EXPTRANS1111122111.withColumn("CNT", expr("0"))
-        df_EXPTRANS1111122111 = df_EXPTRANS1111122111.withColumn("RMV_CASE_CODE", expr("'SA2'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["OPR_CODE", "AMT", "SCHM_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS1111122111.columns]:
-                df_EXPTRANS1111122111 = df_EXPTRANS1111122111.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS1111122111 = lib.expression(
+            input_df=df_two_P_Special_Allowance,
+            computed_columns=[
+                {'name': 'CNT', 'expr': '0'},
+                {'name': 'RMV_CASE_CODE', 'expr': "'SA2'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS1111122111", df_EXPTRANS1111122111)
         
         logger.info("Step: apply_EXPTRANS111112211")
         # Expression: apply_EXPTRANS111112211
-        df_EXPTRANS111112211 = df_one_P_Special_Allowance
-        df_EXPTRANS111112211 = df_EXPTRANS111112211.withColumn("CNT", expr("0"))
-        df_EXPTRANS111112211 = df_EXPTRANS111112211.withColumn("RMV_CASE_CODE", expr("'SA1'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["OPR_CODE", "AMT", "SCHM_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS111112211.columns]:
-                df_EXPTRANS111112211 = df_EXPTRANS111112211.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS111112211 = lib.expression(
+            input_df=df_one_P_Special_Allowance,
+            computed_columns=[
+                {'name': 'CNT', 'expr': '0'},
+                {'name': 'RMV_CASE_CODE', 'expr': "'SA1'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS111112211", df_EXPTRANS111112211)
         
         logger.info("Step: apply_EXPTRANS11111221")
         # Expression: apply_EXPTRANS11111221
-        df_EXPTRANS11111221 = df_two_P_Domestic_Removal_Allowance
-        df_EXPTRANS11111221 = df_EXPTRANS11111221.withColumn("CNT", expr("0"))
-        df_EXPTRANS11111221 = df_EXPTRANS11111221.withColumn("RMV_CASE_CODE", expr("'DRA2'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["OPR_CODE", "AMT", "SCHM_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS11111221.columns]:
-                df_EXPTRANS11111221 = df_EXPTRANS11111221.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS11111221 = lib.expression(
+            input_df=df_two_P_Domestic_Removal_Allowance,
+            computed_columns=[
+                {'name': 'CNT', 'expr': '0'},
+                {'name': 'RMV_CASE_CODE', 'expr': "'DRA2'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS11111221", df_EXPTRANS11111221)
         
         logger.info("Step: apply_EXPTRANS1111122")
         # Expression: apply_EXPTRANS1111122
-        df_EXPTRANS1111122 = df_one_P_Domestic_Removal_Allowance
-        df_EXPTRANS1111122 = df_EXPTRANS1111122.withColumn("CNT", expr("0"))
-        df_EXPTRANS1111122 = df_EXPTRANS1111122.withColumn("RMV_CASE_CODE", expr("'DRA1'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["OPR_CODE", "AMT", "SCHM_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS1111122.columns]:
-                df_EXPTRANS1111122 = df_EXPTRANS1111122.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS1111122 = lib.expression(
+            input_df=df_one_P_Domestic_Removal_Allowance,
+            computed_columns=[
+                {'name': 'CNT', 'expr': '0'},
+                {'name': 'RMV_CASE_CODE', 'expr': "'DRA1'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS1111122", df_EXPTRANS1111122)
         
         logger.info("Step: apply_EXPTRANS1112")
         # Expression: apply_EXPTRANS1112
-        df_EXPTRANS1112 = df_Total_No_of_2P_Family
-        df_EXPTRANS1112 = df_EXPTRANS1112.withColumn("RMV_CASE_CODE", expr("'TF2'"))
-        df_EXPTRANS1112 = df_EXPTRANS1112.withColumn("AMT", expr("0"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["OPR_CODE", "CNT", "SCHM_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS1112.columns]:
-                df_EXPTRANS1112 = df_EXPTRANS1112.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS1112 = lib.expression(
+            input_df=df_Total_No_of_2P_Family,
+            computed_columns=[
+                {'name': 'RMV_CASE_CODE', 'expr': "'TF2'"},
+                {'name': 'AMT', 'expr': '0'}
+            ],
+        )
         ctx.register_df("df_EXPTRANS1112", df_EXPTRANS1112)
         
         logger.info("Step: apply_EXPTRANS1111121")
         # Expression: apply_EXPTRANS1111121
-        df_EXPTRANS1111121 = df_Total_No_of_1P_Family
-        df_EXPTRANS1111121 = df_EXPTRANS1111121.withColumn("RMV_CASE_CODE", expr("'TF1'"))
-        df_EXPTRANS1111121 = df_EXPTRANS1111121.withColumn("AMT", expr("0"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["OPR_CODE", "CNT", "SCHM_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS1111121.columns]:
-                df_EXPTRANS1111121 = df_EXPTRANS1111121.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS1111121 = lib.expression(
+            input_df=df_Total_No_of_1P_Family,
+            computed_columns=[
+                {'name': 'RMV_CASE_CODE', 'expr': "'TF1'"},
+                {'name': 'AMT', 'expr': '0'}
+            ],
+        )
         ctx.register_df("df_EXPTRANS1111121", df_EXPTRANS1111121)
         
         logger.info("Step: apply_EXPTRANS111112")
         # Expression: apply_EXPTRANS111112
-        df_EXPTRANS111112 = df_Domestic_Removal_Allowance_Redev
-        df_EXPTRANS111112 = df_EXPTRANS111112.withColumn("CNT", expr("0"))
-        df_EXPTRANS111112 = df_EXPTRANS111112.withColumn("RMV_CASE_CODE", expr("'DRAR'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["OPR_CODE", "AMT", "SCHM_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS111112.columns]:
-                df_EXPTRANS111112 = df_EXPTRANS111112.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS111112 = lib.expression(
+            input_df=df_Domestic_Removal_Allowance_Redev,
+            computed_columns=[
+                {'name': 'CNT', 'expr': '0'},
+                {'name': 'RMV_CASE_CODE', 'expr': "'DRAR'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS111112", df_EXPTRANS111112)
         
         logger.info("Step: apply_EXPTRANS111111")
         # Expression: apply_EXPTRANS111111
-        df_EXPTRANS111111 = df_Special_Allowance
-        df_EXPTRANS111111 = df_EXPTRANS111111.withColumn("CNT", expr("0"))
-        df_EXPTRANS111111 = df_EXPTRANS111111.withColumn("RMV_CASE_CODE", expr("'SA'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["OPR_CODE", "AMT", "SCHM_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS111111.columns]:
-                df_EXPTRANS111111 = df_EXPTRANS111111.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS111111 = lib.expression(
+            input_df=df_Special_Allowance,
+            computed_columns=[
+                {'name': 'CNT', 'expr': '0'},
+                {'name': 'RMV_CASE_CODE', 'expr': "'SA'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS111111", df_EXPTRANS111111)
         
         logger.info("Step: apply_EXPTRANS11111")
         # Expression: apply_EXPTRANS11111
-        df_EXPTRANS11111 = df_Domestic_Removal_Allowance
-        df_EXPTRANS11111 = df_EXPTRANS11111.withColumn("CNT", expr("0"))
-        df_EXPTRANS11111 = df_EXPTRANS11111.withColumn("RMV_CASE_CODE", expr("'DRA'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["OPR_CODE", "AMT", "SCHM_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS11111.columns]:
-                df_EXPTRANS11111 = df_EXPTRANS11111.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS11111 = lib.expression(
+            input_df=df_Domestic_Removal_Allowance,
+            computed_columns=[
+                {'name': 'CNT', 'expr': '0'},
+                {'name': 'RMV_CASE_CODE', 'expr': "'DRA'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS11111", df_EXPTRANS11111)
         
         logger.info("Step: apply_EXPTRANS1111")
         # Expression: apply_EXPTRANS1111
-        df_EXPTRANS1111 = df_No_of_Cases_Settled_by_Other_Means
-        df_EXPTRANS1111 = df_EXPTRANS1111.withColumn("RMV_CASE_CODE", expr("'CS'"))
-        df_EXPTRANS1111 = df_EXPTRANS1111.withColumn("AMT", expr("0"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["OPR_CODE", "CNT", "SCHM_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS1111.columns]:
-                df_EXPTRANS1111 = df_EXPTRANS1111.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS1111 = lib.expression(
+            input_df=df_No_of_Cases_Settled_by_Other_Means,
+            computed_columns=[
+                {'name': 'RMV_CASE_CODE', 'expr': "'CS'"},
+                {'name': 'AMT', 'expr': '0'}
+            ],
+        )
         ctx.register_df("df_EXPTRANS1111", df_EXPTRANS1111)
         
         logger.info("Step: apply_EXPTRANS111")
         # Expression: apply_EXPTRANS111
-        df_EXPTRANS111 = df_No_of_HPL_Purchaser_Families_Included
-        df_EXPTRANS111 = df_EXPTRANS111.withColumn("RMV_CASE_CODE", expr("'HPL'"))
-        df_EXPTRANS111 = df_EXPTRANS111.withColumn("AMT", expr("0"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["OPR_CODE", "CNT", "SCHM_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS111.columns]:
-                df_EXPTRANS111 = df_EXPTRANS111.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS111 = lib.expression(
+            input_df=df_No_of_HPL_Purchaser_Families_Included,
+            computed_columns=[
+                {'name': 'RMV_CASE_CODE', 'expr': "'HPL'"},
+                {'name': 'AMT', 'expr': '0'}
+            ],
+        )
         ctx.register_df("df_EXPTRANS111", df_EXPTRANS111)
         
         logger.info("Step: apply_EXPTRANS11")
         # Expression: apply_EXPTRANS11
-        df_EXPTRANS11 = df_No_of_HOS_Purchaser_Families_Included
-        df_EXPTRANS11 = df_EXPTRANS11.withColumn("RMV_CASE_CODE", expr("'HOS'"))
-        df_EXPTRANS11 = df_EXPTRANS11.withColumn("AMT", expr("0"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["OPR_CODE", "CNT", "SCHM_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS11.columns]:
-                df_EXPTRANS11 = df_EXPTRANS11.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS11 = lib.expression(
+            input_df=df_No_of_HOS_Purchaser_Families_Included,
+            computed_columns=[
+                {'name': 'RMV_CASE_CODE', 'expr': "'HOS'"},
+                {'name': 'AMT', 'expr': '0'}
+            ],
+        )
         ctx.register_df("df_EXPTRANS11", df_EXPTRANS11)
         
         logger.info("Step: read_LKP_OPR_TRGT_EVCT_DATE")
@@ -1336,7 +942,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN opr_sts.BGN_DATE AND opr_sts.EN
         _lkp_input = _lkp_input.withColumn("IN_OPR_CODE", col("OPR_CODE"))
         # Join condition: IN_OPR_CODE=OPR_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = _lkp_input.alias("_main").join(
+        df_lkp_merge_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS = _lkp_input.alias("_main").join(
             broadcast(df_LKP_OPR_TRGT_EVCT_DATE).alias("_lkp"),
             (col("_main.IN_OPR_CODE") == col("_lkp.OPR_CODE")),
             "left"
@@ -1344,170 +950,175 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN opr_sts.BGN_DATE AND opr_sts.EN
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_OPR_TRGT_EVCT_DATE[c] for c in df_LKP_OPR_TRGT_EVCT_DATE.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
+        ctx.register_df("df_lkp_merge_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS", df_lkp_merge_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS)        
         logger.info("Step: apply_Union_Transformation")
         # Union: apply_Union_Transformation
-        # Select + rename upstream columns per input, then union
-        df_Union_Transformation_re = df_EXPTRANS1.select(
-            col("OPR_CODE").alias("OPR_CODE"),
-            col("CNT").alias("CNT"),
-            col("AMT").alias("AMT"),
-            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
-            col("SCHM_CODE").alias("SCHM_CODE")        )
-        df_Union_Transformation_hos = df_EXPTRANS11.select(
-            col("OPR_CODE").alias("OPR_CODE"),
-            col("CNT").alias("CNT"),
-            col("AMT").alias("AMT"),
-            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
-            col("SCHM_CODE").alias("SCHM_CODE")        )
-        df_Union_Transformation_hpl = df_EXPTRANS111.select(
-            col("OPR_CODE").alias("OPR_CODE"),
-            col("CNT").alias("CNT"),
-            col("AMT").alias("AMT"),
-            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
-            col("SCHM_CODE").alias("SCHM_CODE")        )
-        df_Union_Transformation_cs = df_EXPTRANS1111.select(
-            col("OPR_CODE").alias("OPR_CODE"),
-            col("CNT").alias("CNT"),
-            col("AMT").alias("AMT"),
-            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
-            col("SCHM_CODE").alias("SCHM_CODE")        )
-        df_Union_Transformation_dra = df_EXPTRANS11111.select(
-            col("OPR_CODE").alias("OPR_CODE"),
-            col("CNT").alias("CNT"),
-            col("AMT").alias("AMT"),
-            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
-            col("SCHM_CODE").alias("SCHM_CODE")        )
-        df_Union_Transformation_sa = df_EXPTRANS111111.select(
-            col("OPR_CODE").alias("OPR_CODE"),
-            col("CNT").alias("CNT"),
-            col("AMT").alias("AMT"),
-            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
-            col("SCHM_CODE").alias("SCHM_CODE")        )
-        df_Union_Transformation_drar = df_EXPTRANS111112.select(
-            col("OPR_CODE").alias("OPR_CODE"),
-            col("CNT").alias("CNT"),
-            col("AMT").alias("AMT"),
-            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
-            col("SCHM_CODE").alias("SCHM_CODE")        )
-        df_Union_Transformation_tf1 = df_EXPTRANS1111121.select(
-            col("OPR_CODE").alias("OPR_CODE"),
-            col("CNT").alias("CNT"),
-            col("AMT").alias("AMT"),
-            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
-            col("SCHM_CODE").alias("SCHM_CODE")        )
-        df_Union_Transformation_tf2 = df_EXPTRANS1112.select(
-            col("OPR_CODE").alias("OPR_CODE"),
-            col("CNT").alias("CNT"),
-            col("AMT").alias("AMT"),
-            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
-            col("SCHM_CODE").alias("SCHM_CODE")        )
-        df_Union_Transformation_dra1 = df_EXPTRANS1111122.select(
-            col("OPR_CODE").alias("OPR_CODE"),
-            col("CNT").alias("CNT"),
-            col("AMT").alias("AMT"),
-            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
-            col("SCHM_CODE").alias("SCHM_CODE")        )
-        df_Union_Transformation_dra2 = df_EXPTRANS11111221.select(
-            col("OPR_CODE").alias("OPR_CODE"),
-            col("CNT").alias("CNT"),
-            col("AMT").alias("AMT"),
-            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
-            col("SCHM_CODE").alias("SCHM_CODE")        )
-        df_Union_Transformation_sa1 = df_EXPTRANS111112211.select(
-            col("OPR_CODE").alias("OPR_CODE"),
-            col("CNT").alias("CNT"),
-            col("AMT").alias("AMT"),
-            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
-            col("SCHM_CODE").alias("SCHM_CODE")        )
-        df_Union_Transformation_sa2 = df_EXPTRANS1111122111.select(
-            col("OPR_CODE").alias("OPR_CODE"),
-            col("CNT").alias("CNT"),
-            col("AMT").alias("AMT"),
-            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
-            col("SCHM_CODE").alias("SCHM_CODE")        )
-        df_Union_Transformation_ea1 = df_EXPTRANS11111221111.select(
-            col("OPR_CODE").alias("OPR_CODE"),
-            col("CNT").alias("CNT"),
-            col("AMT").alias("AMT"),
-            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
-            col("SCHM_CODE").alias("SCHM_CODE")        )
-        df_Union_Transformation_ea2 = df_EXPTRANS111112211111.select(
-            col("OPR_CODE").alias("OPR_CODE"),
-            col("CNT").alias("CNT"),
-            col("AMT").alias("AMT"),
-            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
-            col("SCHM_CODE").alias("SCHM_CODE")        )
-        df_Union_Transformation_drar1 = df_EXPTRANS1111122111111.select(
-            col("OPR_CODE").alias("OPR_CODE"),
-            col("CNT").alias("CNT"),
-            col("AMT").alias("AMT"),
-            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
-            col("SCHM_CODE").alias("SCHM_CODE")        )
-        df_Union_Transformation_drar2 = df_EXPTRANS1111122111112.select(
-            col("OPR_CODE").alias("OPR_CODE"),
-            col("CNT").alias("CNT"),
-            col("AMT").alias("AMT"),
-            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
-            col("SCHM_CODE").alias("SCHM_CODE")        )
-        df_Union_Transformation = df_Union_Transformation_re
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_hos, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_hpl, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_cs, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_dra, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_sa, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_drar, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_tf1, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_tf2, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_dra1, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_dra2, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_sa1, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_sa2, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_ea1, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_ea2, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_drar1, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_drar2, allowMissingColumns=True)
-        # Select only union output columns (add lit(None) for any missing)
-        for _col in ["OPR_CODE", "CNT", "AMT", "RMV_CASE_CODE", "SCHM_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_Union_Transformation.columns]:
-                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
-        df_Union_Transformation = df_Union_Transformation.select("OPR_CODE", "CNT", "AMT", "RMV_CASE_CODE", "SCHM_CODE")
+        df_Union_Transformation = lib.union(
+            input_df=df_EXPTRANS1111122111112,
+            union_selects=[
+                {'df_input': df_EXPTRANS1, 'selects': [
+                    'OPR_CODE',
+                    'CNT',
+                    'AMT',
+                    'RMV_CASE_CODE',
+                    'SCHM_CODE'
+                ]},
+                {'df_input': df_EXPTRANS11, 'selects': [
+                    'OPR_CODE',
+                    'CNT',
+                    'AMT',
+                    'RMV_CASE_CODE',
+                    'SCHM_CODE'
+                ]},
+                {'df_input': df_EXPTRANS111, 'selects': [
+                    'OPR_CODE',
+                    'CNT',
+                    'AMT',
+                    'RMV_CASE_CODE',
+                    'SCHM_CODE'
+                ]},
+                {'df_input': df_EXPTRANS1111, 'selects': [
+                    'OPR_CODE',
+                    'CNT',
+                    'AMT',
+                    'RMV_CASE_CODE',
+                    'SCHM_CODE'
+                ]},
+                {'df_input': df_EXPTRANS11111, 'selects': [
+                    'OPR_CODE',
+                    'CNT',
+                    'AMT',
+                    'RMV_CASE_CODE',
+                    'SCHM_CODE'
+                ]},
+                {'df_input': df_EXPTRANS111111, 'selects': [
+                    'OPR_CODE',
+                    'CNT',
+                    'AMT',
+                    'RMV_CASE_CODE',
+                    'SCHM_CODE'
+                ]},
+                {'df_input': df_EXPTRANS111112, 'selects': [
+                    'OPR_CODE',
+                    'CNT',
+                    'AMT',
+                    'RMV_CASE_CODE',
+                    'SCHM_CODE'
+                ]},
+                {'df_input': df_EXPTRANS1111121, 'selects': [
+                    'OPR_CODE',
+                    'CNT',
+                    'AMT',
+                    'RMV_CASE_CODE',
+                    'SCHM_CODE'
+                ]},
+                {'df_input': df_EXPTRANS1112, 'selects': [
+                    'OPR_CODE',
+                    'CNT',
+                    'AMT',
+                    'RMV_CASE_CODE',
+                    'SCHM_CODE'
+                ]},
+                {'df_input': df_EXPTRANS1111122, 'selects': [
+                    'OPR_CODE',
+                    'CNT',
+                    'AMT',
+                    'RMV_CASE_CODE',
+                    'SCHM_CODE'
+                ]},
+                {'df_input': df_EXPTRANS11111221, 'selects': [
+                    'OPR_CODE',
+                    'CNT',
+                    'AMT',
+                    'RMV_CASE_CODE',
+                    'SCHM_CODE'
+                ]},
+                {'df_input': df_EXPTRANS111112211, 'selects': [
+                    'OPR_CODE',
+                    'CNT',
+                    'AMT',
+                    'RMV_CASE_CODE',
+                    'SCHM_CODE'
+                ]},
+                {'df_input': df_EXPTRANS1111122111, 'selects': [
+                    'OPR_CODE',
+                    'CNT',
+                    'AMT',
+                    'RMV_CASE_CODE',
+                    'SCHM_CODE'
+                ]},
+                {'df_input': df_EXPTRANS11111221111, 'selects': [
+                    'OPR_CODE',
+                    'CNT',
+                    'AMT',
+                    'RMV_CASE_CODE',
+                    'SCHM_CODE'
+                ]},
+                {'df_input': df_EXPTRANS111112211111, 'selects': [
+                    'OPR_CODE',
+                    'CNT',
+                    'AMT',
+                    'RMV_CASE_CODE',
+                    'SCHM_CODE'
+                ]},
+                {'df_input': df_EXPTRANS1111122111111, 'selects': [
+                    'OPR_CODE',
+                    'CNT',
+                    'AMT',
+                    'RMV_CASE_CODE',
+                    'SCHM_CODE'
+                ]},
+                {'df_input': df_EXPTRANS1111122111112, 'selects': [
+                    'OPR_CODE',
+                    'CNT',
+                    'AMT',
+                    'RMV_CASE_CODE',
+                    'SCHM_CODE'
+                ]},
+            ],
+            output_columns=['OPR_CODE', 'CNT', 'AMT', 'RMV_CASE_CODE', 'SCHM_CODE'],
+        )
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
         logger.info("Step: apply_EXPTRANS2")
         # Expression: apply_EXPTRANS2
-        df_EXPTRANS2 = df_Union_Transformation
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["OPR_CODE", "CNT", "AMT", "RMV_CASE_CODE", "SCHM_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS2.columns]:
-                df_EXPTRANS2 = df_EXPTRANS2.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS2 = lib.expression(
+            input_df=df_Union_Transformation,
+        )
         ctx.register_df("df_EXPTRANS2", df_EXPTRANS2)
         
         logger.info("Step: apply_Union_Transformation1")
         # Union: apply_Union_Transformation1
-        # Select + rename upstream columns per input, then union
-        df_Union_Transformation1_main = df_lkp_merge_1.select(
-            col("OPR_CODE").alias("OPR_CODE"),
-            col("OPR_TRGT_EVCT_DATE").alias("OPR_TRGT_EVCT_DATE"),
-            col("OPR_DESP").alias("OPR_DESP"),
-            col("OPR_RMK_TEXT").alias("OPR_RMK_TEXT"),
-            col("CRP_PYMT_STAT_LAST_EXTRC_DATE").alias("CRP_PYMT_STAT_LAST_EXTRC_DATE"),
-            col("CRP_PYMT_STAT_EXTRC_DATE").alias("CRP_PYMT_STAT_EXTRC_DATE"),
-            col("SCHM_CODE").alias("SCHM_CODE")        )
-        df_Union_Transformation1_sub = df_EXPTRANS2.select(
-            col("OPR_CODE").alias("OPR_CODE"),
-            col("CNT").alias("CNT"),
-            col("AMT").alias("AMT"),
-            col("RMV_CASE_CODE").alias("RMV_CASE_CODE"),
-            col("SCHM_CODE").alias("SCHM_CODE")        )
-        df_Union_Transformation1 = df_Union_Transformation1_main
-        df_Union_Transformation1 = df_Union_Transformation1.unionByName(df_Union_Transformation1_sub, allowMissingColumns=True)
-        # Select only union output columns (add lit(None) for any missing)
-        for _col in ["OPR_CODE", "OPR_TRGT_EVCT_DATE", "OPR_DESP", "OPR_RMK_TEXT", "CRP_PYMT_STAT_LAST_EXTRC_DATE", "CRP_PYMT_STAT_EXTRC_DATE", "CNT", "AMT", "RMV_CASE_CODE", "SCHM_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_Union_Transformation1.columns]:
-                df_Union_Transformation1 = df_Union_Transformation1.withColumn(_col, lit(None))
-        df_Union_Transformation1 = df_Union_Transformation1.select("OPR_CODE", "OPR_TRGT_EVCT_DATE", "OPR_DESP", "OPR_RMK_TEXT", "CRP_PYMT_STAT_LAST_EXTRC_DATE", "CRP_PYMT_STAT_EXTRC_DATE", "CNT", "AMT", "RMV_CASE_CODE", "SCHM_CODE")
+        df_Union_Transformation1 = lib.union(
+            input_df=df_EXPTRANS2,
+            union_selects=[
+                {'df_input': df_lkp_merge_SQ_SOR_EMS_POR_CRP_PYMT_STAT_STS, 'selects': [
+                    'OPR_CODE',
+                    'OPR_TRGT_EVCT_DATE',
+                    'OPR_DESP',
+                    'OPR_RMK_TEXT',
+                    'CRP_PYMT_STAT_LAST_EXTRC_DATE',
+                    'CRP_PYMT_STAT_EXTRC_DATE',
+                    None,
+                    None,
+                    None,
+                    'SCHM_CODE'
+                ]},
+                {'df_input': df_EXPTRANS2, 'selects': [
+                    'OPR_CODE',
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    'CNT',
+                    'AMT',
+                    'RMV_CASE_CODE',
+                    'SCHM_CODE'
+                ]},
+            ],
+            output_columns=['OPR_CODE', 'OPR_TRGT_EVCT_DATE', 'OPR_DESP', 'OPR_RMK_TEXT', 'CRP_PYMT_STAT_LAST_EXTRC_DATE', 'CRP_PYMT_STAT_EXTRC_DATE', 'CNT', 'AMT', 'RMV_CASE_CODE', 'SCHM_CODE'],
+        )
         ctx.register_df("df_Union_Transformation1", df_Union_Transformation1)
         
         logger.info("Step: apply_AGGTRANS")
@@ -1533,22 +1144,19 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN opr_sts.BGN_DATE AND opr_sts.EN
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_AGGTRANS
-        df_EXPTRANS = df_EXPTRANS.withColumn("CNT", expr("CNT_OUT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("AMT", expr("AMT_OUT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DMNS_SCHM_CODE", expr("'NEW'"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("SYSTIME", expr("current_timestamp()"))
-        _expr = """to_date(cast(concat('$$v_rpt_mth', '01') as string), 'yyyymmdd')"""
-        _expr = _expr.replace("$$v_snsh_date", str(v_snsh_date))
-        _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TIME_VAL_DATE", expr(_expr))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_FROM_DATE", expr("CRP_PYMT_STAT_LAST_EXTRC_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_TO_DATE", expr("CRP_PYMT_STAT_EXTRC_DATE"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["OPR_CODE", "OPR_TRGT_EVCT_DATE", "RMV_CASE_CODE", "OPR_DESP", "OPR_RMK_TEXT", "SCHM_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_AGGTRANS,
+            computed_columns=[
+                {'name': 'CNT', 'expr': 'CNT_OUT'},
+                {'name': 'AMT', 'expr': 'AMT_OUT'},
+                {'name': 'DMNS_SCHM_CODE', 'expr': "'NEW'"},
+                {'name': 'SYSTIME', 'expr': 'current_timestamp()'},
+                {'name': 'TIME_VAL_DATE', 'expr': "to_date(cast(concat('$$v_rpt_mth', '01') as string), 'yyyyMMdd')"},
+                {'name': 'OPR_FROM_DATE', 'expr': 'CRP_PYMT_STAT_LAST_EXTRC_DATE'},
+                {'name': 'OPR_TO_DATE', 'expr': 'CRP_PYMT_STAT_EXTRC_DATE'}
+            ],
+            substitutions={'$$v_rpt_mth': v_rpt_mth},
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_RMV_CASE")
@@ -1567,7 +1175,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN opr_sts.BGN_DATE AND opr_sts.EN
         _lkp_input = _lkp_input.withColumn("IN_RMV_CASE_SCHM_CODE", col("DMNS_SCHM_CODE"))
         # Join condition: IN_RMV_CASE_CODE=RMV_CASE_CODE AND IN_RMV_CASE_SCHM_CODE=RMV_CASE_SCHM_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_2 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_RMV_CASE).alias("_lkp"),
             (col("_main.IN_RMV_CASE_CODE") == col("_lkp.RMV_CASE_CODE")) &
             (col("_main.IN_RMV_CASE_SCHM_CODE") == col("_lkp.RMV_CASE_SCHM_CODE")),
@@ -1576,23 +1184,27 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN opr_sts.BGN_DATE AND opr_sts.EN
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_DDS_DMNS_EMS_RMV_CASE[c] for c in df_LKP_DDS_DMNS_EMS_RMV_CASE.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)        
+        ctx.register_df("df_lkp_merge_EXPTRANS", df_lkp_merge_EXPTRANS)        
         logger.info("Step: read_LKP_DDS_DMNS_TIME_1")
         # Reading Data From Source - read_LKP_DDS_DMNS_TIME_1
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_LKP_DDS_DMNS_TIME_1 = lib.read_sql(spark, _conn, table="DDS_DMNS_TIME")
+        query = f"""SELECT DDS_DMNS_TIME.TIME_DMNS_KEY as TIME_DMNS_KEY, DDS_DMNS_TIME.CLDR_MTH_DAY as CLDR_MTH_DAY, DDS_DMNS_TIME.CLDR_MTH as CLDR_MTH, DDS_DMNS_TIME.CLDR_MTH_NAME as CLDR_MTH_NAME, DDS_DMNS_TIME.CLDR_YEAR as CLDR_YEAR, DDS_DMNS_TIME.CLDR_QTR as CLDR_QTR, DDS_DMNS_TIME.FSCL_MTH as FSCL_MTH, DDS_DMNS_TIME.FSCL_MTH_SEQ_NUM as FSCL_MTH_SEQ_NUM, DDS_DMNS_TIME.FSCL_QTR as FSCL_QTR, DDS_DMNS_TIME.FSCL_YEAR as FSCL_YEAR, DDS_DMNS_TIME.FSCL_QTR_SEQ_NUM as FSCL_QTR_SEQ_NUM, DDS_DMNS_TIME.CLDR_WKDY_NUM as CLDR_WKDY_NUM, DDS_DMNS_TIME.CLDR_HLDY_IND as CLDR_HLDY_IND, DDS_DMNS_TIME.FSCL_YEAR_SEQ_NUM as FSCL_YEAR_SEQ_NUM, DDS_DMNS_TIME.CLDR_HLDY_NAME as CLDR_HLDY_NAME, DDS_DMNS_TIME.TIME_VAL_DATE as TIME_VAL_DATE FROM DDS_DMNS_TIME
+where DDS_DMNS_TIME.TIME_DMNS_KEY like '2%'"""
+        query = query.replace("$$v_snsh_date", v_snsh_date)
+        query = query.replace("$$v_rpt_mth", v_rpt_mth)
+        df_LKP_DDS_DMNS_TIME_1 = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_LKP_DDS_DMNS_TIME_1")
         # Lookup: apply_LKP_DDS_DMNS_TIME_1
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_TIME_1 = df_LKP_DDS_DMNS_TIME_1.dropDuplicates(subset=["TIME_VAL_DATE"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_2
+        _lkp_input = df_lkp_merge_EXPTRANS
         _lkp_input = _lkp_input.withColumn("IN_TIME_VAL_DATE", col("TIME_VAL_DATE"))
         # Join condition: IN_TIME_VAL_DATE=TIME_VAL_DATE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_2 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_TIME_1).alias("_lkp"),
             (col("_main.IN_TIME_VAL_DATE") == col("_lkp.TIME_VAL_DATE")),
             "left"
@@ -1603,27 +1215,46 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN opr_sts.BGN_DATE AND opr_sts.EN
         
         logger.info("Step: write_DPA_FACT_EMS_RMV_RDEV_ALWN")
         # Write to Target: write_DPA_FACT_EMS_RMV_RDEV_ALWN
-        df_write = df_lkp_merge_2
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"ALWN_AMT": "AMT", "FMLY_CNT": "CNT", "LAST_REC_TXN_DATE": "SYSTIME", "OPR_CODE": "OPR_CODE", "OPR_DESP": "OPR_DESP", "OPR_FROM_DATE": "OPR_FROM_DATE", "OPR_RMK_TEXT": "OPR_RMK_TEXT", "OPR_TO_DATE": "OPR_TO_DATE", "OPR_TRGT_EVCT_DATE": "OPR_TRGT_EVCT_DATE", "RMV_CASE_DMNS_KEY": "RMV_CASE_DMNS_KEY", "SCHM_CODE": "SCHM_CODE", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("REC_RLS_IND", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['OPR_CODE', 'OPR_TRGT_EVCT_DATE', 'FMLY_CNT', 'ALWN_AMT', 'TIME_DMNS_KEY', 'RMV_CASE_DMNS_KEY', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND', 'OPR_DESP', 'OPR_RMK_TEXT', 'OPR_FROM_DATE', 'OPR_TO_DATE', 'SCHM_CODE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DPA_FACT_EMS_RMV_RDEV_ALWN", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_lkp_merge_EXPTRANS,
+            conn=conn_target,
+            table='DPA_FACT_EMS_RMV_RDEV_ALWN',
+            mode='append',
+            source_columns=[
+                'OPR_CODE',
+                'OPR_TRGT_EVCT_DATE',
+                'CNT',
+                'AMT',
+                'TIME_DMNS_KEY',
+                'RMV_CASE_DMNS_KEY',
+                'SYSTIME',
+                None,
+                None,
+                'OPR_DESP',
+                'OPR_RMK_TEXT',
+                'OPR_FROM_DATE',
+                'OPR_TO_DATE',
+                'SCHM_CODE',
+            ],
+            target_columns=[
+                'OPR_CODE',
+                'OPR_TRGT_EVCT_DATE',
+                'FMLY_CNT',
+                'ALWN_AMT',
+                'TIME_DMNS_KEY',
+                'RMV_CASE_DMNS_KEY',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'REC_RLS_IND',
+                'OPR_DESP',
+                'OPR_RMK_TEXT',
+                'OPR_FROM_DATE',
+                'OPR_TO_DATE',
+                'SCHM_CODE',
+            ],
+            config=config,
+        )
 
         logger.info("write_DPA_FACT_EMS_RMV_RDEV_ALWN write completed")
         

@@ -127,35 +127,17 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_SQ_SOR_EMS_HSM_DSTR = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_SQ_SOR_EMS_HSM_DSTR.columns
-        _port_cols = ["EST_KEY", "EST_CODE", "BLK_CODE", "CUST_FMLY_SIZE_NUM", "CUST_KEY", "HSE_SRVC_APLY_KEY"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_SQ_SOR_EMS_HSM_DSTR = df_SQ_SOR_EMS_HSM_DSTR.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_SOR_EMS_HSM_DSTR = df_SQ_SOR_EMS_HSM_DSTR.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_EMS_HSM_DSTR.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_SQ_SOR_EMS_HSM_DSTR = lib.sq_output(
+            input_df=df_SQ_SOR_EMS_HSM_DSTR,
+            port_cols={
+                'EST_KEY': 'decimal',
+                'EST_CODE': 'string',
+                'BLK_CODE': 'string',
+                'CUST_FMLY_SIZE_NUM': 'decimal',
+                'CUST_KEY': 'decimal',
+                'HSE_SRVC_APLY_KEY': 'decimal',
+            },
+        )
         ctx.register_df("df_SQ_SOR_EMS_HSM_DSTR", df_SQ_SOR_EMS_HSM_DSTR)
         
         logger.info("Step: apply_SQ_SOR_EMS_HSM_DSTR1")
@@ -206,35 +188,14 @@ GROUP BY cust_key, hse_srvc_aply_key"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_SQ_SOR_EMS_HSM_DSTR1 = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_SQ_SOR_EMS_HSM_DSTR1.columns
-        _port_cols = ["CUST_KEY", "HSE_SRVC_APLY_KEY", "HSE_UNIT_IFA_AREA"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_SQ_SOR_EMS_HSM_DSTR1 = df_SQ_SOR_EMS_HSM_DSTR1.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_SOR_EMS_HSM_DSTR1 = df_SQ_SOR_EMS_HSM_DSTR1.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_EMS_HSM_DSTR1.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_SQ_SOR_EMS_HSM_DSTR1 = lib.sq_output(
+            input_df=df_SQ_SOR_EMS_HSM_DSTR1,
+            port_cols={
+                'CUST_KEY': 'decimal',
+                'HSE_SRVC_APLY_KEY': 'decimal',
+                'HSE_UNIT_IFA_AREA': 'decimal',
+            },
+        )
         ctx.register_df("df_SQ_SOR_EMS_HSM_DSTR1", df_SQ_SOR_EMS_HSM_DSTR1)
         
         logger.info("Step: apply_JNRTRANS")
@@ -261,13 +222,12 @@ GROUP BY cust_key, hse_srvc_aply_key"""
         
         logger.info("Step: apply_EXPTRANS3")
         # Expression: apply_EXPTRANS3
-        df_EXPTRANS3 = df_JNRTRANS
-        df_EXPTRANS3 = df_EXPTRANS3.withColumn("LVNG_DNSTY", expr("CASE WHEN (HSE_UNIT_IFA_AREA / CUST_FMLY_SIZE_NUM IS NULL) THEN 0 ELSE HSE_UNIT_IFA_AREA / CUST_FMLY_SIZE_NUM END"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["EST_KEY", "EST_CODE", "BLK_CODE", "CUST_FMLY_SIZE_NUM", "HSE_UNIT_IFA_AREA"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS3.columns]:
-                df_EXPTRANS3 = df_EXPTRANS3.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS3 = lib.expression(
+            input_df=df_JNRTRANS,
+            computed_columns=[
+                {'name': 'LVNG_DNSTY', 'expr': 'CASE WHEN (HSE_UNIT_IFA_AREA / CUST_FMLY_SIZE_NUM IS NULL) THEN 0 ELSE HSE_UNIT_IFA_AREA / CUST_FMLY_SIZE_NUM END'}
+            ],
+        )
         ctx.register_df("df_EXPTRANS3", df_EXPTRANS3)
         
         logger.info("Step: read_LKP_RGN_DSTR")
@@ -298,7 +258,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         _lkp_input = _lkp_input.withColumn("IN_EST_KEY", col("EST_KEY"))
         # Join condition: IN_EST_KEY=EST_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS3 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_RGN_DSTR).alias("_lkp"),
             (col("_main.IN_EST_KEY") == col("_lkp.EST_KEY")),
             "left"
@@ -306,40 +266,18 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_RGN_DSTR[c] for c in df_LKP_RGN_DSTR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
+        ctx.register_df("df_lkp_merge_EXPTRANS3", df_lkp_merge_EXPTRANS3)        
         logger.info("Step: apply_EXPTRANS4")
         # Expression: apply_EXPTRANS4
-        df_EXPTRANS4 = df_lkp_merge_1
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["EST_KEY", "RGN_CODE", "DSTR_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS4.columns]:
-                df_EXPTRANS4 = df_EXPTRANS4.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS4 = lib.expression(
+            input_df=df_lkp_merge_EXPTRANS3,
+        )
         ctx.register_df("df_EXPTRANS4", df_EXPTRANS4)
-        
-        logger.info("Step: merge_AGGTRANS_0")
-        # Lookup: merge_AGGTRANS_0
-        # Merge on common columns — drop lookup columns that duplicate non-key
-        # input columns (e.g. EST_KEY from both sides → ambiguity). Matches are
-        # CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
-        _cc = list(dict.fromkeys(c for c in df_lkp_merge_1.columns if c.lower() in [x.lower() for x in df_EXPTRANS4.columns]))
-        if _cc:
-            __lkp_dup = [c for c in df_EXPTRANS4.columns if c.lower() in [x.lower() for x in df_lkp_merge_1.columns] and c.lower() not in [x.lower() for x in _cc]]
-            df_merge_2 = df_lkp_merge_1.join(
-                df_EXPTRANS4.drop(*__lkp_dup) if __lkp_dup else df_EXPTRANS4,
-                on=_cc, how="left"
-            )
-        else:
-            logger.warning("No common columns between df_lkp_merge_1 and df_EXPTRANS4 — using synthetic key join")
-            df_merge_2 = df_lkp_merge_1.withColumn("_join_key", lit(1)).join(
-                df_EXPTRANS4.withColumn("_join_key", lit(1)),
-                on="_join_key", how="left").drop("_join_key")
-        ctx.register_df("df_merge_2", df_merge_2)
         
         logger.info("Step: apply_AGGTRANS")
         # Aggregator: apply_AGGTRANS
         # Select only mapped upstream columns with correct port names
-        _agg_input = df_merge_2.select(
+        _agg_input = df_EXPTRANS4.select(
             col("EST_CODE"),
             col("BLK_CODE"),
             col("LVNG_DNSTY"),
@@ -353,332 +291,399 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         
         logger.info("Step: apply_RTRTRANS")
         # Router: apply_RTRTRANS - splits into multiple output groups
-        df_rtr_newgroup_3 = df_AGGTRANS.filter(expr("LVNG_DNSTY >= 0 AND LVNG_DNSTY < 2.36"))
-        df_rtr_newgroup_3 = df_rtr_newgroup_3.drop("DSTR_CODE1").withColumnRenamed("DSTR_CODE", "DSTR_CODE1")
-        df_rtr_newgroup_3 = df_rtr_newgroup_3.drop("EST_CODE1").withColumnRenamed("EST_CODE", "EST_CODE1")
-        df_rtr_newgroup_3 = df_rtr_newgroup_3.drop("BLK_CODE1").withColumnRenamed("BLK_CODE", "BLK_CODE1")
-        df_rtr_newgroup_3 = df_rtr_newgroup_3.drop("LVNG_DNSTY1").withColumnRenamed("LVNG_DNSTY", "LVNG_DNSTY1")
-        df_rtr_newgroup_3 = df_rtr_newgroup_3.drop("CNT1").withColumnRenamed("COUNT", "CNT1")
-        df_rtr_newgroup_3 = df_rtr_newgroup_3.drop("RGN_CODE1").withColumnRenamed("RGN_CODE", "RGN_CODE1")
-        ctx.register_df("df_rtr_newgroup_3", df_rtr_newgroup_3)
-        df_rtr_newgroup1_4 = df_AGGTRANS.filter(expr("LVNG_DNSTY >= 2.36 AND LVNG_DNSTY <4"))
-        df_rtr_newgroup1_4 = df_rtr_newgroup1_4.drop("DSTR_CODE3").withColumnRenamed("DSTR_CODE", "DSTR_CODE3")
-        df_rtr_newgroup1_4 = df_rtr_newgroup1_4.drop("EST_CODE3").withColumnRenamed("EST_CODE", "EST_CODE3")
-        df_rtr_newgroup1_4 = df_rtr_newgroup1_4.drop("BLK_CODE3").withColumnRenamed("BLK_CODE", "BLK_CODE3")
-        df_rtr_newgroup1_4 = df_rtr_newgroup1_4.drop("LVNG_DNSTY3").withColumnRenamed("LVNG_DNSTY", "LVNG_DNSTY3")
-        df_rtr_newgroup1_4 = df_rtr_newgroup1_4.drop("CNT3").withColumnRenamed("COUNT", "CNT3")
-        df_rtr_newgroup1_4 = df_rtr_newgroup1_4.drop("RGN_CODE3").withColumnRenamed("RGN_CODE", "RGN_CODE3")
-        ctx.register_df("df_rtr_newgroup1_4", df_rtr_newgroup1_4)
-        df_rtr_newgroup2_5 = df_AGGTRANS.filter(expr("LVNG_DNSTY >= 4 AND LVNG_DNSTY < 4.5"))
-        df_rtr_newgroup2_5 = df_rtr_newgroup2_5.drop("DSTR_CODE4").withColumnRenamed("DSTR_CODE", "DSTR_CODE4")
-        df_rtr_newgroup2_5 = df_rtr_newgroup2_5.drop("EST_CODE4").withColumnRenamed("EST_CODE", "EST_CODE4")
-        df_rtr_newgroup2_5 = df_rtr_newgroup2_5.drop("BLK_CODE4").withColumnRenamed("BLK_CODE", "BLK_CODE4")
-        df_rtr_newgroup2_5 = df_rtr_newgroup2_5.drop("LVNG_DNSTY4").withColumnRenamed("LVNG_DNSTY", "LVNG_DNSTY4")
-        df_rtr_newgroup2_5 = df_rtr_newgroup2_5.drop("CNT4").withColumnRenamed("COUNT", "CNT4")
-        df_rtr_newgroup2_5 = df_rtr_newgroup2_5.drop("RGN_CODE4").withColumnRenamed("RGN_CODE", "RGN_CODE4")
-        ctx.register_df("df_rtr_newgroup2_5", df_rtr_newgroup2_5)
-        df_rtr_newgroup3_6 = df_AGGTRANS.filter(expr("LVNG_DNSTY >= 4.5 AND LVNG_DNSTY <5"))
-        df_rtr_newgroup3_6 = df_rtr_newgroup3_6.drop("DSTR_CODE5").withColumnRenamed("DSTR_CODE", "DSTR_CODE5")
-        df_rtr_newgroup3_6 = df_rtr_newgroup3_6.drop("EST_CODE5").withColumnRenamed("EST_CODE", "EST_CODE5")
-        df_rtr_newgroup3_6 = df_rtr_newgroup3_6.drop("BLK_CODE5").withColumnRenamed("BLK_CODE", "BLK_CODE5")
-        df_rtr_newgroup3_6 = df_rtr_newgroup3_6.drop("LVNG_DNSTY5").withColumnRenamed("LVNG_DNSTY", "LVNG_DNSTY5")
-        df_rtr_newgroup3_6 = df_rtr_newgroup3_6.drop("CNT5").withColumnRenamed("COUNT", "CNT5")
-        df_rtr_newgroup3_6 = df_rtr_newgroup3_6.drop("RGN_CODE5").withColumnRenamed("RGN_CODE", "RGN_CODE5")
-        ctx.register_df("df_rtr_newgroup3_6", df_rtr_newgroup3_6)
-        df_rtr_newgroup4_7 = df_AGGTRANS.filter(expr("LVNG_DNSTY >= 5 AND LVNG_DNSTY < 5.5"))
-        df_rtr_newgroup4_7 = df_rtr_newgroup4_7.drop("DSTR_CODE6").withColumnRenamed("DSTR_CODE", "DSTR_CODE6")
-        df_rtr_newgroup4_7 = df_rtr_newgroup4_7.drop("EST_CODE6").withColumnRenamed("EST_CODE", "EST_CODE6")
-        df_rtr_newgroup4_7 = df_rtr_newgroup4_7.drop("BLK_CODE6").withColumnRenamed("BLK_CODE", "BLK_CODE6")
-        df_rtr_newgroup4_7 = df_rtr_newgroup4_7.drop("LVNG_DNSTY6").withColumnRenamed("LVNG_DNSTY", "LVNG_DNSTY6")
-        df_rtr_newgroup4_7 = df_rtr_newgroup4_7.drop("CNT6").withColumnRenamed("COUNT", "CNT6")
-        df_rtr_newgroup4_7 = df_rtr_newgroup4_7.drop("RGN_CODE6").withColumnRenamed("RGN_CODE", "RGN_CODE6")
-        ctx.register_df("df_rtr_newgroup4_7", df_rtr_newgroup4_7)
-        df_rtr_newgroup5_8 = df_AGGTRANS.filter(expr("LVNG_DNSTY >= 5.5 AND LVNG_DNSTY <6"))
-        df_rtr_newgroup5_8 = df_rtr_newgroup5_8.drop("DSTR_CODE7").withColumnRenamed("DSTR_CODE", "DSTR_CODE7")
-        df_rtr_newgroup5_8 = df_rtr_newgroup5_8.drop("EST_CODE7").withColumnRenamed("EST_CODE", "EST_CODE7")
-        df_rtr_newgroup5_8 = df_rtr_newgroup5_8.drop("BLK_CODE7").withColumnRenamed("BLK_CODE", "BLK_CODE7")
-        df_rtr_newgroup5_8 = df_rtr_newgroup5_8.drop("LVNG_DNSTY7").withColumnRenamed("LVNG_DNSTY", "LVNG_DNSTY7")
-        df_rtr_newgroup5_8 = df_rtr_newgroup5_8.drop("CNT7").withColumnRenamed("COUNT", "CNT7")
-        df_rtr_newgroup5_8 = df_rtr_newgroup5_8.drop("RGN_CODE7").withColumnRenamed("RGN_CODE", "RGN_CODE7")
-        ctx.register_df("df_rtr_newgroup5_8", df_rtr_newgroup5_8)
-        df_rtr_newgroup6_9 = df_AGGTRANS.filter(expr("LVNG_DNSTY >= 6 AND LVNG_DNSTY <7"))
-        df_rtr_newgroup6_9 = df_rtr_newgroup6_9.drop("DSTR_CODE8").withColumnRenamed("DSTR_CODE", "DSTR_CODE8")
-        df_rtr_newgroup6_9 = df_rtr_newgroup6_9.drop("EST_CODE8").withColumnRenamed("EST_CODE", "EST_CODE8")
-        df_rtr_newgroup6_9 = df_rtr_newgroup6_9.drop("BLK_CODE8").withColumnRenamed("BLK_CODE", "BLK_CODE8")
-        df_rtr_newgroup6_9 = df_rtr_newgroup6_9.drop("LVNG_DNSTY8").withColumnRenamed("LVNG_DNSTY", "LVNG_DNSTY8")
-        df_rtr_newgroup6_9 = df_rtr_newgroup6_9.drop("CNT8").withColumnRenamed("COUNT", "CNT8")
-        df_rtr_newgroup6_9 = df_rtr_newgroup6_9.drop("RGN_CODE8").withColumnRenamed("RGN_CODE", "RGN_CODE8")
-        ctx.register_df("df_rtr_newgroup6_9", df_rtr_newgroup6_9)
-        df_rtr_newgroup7_10 = df_AGGTRANS.filter(expr("LVNG_DNSTY >= 7 AND LVNG_DNSTY <8"))
-        df_rtr_newgroup7_10 = df_rtr_newgroup7_10.drop("DSTR_CODE9").withColumnRenamed("DSTR_CODE", "DSTR_CODE9")
-        df_rtr_newgroup7_10 = df_rtr_newgroup7_10.drop("EST_CODE9").withColumnRenamed("EST_CODE", "EST_CODE9")
-        df_rtr_newgroup7_10 = df_rtr_newgroup7_10.drop("BLK_CODE9").withColumnRenamed("BLK_CODE", "BLK_CODE9")
-        df_rtr_newgroup7_10 = df_rtr_newgroup7_10.drop("LVNG_DNSTY9").withColumnRenamed("LVNG_DNSTY", "LVNG_DNSTY9")
-        df_rtr_newgroup7_10 = df_rtr_newgroup7_10.drop("CNT9").withColumnRenamed("COUNT", "CNT9")
-        df_rtr_newgroup7_10 = df_rtr_newgroup7_10.drop("RGN_CODE9").withColumnRenamed("RGN_CODE", "RGN_CODE9")
-        ctx.register_df("df_rtr_newgroup7_10", df_rtr_newgroup7_10)
-        df_rtr_newgroup8_11 = df_AGGTRANS.filter(expr("LVNG_DNSTY >= 8"))
-        df_rtr_newgroup8_11 = df_rtr_newgroup8_11.drop("DSTR_CODE10").withColumnRenamed("DSTR_CODE", "DSTR_CODE10")
-        df_rtr_newgroup8_11 = df_rtr_newgroup8_11.drop("EST_CODE10").withColumnRenamed("EST_CODE", "EST_CODE10")
-        df_rtr_newgroup8_11 = df_rtr_newgroup8_11.drop("BLK_CODE10").withColumnRenamed("BLK_CODE", "BLK_CODE10")
-        df_rtr_newgroup8_11 = df_rtr_newgroup8_11.drop("LVNG_DNSTY10").withColumnRenamed("LVNG_DNSTY", "LVNG_DNSTY10")
-        df_rtr_newgroup8_11 = df_rtr_newgroup8_11.drop("CNT10").withColumnRenamed("COUNT", "CNT10")
-        df_rtr_newgroup8_11 = df_rtr_newgroup8_11.drop("RGN_CODE10").withColumnRenamed("RGN_CODE", "RGN_CODE10")
-        ctx.register_df("df_rtr_newgroup8_11", df_rtr_newgroup8_11)
-        df_rtr_default_12 = df_AGGTRANS.filter(~(expr("LVNG_DNSTY >= 0 AND LVNG_DNSTY < 2.36")) & ~(expr("LVNG_DNSTY >= 2.36 AND LVNG_DNSTY <4")) & ~(expr("LVNG_DNSTY >= 4 AND LVNG_DNSTY < 4.5")) & ~(expr("LVNG_DNSTY >= 4.5 AND LVNG_DNSTY <5")) & ~(expr("LVNG_DNSTY >= 5 AND LVNG_DNSTY < 5.5")) & ~(expr("LVNG_DNSTY >= 5.5 AND LVNG_DNSTY <6")) & ~(expr("LVNG_DNSTY >= 6 AND LVNG_DNSTY <7")) & ~(expr("LVNG_DNSTY >= 7 AND LVNG_DNSTY <8")) & ~(expr("LVNG_DNSTY >= 8")))
-        df_rtr_default_12 = df_rtr_default_12.drop("DSTR_CODE2").withColumnRenamed("DSTR_CODE", "DSTR_CODE2")
-        df_rtr_default_12 = df_rtr_default_12.drop("EST_CODE2").withColumnRenamed("EST_CODE", "EST_CODE2")
-        df_rtr_default_12 = df_rtr_default_12.drop("BLK_CODE2").withColumnRenamed("BLK_CODE", "BLK_CODE2")
-        df_rtr_default_12 = df_rtr_default_12.drop("LVNG_DNSTY2").withColumnRenamed("LVNG_DNSTY", "LVNG_DNSTY2")
-        df_rtr_default_12 = df_rtr_default_12.drop("CNT2").withColumnRenamed("COUNT", "CNT2")
-        df_rtr_default_12 = df_rtr_default_12.drop("RGN_CODE2").withColumnRenamed("RGN_CODE", "RGN_CODE2")
-        ctx.register_df("df_rtr_default_12", df_rtr_default_12)
-        
+        _rtr = lib.router(
+            input_df=df_AGGTRANS,
+            groups=[
+                {
+                    'name': 'NEWGROUP',
+                    'df_output': 'df_rtr_RTRTRANS_NEWGROUP',
+                    'condition': 'LVNG_DNSTY >= 0 AND LVNG_DNSTY < 2.36',
+                    'renames': [
+                        ('DSTR_CODE', 'DSTR_CODE1'),
+                        ('EST_CODE', 'EST_CODE1'),
+                        ('BLK_CODE', 'BLK_CODE1'),
+                        ('LVNG_DNSTY', 'LVNG_DNSTY1'),
+                        ('COUNT', 'CNT1'),
+                        ('RGN_CODE', 'RGN_CODE1'),
+                    ],
+                },
+                {
+                    'name': 'NEWGROUP1',
+                    'df_output': 'df_rtr_RTRTRANS_NEWGROUP1',
+                    'condition': 'LVNG_DNSTY >= 2.36 AND LVNG_DNSTY <4',
+                    'renames': [
+                        ('DSTR_CODE', 'DSTR_CODE3'),
+                        ('EST_CODE', 'EST_CODE3'),
+                        ('BLK_CODE', 'BLK_CODE3'),
+                        ('LVNG_DNSTY', 'LVNG_DNSTY3'),
+                        ('COUNT', 'CNT3'),
+                        ('RGN_CODE', 'RGN_CODE3'),
+                    ],
+                },
+                {
+                    'name': 'NEWGROUP2',
+                    'df_output': 'df_rtr_RTRTRANS_NEWGROUP2',
+                    'condition': 'LVNG_DNSTY >= 4 AND LVNG_DNSTY < 4.5',
+                    'renames': [
+                        ('DSTR_CODE', 'DSTR_CODE4'),
+                        ('EST_CODE', 'EST_CODE4'),
+                        ('BLK_CODE', 'BLK_CODE4'),
+                        ('LVNG_DNSTY', 'LVNG_DNSTY4'),
+                        ('COUNT', 'CNT4'),
+                        ('RGN_CODE', 'RGN_CODE4'),
+                    ],
+                },
+                {
+                    'name': 'NEWGROUP3',
+                    'df_output': 'df_rtr_RTRTRANS_NEWGROUP3',
+                    'condition': 'LVNG_DNSTY >= 4.5 AND LVNG_DNSTY <5',
+                    'renames': [
+                        ('DSTR_CODE', 'DSTR_CODE5'),
+                        ('EST_CODE', 'EST_CODE5'),
+                        ('BLK_CODE', 'BLK_CODE5'),
+                        ('LVNG_DNSTY', 'LVNG_DNSTY5'),
+                        ('COUNT', 'CNT5'),
+                        ('RGN_CODE', 'RGN_CODE5'),
+                    ],
+                },
+                {
+                    'name': 'NEWGROUP4',
+                    'df_output': 'df_rtr_RTRTRANS_NEWGROUP4',
+                    'condition': 'LVNG_DNSTY >= 5 AND LVNG_DNSTY < 5.5',
+                    'renames': [
+                        ('DSTR_CODE', 'DSTR_CODE6'),
+                        ('EST_CODE', 'EST_CODE6'),
+                        ('BLK_CODE', 'BLK_CODE6'),
+                        ('LVNG_DNSTY', 'LVNG_DNSTY6'),
+                        ('COUNT', 'CNT6'),
+                        ('RGN_CODE', 'RGN_CODE6'),
+                    ],
+                },
+                {
+                    'name': 'NEWGROUP5',
+                    'df_output': 'df_rtr_RTRTRANS_NEWGROUP5',
+                    'condition': 'LVNG_DNSTY >= 5.5 AND LVNG_DNSTY <6',
+                    'renames': [
+                        ('DSTR_CODE', 'DSTR_CODE7'),
+                        ('EST_CODE', 'EST_CODE7'),
+                        ('BLK_CODE', 'BLK_CODE7'),
+                        ('LVNG_DNSTY', 'LVNG_DNSTY7'),
+                        ('COUNT', 'CNT7'),
+                        ('RGN_CODE', 'RGN_CODE7'),
+                    ],
+                },
+                {
+                    'name': 'NEWGROUP6',
+                    'df_output': 'df_rtr_RTRTRANS_NEWGROUP6',
+                    'condition': 'LVNG_DNSTY >= 6 AND LVNG_DNSTY <7',
+                    'renames': [
+                        ('DSTR_CODE', 'DSTR_CODE8'),
+                        ('EST_CODE', 'EST_CODE8'),
+                        ('BLK_CODE', 'BLK_CODE8'),
+                        ('LVNG_DNSTY', 'LVNG_DNSTY8'),
+                        ('COUNT', 'CNT8'),
+                        ('RGN_CODE', 'RGN_CODE8'),
+                    ],
+                },
+                {
+                    'name': 'NEWGROUP7',
+                    'df_output': 'df_rtr_RTRTRANS_NEWGROUP7',
+                    'condition': 'LVNG_DNSTY >= 7 AND LVNG_DNSTY <8',
+                    'renames': [
+                        ('DSTR_CODE', 'DSTR_CODE9'),
+                        ('EST_CODE', 'EST_CODE9'),
+                        ('BLK_CODE', 'BLK_CODE9'),
+                        ('LVNG_DNSTY', 'LVNG_DNSTY9'),
+                        ('COUNT', 'CNT9'),
+                        ('RGN_CODE', 'RGN_CODE9'),
+                    ],
+                },
+                {
+                    'name': 'NEWGROUP8',
+                    'df_output': 'df_rtr_RTRTRANS_NEWGROUP8',
+                    'condition': 'LVNG_DNSTY >= 8',
+                    'renames': [
+                        ('DSTR_CODE', 'DSTR_CODE10'),
+                        ('EST_CODE', 'EST_CODE10'),
+                        ('BLK_CODE', 'BLK_CODE10'),
+                        ('LVNG_DNSTY', 'LVNG_DNSTY10'),
+                        ('COUNT', 'CNT10'),
+                        ('RGN_CODE', 'RGN_CODE10'),
+                    ],
+                },
+                {
+                    'name': 'DEFAULT',
+                    'df_output': 'df_rtr_RTRTRANS_DEFAULT',
+                    'default_negated': ['NEWGROUP', 'NEWGROUP1', 'NEWGROUP2', 'NEWGROUP3', 'NEWGROUP4', 'NEWGROUP5', 'NEWGROUP6', 'NEWGROUP7', 'NEWGROUP8'],
+                    'renames': [
+                        ('DSTR_CODE', 'DSTR_CODE2'),
+                        ('EST_CODE', 'EST_CODE2'),
+                        ('BLK_CODE', 'BLK_CODE2'),
+                        ('LVNG_DNSTY', 'LVNG_DNSTY2'),
+                        ('COUNT', 'CNT2'),
+                        ('RGN_CODE', 'RGN_CODE2'),
+                    ],
+                },
+            ],
+        )
+        df_rtr_RTRTRANS_NEWGROUP = _rtr['df_rtr_RTRTRANS_NEWGROUP']
+        ctx.register_df("df_rtr_RTRTRANS_NEWGROUP", df_rtr_RTRTRANS_NEWGROUP)
+        df_rtr_RTRTRANS_NEWGROUP1 = _rtr['df_rtr_RTRTRANS_NEWGROUP1']
+        ctx.register_df("df_rtr_RTRTRANS_NEWGROUP1", df_rtr_RTRTRANS_NEWGROUP1)
+        df_rtr_RTRTRANS_NEWGROUP2 = _rtr['df_rtr_RTRTRANS_NEWGROUP2']
+        ctx.register_df("df_rtr_RTRTRANS_NEWGROUP2", df_rtr_RTRTRANS_NEWGROUP2)
+        df_rtr_RTRTRANS_NEWGROUP3 = _rtr['df_rtr_RTRTRANS_NEWGROUP3']
+        ctx.register_df("df_rtr_RTRTRANS_NEWGROUP3", df_rtr_RTRTRANS_NEWGROUP3)
+        df_rtr_RTRTRANS_NEWGROUP4 = _rtr['df_rtr_RTRTRANS_NEWGROUP4']
+        ctx.register_df("df_rtr_RTRTRANS_NEWGROUP4", df_rtr_RTRTRANS_NEWGROUP4)
+        df_rtr_RTRTRANS_NEWGROUP5 = _rtr['df_rtr_RTRTRANS_NEWGROUP5']
+        ctx.register_df("df_rtr_RTRTRANS_NEWGROUP5", df_rtr_RTRTRANS_NEWGROUP5)
+        df_rtr_RTRTRANS_NEWGROUP6 = _rtr['df_rtr_RTRTRANS_NEWGROUP6']
+        ctx.register_df("df_rtr_RTRTRANS_NEWGROUP6", df_rtr_RTRTRANS_NEWGROUP6)
+        df_rtr_RTRTRANS_NEWGROUP7 = _rtr['df_rtr_RTRTRANS_NEWGROUP7']
+        ctx.register_df("df_rtr_RTRTRANS_NEWGROUP7", df_rtr_RTRTRANS_NEWGROUP7)
+        df_rtr_RTRTRANS_NEWGROUP8 = _rtr['df_rtr_RTRTRANS_NEWGROUP8']
+        ctx.register_df("df_rtr_RTRTRANS_NEWGROUP8", df_rtr_RTRTRANS_NEWGROUP8)
+        df_rtr_RTRTRANS_DEFAULT = _rtr['df_rtr_RTRTRANS_DEFAULT']
+        ctx.register_df("df_rtr_RTRTRANS_DEFAULT", df_rtr_RTRTRANS_DEFAULT)
+
         logger.info("Step: apply_EXPTRANS11122")
         # Expression: apply_EXPTRANS11122
-        df_EXPTRANS11122 = df_rtr_newgroup7_10
-        df_EXPTRANS11122 = df_EXPTRANS11122.withColumn("DSTR_CODE1", expr("DSTR_CODE9"))
-        df_EXPTRANS11122 = df_EXPTRANS11122.withColumn("EST_CODE1", expr("EST_CODE9"))
-        df_EXPTRANS11122 = df_EXPTRANS11122.withColumn("BLK_CODE", expr("BLK_CODE9"))
-        df_EXPTRANS11122 = df_EXPTRANS11122.withColumn("LVNG_DNSTY1", expr("LVNG_DNSTY9"))
-        df_EXPTRANS11122 = df_EXPTRANS11122.withColumn("LVNG_DNSTY_CODE", expr("'H'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["CNT9", "RGN_CODE9"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS11122.columns]:
-                df_EXPTRANS11122 = df_EXPTRANS11122.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS11122 = lib.expression(
+            input_df=df_rtr_RTRTRANS_NEWGROUP7,
+            computed_columns=[
+                {'name': 'DSTR_CODE1', 'expr': 'DSTR_CODE9'},
+                {'name': 'EST_CODE1', 'expr': 'EST_CODE9'},
+                {'name': 'BLK_CODE', 'expr': 'BLK_CODE9'},
+                {'name': 'LVNG_DNSTY1', 'expr': 'LVNG_DNSTY9'},
+                {'name': 'LVNG_DNSTY_CODE', 'expr': "'H'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS11122", df_EXPTRANS11122)
         
         logger.info("Step: apply_EXPTRANS111221")
         # Expression: apply_EXPTRANS111221
-        df_EXPTRANS111221 = df_rtr_newgroup8_11
-        df_EXPTRANS111221 = df_EXPTRANS111221.withColumn("DSTR_CODE1", expr("DSTR_CODE10"))
-        df_EXPTRANS111221 = df_EXPTRANS111221.withColumn("EST_CODE1", expr("EST_CODE10"))
-        df_EXPTRANS111221 = df_EXPTRANS111221.withColumn("BLK_CODE", expr("BLK_CODE10"))
-        df_EXPTRANS111221 = df_EXPTRANS111221.withColumn("LVNG_DNSTY1", expr("LVNG_DNSTY10"))
-        df_EXPTRANS111221 = df_EXPTRANS111221.withColumn("LVNG_DNSTY_CODE", expr("'I'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["CNT10", "RGN_CODE10"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS111221.columns]:
-                df_EXPTRANS111221 = df_EXPTRANS111221.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS111221 = lib.expression(
+            input_df=df_rtr_RTRTRANS_NEWGROUP8,
+            computed_columns=[
+                {'name': 'DSTR_CODE1', 'expr': 'DSTR_CODE10'},
+                {'name': 'EST_CODE1', 'expr': 'EST_CODE10'},
+                {'name': 'BLK_CODE', 'expr': 'BLK_CODE10'},
+                {'name': 'LVNG_DNSTY1', 'expr': 'LVNG_DNSTY10'},
+                {'name': 'LVNG_DNSTY_CODE', 'expr': "'I'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS111221", df_EXPTRANS111221)
         
         logger.info("Step: apply_EXPTRANS11121")
         # Expression: apply_EXPTRANS11121
-        df_EXPTRANS11121 = df_rtr_newgroup6_9
-        df_EXPTRANS11121 = df_EXPTRANS11121.withColumn("DSTR_CODE1", expr("DSTR_CODE8"))
-        df_EXPTRANS11121 = df_EXPTRANS11121.withColumn("EST_CODE1", expr("EST_CODE8"))
-        df_EXPTRANS11121 = df_EXPTRANS11121.withColumn("BLK_CODE", expr("BLK_CODE8"))
-        df_EXPTRANS11121 = df_EXPTRANS11121.withColumn("LVNG_DNSTY1", expr("LVNG_DNSTY8"))
-        df_EXPTRANS11121 = df_EXPTRANS11121.withColumn("LVNG_DNSTY_CODE", expr("'G'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["CNT8", "RGN_CODE8"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS11121.columns]:
-                df_EXPTRANS11121 = df_EXPTRANS11121.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS11121 = lib.expression(
+            input_df=df_rtr_RTRTRANS_NEWGROUP6,
+            computed_columns=[
+                {'name': 'DSTR_CODE1', 'expr': 'DSTR_CODE8'},
+                {'name': 'EST_CODE1', 'expr': 'EST_CODE8'},
+                {'name': 'BLK_CODE', 'expr': 'BLK_CODE8'},
+                {'name': 'LVNG_DNSTY1', 'expr': 'LVNG_DNSTY8'},
+                {'name': 'LVNG_DNSTY_CODE', 'expr': "'G'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS11121", df_EXPTRANS11121)
         
         logger.info("Step: apply_EXPTRANS1112")
         # Expression: apply_EXPTRANS1112
-        df_EXPTRANS1112 = df_rtr_newgroup5_8
-        df_EXPTRANS1112 = df_EXPTRANS1112.withColumn("DSTR_CODE1", expr("DSTR_CODE7"))
-        df_EXPTRANS1112 = df_EXPTRANS1112.withColumn("EST_CODE1", expr("EST_CODE7"))
-        df_EXPTRANS1112 = df_EXPTRANS1112.withColumn("BLK_CODE", expr("BLK_CODE7"))
-        df_EXPTRANS1112 = df_EXPTRANS1112.withColumn("LVNG_DNSTY1", expr("LVNG_DNSTY7"))
-        df_EXPTRANS1112 = df_EXPTRANS1112.withColumn("LVNG_DNSTY_CODE", expr("'F'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["CNT7", "RGN_CODE7"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS1112.columns]:
-                df_EXPTRANS1112 = df_EXPTRANS1112.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS1112 = lib.expression(
+            input_df=df_rtr_RTRTRANS_NEWGROUP5,
+            computed_columns=[
+                {'name': 'DSTR_CODE1', 'expr': 'DSTR_CODE7'},
+                {'name': 'EST_CODE1', 'expr': 'EST_CODE7'},
+                {'name': 'BLK_CODE', 'expr': 'BLK_CODE7'},
+                {'name': 'LVNG_DNSTY1', 'expr': 'LVNG_DNSTY7'},
+                {'name': 'LVNG_DNSTY_CODE', 'expr': "'F'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS1112", df_EXPTRANS1112)
         
         logger.info("Step: apply_EXPTRANS1111")
         # Expression: apply_EXPTRANS1111
-        df_EXPTRANS1111 = df_rtr_newgroup4_7
-        df_EXPTRANS1111 = df_EXPTRANS1111.withColumn("DSTR_CODE1", expr("DSTR_CODE6"))
-        df_EXPTRANS1111 = df_EXPTRANS1111.withColumn("EST_CODE1", expr("EST_CODE6"))
-        df_EXPTRANS1111 = df_EXPTRANS1111.withColumn("BLK_CODE", expr("BLK_CODE6"))
-        df_EXPTRANS1111 = df_EXPTRANS1111.withColumn("LVNG_DNSTY1", expr("LVNG_DNSTY6"))
-        df_EXPTRANS1111 = df_EXPTRANS1111.withColumn("LVNG_DNSTY_CODE", expr("'E'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["CNT6", "RGN_CODE6"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS1111.columns]:
-                df_EXPTRANS1111 = df_EXPTRANS1111.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS1111 = lib.expression(
+            input_df=df_rtr_RTRTRANS_NEWGROUP4,
+            computed_columns=[
+                {'name': 'DSTR_CODE1', 'expr': 'DSTR_CODE6'},
+                {'name': 'EST_CODE1', 'expr': 'EST_CODE6'},
+                {'name': 'BLK_CODE', 'expr': 'BLK_CODE6'},
+                {'name': 'LVNG_DNSTY1', 'expr': 'LVNG_DNSTY6'},
+                {'name': 'LVNG_DNSTY_CODE', 'expr': "'E'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS1111", df_EXPTRANS1111)
         
         logger.info("Step: apply_EXPTRANS111")
         # Expression: apply_EXPTRANS111
-        df_EXPTRANS111 = df_rtr_newgroup3_6
-        df_EXPTRANS111 = df_EXPTRANS111.withColumn("DSTR_CODE1", expr("DSTR_CODE5"))
-        df_EXPTRANS111 = df_EXPTRANS111.withColumn("EST_CODE1", expr("EST_CODE5"))
-        df_EXPTRANS111 = df_EXPTRANS111.withColumn("BLK_CODE", expr("BLK_CODE5"))
-        df_EXPTRANS111 = df_EXPTRANS111.withColumn("LVNG_DNSTY1", expr("LVNG_DNSTY5"))
-        df_EXPTRANS111 = df_EXPTRANS111.withColumn("LVNG_DNSTY_CODE", expr("'D'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["CNT5", "RGN_CODE5"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS111.columns]:
-                df_EXPTRANS111 = df_EXPTRANS111.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS111 = lib.expression(
+            input_df=df_rtr_RTRTRANS_NEWGROUP3,
+            computed_columns=[
+                {'name': 'DSTR_CODE1', 'expr': 'DSTR_CODE5'},
+                {'name': 'EST_CODE1', 'expr': 'EST_CODE5'},
+                {'name': 'BLK_CODE', 'expr': 'BLK_CODE5'},
+                {'name': 'LVNG_DNSTY1', 'expr': 'LVNG_DNSTY5'},
+                {'name': 'LVNG_DNSTY_CODE', 'expr': "'D'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS111", df_EXPTRANS111)
         
         logger.info("Step: apply_EXPTRANS11")
         # Expression: apply_EXPTRANS11
-        df_EXPTRANS11 = df_rtr_newgroup2_5
-        df_EXPTRANS11 = df_EXPTRANS11.withColumn("DSTR_CODE1", expr("DSTR_CODE4"))
-        df_EXPTRANS11 = df_EXPTRANS11.withColumn("EST_CODE1", expr("EST_CODE4"))
-        df_EXPTRANS11 = df_EXPTRANS11.withColumn("BLK_CODE", expr("BLK_CODE4"))
-        df_EXPTRANS11 = df_EXPTRANS11.withColumn("LVNG_DNSTY1", expr("LVNG_DNSTY4"))
-        df_EXPTRANS11 = df_EXPTRANS11.withColumn("LVNG_DNSTY_CODE", expr("'C'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["CNT4", "RGN_CODE4"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS11.columns]:
-                df_EXPTRANS11 = df_EXPTRANS11.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS11 = lib.expression(
+            input_df=df_rtr_RTRTRANS_NEWGROUP2,
+            computed_columns=[
+                {'name': 'DSTR_CODE1', 'expr': 'DSTR_CODE4'},
+                {'name': 'EST_CODE1', 'expr': 'EST_CODE4'},
+                {'name': 'BLK_CODE', 'expr': 'BLK_CODE4'},
+                {'name': 'LVNG_DNSTY1', 'expr': 'LVNG_DNSTY4'},
+                {'name': 'LVNG_DNSTY_CODE', 'expr': "'C'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS11", df_EXPTRANS11)
         
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
-        df_EXPTRANS1 = df_rtr_newgroup1_4
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("DSTR_CODE1", expr("DSTR_CODE3"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("EST_CODE1", expr("EST_CODE3"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("BLK_CODE", expr("BLK_CODE3"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("LVNG_DNSTY1", expr("LVNG_DNSTY3"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("LVNG_DNSTY_CODE", expr("'B'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["CNT3", "RGN_CODE3"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS1.columns]:
-                df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS1 = lib.expression(
+            input_df=df_rtr_RTRTRANS_NEWGROUP1,
+            computed_columns=[
+                {'name': 'DSTR_CODE1', 'expr': 'DSTR_CODE3'},
+                {'name': 'EST_CODE1', 'expr': 'EST_CODE3'},
+                {'name': 'BLK_CODE', 'expr': 'BLK_CODE3'},
+                {'name': 'LVNG_DNSTY1', 'expr': 'LVNG_DNSTY3'},
+                {'name': 'LVNG_DNSTY_CODE', 'expr': "'B'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_rtr_newgroup_3
-        df_EXPTRANS = df_EXPTRANS.withColumn("BLK_CODE", expr("BLK_CODE1"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LVNG_DNSTY_CODE", expr("'A'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["DSTR_CODE1", "EST_CODE1", "LVNG_DNSTY1", "CNT1", "RGN_CODE1"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_rtr_RTRTRANS_NEWGROUP,
+            computed_columns=[
+                {'name': 'BLK_CODE', 'expr': 'BLK_CODE1'},
+                {'name': 'LVNG_DNSTY_CODE', 'expr': "'A'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: apply_Union_Transformation")
         # Union: apply_Union_Transformation
-        # Select + rename upstream columns per input, then union
-        df_Union_Transformation_newgroup = df_EXPTRANS.select(
-            col("DSTR_CODE1").alias("DSTR_CODE1"),
-            col("EST_CODE1").alias("EST_CODE1"),
-            col("BLK_CODE").alias("BLK_CODE"),
-            col("LVNG_DNSTY1").alias("LVNG_DNSTY1"),
-            col("LVNG_DNSTY_CODE").alias("LVNG_DNSTY_CODE"),
-            col("CNT1").alias("CNT1"),
-            col("RGN_CODE1").alias("RGN_CODE1")        )
-        df_Union_Transformation_newgroup1 = df_EXPTRANS1.select(
-            col("DSTR_CODE1").alias("DSTR_CODE1"),
-            col("EST_CODE1").alias("EST_CODE1"),
-            col("BLK_CODE").alias("BLK_CODE"),
-            col("LVNG_DNSTY1").alias("LVNG_DNSTY1"),
-            col("LVNG_DNSTY_CODE").alias("LVNG_DNSTY_CODE"),
-            col("CNT3").alias("CNT1"),
-            col("RGN_CODE3").alias("RGN_CODE1")        )
-        df_Union_Transformation_newgroup2 = df_EXPTRANS11.select(
-            col("DSTR_CODE1").alias("DSTR_CODE1"),
-            col("EST_CODE1").alias("EST_CODE1"),
-            col("BLK_CODE").alias("BLK_CODE"),
-            col("LVNG_DNSTY1").alias("LVNG_DNSTY1"),
-            col("LVNG_DNSTY_CODE").alias("LVNG_DNSTY_CODE"),
-            col("CNT4").alias("CNT1"),
-            col("RGN_CODE4").alias("RGN_CODE1")        )
-        df_Union_Transformation_newgroup3 = df_EXPTRANS111.select(
-            col("DSTR_CODE1").alias("DSTR_CODE1"),
-            col("EST_CODE1").alias("EST_CODE1"),
-            col("BLK_CODE").alias("BLK_CODE"),
-            col("LVNG_DNSTY1").alias("LVNG_DNSTY1"),
-            col("LVNG_DNSTY_CODE").alias("LVNG_DNSTY_CODE"),
-            col("CNT5").alias("CNT1"),
-            col("RGN_CODE5").alias("RGN_CODE1")        )
-        df_Union_Transformation_newgroup4 = df_EXPTRANS1111.select(
-            col("DSTR_CODE1").alias("DSTR_CODE1"),
-            col("EST_CODE1").alias("EST_CODE1"),
-            col("BLK_CODE").alias("BLK_CODE"),
-            col("LVNG_DNSTY1").alias("LVNG_DNSTY1"),
-            col("LVNG_DNSTY_CODE").alias("LVNG_DNSTY_CODE"),
-            col("CNT6").alias("CNT1"),
-            col("RGN_CODE6").alias("RGN_CODE1")        )
-        df_Union_Transformation_newgroup5 = df_EXPTRANS1112.select(
-            col("DSTR_CODE1").alias("DSTR_CODE1"),
-            col("EST_CODE1").alias("EST_CODE1"),
-            col("BLK_CODE").alias("BLK_CODE"),
-            col("LVNG_DNSTY1").alias("LVNG_DNSTY1"),
-            col("LVNG_DNSTY_CODE").alias("LVNG_DNSTY_CODE"),
-            col("CNT7").alias("CNT1"),
-            col("RGN_CODE7").alias("RGN_CODE1")        )
-        df_Union_Transformation_newgroup6 = df_EXPTRANS11121.select(
-            col("DSTR_CODE1").alias("DSTR_CODE1"),
-            col("EST_CODE1").alias("EST_CODE1"),
-            col("BLK_CODE").alias("BLK_CODE"),
-            col("LVNG_DNSTY1").alias("LVNG_DNSTY1"),
-            col("LVNG_DNSTY_CODE").alias("LVNG_DNSTY_CODE"),
-            col("CNT8").alias("CNT1"),
-            col("RGN_CODE8").alias("RGN_CODE1")        )
-        df_Union_Transformation_newgroup7 = df_EXPTRANS11122.select(
-            col("DSTR_CODE1").alias("DSTR_CODE1"),
-            col("EST_CODE1").alias("EST_CODE1"),
-            col("BLK_CODE").alias("BLK_CODE"),
-            col("LVNG_DNSTY1").alias("LVNG_DNSTY1"),
-            col("LVNG_DNSTY_CODE").alias("LVNG_DNSTY_CODE"),
-            col("CNT9").alias("CNT1"),
-            col("RGN_CODE9").alias("RGN_CODE1")        )
-        df_Union_Transformation_newgroup8 = df_EXPTRANS111221.select(
-            col("DSTR_CODE1").alias("DSTR_CODE1"),
-            col("EST_CODE1").alias("EST_CODE1"),
-            col("BLK_CODE").alias("BLK_CODE"),
-            col("LVNG_DNSTY1").alias("LVNG_DNSTY1"),
-            col("LVNG_DNSTY_CODE").alias("LVNG_DNSTY_CODE"),
-            col("CNT10").alias("CNT1"),
-            col("RGN_CODE10").alias("RGN_CODE1")        )
-        df_Union_Transformation = df_Union_Transformation_newgroup
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup1, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup2, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup3, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup4, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup5, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup6, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup7, allowMissingColumns=True)
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_newgroup8, allowMissingColumns=True)
-        # Select only union output columns (add lit(None) for any missing)
-        for _col in ["DSTR_CODE1", "EST_CODE1", "BLK_CODE", "LVNG_DNSTY1", "LVNG_DNSTY_CODE", "CNT1", "RGN_CODE1"]:
-            if _col.lower() not in [x.lower() for x in df_Union_Transformation.columns]:
-                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
-        df_Union_Transformation = df_Union_Transformation.select("DSTR_CODE1", "EST_CODE1", "BLK_CODE", "LVNG_DNSTY1", "LVNG_DNSTY_CODE", "CNT1", "RGN_CODE1")
+        df_Union_Transformation = lib.union(
+            input_df=df_EXPTRANS11122,
+            union_selects=[
+                {'df_input': df_EXPTRANS, 'selects': [
+                    'DSTR_CODE1',
+                    'EST_CODE1',
+                    'BLK_CODE',
+                    'LVNG_DNSTY1',
+                    'LVNG_DNSTY_CODE',
+                    'CNT1',
+                    'RGN_CODE1'
+                ]},
+                {'df_input': df_EXPTRANS1, 'selects': [
+                    'DSTR_CODE1',
+                    'EST_CODE1',
+                    'BLK_CODE',
+                    'LVNG_DNSTY1',
+                    'LVNG_DNSTY_CODE',
+                    'CNT3',
+                    'RGN_CODE3'
+                ]},
+                {'df_input': df_EXPTRANS11, 'selects': [
+                    'DSTR_CODE1',
+                    'EST_CODE1',
+                    'BLK_CODE',
+                    'LVNG_DNSTY1',
+                    'LVNG_DNSTY_CODE',
+                    'CNT4',
+                    'RGN_CODE4'
+                ]},
+                {'df_input': df_EXPTRANS111, 'selects': [
+                    'DSTR_CODE1',
+                    'EST_CODE1',
+                    'BLK_CODE',
+                    'LVNG_DNSTY1',
+                    'LVNG_DNSTY_CODE',
+                    'CNT5',
+                    'RGN_CODE5'
+                ]},
+                {'df_input': df_EXPTRANS1111, 'selects': [
+                    'DSTR_CODE1',
+                    'EST_CODE1',
+                    'BLK_CODE',
+                    'LVNG_DNSTY1',
+                    'LVNG_DNSTY_CODE',
+                    'CNT6',
+                    'RGN_CODE6'
+                ]},
+                {'df_input': df_EXPTRANS1112, 'selects': [
+                    'DSTR_CODE1',
+                    'EST_CODE1',
+                    'BLK_CODE',
+                    'LVNG_DNSTY1',
+                    'LVNG_DNSTY_CODE',
+                    'CNT7',
+                    'RGN_CODE7'
+                ]},
+                {'df_input': df_EXPTRANS11121, 'selects': [
+                    'DSTR_CODE1',
+                    'EST_CODE1',
+                    'BLK_CODE',
+                    'LVNG_DNSTY1',
+                    'LVNG_DNSTY_CODE',
+                    'CNT8',
+                    'RGN_CODE8'
+                ]},
+                {'df_input': df_EXPTRANS11122, 'selects': [
+                    'DSTR_CODE1',
+                    'EST_CODE1',
+                    'BLK_CODE',
+                    'LVNG_DNSTY1',
+                    'LVNG_DNSTY_CODE',
+                    'CNT9',
+                    'RGN_CODE9'
+                ]},
+                {'df_input': df_EXPTRANS111221, 'selects': [
+                    'DSTR_CODE1',
+                    'EST_CODE1',
+                    'BLK_CODE',
+                    'LVNG_DNSTY1',
+                    'LVNG_DNSTY_CODE',
+                    'CNT10',
+                    'RGN_CODE10'
+                ]},
+            ],
+            output_columns=['DSTR_CODE1', 'EST_CODE1', 'BLK_CODE', 'LVNG_DNSTY1', 'LVNG_DNSTY_CODE', 'CNT1', 'RGN_CODE1'],
+        )
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
         logger.info("Step: apply_EXPTRANS2")
         # Expression: apply_EXPTRANS2
-        df_EXPTRANS2 = df_Union_Transformation
-        df_EXPTRANS2 = df_EXPTRANS2.withColumn("DSTR_SCHM_CODE", expr("'NEW'"))
-        _expr = """to_date(cast(concat('$$v_rpt_mth', '01') as string), 'yyyymmdd')"""
-        _expr = _expr.replace("$$v_snsh_date", str(v_snsh_date))
-        _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
-        df_EXPTRANS2 = df_EXPTRANS2.withColumn("TIME_VAL_DATE", expr(_expr))
-        df_EXPTRANS2 = df_EXPTRANS2.withColumn("SYSTIME", expr("current_timestamp()"))
-        df_EXPTRANS2 = df_EXPTRANS2.withColumn("RGN_SCHM_CODE", expr("'RM'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["DSTR_CODE1", "EST_CODE1", "BLK_CODE", "LVNG_DNSTY1", "LVNG_DNSTY_CODE", "CNT1", "RGN_CODE1"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS2.columns]:
-                df_EXPTRANS2 = df_EXPTRANS2.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS2 = lib.expression(
+            input_df=df_Union_Transformation,
+            computed_columns=[
+                {'name': 'DSTR_SCHM_CODE', 'expr': "'NEW'"},
+                {'name': 'TIME_VAL_DATE', 'expr': "to_date(cast(concat('$$v_rpt_mth', '01') as string), 'yyyyMMdd')"},
+                {'name': 'SYSTIME', 'expr': 'current_timestamp()'},
+                {'name': 'RGN_SCHM_CODE', 'expr': "'RM'"}
+            ],
+            substitutions={'$$v_rpt_mth': v_rpt_mth},
+        )
         ctx.register_df("df_EXPTRANS2", df_EXPTRANS2)
         
         logger.info("Step: read_LKP_DDS_DMNS_EMS_EST1")
         # Reading Data From Source - read_LKP_DDS_DMNS_EMS_EST1
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_LKP_DDS_DMNS_EMS_EST1 = lib.read_sql(spark, _conn, table="DDS_DMNS_EST")
+        query = f"""SELECT DDS_DMNS_EST.EST_SCD_KEY as EST_SCD_KEY, DDS_DMNS_EST.EST_TYPE_DESP as EST_TYPE_DESP, DDS_DMNS_EST.EST_KEY as EST_KEY, DDS_DMNS_EST.EST_TYPE_CODE as EST_TYPE_CODE, DDS_DMNS_EST.EST_NAME as EST_NAME, DDS_DMNS_EST.EST_CHI_NAME as EST_CHI_NAME, DDS_DMNS_EST.EST_AREA as EST_AREA, DDS_DMNS_EST.EST_END_DATE as EST_END_DATE, DDS_DMNS_EST.EST_BGN_DATE as EST_BGN_DATE, DDS_DMNS_EST.EST_INTM_HSE_IND as EST_INTM_HSE_IND, DDS_DMNS_EST.EST_MGT_TYPE_CODE as EST_MGT_TYPE_CODE, DDS_DMNS_EST.EST_MGT_TYPE_DESP as EST_MGT_TYPE_DESP, DDS_DMNS_EST.EST_TPS_PHASE_CODE as EST_TPS_PHASE_CODE, DDS_DMNS_EST.EST_AGMT_IND as EST_AGMT_IND, DDS_DMNS_EST.EST_CODE as EST_CODE FROM DDS_DMNS_EST
+WHERE DDS_DMNS_EST.EST_TYPE_CODE = 'E'"""
+        query = query.replace("$$v_snsh_date", v_snsh_date)
+        query = query.replace("$$v_rpt_mth", v_rpt_mth)
+        df_LKP_DDS_DMNS_EMS_EST1 = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_LKP_DDS_DMNS_EMS_EST1")
         # Lookup: apply_LKP_DDS_DMNS_EMS_EST1
@@ -689,7 +694,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         _lkp_input = _lkp_input.withColumn("IN_EST_CODE", col("EST_CODE1"))
         # Join condition: IN_EST_CODE=EST_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_13 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS2 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_EST1).alias("_lkp"),
             (col("_main.IN_EST_CODE") == col("_lkp.EST_CODE")),
             "left"
@@ -697,7 +702,7 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_DDS_DMNS_EMS_EST1[c] for c in df_LKP_DDS_DMNS_EMS_EST1.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_13", df_lkp_merge_13)        
+        ctx.register_df("df_lkp_merge_EXPTRANS2", df_lkp_merge_EXPTRANS2)        
         logger.info("Step: read_LKP_DDS_DMNS_EMS_DSTR")
         # Reading Data From Source - read_LKP_DDS_DMNS_EMS_DSTR
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -709,12 +714,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_DSTR = df_LKP_DDS_DMNS_EMS_DSTR.dropDuplicates(subset=["DSTR_CODE", "DSTR_SCHM_CODE"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_13
+        _lkp_input = df_lkp_merge_EXPTRANS2
         _lkp_input = _lkp_input.withColumn("IN_DSTR_CODE", col("DSTR_CODE1"))
         _lkp_input = _lkp_input.withColumn("IN_DSTR_SCHM_CODE", col("DSTR_SCHM_CODE"))
         # Join condition: IN_DSTR_CODE=DSTR_CODE AND IN_DSTR_SCHM_CODE=DSTR_SCHM_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_13 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS2 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_DSTR).alias("_lkp"),
             (col("_main.IN_DSTR_CODE") == col("_lkp.DSTR_CODE")) &
             (col("_main.IN_DSTR_SCHM_CODE") == col("_lkp.DSTR_SCHM_CODE")),
@@ -735,12 +740,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_LVNG_DNSTY = df_LKP_DDS_DMNS_EMS_LVNG_DNSTY.dropDuplicates(subset=["LVNG_DNSTY_CODE", "LVNG_DNSTY_SCHM_CODE"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_13
+        _lkp_input = df_lkp_merge_EXPTRANS2
         _lkp_input = _lkp_input.withColumn("IN_LVNG_DNSTY_CODE", col("LVNG_DNSTY_CODE"))
         _lkp_input = _lkp_input.withColumn("IN_LVNG_DNSTY_SCHM_CODE", col("DSTR_SCHM_CODE"))
         # Join condition: IN_LVNG_DNSTY_CODE=LVNG_DNSTY_CODE AND IN_LVNG_DNSTY_SCHM_CODE=LVNG_DNSTY_SCHM_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_13 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS2 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_LVNG_DNSTY).alias("_lkp"),
             (col("_main.IN_LVNG_DNSTY_CODE") == col("_lkp.LVNG_DNSTY_CODE")) &
             (col("_main.IN_LVNG_DNSTY_SCHM_CODE") == col("_lkp.LVNG_DNSTY_SCHM_CODE")),
@@ -754,18 +759,22 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         # Reading Data From Source - read_LKP_DDS_DMNS_TIME_1
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_LKP_DDS_DMNS_TIME_1 = lib.read_sql(spark, _conn, table="DDS_DMNS_TIME")
+        query = f"""SELECT DDS_DMNS_TIME.TIME_DMNS_KEY as TIME_DMNS_KEY, DDS_DMNS_TIME.CLDR_MTH_DAY as CLDR_MTH_DAY, DDS_DMNS_TIME.CLDR_MTH as CLDR_MTH, DDS_DMNS_TIME.CLDR_MTH_NAME as CLDR_MTH_NAME, DDS_DMNS_TIME.CLDR_YEAR as CLDR_YEAR, DDS_DMNS_TIME.CLDR_QTR as CLDR_QTR, DDS_DMNS_TIME.FSCL_MTH as FSCL_MTH, DDS_DMNS_TIME.FSCL_MTH_SEQ_NUM as FSCL_MTH_SEQ_NUM, DDS_DMNS_TIME.FSCL_QTR as FSCL_QTR, DDS_DMNS_TIME.FSCL_YEAR as FSCL_YEAR, DDS_DMNS_TIME.FSCL_QTR_SEQ_NUM as FSCL_QTR_SEQ_NUM, DDS_DMNS_TIME.CLDR_WKDY_NUM as CLDR_WKDY_NUM, DDS_DMNS_TIME.CLDR_HLDY_IND as CLDR_HLDY_IND, DDS_DMNS_TIME.FSCL_YEAR_SEQ_NUM as FSCL_YEAR_SEQ_NUM, DDS_DMNS_TIME.CLDR_HLDY_NAME as CLDR_HLDY_NAME, DDS_DMNS_TIME.TIME_VAL_DATE as TIME_VAL_DATE FROM DDS_DMNS_TIME
+where DDS_DMNS_TIME.TIME_DMNS_KEY like '2%'"""
+        query = query.replace("$$v_snsh_date", v_snsh_date)
+        query = query.replace("$$v_rpt_mth", v_rpt_mth)
+        df_LKP_DDS_DMNS_TIME_1 = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_LKP_DDS_DMNS_TIME_1")
         # Lookup: apply_LKP_DDS_DMNS_TIME_1
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_TIME_1 = df_LKP_DDS_DMNS_TIME_1.dropDuplicates(subset=["TIME_VAL_DATE"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_13
+        _lkp_input = df_lkp_merge_EXPTRANS2
         _lkp_input = _lkp_input.withColumn("IN_TIME_VAL_DATE", col("TIME_VAL_DATE"))
         # Join condition: IN_TIME_VAL_DATE=TIME_VAL_DATE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_13 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS2 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_TIME_1).alias("_lkp"),
             (col("_main.IN_TIME_VAL_DATE") == col("_lkp.TIME_VAL_DATE")),
             "left"
@@ -785,12 +794,12 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_RGN = df_LKP_DDS_DMNS_EMS_RGN.dropDuplicates(subset=["RGN_CODE", "RGN_SCHM_CODE"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_13
+        _lkp_input = df_lkp_merge_EXPTRANS2
         _lkp_input = _lkp_input.withColumn("IN_RGN_CODE", col("RGN_CODE1"))
         _lkp_input = _lkp_input.withColumn("IN_RGN_SCHM_CODE", col("RGN_SCHM_CODE"))
         # Join condition: IN_RGN_CODE=RGN_CODE AND IN_RGN_SCHM_CODE=RGN_SCHM_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_13 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS2 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_RGN).alias("_lkp"),
             (col("_main.IN_RGN_CODE") == col("_lkp.RGN_CODE")) &
             (col("_main.IN_RGN_SCHM_CODE") == col("_lkp.RGN_SCHM_CODE")),
@@ -804,19 +813,23 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
         # Reading Data From Source - read_LKP_DDS_DMNS_EMS_BLK
         # Resolve connection by alias (supports lookup/source connections dynamically)
         _conn = lib.get_db_config(config, "DPA")
-        df_LKP_DDS_DMNS_EMS_BLK = lib.read_sql(spark, _conn, table="DDS_DMNS_BLK")
+        query = f"""SELECT DDS_DMNS_BLK.BLK_SCD_KEY as BLK_SCD_KEY, DDS_DMNS_BLK.BLK_KEY as BLK_KEY, DDS_DMNS_BLK.BLK_NAME as BLK_NAME, DDS_DMNS_BLK.BLK_CHI_NAME as BLK_CHI_NAME, DDS_DMNS_BLK.BLK_TYPE_CODE as BLK_TYPE_CODE, DDS_DMNS_BLK.BLK_TYPE_DESP as BLK_TYPE_DESP, DDS_DMNS_BLK.BLK_MARK_TYPE_CODE as BLK_MARK_TYPE_CODE, DDS_DMNS_BLK.BLK_MARK_TYPE_DESP as BLK_MARK_TYPE_DESP, DDS_DMNS_BLK.BLK_DOM_STRY_CNT as BLK_DOM_STRY_CNT, DDS_DMNS_BLK.BLK_TOT_STRY_CNT as BLK_TOT_STRY_CNT, DDS_DMNS_BLK.BLK_ACTL_CMPLT_DATE as BLK_ACTL_CMPLT_DATE, DDS_DMNS_BLK.BLK_HAND_OVER_DATE as BLK_HAND_OVER_DATE, DDS_DMNS_BLK.BLK_PUT_UP_FOR_SALE_DATE as BLK_PUT_UP_FOR_SALE_DATE, DDS_DMNS_BLK.BLK_TOT_FLAT_CNT as BLK_TOT_FLAT_CNT, DDS_DMNS_BLK.BLK_AGMT_IND as BLK_AGMT_IND, DDS_DMNS_BLK.BLK_TOT_IFA_AREA as BLK_TOT_IFA_AREA, DDS_DMNS_BLK.BLK_BGN_DATE as BLK_BGN_DATE, DDS_DMNS_BLK.BLK_END_DATE as BLK_END_DATE, DDS_DMNS_BLK.BLK_SELF_CNTA_IND as BLK_SELF_CNTA_IND, DDS_DMNS_BLK.BLK_CODE as BLK_CODE, DDS_DMNS_BLK.EST_SCD_KEY as EST_SCD_KEY FROM DDS_DMNS_BLK
+WHERE TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN BLK_BGN_DATE AND BLK_END_DATE"""
+        query = query.replace("$$v_snsh_date", v_snsh_date)
+        query = query.replace("$$v_rpt_mth", v_rpt_mth)
+        df_LKP_DDS_DMNS_EMS_BLK = lib.read_sql(spark, _conn, query=query)
         
         logger.info("Step: apply_LKP_DDS_DMNS_EMS_BLK")
         # Lookup: apply_LKP_DDS_DMNS_EMS_BLK
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_BLK = df_LKP_DDS_DMNS_EMS_BLK.dropDuplicates(subset=["BLK_CODE", "EST_SCD_KEY"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_13
+        _lkp_input = df_lkp_merge_EXPTRANS2
         _lkp_input = _lkp_input.withColumn("IN_EST_SCD_KEY", col("EST_SCD_KEY"))
         _lkp_input = _lkp_input.withColumn("IN_BLK_CODE", col("BLK_CODE"))
         # Join condition: IN_BLK_CODE=BLK_CODE AND IN_EST_SCD_KEY=EST_SCD_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_14 = _lkp_input.alias("_main").join(
+        df_lkp_merge_LKP_DDS_DMNS_EMS_EST1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_BLK).alias("_lkp"),
             (col("_main.IN_BLK_CODE") == col("_lkp.BLK_CODE")) &
             (col("_main.IN_EST_SCD_KEY") == col("_lkp.EST_SCD_KEY")),
@@ -825,30 +838,41 @@ AND TO_DATE('$$v_snsh_date', 'YYYYMMDD') BETWEEN est_dstr.BGN_DATE AND est_dstr.
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_DDS_DMNS_EMS_BLK[c] for c in df_LKP_DDS_DMNS_EMS_BLK.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_14", df_lkp_merge_14)        
+        ctx.register_df("df_lkp_merge_LKP_DDS_DMNS_EMS_EST1", df_lkp_merge_LKP_DDS_DMNS_EMS_EST1)        
         logger.info("Step: write_DPA_FACT_EMS_OVRCRD_RLF")
         # Write to Target: write_DPA_FACT_EMS_OVRCRD_RLF
-        df_write = df_lkp_merge_13
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BLK_SCD_KEY": "BLK_SCD_KEY", "DSTR_DMNS_KEY": "DSTR_DMNS_KEY", "EST_DMNS_KEY": "EST_SCD_KEY", "LAST_REC_TXN_DATE": "SYSTIME", "LVNG_DNSTY_CNT": "CNT1", "LVNG_DNSTY_DMNS_KEY": "LVNG_DNSTY_DMNS_KEY", "RGN_DMNS_KEY": "RGN_DMNS_KEY", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("REC_RLS_IND", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['LVNG_DNSTY_CNT', 'TIME_DMNS_KEY', 'DSTR_DMNS_KEY', 'EST_DMNS_KEY', 'LVNG_DNSTY_DMNS_KEY', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'REC_RLS_IND', 'RGN_DMNS_KEY', 'BLK_SCD_KEY']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DPA_FACT_EMS_OVRCRD_RLF", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_lkp_merge_EXPTRANS2,
+            conn=conn_target,
+            table='DPA_FACT_EMS_OVRCRD_RLF',
+            mode='append',
+            source_columns=[
+                'CNT1',
+                'TIME_DMNS_KEY',
+                'DSTR_DMNS_KEY',
+                'EST_SCD_KEY',
+                'LVNG_DNSTY_DMNS_KEY',
+                'SYSTIME',
+                None,
+                None,
+                'RGN_DMNS_KEY',
+                'BLK_SCD_KEY',
+            ],
+            target_columns=[
+                'LVNG_DNSTY_CNT',
+                'TIME_DMNS_KEY',
+                'DSTR_DMNS_KEY',
+                'EST_DMNS_KEY',
+                'LVNG_DNSTY_DMNS_KEY',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'REC_RLS_IND',
+                'RGN_DMNS_KEY',
+                'BLK_SCD_KEY',
+            ],
+            config=config,
+        )
 
         logger.info("write_DPA_FACT_EMS_OVRCRD_RLF write completed")
         

@@ -145,35 +145,18 @@ SELECT
         query = query.replace("$$v_rcvr_day_num", v_rcvr_day_num)
         query = query.replace("$$v_snsh_date", v_snsh_date)
         df_SQ_SOR_EMS_TAM_TNCY_AGRMT = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_SQ_SOR_EMS_TAM_TNCY_AGRMT.columns
-        _port_cols = ["UNIT_KEY", "TNCY_AGRMT_CMNC_DATE", "TNCY_AGRMT_TM_TRMT_DATE", "TNCY_AGRMT_TM_STS_CODE", "CUST_KEY", "HSE_SRVC_APLY_KEY", "TNCY_AGRMT_KEY"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_SQ_SOR_EMS_TAM_TNCY_AGRMT = df_SQ_SOR_EMS_TAM_TNCY_AGRMT.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_SOR_EMS_TAM_TNCY_AGRMT = df_SQ_SOR_EMS_TAM_TNCY_AGRMT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_EMS_TAM_TNCY_AGRMT.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_SQ_SOR_EMS_TAM_TNCY_AGRMT = lib.sq_output(
+            input_df=df_SQ_SOR_EMS_TAM_TNCY_AGRMT,
+            port_cols={
+                'UNIT_KEY': 'decimal',
+                'TNCY_AGRMT_CMNC_DATE': 'date/time',
+                'TNCY_AGRMT_TM_TRMT_DATE': 'date/time',
+                'TNCY_AGRMT_TM_STS_CODE': 'string',
+                'CUST_KEY': 'decimal',
+                'HSE_SRVC_APLY_KEY': 'decimal',
+                'TNCY_AGRMT_KEY': 'decimal',
+            },
+        )
         ctx.register_df("df_SQ_SOR_EMS_TAM_TNCY_AGRMT", df_SQ_SOR_EMS_TAM_TNCY_AGRMT)
         
         logger.info("Step: apply_SQ_SOR_EMS_HSM_UNIT_STS1")
@@ -231,35 +214,15 @@ order by unit_key,UNIT_RSRV_CATG_CODE"""
         query = query.replace("$$v_rcvr_day_num", v_rcvr_day_num)
         query = query.replace("$$v_snsh_date", v_snsh_date)
         df_SQ_SOR_EMS_HSM_UNIT_STS1 = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_SQ_SOR_EMS_HSM_UNIT_STS1.columns
-        _port_cols = ["UNIT_KEY", "UNIT_RSRV_CATG_CODE", "BGN_DATE", "END_DATE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_SQ_SOR_EMS_HSM_UNIT_STS1 = df_SQ_SOR_EMS_HSM_UNIT_STS1.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_SOR_EMS_HSM_UNIT_STS1 = df_SQ_SOR_EMS_HSM_UNIT_STS1.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_EMS_HSM_UNIT_STS1.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_SQ_SOR_EMS_HSM_UNIT_STS1 = lib.sq_output(
+            input_df=df_SQ_SOR_EMS_HSM_UNIT_STS1,
+            port_cols={
+                'UNIT_KEY': 'decimal',
+                'UNIT_RSRV_CATG_CODE': 'string',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+            },
+        )
         ctx.register_df("df_SQ_SOR_EMS_HSM_UNIT_STS1", df_SQ_SOR_EMS_HSM_UNIT_STS1)
         
         logger.info("Step: apply_SQ_SOR_HSM_UNIT")
@@ -309,35 +272,21 @@ ORDER BY HSU.UNIT_KEY"""
         query = query.replace("$$v_rcvr_day_num", v_rcvr_day_num)
         query = query.replace("$$v_snsh_date", v_snsh_date)
         df_SQ_SOR_HSM_UNIT = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_SQ_SOR_HSM_UNIT.columns
-        _port_cols = ["UNIT_KEY", "UNIT_ADDR_CODE", "EST_KEY", "EMMS_DTSR_CHC_DSTR_KEY", "EMMS_DTSR_BRD_DSTR_KEY", "UNIT_TYPE_CODE", "UNIT_IFA_AREA", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "HSE_UNIT_ENV_CODE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_SQ_SOR_HSM_UNIT = df_SQ_SOR_HSM_UNIT.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_SOR_HSM_UNIT = df_SQ_SOR_HSM_UNIT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_HSM_UNIT.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_SQ_SOR_HSM_UNIT = lib.sq_output(
+            input_df=df_SQ_SOR_HSM_UNIT,
+            port_cols={
+                'UNIT_KEY': 'decimal',
+                'UNIT_ADDR_CODE': 'string',
+                'EST_KEY': 'decimal',
+                'EMMS_DTSR_CHC_DSTR_KEY': 'string',
+                'EMMS_DTSR_BRD_DSTR_KEY': 'string',
+                'UNIT_TYPE_CODE': 'string',
+                'UNIT_IFA_AREA': 'decimal',
+                'MAX_UNIT_HEAD_CNT': 'decimal',
+                'MIN_UNIT_HEAD_CNT': 'decimal',
+                'HSE_UNIT_ENV_CODE': 'string',
+            },
+        )
         ctx.register_df("df_SQ_SOR_HSM_UNIT", df_SQ_SOR_HSM_UNIT)
         
         logger.info("Step: apply_SQ_SOR_EMS_PHA_APLY_OFR_RFSL")
@@ -370,35 +319,14 @@ order by  HSU.UNIT_KEY"""
         query = query.replace("$$v_rcvr_day_num", v_rcvr_day_num)
         query = query.replace("$$v_snsh_date", v_snsh_date)
         df_SQ_SOR_EMS_PHA_APLY_OFR_RFSL = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_SQ_SOR_EMS_PHA_APLY_OFR_RFSL.columns
-        _port_cols = ["UNIT_KEY", "OFR_RFSL_KEY", "OFR_RFSL_DATE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_SQ_SOR_EMS_PHA_APLY_OFR_RFSL = df_SQ_SOR_EMS_PHA_APLY_OFR_RFSL.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_SOR_EMS_PHA_APLY_OFR_RFSL = df_SQ_SOR_EMS_PHA_APLY_OFR_RFSL.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_EMS_PHA_APLY_OFR_RFSL.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_SQ_SOR_EMS_PHA_APLY_OFR_RFSL = lib.sq_output(
+            input_df=df_SQ_SOR_EMS_PHA_APLY_OFR_RFSL,
+            port_cols={
+                'UNIT_KEY': 'decimal',
+                'OFR_RFSL_KEY': 'decimal',
+                'OFR_RFSL_DATE': 'date/time',
+            },
+        )
         ctx.register_df("df_SQ_SOR_EMS_PHA_APLY_OFR_RFSL", df_SQ_SOR_EMS_PHA_APLY_OFR_RFSL)
         
         logger.info("Step: apply_JNRTRANS1")
@@ -433,20 +361,18 @@ order by  HSU.UNIT_KEY"""
         
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
-        df_EXPTRANS1 = df_JNRTRANS1
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["UNIT_KEY", "TNCY_AGRMT_CMNC_DATE", "TNCY_AGRMT_TM_TRMT_DATE", "TNCY_AGRMT_TM_STS_CODE", "CUST_KEY", "HSE_SRVC_APLY_KEY", "TNCY_AGRMT_KEY", "UNIT_KEY1", "UNIT_ADDR_CODE", "EST_KEY", "EMMS_DTSR_CHC_DSTR_KEY", "EMMS_DTSR_BRD_DSTR_KEY", "UNIT_TYPE_CODE", "UNIT_IFA_AREA", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "HSE_UNIT_ENV_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS1.columns]:
-                df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS1 = lib.expression(
+            input_df=df_JNRTRANS1,
+        )
         ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
         
         logger.info("Step: apply_FILTRANS")
         # Filter: apply_FILTRANS
-        __fil_input = df_EXPTRANS1
-        _filter_text = """$$v_rpt_mth = date_format(TNCY_AGRMT_CMNC_DATE, 'yyyyMM')"""
-        _filter_text = _filter_text.replace("$$v_rpt_mth", str(v_rpt_mth or "0"))
-        df_FILTRANS = __fil_input.filter(expr(_filter_text))
+        df_FILTRANS = lib.filter(
+            input_df=df_EXPTRANS1,
+            condition="$$v_rpt_mth = date_format(TNCY_AGRMT_CMNC_DATE, 'yyyyMM')",
+            substitutions={'$$v_rpt_mth': v_rpt_mth},
+        )
         ctx.register_df("df_FILTRANS", df_FILTRANS)
 
         logger.info("Step: read_LKPTRANS")
@@ -509,7 +435,7 @@ SELECT     	RM.UNIT_KEY as UNIT_KEY,
         _lkp_input = _lkp_input.withColumn("TNCY_AGRMT_CMNC_DATE_IN", col("TNCY_AGRMT_CMNC_DATE"))
         # Join condition: UNIT_KEY_IN=UNIT_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = _lkp_input.alias("_main").join(
+        df_lkp_merge_FILTRANS = _lkp_input.alias("_main").join(
             broadcast(df_LKPTRANS).alias("_lkp"),
             (col("_main.UNIT_KEY_IN") == col("_lkp.UNIT_KEY")),
             "left"
@@ -517,26 +443,26 @@ SELECT     	RM.UNIT_KEY as UNIT_KEY,
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKPTRANS[c] for c in df_LKPTRANS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
+        ctx.register_df("df_lkp_merge_FILTRANS", df_lkp_merge_FILTRANS)        
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_lkp_merge_1
-        df_EXPTRANS = df_EXPTRANS.withColumn("UNIT_KEY_IN", expr("UNIT_KEY"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNCY_AGRMT_TM_LATEST_TRMT_DATE", expr("TNCY_AGRMT_TM_TRMT_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DAY_NUM_FROM_LATEST_TRMT_DATE", expr("floor(datediff(TNCY_AGRMT_CMNC_DATE_IN, TNCY_AGRMT_TM_TRMT_DATE))"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["TNCY_AGRMT_TM_TRMT_DATE", "TNCY_AGRMT_TM_STS_CODE", "CUST_KEY", "HSE_SRVC_APLY_KEY", "TNCY_AGRMT_KEY", "UNIT_KEY1", "UNIT_ADDR_CODE", "EST_KEY", "EMMS_DTSR_CHC_DSTR_KEY", "EMMS_DTSR_BRD_DSTR_KEY", "UNIT_TYPE_CODE", "UNIT_IFA_AREA", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "TNCY_AGRMT_CMNC_DATE_IN", "HSE_UNIT_ENV_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_lkp_merge_FILTRANS,
+            computed_columns=[
+                {'name': 'UNIT_KEY_IN', 'expr': 'UNIT_KEY'},
+                {'name': 'TNCY_AGRMT_TM_LATEST_TRMT_DATE', 'expr': 'TNCY_AGRMT_TM_TRMT_DATE'},
+                {'name': 'DAY_NUM_FROM_LATEST_TRMT_DATE', 'expr': 'floor(datediff(TNCY_AGRMT_CMNC_DATE_IN, TNCY_AGRMT_TM_TRMT_DATE))'}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: apply_FILTRANS1")
         # Filter: apply_FILTRANS1
-        __fil_input = df_EXPTRANS
-        _filter_text = """DAY_NUM_FROM_LATEST_TRMT_DATE > $$v_rcvr_day_num"""
-        _filter_text = _filter_text.replace("$$v_rcvr_day_num", str(v_rcvr_day_num or "0"))
-        df_FILTRANS1 = __fil_input.filter(expr(_filter_text))
+        df_FILTRANS1 = lib.filter(
+            input_df=df_EXPTRANS,
+            condition='DAY_NUM_FROM_LATEST_TRMT_DATE > $$v_rcvr_day_num',
+            substitutions={'$$v_rcvr_day_num': v_rcvr_day_num},
+        )
         ctx.register_df("df_FILTRANS1", df_FILTRANS1)
 
         logger.info("Step: read_LKP_UNIT_ADVS_ENV_CODE_IND")
@@ -570,7 +496,7 @@ select t1.unit_key, e1, e2, e3 from
         _lkp_input = _lkp_input.withColumn("UNIT_KEY_IN", col("UNIT_KEY1"))
         # Join condition: UNIT_KEY_IN=UNIT_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_2 = _lkp_input.alias("_main").join(
+        df_lkp_merge_FILTRANS1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_UNIT_ADVS_ENV_CODE_IND).alias("_lkp"),
             (col("_main.UNIT_KEY_IN") == col("_lkp.UNIT_KEY")),
             "left"
@@ -578,18 +504,17 @@ select t1.unit_key, e1, e2, e3 from
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_UNIT_ADVS_ENV_CODE_IND[c] for c in df_LKP_UNIT_ADVS_ENV_CODE_IND.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)        
+        ctx.register_df("df_lkp_merge_FILTRANS1", df_lkp_merge_FILTRANS1)        
         logger.info("Step: apply_EXPTRANS2")
         # Expression: apply_EXPTRANS2
-        df_EXPTRANS2 = df_lkp_merge_2
-        df_EXPTRANS2 = df_EXPTRANS2.withColumn("UNIT_KEY", expr("UNIT_KEY1"))
-        df_EXPTRANS2 = df_EXPTRANS2.withColumn("TNCY_AGRMT_CMNC_DATE", expr("TNCY_AGRMT_CMNC_DATE_IN"))
-        df_EXPTRANS2 = df_EXPTRANS2.withColumn("TNCY_AGRMT_TM_TRMT_DATE", expr("TNCY_AGRMT_TM_LATEST_TRMT_DATE"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["UNIT_ADDR_CODE", "HSE_UNIT_ENV_CODE", "EI2", "EI3", "EI4"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS2.columns]:
-                df_EXPTRANS2 = df_EXPTRANS2.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS2 = lib.expression(
+            input_df=df_lkp_merge_FILTRANS1,
+            computed_columns=[
+                {'name': 'UNIT_KEY', 'expr': 'UNIT_KEY1'},
+                {'name': 'TNCY_AGRMT_CMNC_DATE', 'expr': 'TNCY_AGRMT_CMNC_DATE_IN'},
+                {'name': 'TNCY_AGRMT_TM_TRMT_DATE', 'expr': 'TNCY_AGRMT_TM_LATEST_TRMT_DATE'}
+            ],
+        )
         ctx.register_df("df_EXPTRANS2", df_EXPTRANS2)
         
         logger.info("Step: apply_JNRTRANS")
@@ -618,9 +543,13 @@ select t1.unit_key, e1, e2, e3 from
         
         logger.info("Step: apply_FILTRANS2")
         # Filter: apply_FILTRANS2
-        __fil_input = df_JNRTRANS
-        __fil_input = __fil_input.drop("UNIT_KEY").withColumnRenamed("UNIT_KEY1", "UNIT_KEY")
-        df_FILTRANS2 = __fil_input.filter(expr("(datediff(OFR_RFSL_DATE, TNCY_AGRMT_CMNC_DATE) <= 0 AND datediff(OFR_RFSL_DATE, TNCY_AGRMT_TM_TRMT_DATE) >= 0) OR ((OFR_RFSL_DATE IS NULL))"))
+        df_FILTRANS2 = lib.filter(
+            input_df=df_JNRTRANS,
+            rename_columns=[
+                ('UNIT_KEY1', 'UNIT_KEY')
+            ],
+            condition='(datediff(OFR_RFSL_DATE, TNCY_AGRMT_CMNC_DATE) <= 0 AND datediff(OFR_RFSL_DATE, TNCY_AGRMT_TM_TRMT_DATE) >= 0) OR ((OFR_RFSL_DATE IS NULL))',
+        )
         ctx.register_df("df_FILTRANS2", df_FILTRANS2)
 
         logger.info("Step: apply_AGGTRANS")
@@ -646,9 +575,11 @@ select t1.unit_key, e1, e2, e3 from
         
         logger.info("Step: apply_SRTTRANS")
         # Sorter: apply_SRTTRANS
-        __srt_input = df_AGGTRANS
-        df_SRTTRANS = __srt_input.orderBy(
-            asc("UNIT_KEY")
+        df_SRTTRANS = lib.sorter(
+            input_df=df_AGGTRANS,
+            sort_columns=[
+                {'column': 'UNIT_KEY', 'direction': 'ASC'}
+            ],
         )
         ctx.register_df("df_SRTTRANS", df_SRTTRANS)
         
@@ -681,32 +612,43 @@ select t1.unit_key, e1, e2, e3 from
         
         logger.info("Step: write_STA_RCVR_FLAT_EXCP_RPT")
         # Write to Target: write_STA_RCVR_FLAT_EXCP_RPT
-        df_write = df_JNRTRANS2
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"HSE_UNIT_ENV_CODE": "HSE_UNIT_ENV_CODE", "HSE_UNIT_ENV_CODE2": "EI2", "HSE_UNIT_ENV_CODE3": "EI3", "HSE_UNIT_ENV_CODE4": "EI4", "TNCY_AGRMT_CMNC_DATE": "TNCY_AGRMT_CMNC_DATE", "TNCY_AGRMT_TM_TRMT_DATE": "TNCY_AGRMT_TM_TRMT_DATE", "UNIT_ADDR_CODE": "UNIT_ADDR_CODE", "UNIT_MAX_RFSL_DATE": "MAX_RFSL_DATE", "UNIT_OFR_RFSL_CNT": "ORF_RFSL_CNT", "UNIT_RSRV_BGN_DATE": "BGN_DATE", "UNIT_RSRV_CATG_CODE": "UNIT_RSRV_CATG_CODE", "UNIT_RSRV_END_DATE": "END_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['UNIT_ADDR_CODE', 'TNCY_AGRMT_CMNC_DATE', 'TNCY_AGRMT_TM_TRMT_DATE', 'UNIT_RSRV_CATG_CODE', 'UNIT_RSRV_BGN_DATE', 'UNIT_RSRV_END_DATE', 'HSE_UNIT_ENV_CODE', 'HSE_UNIT_ENV_CODE2', 'HSE_UNIT_ENV_CODE3', 'HSE_UNIT_ENV_CODE4', 'UNIT_OFR_RFSL_CNT', 'UNIT_MAX_RFSL_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to flat file — prefer config.yml objects metadata, then derived default path
-        _write_obj = objects.get("STA_RCVR_FLAT_EXCP_RPT")
-        if _write_obj and isinstance(_write_obj, dict):
-            _write_path = _write_obj.get('path', '/tmp/STA_RCVR_FLAT_EXCP_RPT')
-            _write_fmt = _write_obj.get('format', 'csv')
-        # Runtime fallback: skip write if path resolves to /dev/null
-        if _write_path and _write_path.strip() in ("/dev/null", "NUL"):
-            logger.info("Target %s resolved to /dev/null, skipping write", "write_STA_RCVR_FLAT_EXCP_RPT")
-        else:
-            lib.write_file(df_write, _write_path, format=_write_fmt, mode="overwrite")
+        lib.write_target(
+            spark=spark,
+            df=df_JNRTRANS2,
+            conn=conn_target,
+            table='STA_RCVR_FLAT_EXCP_RPT',
+            mode='append',
+            sink_type='csv',
+            source_columns=[
+                'UNIT_ADDR_CODE',
+                'TNCY_AGRMT_CMNC_DATE',
+                'TNCY_AGRMT_TM_TRMT_DATE',
+                'UNIT_RSRV_CATG_CODE',
+                'BGN_DATE',
+                'END_DATE',
+                'HSE_UNIT_ENV_CODE',
+                'EI2',
+                'EI3',
+                'EI4',
+                'ORF_RFSL_CNT',
+                'MAX_RFSL_DATE',
+            ],
+            target_columns=[
+                'UNIT_ADDR_CODE',
+                'TNCY_AGRMT_CMNC_DATE',
+                'TNCY_AGRMT_TM_TRMT_DATE',
+                'UNIT_RSRV_CATG_CODE',
+                'UNIT_RSRV_BGN_DATE',
+                'UNIT_RSRV_END_DATE',
+                'HSE_UNIT_ENV_CODE',
+                'HSE_UNIT_ENV_CODE2',
+                'HSE_UNIT_ENV_CODE3',
+                'HSE_UNIT_ENV_CODE4',
+                'UNIT_OFR_RFSL_CNT',
+                'UNIT_MAX_RFSL_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_STA_RCVR_FLAT_EXCP_RPT write completed")
         

@@ -76,9 +76,47 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS")
         # Source Qualifier: apply_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS
         df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS = df_DPA_FACT_EMS_PRH_STCK_MTH_ANLS
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["TIME_DMNS_KEY", "EST_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "UNIT_SIZE_DMNS_KEY", "ALCT_STS_DMNS_KEY", "MGT_MODE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_ADVS_ENV_IND", "BLK_CNT", "PRVS_UNIT_CNT", "RCVR_UNIT_CNT", "MAX_UNIT_VCNCY_DAY_NUM", "TOT_UNIT_VCNCY_DAY_NUM", "RNTL_UNIT_CNT", "MAX_UNIT_MTH_RENT_AMT", "MIN_UNIT_MTH_RENT_AMT", "TOT_UNIT_MTH_RENT_AMT", "MAX_UNIT_IFA_RENT_AMT", "MIN_UNIT_IFA_RENT_AMT", "TOT_UNIT_IFA_RENT_AMT", "STA_UNIT_CNT", "STA_OCPY_UNIT_CNT", "STA_VCNT_UNIT_ALCT_CNT", "STA_UNIT_UND_OFR_CNT", "VCNT_UNIT_UND_RFBH_CNT", "UNIT_UND_OFR_RFBH_CNT", "RLET_UNIT_CNT", "RLET_AFT_RFBH_CNT", "RLET_AFT_TCHUP_WO_CNT", "UNIT_UND_FRZ_RFBH_CNT", "BLK_SCD_KEY", "UNIT_HSC_TYPE_DMNS_KEY", "STA_NONLTB_CNT"]
-        df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS = df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS = lib.sq_output(
+            input_df=df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS,
+            port_cols={
+                'TIME_DMNS_KEY': 'decimal',
+                'EST_SCD_KEY': 'decimal',
+                'DSTR_BRD_DSTR_DMNS_KEY': 'decimal',
+                'DSTR_CHC_DSTR_SCD_KEY': 'decimal',
+                'FLAT_TYPE_DMNS_KEY': 'decimal',
+                'UNIT_SIZE_DMNS_KEY': 'decimal',
+                'ALCT_STS_DMNS_KEY': 'decimal',
+                'MGT_MODE_DMNS_KEY': 'decimal',
+                'MAX_UNIT_HEAD_CNT': 'decimal',
+                'MIN_UNIT_HEAD_CNT': 'decimal',
+                'UNIT_ADVS_ENV_IND': 'string',
+                'BLK_CNT': 'decimal',
+                'PRVS_UNIT_CNT': 'decimal',
+                'RCVR_UNIT_CNT': 'decimal',
+                'MAX_UNIT_VCNCY_DAY_NUM': 'decimal',
+                'TOT_UNIT_VCNCY_DAY_NUM': 'decimal',
+                'RNTL_UNIT_CNT': 'decimal',
+                'MAX_UNIT_MTH_RENT_AMT': 'decimal',
+                'MIN_UNIT_MTH_RENT_AMT': 'decimal',
+                'TOT_UNIT_MTH_RENT_AMT': 'decimal',
+                'MAX_UNIT_IFA_RENT_AMT': 'decimal',
+                'MIN_UNIT_IFA_RENT_AMT': 'decimal',
+                'TOT_UNIT_IFA_RENT_AMT': 'decimal',
+                'STA_UNIT_CNT': 'decimal',
+                'STA_OCPY_UNIT_CNT': 'decimal',
+                'STA_VCNT_UNIT_ALCT_CNT': 'decimal',
+                'STA_UNIT_UND_OFR_CNT': 'decimal',
+                'VCNT_UNIT_UND_RFBH_CNT': 'decimal',
+                'UNIT_UND_OFR_RFBH_CNT': 'decimal',
+                'RLET_UNIT_CNT': 'decimal',
+                'RLET_AFT_RFBH_CNT': 'decimal',
+                'RLET_AFT_TCHUP_WO_CNT': 'decimal',
+                'UNIT_UND_FRZ_RFBH_CNT': 'decimal',
+                'BLK_SCD_KEY': 'decimal',
+                'UNIT_HSC_TYPE_DMNS_KEY': 'decimal',
+                'STA_NONLTB_CNT': 'decimal',
+            },
+        )
         ctx.register_df("df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS", df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS)
         
         logger.info("Step: apply_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS1")
@@ -88,35 +126,12 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         query = f"""SELECT DISTINCT TIME_DMNS_KEY FROM DPA_FACT_EMS_PRH_STCK_MTH_ANLS"""
         query = query.replace("$$v_REC_RLS_IND", v_REC_RLS_IND)
         df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS1 = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS1.columns
-        _port_cols = ["TIME_DMNS_KEY"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS1 = df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS1.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS1 = df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS1.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS1.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS1 = lib.sq_output(
+            input_df=df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS1,
+            port_cols={
+                'TIME_DMNS_KEY': 'decimal',
+            },
+        )
         ctx.register_df("df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS1", df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS1)
         
         logger.info("Step: apply_AGGTRANS")
@@ -191,54 +206,192 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_UPDTRANS")
         # Update Strategy: apply_UPDTRANS
         # Strategy: DD_DELETE
-        # Static DD_DELETE — pass through; the target write
-        # step applies the strategy directly (append / batch_update / batch_delete).
-        df_UPDTRANS = df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS1
+        df_UPDTRANS = lib.update_strategy(
+            input_df=df_SQ_DPA_FACT_EMS_PRH_STCK_MTH_ANLS1,
+        )
         ctx.register_df("df_UPDTRANS", df_UPDTRANS)
         
         logger.info("Step: write_DDS_FACT_EMS_PRH_STCK_MTH_ANLS")
         # Write to Target: write_DDS_FACT_EMS_PRH_STCK_MTH_ANLS
-        df_write = df_AGGTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"ALCT_STS_DMNS_KEY": "ALCT_STS_DMNS_KEY", "BLK_CNT": "BLK_CNT1", "BLK_SCD_KEY": "BLK_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY": "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY": "DSTR_CHC_DSTR_SCD_KEY", "EST_SCD_KEY": "EST_SCD_KEY", "FLAT_TYPE_DMNS_KEY": "FLAT_TYPE_DMNS_KEY", "HSC_UNIT_TYPE_DMNS_KEY": "UNIT_HSC_TYPE_DMNS_KEY", "MAX_UNIT_HEAD_CNT": "MAX_UNIT_HEAD_CNT", "MAX_UNIT_IFA_RENT_AMT": "MAX_UNIT_IFA_RENT_AMT1", "MAX_UNIT_MTH_RENT_AMT": "MAX_UNIT_MTH_RENT_AMT1", "MAX_UNIT_VCNCY_DAY_NUM": "MAX_UNIT_VCNCY_DAY_NUM1", "MGT_MODE_DMNS_KEY": "MGT_MODE_DMNS_KEY", "MIN_UNIT_HEAD_CNT": "MIN_UNIT_HEAD_CNT", "MIN_UNIT_IFA_RENT_AMT": "MIN_UNIT_IFA_RENT_AMT1", "MIN_UNIT_MTH_RENT_AMT": "MIN_UNIT_MTH_RENT_AMT1", "PRVS_UNIT_CNT": "PRVS_UNIT_CNT1", "RCVR_UNIT_CNT": "RCVR_UNIT_CNT1", "REC_RLS_IND": "REC_RLS_IND", "RLET_AFT_RFBH_CNT": "RLET_AFT_RFBH_CNT1", "RLET_AFT_TCHUP_WO_CNT": "RLET_AFT_TCHUP_WO_CNT1", "RLET_UNIT_CNT": "RLET_UNIT_CNT1", "RNTL_UNIT_CNT": "RNTL_UNIT_CNT1", "STA_NONLTB_UNIT_CNT": "STA_NONLTB_CNT1", "STA_OCPY_UNIT_CNT": "STA_OCPY_UNIT_CNT1", "STA_UNIT_CNT": "STA_UNIT_CNT1", "STA_UNIT_UND_OFR_CNT": "STA_UNIT_UND_OFR_CNT1", "STA_VCNT_UNIT_ALCT_CNT": "STA_VCNT_UNIT_ALCT_CNT1", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "TOT_UNIT_IFA_RENT_AMT": "TOT_UNIT_IFA_RENT_AMT1", "TOT_UNIT_MTH_RENT_AMT": "TOT_UNIT_MTH_RENT_AMT1", "TOT_UNIT_VCNCY_DAY_NUM": "TOT_UNIT_VCNCY_DAY_NUM1", "UNIT_ADVS_ENV_IND": "UNIT_ADVS_ENV_IND", "UNIT_SIZE_DMNS_KEY": "UNIT_SIZE_DMNS_KEY", "UNIT_UND_FRZ_RFBH_CNT": "UNIT_UND_FRZ_RFBH_CNT1", "UNIT_UND_OFR_RFBH_CNT": "UNIT_UND_OFR_RFBH_CNT1", "VCNT_UNIT_UND_RFBH_CNT": "VCNT_UNIT_UND_RFBH_CNT1"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['TIME_DMNS_KEY', 'EST_SCD_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'FLAT_TYPE_DMNS_KEY', 'UNIT_SIZE_DMNS_KEY', 'ALCT_STS_DMNS_KEY', 'MGT_MODE_DMNS_KEY', 'MAX_UNIT_HEAD_CNT', 'MIN_UNIT_HEAD_CNT', 'UNIT_ADVS_ENV_IND', 'BLK_CNT', 'PRVS_UNIT_CNT', 'RCVR_UNIT_CNT', 'MAX_UNIT_VCNCY_DAY_NUM', 'TOT_UNIT_VCNCY_DAY_NUM', 'RNTL_UNIT_CNT', 'MAX_UNIT_MTH_RENT_AMT', 'MIN_UNIT_MTH_RENT_AMT', 'TOT_UNIT_MTH_RENT_AMT', 'MAX_UNIT_IFA_RENT_AMT', 'MIN_UNIT_IFA_RENT_AMT', 'TOT_UNIT_IFA_RENT_AMT', 'STA_UNIT_CNT', 'STA_OCPY_UNIT_CNT', 'STA_VCNT_UNIT_ALCT_CNT', 'STA_UNIT_UND_OFR_CNT', 'VCNT_UNIT_UND_RFBH_CNT', 'UNIT_UND_OFR_RFBH_CNT', 'RLET_UNIT_CNT', 'RLET_AFT_RFBH_CNT', 'RLET_AFT_TCHUP_WO_CNT', 'UNIT_UND_FRZ_RFBH_CNT', 'BLK_SCD_KEY', 'HSC_UNIT_TYPE_DMNS_KEY', 'STA_NONLTB_UNIT_CNT', 'REC_RLS_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DDS_FACT_EMS_PRH_STCK_MTH_ANLS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_AGGTRANS,
+            conn=conn_target,
+            table='DDS_FACT_EMS_PRH_STCK_MTH_ANLS',
+            mode='append',
+            source_columns=[
+                'TIME_DMNS_KEY',
+                'EST_SCD_KEY',
+                'DSTR_BRD_DSTR_DMNS_KEY',
+                'DSTR_CHC_DSTR_SCD_KEY',
+                'FLAT_TYPE_DMNS_KEY',
+                'UNIT_SIZE_DMNS_KEY',
+                'ALCT_STS_DMNS_KEY',
+                'MGT_MODE_DMNS_KEY',
+                'MAX_UNIT_HEAD_CNT',
+                'MIN_UNIT_HEAD_CNT',
+                'UNIT_ADVS_ENV_IND',
+                'BLK_CNT1',
+                'PRVS_UNIT_CNT1',
+                'RCVR_UNIT_CNT1',
+                'MAX_UNIT_VCNCY_DAY_NUM1',
+                'TOT_UNIT_VCNCY_DAY_NUM1',
+                'RNTL_UNIT_CNT1',
+                'MAX_UNIT_MTH_RENT_AMT1',
+                'MIN_UNIT_MTH_RENT_AMT1',
+                'TOT_UNIT_MTH_RENT_AMT1',
+                'MAX_UNIT_IFA_RENT_AMT1',
+                'MIN_UNIT_IFA_RENT_AMT1',
+                'TOT_UNIT_IFA_RENT_AMT1',
+                'STA_UNIT_CNT1',
+                'STA_OCPY_UNIT_CNT1',
+                'STA_VCNT_UNIT_ALCT_CNT1',
+                'STA_UNIT_UND_OFR_CNT1',
+                'VCNT_UNIT_UND_RFBH_CNT1',
+                'UNIT_UND_OFR_RFBH_CNT1',
+                'RLET_UNIT_CNT1',
+                'RLET_AFT_RFBH_CNT1',
+                'RLET_AFT_TCHUP_WO_CNT1',
+                'UNIT_UND_FRZ_RFBH_CNT1',
+                'BLK_SCD_KEY',
+                'UNIT_HSC_TYPE_DMNS_KEY',
+                'STA_NONLTB_CNT1',
+                'REC_RLS_IND',
+            ],
+            target_columns=[
+                'TIME_DMNS_KEY',
+                'EST_SCD_KEY',
+                'DSTR_BRD_DSTR_DMNS_KEY',
+                'DSTR_CHC_DSTR_SCD_KEY',
+                'FLAT_TYPE_DMNS_KEY',
+                'UNIT_SIZE_DMNS_KEY',
+                'ALCT_STS_DMNS_KEY',
+                'MGT_MODE_DMNS_KEY',
+                'MAX_UNIT_HEAD_CNT',
+                'MIN_UNIT_HEAD_CNT',
+                'UNIT_ADVS_ENV_IND',
+                'BLK_CNT',
+                'PRVS_UNIT_CNT',
+                'RCVR_UNIT_CNT',
+                'MAX_UNIT_VCNCY_DAY_NUM',
+                'TOT_UNIT_VCNCY_DAY_NUM',
+                'RNTL_UNIT_CNT',
+                'MAX_UNIT_MTH_RENT_AMT',
+                'MIN_UNIT_MTH_RENT_AMT',
+                'TOT_UNIT_MTH_RENT_AMT',
+                'MAX_UNIT_IFA_RENT_AMT',
+                'MIN_UNIT_IFA_RENT_AMT',
+                'TOT_UNIT_IFA_RENT_AMT',
+                'STA_UNIT_CNT',
+                'STA_OCPY_UNIT_CNT',
+                'STA_VCNT_UNIT_ALCT_CNT',
+                'STA_UNIT_UND_OFR_CNT',
+                'VCNT_UNIT_UND_RFBH_CNT',
+                'UNIT_UND_OFR_RFBH_CNT',
+                'RLET_UNIT_CNT',
+                'RLET_AFT_RFBH_CNT',
+                'RLET_AFT_TCHUP_WO_CNT',
+                'UNIT_UND_FRZ_RFBH_CNT',
+                'BLK_SCD_KEY',
+                'HSC_UNIT_TYPE_DMNS_KEY',
+                'STA_NONLTB_UNIT_CNT',
+                'REC_RLS_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_DDS_FACT_EMS_PRH_STCK_MTH_ANLS write completed")
         logger.info("Step: write_DDS_FACT_EMS_PRH_STCK_MTH_ANLS1")
         # Write to Target: write_DDS_FACT_EMS_PRH_STCK_MTH_ANLS1
-        df_write = df_UPDTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"TIME_DMNS_KEY": "TIME_DMNS_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Static DD_DELETE: composite primary-key delete of all rows
-        _del_key_cols = ['TIME_DMNS_KEY', 'EST_SCD_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'FLAT_TYPE_DMNS_KEY', 'UNIT_SIZE_DMNS_KEY', 'ALCT_STS_DMNS_KEY', 'MGT_MODE_DMNS_KEY', 'MAX_UNIT_HEAD_CNT', 'MIN_UNIT_HEAD_CNT', 'UNIT_ADVS_ENV_IND', 'BLK_SCD_KEY', 'HSC_UNIT_TYPE_DMNS_KEY']
-        if not df_write.rdd.isEmpty():
-            _del_rows = [tuple(r[c] for c in _del_key_cols) for r in df_write.select(*_del_key_cols).distinct().collect()]
-            if _del_rows:
-                lib.batch_delete_composite(spark, conn_target, "DDS_FACT_EMS_PRH_STCK_MTH_ANLS", _del_key_cols, _del_rows, 1000)
+        lib.write_target(
+            spark=spark,
+            df=df_UPDTRANS,
+            conn=conn_target,
+            table='DDS_FACT_EMS_PRH_STCK_MTH_ANLS',
+            mode='append',
+            source_columns=[
+                'TIME_DMNS_KEY',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ],
+            target_columns=[
+                'TIME_DMNS_KEY',
+                'EST_SCD_KEY',
+                'DSTR_BRD_DSTR_DMNS_KEY',
+                'DSTR_CHC_DSTR_SCD_KEY',
+                'FLAT_TYPE_DMNS_KEY',
+                'UNIT_SIZE_DMNS_KEY',
+                'ALCT_STS_DMNS_KEY',
+                'MGT_MODE_DMNS_KEY',
+                'MAX_UNIT_HEAD_CNT',
+                'MIN_UNIT_HEAD_CNT',
+                'UNIT_ADVS_ENV_IND',
+                'BLK_CNT',
+                'PRVS_UNIT_CNT',
+                'RCVR_UNIT_CNT',
+                'MAX_UNIT_VCNCY_DAY_NUM',
+                'TOT_UNIT_VCNCY_DAY_NUM',
+                'RNTL_UNIT_CNT',
+                'MAX_UNIT_MTH_RENT_AMT',
+                'MIN_UNIT_MTH_RENT_AMT',
+                'TOT_UNIT_MTH_RENT_AMT',
+                'MAX_UNIT_IFA_RENT_AMT',
+                'MIN_UNIT_IFA_RENT_AMT',
+                'TOT_UNIT_IFA_RENT_AMT',
+                'STA_UNIT_CNT',
+                'STA_OCPY_UNIT_CNT',
+                'STA_VCNT_UNIT_ALCT_CNT',
+                'STA_UNIT_UND_OFR_CNT',
+                'VCNT_UNIT_UND_RFBH_CNT',
+                'UNIT_UND_OFR_RFBH_CNT',
+                'RLET_UNIT_CNT',
+                'RLET_AFT_RFBH_CNT',
+                'RLET_AFT_TCHUP_WO_CNT',
+                'UNIT_UND_FRZ_RFBH_CNT',
+                'BLK_SCD_KEY',
+                'HSC_UNIT_TYPE_DMNS_KEY',
+                'STA_NONLTB_UNIT_CNT',
+                'REC_RLS_IND',
+            ],
+            is_delete=True,
+            delete_keys=['TIME_DMNS_KEY', 'EST_SCD_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'FLAT_TYPE_DMNS_KEY', 'UNIT_SIZE_DMNS_KEY', 'ALCT_STS_DMNS_KEY', 'MGT_MODE_DMNS_KEY', 'MAX_UNIT_HEAD_CNT', 'MIN_UNIT_HEAD_CNT', 'UNIT_ADVS_ENV_IND', 'BLK_SCD_KEY', 'HSC_UNIT_TYPE_DMNS_KEY'],
+            static_dd='DD_DELETE',
+            config=config,
+        )
 
         logger.info("write_DDS_FACT_EMS_PRH_STCK_MTH_ANLS1 write completed")
         

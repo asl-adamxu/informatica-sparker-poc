@@ -82,104 +82,118 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         query = f"""select time_dmns_key from dds_dmns_time where time_val_date=to_date('$$v_snsh_date','yyyyMMdd') and time_dmns_key<200000000"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR.columns
-        _port_cols = ["TIME_DMNS_KEY"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR = df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR = df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR = lib.sq_output(
+            input_df=df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR,
+            port_cols={
+                'TIME_DMNS_KEY': 'decimal',
+            },
+        )
         ctx.register_df("df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR", df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR)
         
         logger.info("Step: apply_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR")
         # Source Qualifier: apply_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR
         df_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR = df_DPA_FACT_GMS_DLY_DOG_RGSTR
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["TIME_DMNS_KEY", "EST_SCD_KEY", "DOG_RGSTR_APRV_CNT", "DOG_RGSTR_APRV_CNCL_CNT", "AUTH_DOG_PNT_ALLT_CASE_CNT", "UNAUTH_DOG_PNT_ALLT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE"]
-        df_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR = df_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR = lib.sq_output(
+            input_df=df_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR,
+            port_cols={
+                'TIME_DMNS_KEY': 'decimal',
+                'EST_SCD_KEY': 'decimal',
+                'DOG_RGSTR_APRV_CNT': 'decimal',
+                'DOG_RGSTR_APRV_CNCL_CNT': 'decimal',
+                'AUTH_DOG_PNT_ALLT_CASE_CNT': 'decimal',
+                'UNAUTH_DOG_PNT_ALLT_CASE_CNT': 'decimal',
+                'REC_RLS_IND': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+            },
+        )
         ctx.register_df("df_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR", df_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR)
         
         logger.info("Step: apply_UPDTRANS")
         # Update Strategy: apply_UPDTRANS
         # Strategy: DD_DELETE
-        # Static DD_DELETE — pass through; the target write
-        # step applies the strategy directly (append / batch_update / batch_delete).
-        df_UPDTRANS = df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR
+        df_UPDTRANS = lib.update_strategy(
+            input_df=df_SQ_DDS_FACT_GMS_DLY_DOG_RGSTR,
+        )
         ctx.register_df("df_UPDTRANS", df_UPDTRANS)
         
         logger.info("Step: apply_UPDTRANS1")
         # Update Strategy: apply_UPDTRANS1
         # Strategy: DD_INSERT
-        # Static DD_INSERT — pass through; the target write
-        # step applies the strategy directly (append / batch_update / batch_delete).
-        df_UPDTRANS1 = df_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR
+        df_UPDTRANS1 = lib.update_strategy(
+            input_df=df_SQ_DPA_FACT_GMS_DLY_DOG_RGSTR,
+        )
         ctx.register_df("df_UPDTRANS1", df_UPDTRANS1)
         
         logger.info("Step: write_DDS_FACT_GMS_DLY_DOG_RGSTR1")
         # Write to Target: write_DDS_FACT_GMS_DLY_DOG_RGSTR1
-        df_write = df_UPDTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"TIME_DMNS_KEY": "TIME_DMNS_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Static DD_DELETE: composite primary-key delete of all rows
-        _del_key_cols = ['TIME_DMNS_KEY', 'EST_SCD_KEY']
-        if not df_write.rdd.isEmpty():
-            _del_rows = [tuple(r[c] for c in _del_key_cols) for r in df_write.select(*_del_key_cols).distinct().collect()]
-            if _del_rows:
-                lib.batch_delete_composite(spark, conn_target, "DDS_FACT_GMS_DLY_DOG_RGSTR", _del_key_cols, _del_rows, 1000)
+        lib.write_target(
+            spark=spark,
+            df=df_UPDTRANS,
+            conn=conn_target,
+            table='DDS_FACT_GMS_DLY_DOG_RGSTR',
+            mode='append',
+            source_columns=[
+                'TIME_DMNS_KEY',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ],
+            target_columns=[
+                'TIME_DMNS_KEY',
+                'EST_SCD_KEY',
+                'DOG_RGSTR_APRV_CNT',
+                'DOG_RGSTR_APRV_CNCL_CNT',
+                'AUTH_DOG_PNT_ALLT_CASE_CNT',
+                'UNAUTH_DOG_PNT_ALLT_CASE_CNT',
+                'REC_RLS_IND',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+            ],
+            is_delete=True,
+            delete_keys=['TIME_DMNS_KEY', 'EST_SCD_KEY'],
+            static_dd='DD_DELETE',
+            config=config,
+        )
 
         logger.info("write_DDS_FACT_GMS_DLY_DOG_RGSTR1 write completed")
         logger.info("Step: write_DDS_FACT_GMS_DLY_DOG_RGSTR2")
         # Write to Target: write_DDS_FACT_GMS_DLY_DOG_RGSTR2
-        df_write = df_UPDTRANS1
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AUTH_DOG_PNT_ALLT_CASE_CNT": "AUTH_DOG_PNT_ALLT_CASE_CNT", "DOG_RGSTR_APRV_CNCL_CNT": "DOG_RGSTR_APRV_CNCL_CNT", "DOG_RGSTR_APRV_CNT": "DOG_RGSTR_APRV_CNT", "EST_SCD_KEY": "EST_SCD_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "REC_RLS_IND": "REC_RLS_IND", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "UNAUTH_DOG_PNT_ALLT_CASE_CNT": "UNAUTH_DOG_PNT_ALLT_CASE_CNT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['TIME_DMNS_KEY', 'EST_SCD_KEY', 'DOG_RGSTR_APRV_CNT', 'DOG_RGSTR_APRV_CNCL_CNT', 'AUTH_DOG_PNT_ALLT_CASE_CNT', 'UNAUTH_DOG_PNT_ALLT_CASE_CNT', 'REC_RLS_IND', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DDS_FACT_GMS_DLY_DOG_RGSTR", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_UPDTRANS1,
+            conn=conn_target,
+            table='DDS_FACT_GMS_DLY_DOG_RGSTR',
+            mode='append',
+            source_columns=[
+                'TIME_DMNS_KEY',
+                'EST_SCD_KEY',
+                'DOG_RGSTR_APRV_CNT',
+                'DOG_RGSTR_APRV_CNCL_CNT',
+                'AUTH_DOG_PNT_ALLT_CASE_CNT',
+                'UNAUTH_DOG_PNT_ALLT_CASE_CNT',
+                'REC_RLS_IND',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+            ],
+            target_columns=[
+                'TIME_DMNS_KEY',
+                'EST_SCD_KEY',
+                'DOG_RGSTR_APRV_CNT',
+                'DOG_RGSTR_APRV_CNCL_CNT',
+                'AUTH_DOG_PNT_ALLT_CASE_CNT',
+                'UNAUTH_DOG_PNT_ALLT_CASE_CNT',
+                'REC_RLS_IND',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+            ],
+            config=config,
+        )
 
         logger.info("write_DDS_FACT_GMS_DLY_DOG_RGSTR2 write completed")
         

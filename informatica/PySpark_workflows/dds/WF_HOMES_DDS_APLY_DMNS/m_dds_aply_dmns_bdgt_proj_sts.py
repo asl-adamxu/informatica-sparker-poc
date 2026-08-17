@@ -59,57 +59,42 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 FROM
  DPA_DMNS_BDGT_PROJ_STS"""
         df_SQ_DPA_DMNS_BDGT_PROJ_STS = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_SQ_DPA_DMNS_BDGT_PROJ_STS.columns
-        _port_cols = ["DMNS_BDGT_PROJ_STS_KEY", "PROJ_STS_CATG_CODE", "PROJ_STS_DESP", "BDGT_STS_DISP_SEQ_NUM", "PHCP_IND"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_SQ_DPA_DMNS_BDGT_PROJ_STS = df_SQ_DPA_DMNS_BDGT_PROJ_STS.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_DPA_DMNS_BDGT_PROJ_STS = df_SQ_DPA_DMNS_BDGT_PROJ_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DPA_DMNS_BDGT_PROJ_STS.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_SQ_DPA_DMNS_BDGT_PROJ_STS = lib.sq_output(
+            input_df=df_SQ_DPA_DMNS_BDGT_PROJ_STS,
+            port_cols={
+                'DMNS_BDGT_PROJ_STS_KEY': 'double',
+                'PROJ_STS_CATG_CODE': 'string',
+                'PROJ_STS_DESP': 'string',
+                'BDGT_STS_DISP_SEQ_NUM': 'double',
+                'PHCP_IND': 'string',
+            },
+        )
         ctx.register_df("df_SQ_DPA_DMNS_BDGT_PROJ_STS", df_SQ_DPA_DMNS_BDGT_PROJ_STS)
         
         logger.info("Step: write_DDS_DMNS_BDGT_PROJ_STS")
         # Write to Target: write_DDS_DMNS_BDGT_PROJ_STS
-        df_write = df_SQ_DPA_DMNS_BDGT_PROJ_STS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BDGT_STS_DISP_SEQ_NUM": "BDGT_STS_DISP_SEQ_NUM", "DMNS_BDGT_PROJ_STS_KEY": "DMNS_BDGT_PROJ_STS_KEY", "PHCP_IND": "PHCP_IND", "PROJ_STS_CATG_CODE": "PROJ_STS_CATG_CODE", "PROJ_STS_DESP": "PROJ_STS_DESP"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['DMNS_BDGT_PROJ_STS_KEY', 'PROJ_STS_CATG_CODE', 'PROJ_STS_DESP', 'BDGT_STS_DISP_SEQ_NUM', 'PHCP_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DDS_DMNS_BDGT_PROJ_STS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_DPA_DMNS_BDGT_PROJ_STS,
+            conn=conn_target,
+            table='DDS_DMNS_BDGT_PROJ_STS',
+            mode='append',
+            source_columns=[
+                'DMNS_BDGT_PROJ_STS_KEY',
+                'PROJ_STS_CATG_CODE',
+                'PROJ_STS_DESP',
+                'BDGT_STS_DISP_SEQ_NUM',
+                'PHCP_IND',
+            ],
+            target_columns=[
+                'DMNS_BDGT_PROJ_STS_KEY',
+                'PROJ_STS_CATG_CODE',
+                'PROJ_STS_DESP',
+                'BDGT_STS_DISP_SEQ_NUM',
+                'PHCP_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_DDS_DMNS_BDGT_PROJ_STS write completed")
         

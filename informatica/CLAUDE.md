@@ -611,9 +611,8 @@ Source of record: `convert_informatica_pyspark.md` (# 需手动fix的Bug). The `
 
 | # | Affected generated file(s) | Problem | Required manual fix | Workspace check (2026-08-07) |
 |---|---------------------------|---------|---------------------|------------------------------|
-| 1 | `m_dpa_summarize_fact_cms_case_smry.py`, `m_dpa_summarize_fact_cms_case_ostd_smry.py` | Multiple lookups expose same-named fields (e.g. `CASE_CATG_KEY`) | **Fixed in XML (2026-08-11)**: suffixed the colliding SQL aliases so each lookup's result columns are distinct — `CASE_CATG_KEY→CASE_CATG_KEY1`, `CASE_TYPE_PATH_TEXT→CASE_TYPE_PATH_TEXT1` (both files); `RCPT_PRN_DATE→RCPT_PRN_DATE1`, `CUST_RQS_INCMG_CHNL_CODE→CUST_RQS_INCMG_CHNL_CODE1` (case_smry only). Fix lives in the XML, so reconversion auto-produces it (rename pairs now `("CASE_CATG_KEY1", "IN_CASE_CATG_KEY1")` etc.). **General pattern for this bug class**: same-named SQL alias from multiple lookups → suffix the alias in the XML SQL (`X` → `X1`), keep `SELECT ... AS <suffixed>` distinct per query | Fixed in XML + reconverted 2026-08-11; generated rename pairs verified distinct — **closed** |
-| 2 | `m_s5_dds_aply_fact_ems_sms_aply_type_txn.py` | `RLS_CNTL_DMNS_TYPE_CODE` collides with other columns | Rename to `DDS_RLS_CNTL_DMNS_TYPE_CODE` | Rename already present in current output — verify at runtime |
-| 3 | Numeric → string columns (e.g. `rec_rls_ind`) | Scientific notation in output | Explicit decimal type before string cast | No `rec_rls_ind` match in current output; framework "Decimal → String casting" rule applies — verify at runtime |
+| 1 | `m_dpa_summarize_fact_cms_case_smry.py`, `m_dpa_summarize_fact_cms_case_ostd_smry.py` | Multiple lookups expose same-named fields (e.g. `CASE_CATG_KEY`) ,the colliding SQL aliases so each lookup's result columns are distinct — `CASE_CATG_KEY→CASE_CATG_KEY1`, `CASE_TYPE_PATH_TEXT→CASE_TYPE_PATH_TEXT1` (both files); `RCPT_PRN_DATE→RCPT_PRN_DATE1`, `CUST_RQS_INCMG_CHNL_CODE→CUST_RQS_INCMG_CHNL_CODE1` (case_smry only). |
+| 2 | Numeric → string columns (e.g. `rec_rls_ind`) | Scientific notation in output | Explicit decimal type before string cast | No `rec_rls_ind` match in current output; framework "Decimal → String casting" rule applies — verify at runtime |
 
 ## Known Pending Items (待修复)
 

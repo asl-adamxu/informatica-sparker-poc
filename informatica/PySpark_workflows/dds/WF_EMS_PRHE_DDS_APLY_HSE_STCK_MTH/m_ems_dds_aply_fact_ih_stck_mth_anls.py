@@ -58,70 +58,176 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS_1")
         # Source Qualifier: apply_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS_1
         df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS_1 = df_DPA_FACT_EMS_IH_STCK_MTH_ANLS
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["TIME_DMNS_KEY", "LU_FCST_IND"]
-        df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS_1 = df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS_1.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS_1.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS_1 = lib.sq_output(
+            input_df=df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS_1,
+            port_cols={
+                'TIME_DMNS_KEY': 'decimal',
+                'LU_FCST_IND': 'string',
+            },
+        )
         ctx.register_df("df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS_1", df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS_1)
         
         logger.info("Step: apply_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS")
         # Source Qualifier: apply_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS
         df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS = df_DPA_FACT_EMS_IH_STCK_MTH_ANLS
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["TIME_DMNS_KEY", "EST_SCD_KEY", "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY", "FLAT_TYPE_DMNS_KEY", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "LU_FCST_IND", "UNIT_IFA_AREA", "BLK_CNT", "UNIT_CNT", "OCPY_UNIT_CNT", "VCNT_UNIT_CNT", "UNIT_UND_OFR_CNT", "RCVR_UNIT_CNT", "RCVR_UNIT_TRWL_CNT", "RCVR_UNIT_GWL_CNT", "LU_CLR_DMND_CNT", "LU_CLR_EXRC_DMND_CNT", "EMMS_CLR_DMND_CNT", "EST_TNCY_ACT_DMND_CNT", "TFR_DMND_CNT"]
-        df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS = df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS = lib.sq_output(
+            input_df=df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS,
+            port_cols={
+                'TIME_DMNS_KEY': 'decimal',
+                'EST_SCD_KEY': 'decimal',
+                'DSTR_BRD_DSTR_DMNS_KEY': 'decimal',
+                'DSTR_CHC_DSTR_SCD_KEY': 'decimal',
+                'FLAT_TYPE_DMNS_KEY': 'decimal',
+                'MAX_UNIT_HEAD_CNT': 'decimal',
+                'MIN_UNIT_HEAD_CNT': 'decimal',
+                'LU_FCST_IND': 'string',
+                'UNIT_IFA_AREA': 'decimal',
+                'BLK_CNT': 'decimal',
+                'UNIT_CNT': 'decimal',
+                'OCPY_UNIT_CNT': 'decimal',
+                'VCNT_UNIT_CNT': 'decimal',
+                'UNIT_UND_OFR_CNT': 'decimal',
+                'RCVR_UNIT_CNT': 'decimal',
+                'RCVR_UNIT_TRWL_CNT': 'decimal',
+                'RCVR_UNIT_GWL_CNT': 'decimal',
+                'LU_CLR_DMND_CNT': 'decimal',
+                'LU_CLR_EXRC_DMND_CNT': 'decimal',
+                'EMMS_CLR_DMND_CNT': 'decimal',
+                'EST_TNCY_ACT_DMND_CNT': 'decimal',
+                'TFR_DMND_CNT': 'decimal',
+            },
+        )
         ctx.register_df("df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS", df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS)
         
         logger.info("Step: apply_UPDTRANS")
         # Update Strategy: apply_UPDTRANS
         # Strategy: DD_DELETE
-        # Static DD_DELETE — pass through; the target write
-        # step applies the strategy directly (append / batch_update / batch_delete).
-        df_UPDTRANS = df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS_1
+        df_UPDTRANS = lib.update_strategy(
+            input_df=df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS_1,
+        )
         ctx.register_df("df_UPDTRANS", df_UPDTRANS)
         
         logger.info("Step: write_DDS_FACT_EMS_IH_STCK_MTH_ANLS")
         # Write to Target: write_DDS_FACT_EMS_IH_STCK_MTH_ANLS
-        df_write = df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BLK_CNT": "BLK_CNT", "DSTR_BRD_DSTR_DMNS_KEY": "DSTR_BRD_DSTR_DMNS_KEY", "DSTR_CHC_DSTR_SCD_KEY": "DSTR_CHC_DSTR_SCD_KEY", "EMMS_CLR_DMND_CNT": "EMMS_CLR_DMND_CNT", "EST_SCD_KEY": "EST_SCD_KEY", "EST_TNCY_ACT_DMND_CNT": "EST_TNCY_ACT_DMND_CNT", "FLAT_TYPE_DMNS_KEY": "FLAT_TYPE_DMNS_KEY", "LU_CLR_DMND_CNT": "LU_CLR_DMND_CNT", "LU_CLR_EXRC_DMND_CNT": "LU_CLR_EXRC_DMND_CNT", "LU_FCST_IND": "LU_FCST_IND", "MAX_UNIT_HEAD_CNT": "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT": "MIN_UNIT_HEAD_CNT", "OCPY_UNIT_CNT": "OCPY_UNIT_CNT", "RCVR_UNIT_CNT": "RCVR_UNIT_CNT", "RCVR_UNIT_GWL_CNT": "RCVR_UNIT_GWL_CNT", "RCVR_UNIT_TRWL_CNT": "RCVR_UNIT_TRWL_CNT", "TFR_DMND_CNT": "TFR_DMND_CNT", "TIME_DMNS_KEY": "TIME_DMNS_KEY", "UNIT_CNT": "UNIT_CNT", "UNIT_IFA_AREA": "UNIT_IFA_AREA", "UNIT_UND_OFR_CNT": "UNIT_UND_OFR_CNT", "VCNT_UNIT_CNT": "VCNT_UNIT_CNT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['TIME_DMNS_KEY', 'EST_SCD_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'FLAT_TYPE_DMNS_KEY', 'MAX_UNIT_HEAD_CNT', 'MIN_UNIT_HEAD_CNT', 'LU_FCST_IND', 'UNIT_IFA_AREA', 'BLK_CNT', 'UNIT_CNT', 'OCPY_UNIT_CNT', 'VCNT_UNIT_CNT', 'UNIT_UND_OFR_CNT', 'RCVR_UNIT_CNT', 'RCVR_UNIT_TRWL_CNT', 'RCVR_UNIT_GWL_CNT', 'LU_CLR_DMND_CNT', 'LU_CLR_EXRC_DMND_CNT', 'EMMS_CLR_DMND_CNT', 'EST_TNCY_ACT_DMND_CNT', 'TFR_DMND_CNT']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DDS_FACT_EMS_IH_STCK_MTH_ANLS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_DPA_FACT_EMS_IH_STCK_MTH_ANLS,
+            conn=conn_target,
+            table='DDS_FACT_EMS_IH_STCK_MTH_ANLS',
+            mode='append',
+            source_columns=[
+                'TIME_DMNS_KEY',
+                'EST_SCD_KEY',
+                'DSTR_BRD_DSTR_DMNS_KEY',
+                'DSTR_CHC_DSTR_SCD_KEY',
+                'FLAT_TYPE_DMNS_KEY',
+                'MAX_UNIT_HEAD_CNT',
+                'MIN_UNIT_HEAD_CNT',
+                'LU_FCST_IND',
+                'UNIT_IFA_AREA',
+                'BLK_CNT',
+                'UNIT_CNT',
+                'OCPY_UNIT_CNT',
+                'VCNT_UNIT_CNT',
+                'UNIT_UND_OFR_CNT',
+                'RCVR_UNIT_CNT',
+                'RCVR_UNIT_TRWL_CNT',
+                'RCVR_UNIT_GWL_CNT',
+                'LU_CLR_DMND_CNT',
+                'LU_CLR_EXRC_DMND_CNT',
+                'EMMS_CLR_DMND_CNT',
+                'EST_TNCY_ACT_DMND_CNT',
+                'TFR_DMND_CNT',
+            ],
+            target_columns=[
+                'TIME_DMNS_KEY',
+                'EST_SCD_KEY',
+                'DSTR_BRD_DSTR_DMNS_KEY',
+                'DSTR_CHC_DSTR_SCD_KEY',
+                'FLAT_TYPE_DMNS_KEY',
+                'MAX_UNIT_HEAD_CNT',
+                'MIN_UNIT_HEAD_CNT',
+                'LU_FCST_IND',
+                'UNIT_IFA_AREA',
+                'BLK_CNT',
+                'UNIT_CNT',
+                'OCPY_UNIT_CNT',
+                'VCNT_UNIT_CNT',
+                'UNIT_UND_OFR_CNT',
+                'RCVR_UNIT_CNT',
+                'RCVR_UNIT_TRWL_CNT',
+                'RCVR_UNIT_GWL_CNT',
+                'LU_CLR_DMND_CNT',
+                'LU_CLR_EXRC_DMND_CNT',
+                'EMMS_CLR_DMND_CNT',
+                'EST_TNCY_ACT_DMND_CNT',
+                'TFR_DMND_CNT',
+            ],
+            config=config,
+        )
 
         logger.info("write_DDS_FACT_EMS_IH_STCK_MTH_ANLS write completed")
         logger.info("Step: write_DDS_FACT_EMS_IH_STCK_MTH_ANLS_1")
         # Write to Target: write_DDS_FACT_EMS_IH_STCK_MTH_ANLS_1
-        df_write = df_UPDTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"LU_FCST_IND": "LU_FCST_IND", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Static DD_DELETE: composite primary-key delete of all rows
-        _del_key_cols = ['TIME_DMNS_KEY', 'EST_SCD_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'FLAT_TYPE_DMNS_KEY', 'MAX_UNIT_HEAD_CNT', 'MIN_UNIT_HEAD_CNT', 'LU_FCST_IND', 'UNIT_IFA_AREA']
-        if not df_write.rdd.isEmpty():
-            _del_rows = [tuple(r[c] for c in _del_key_cols) for r in df_write.select(*_del_key_cols).distinct().collect()]
-            if _del_rows:
-                lib.batch_delete_composite(spark, conn_target, "DDS_FACT_EMS_IH_STCK_MTH_ANLS", _del_key_cols, _del_rows, 1000)
+        lib.write_target(
+            spark=spark,
+            df=df_UPDTRANS,
+            conn=conn_target,
+            table='DDS_FACT_EMS_IH_STCK_MTH_ANLS',
+            mode='append',
+            source_columns=[
+                'TIME_DMNS_KEY',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                'LU_FCST_IND',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ],
+            target_columns=[
+                'TIME_DMNS_KEY',
+                'EST_SCD_KEY',
+                'DSTR_BRD_DSTR_DMNS_KEY',
+                'DSTR_CHC_DSTR_SCD_KEY',
+                'FLAT_TYPE_DMNS_KEY',
+                'MAX_UNIT_HEAD_CNT',
+                'MIN_UNIT_HEAD_CNT',
+                'LU_FCST_IND',
+                'UNIT_IFA_AREA',
+                'BLK_CNT',
+                'UNIT_CNT',
+                'OCPY_UNIT_CNT',
+                'VCNT_UNIT_CNT',
+                'UNIT_UND_OFR_CNT',
+                'RCVR_UNIT_CNT',
+                'RCVR_UNIT_TRWL_CNT',
+                'RCVR_UNIT_GWL_CNT',
+                'LU_CLR_DMND_CNT',
+                'LU_CLR_EXRC_DMND_CNT',
+                'EMMS_CLR_DMND_CNT',
+                'EST_TNCY_ACT_DMND_CNT',
+                'TFR_DMND_CNT',
+            ],
+            is_delete=True,
+            delete_keys=['TIME_DMNS_KEY', 'EST_SCD_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'FLAT_TYPE_DMNS_KEY', 'MAX_UNIT_HEAD_CNT', 'MIN_UNIT_HEAD_CNT', 'LU_FCST_IND', 'UNIT_IFA_AREA'],
+            static_dd='DD_DELETE',
+            config=config,
+        )
 
         logger.info("write_DDS_FACT_EMS_IH_STCK_MTH_ANLS_1 write completed")
         

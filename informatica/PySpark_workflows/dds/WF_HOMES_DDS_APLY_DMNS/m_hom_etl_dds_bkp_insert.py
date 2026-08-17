@@ -63,14 +63,17 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_DUAL")
         # Source Qualifier: apply_SQ_DUAL
         df_SQ_DUAL = df_DUAL
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["DUMMY"]
-        df_SQ_DUAL = df_SQ_DUAL.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DUAL.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DUAL = lib.sq_output(
+            input_df=df_SQ_DUAL,
+            port_cols={
+                'DUMMY': 'string',
+            },
+        )
         ctx.register_df("df_SQ_DUAL", df_SQ_DUAL)
         
         logger.info("Step: write_DUAL1")
         # Write to Target: write_DUAL1
-        # /dev/null / DUAL — skip entire write component 
+        # /dev/null / DUAL — skip entire write component
         logger.info("Target write_DUAL1 is a no-op target (/dev/null or DUAL), skipping write")
 
         logger.info("write_DUAL1 write completed")

@@ -168,35 +168,23 @@ AND SOR_EMS_TAM_TNCY_AGRMT_STS.TNCY_AGRMT_TM_STS_CODE IN ('A','I')
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_SQ_SOR_EMS_TAM_TNCY_AGRMT_STS = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_SQ_SOR_EMS_TAM_TNCY_AGRMT_STS.columns
-        _port_cols = ["TNCY_AGTM_KEY", "TNCY_AGRMT_BK", "ORIG_TNCY_AGRMT_CMNC_DATE", "CUST_APLY_MBR_KEY", "SYS_RPT_MTH", "SYS_RPT_YEAR", "DSTR_BRD_DSTR_CODE", "EMMS_DSTR_BRD_DSTR_KEY", "DSTR_CHC_DSTR_CODE", "EMMS_DSTR_CHC_DSTR_KEY", "EST_KEY", "EST_CODE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_SQ_SOR_EMS_TAM_TNCY_AGRMT_STS = df_SQ_SOR_EMS_TAM_TNCY_AGRMT_STS.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_SOR_EMS_TAM_TNCY_AGRMT_STS = df_SQ_SOR_EMS_TAM_TNCY_AGRMT_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_EMS_TAM_TNCY_AGRMT_STS.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_SQ_SOR_EMS_TAM_TNCY_AGRMT_STS = lib.sq_output(
+            input_df=df_SQ_SOR_EMS_TAM_TNCY_AGRMT_STS,
+            port_cols={
+                'TNCY_AGTM_KEY': 'decimal',
+                'TNCY_AGRMT_BK': 'string',
+                'ORIG_TNCY_AGRMT_CMNC_DATE': 'date/time',
+                'CUST_APLY_MBR_KEY': 'decimal',
+                'SYS_RPT_MTH': 'decimal',
+                'SYS_RPT_YEAR': 'decimal',
+                'DSTR_BRD_DSTR_CODE': 'string',
+                'EMMS_DSTR_BRD_DSTR_KEY': 'string',
+                'DSTR_CHC_DSTR_CODE': 'string',
+                'EMMS_DSTR_CHC_DSTR_KEY': 'string',
+                'EST_KEY': 'decimal',
+                'EST_CODE': 'string',
+            },
+        )
         ctx.register_df("df_SQ_SOR_EMS_TAM_TNCY_AGRMT_STS", df_SQ_SOR_EMS_TAM_TNCY_AGRMT_STS)
         
         logger.info("Step: apply_SQ_SOR_EMS_TAM_TNCY_AGRMT_SMRY")
@@ -241,78 +229,59 @@ GROUP BY
         query = query.replace("$$v_snsh_date", v_snsh_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_SQ_SOR_EMS_TAM_TNCY_AGRMT_SMRY = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_SQ_SOR_EMS_TAM_TNCY_AGRMT_SMRY.columns
-        _port_cols = ["TNCY_AGTM_KEY", "CUST_APLY_MBR_KEY", "CUST_AGE", "HSHLD_SIZE", "HSHLD_MALE_MBR_CNT", "HSHLD_FML_MBR_CNT", "HSHLD_UNKWN_MBR_CNT", "HSHLD_DSBL_MBR_CNT"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_SQ_SOR_EMS_TAM_TNCY_AGRMT_SMRY = df_SQ_SOR_EMS_TAM_TNCY_AGRMT_SMRY.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_SOR_EMS_TAM_TNCY_AGRMT_SMRY = df_SQ_SOR_EMS_TAM_TNCY_AGRMT_SMRY.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_EMS_TAM_TNCY_AGRMT_SMRY.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_SQ_SOR_EMS_TAM_TNCY_AGRMT_SMRY = lib.sq_output(
+            input_df=df_SQ_SOR_EMS_TAM_TNCY_AGRMT_SMRY,
+            port_cols={
+                'TNCY_AGTM_KEY': 'decimal',
+                'CUST_APLY_MBR_KEY': 'decimal',
+                'CUST_AGE': 'decimal',
+                'HSHLD_SIZE': 'decimal',
+                'HSHLD_MALE_MBR_CNT': 'decimal',
+                'HSHLD_FML_MBR_CNT': 'decimal',
+                'HSHLD_UNKWN_MBR_CNT': 'decimal',
+                'HSHLD_DSBL_MBR_CNT': 'decimal',
+            },
+        )
         ctx.register_df("df_SQ_SOR_EMS_TAM_TNCY_AGRMT_SMRY", df_SQ_SOR_EMS_TAM_TNCY_AGRMT_SMRY)
         
         logger.info("Step: apply_EXPTRANS3")
         # Expression: apply_EXPTRANS3
-        df_EXPTRANS3 = df_SQ_SOR_EMS_TAM_TNCY_AGRMT_STS
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["TNCY_AGTM_KEY", "TNCY_AGRMT_BK", "ORIG_TNCY_AGRMT_CMNC_DATE", "CUST_APLY_MBR_KEY", "SYS_RPT_YEAR", "SYS_RPT_MTH", "EST_KEY", "DSTR_BRD_DSTR_CODE", "DSTR_CHC_DSTR_CODE", "EST_CODE", "EMMS_DSTR_BRD_DSTR_KEY", "EMMS_DSTR_CHC_DSTR_KEY"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS3.columns]:
-                df_EXPTRANS3 = df_EXPTRANS3.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS3 = lib.expression(
+            input_df=df_SQ_SOR_EMS_TAM_TNCY_AGRMT_STS,
+        )
         ctx.register_df("df_EXPTRANS3", df_EXPTRANS3)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_EXPTRANS3
-        df_EXPTRANS = df_EXPTRANS.withColumn("TIME_DMNS_KEY", expr("200000000+SYS_RPT_YEAR*10000+SYS_RPT_MTH*100"))
-        _expr = """to_date('$$v_snsh_date','yyyyMMdd')"""
-        _expr = _expr.replace("$$v_snsh_date", str(v_snsh_date))
-        _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
-        df_EXPTRANS = df_EXPTRANS.withColumn("SNSH_DATE", expr(_expr))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUTOFF_DATE", expr("last_day(to_date(cast(cast(SYS_RPT_YEAR as string) || lpad(cast(SYS_RPT_MTH as string),2,'0') || '01' as string), 'yyyyMMdd'))"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["TNCY_AGTM_KEY", "TNCY_AGRMT_BK", "ORIG_TNCY_AGRMT_CMNC_DATE", "CUST_APLY_MBR_KEY", "EST_KEY", "EST_CODE", "DSTR_BRD_DSTR_CODE", "DSTR_CHC_DSTR_CODE", "EMMS_DSTR_BRD_DSTR_KEY", "EMMS_DSTR_CHC_DSTR_KEY"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_EXPTRANS3,
+            computed_columns=[
+                {'name': 'TIME_DMNS_KEY', 'expr': '200000000+SYS_RPT_YEAR*10000+SYS_RPT_MTH*100'},
+                {'name': 'SNSH_DATE', 'expr': "to_date('$$v_snsh_date','yyyyMMdd')"},
+                {'name': 'CUTOFF_DATE', 'expr': "last_day(to_date(cast(cast(SYS_RPT_YEAR as string) || lpad(cast(SYS_RPT_MTH as string),2,'0') || '01' as string), 'yyyyMMdd'))"}
+            ],
+            substitutions={'$$v_snsh_date': v_snsh_date},
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: input_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY")
         # Expression: input_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY
-        df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY_input = df_EXPTRANS
-        df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY_input = df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY_input.withColumn("TNCY_AGRMT_KEY", expr("TNCY_AGTM_KEY"))
+        df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY_input = lib.expression(
+            input_df=df_EXPTRANS,
+            computed_columns=[
+                {'name': 'TNCY_AGRMT_KEY', 'expr': 'TNCY_AGTM_KEY'}
+            ],
+        )
         ctx.register_df("df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY_input", df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY_input)
         
         logger.info("Step: apply_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY_EXPTRANS")
         # Expression: apply_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY_EXPTRANS
-        df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY_EXPTRANS = df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY_input
-        df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY_EXPTRANS = df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY_EXPTRANS.withColumn("DUMMY", expr("null"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["TNCY_AGRMT_KEY", "CUTOFF_DATE"]:
-            if _col.lower() not in [x.lower() for x in df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY_EXPTRANS.columns]:
-                df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY_EXPTRANS = df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY_EXPTRANS = lib.expression(
+            input_df=df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY_input,
+            computed_columns=[
+                {'name': 'DUMMY', 'expr': 'null'}
+            ],
+        )
         ctx.register_df("df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY_EXPTRANS", df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY_EXPTRANS)
         
         logger.info("Step: read_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY_LKP_SOR_EMS_TAM_TNCY_AGRMT_STS")
@@ -350,32 +319,30 @@ where ( to_date('$$v_snsh_date','yyyymmdd') > end_date or  to_date('$$v_snsh_dat
         ctx.register_df("df_mplt_lkp_chain_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY_EXPTRANS", df_mplt_lkp_chain_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY_EXPTRANS)        
         logger.info("Step: apply_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY")
         # Expression: apply_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY
-        df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY = df_mplt_lkp_chain_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY_EXPTRANS
-        __expr_renames = [
-            ("TNCY_AGRMT_KEY", "TNCY_AGRMT_KEY_OUT"),
-        ]
-        for _old, _new in __expr_renames:
-            df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY = df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY.drop(_new).withColumnRenamed(_old, _new)
+        df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY = lib.expression(
+            input_df=df_mplt_lkp_chain_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY_EXPTRANS,
+            rename_columns=[
+                ('TNCY_AGRMT_KEY', 'TNCY_AGRMT_KEY_OUT')
+            ],
+            pass_through_cols=['TNCY_AGRMT_KEY_OUT', 'BGN_DATE', 'RENT_FCTR_CODE'],
+        )
         ctx.register_df("df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY", df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY)
         
         logger.info("Step: apply_EXPTRANS2")
         # Expression: apply_EXPTRANS2
-        df_EXPTRANS2 = df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY
-        df_EXPTRANS2 = df_EXPTRANS2.withColumn("V_MTH_LNG1", expr("36"))
-        df_EXPTRANS2 = df_EXPTRANS2.withColumn("V_MTH_LNG2", expr("60"))
-        df_EXPTRANS2 = df_EXPTRANS2.withColumn("V_MTH_LNG3", expr("84"))
-        df_EXPTRANS2 = df_EXPTRANS2.withColumn("V_MTH_LNG4", expr("120"))
-        _expr = """datediff(last_day(to_date('$$v_rpt_mth' || '01', 'yyyyMMdd')), ORIG_TNCY_AGRMT_CMNC_DATE)"""
-        _expr = _expr.replace("$$v_snsh_date", str(v_snsh_date))
-        _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
-        df_EXPTRANS2 = df_EXPTRANS2.withColumn("V_MTH_DIFF", expr(_expr))
-        df_EXPTRANS2 = df_EXPTRANS2.withColumn("SCHM_TYPE_CODE", expr("CASE WHEN substring(EST_CODE,1,1) = '9' THEN '9' ELSE 'E' END"))
-        df_EXPTRANS2 = df_EXPTRANS2.withColumn("RSDN_LNG_CODE", expr("CASE WHEN V_MTH_DIFF<36 THEN 1 WHEN V_MTH_DIFF < 60 THEN 2 WHEN V_MTH_DIFF < 84 THEN 3 WHEN V_MTH_DIFF < 120 THEN 4 ELSE 5 END"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["TNCY_AGTM_KEY", "CUST_APLY_MBR_KEY", "TIME_DMNS_KEY", "DSTR_BRD_DSTR_CODE", "DSTR_CHC_DSTR_CODE", "EMMS_DSTR_BRD_DSTR_KEY", "EMMS_DSTR_CHC_DSTR_KEY", "RENT_FCTR_CODE", "EST_KEY"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS2.columns]:
-                df_EXPTRANS2 = df_EXPTRANS2.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS2 = lib.expression(
+            input_df=df_MPLT_EMS_GET_RENT_FCTR_BY_TNCY_AGRMT_KEY,
+            computed_columns=[
+                {'name': 'V_MTH_LNG1', 'expr': '36'},
+                {'name': 'V_MTH_LNG2', 'expr': '60'},
+                {'name': 'V_MTH_LNG3', 'expr': '84'},
+                {'name': 'V_MTH_LNG4', 'expr': '120'},
+                {'name': 'V_MTH_DIFF', 'expr': "datediff(last_day(to_date('$$v_rpt_mth' || '01', 'yyyyMMdd')), ORIG_TNCY_AGRMT_CMNC_DATE)"},
+                {'name': 'SCHM_TYPE_CODE', 'expr': "CASE WHEN substring(EST_CODE,1,1) = '9' THEN '9' ELSE 'E' END"},
+                {'name': 'RSDN_LNG_CODE', 'expr': 'CASE WHEN V_MTH_DIFF<36 THEN 1 WHEN V_MTH_DIFF < 60 THEN 2 WHEN V_MTH_DIFF < 84 THEN 3 WHEN V_MTH_DIFF < 120 THEN 4 ELSE 5 END'}
+            ],
+            substitutions={'$$v_rpt_mth': v_rpt_mth},
+        )
         ctx.register_df("df_EXPTRANS2", df_EXPTRANS2)
         
         logger.info("Step: apply_JNRTRANS")
@@ -412,8 +379,10 @@ where ( to_date('$$v_snsh_date','yyyymmdd') > end_date or  to_date('$$v_snsh_dat
         
         logger.info("Step: apply_FILTRANS")
         # Filter: apply_FILTRANS
-        __fil_input = df_JNRTRANS
-        df_FILTRANS = __fil_input.filter(expr("NOT (CUST_AGE IS NULL)"))
+        df_FILTRANS = lib.filter(
+            input_df=df_JNRTRANS,
+            condition='NOT (CUST_AGE IS NULL)',
+        )
         ctx.register_df("df_FILTRANS", df_FILTRANS)
 
         logger.info("Step: read_LKP_DDS_DMNS_EMS_RSDN_LNG")
@@ -580,21 +549,20 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
-        df_EXPTRANS1 = df_lkp_merge_FILTRANS
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("RENT_FCTR_DMNS_KEY1", expr("CASE WHEN (RENT_FCTR_DMNS_KEY IS NULL) THEN 0 ELSE RENT_FCTR_DMNS_KEY END"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("RSDN_LNG_DMNS_KEY1", expr("CASE WHEN (RSDN_LNG_DMNS_KEY IS NULL) THEN 0 ELSE RSDN_LNG_DMNS_KEY END"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("TNCY_SCHM_TYPE_DMNS_KEY1", expr("CASE WHEN (TNCY_SCHM_TYPE_DMNS_KEY IS NULL) THEN 0 ELSE TNCY_SCHM_TYPE_DMNS_KEY END"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("DSTR_BRD_DSTR_DMNS_KEY1", expr("CASE WHEN (DSTR_BRD_DSTR_DMNS_KEY IS NULL) THEN 0 ELSE DSTR_BRD_DSTR_DMNS_KEY END"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("DSTR_CHC_DSTR_SCD_KEY1", expr("CASE WHEN (DSTR_CHC_DSTR_SCD_KEY IS NULL) THEN 0 ELSE DSTR_CHC_DSTR_SCD_KEY END"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("EST_SCD_KEY1", expr("CASE WHEN (EST_SCD_KEY IS NULL) THEN 0 ELSE EST_SCD_KEY END"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("TNCY_AGRMT_TM_STS_CODE", expr("NULL"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("TNCY_AGRMT_CMNC_DATE", expr("NULL"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("TNCY_AGRMT_TM_TRMT_DATE", expr("NULL"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["TIME_DMNS_KEY", "HSHLD_SIZE", "HSHLD_MALE_MBR_CNT", "HSHLD_FML_MBR_CNT", "HSHLD_UNKWN_MBR_CNT", "HSHLD_DSBL_MBR_CNT", "CUST_AGE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS1.columns]:
-                df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS1 = lib.expression(
+            input_df=df_lkp_merge_FILTRANS,
+            computed_columns=[
+                {'name': 'RENT_FCTR_DMNS_KEY1', 'expr': 'CASE WHEN (RENT_FCTR_DMNS_KEY IS NULL) THEN 0 ELSE RENT_FCTR_DMNS_KEY END'},
+                {'name': 'RSDN_LNG_DMNS_KEY1', 'expr': 'CASE WHEN (RSDN_LNG_DMNS_KEY IS NULL) THEN 0 ELSE RSDN_LNG_DMNS_KEY END'},
+                {'name': 'TNCY_SCHM_TYPE_DMNS_KEY1', 'expr': 'CASE WHEN (TNCY_SCHM_TYPE_DMNS_KEY IS NULL) THEN 0 ELSE TNCY_SCHM_TYPE_DMNS_KEY END'},
+                {'name': 'DSTR_BRD_DSTR_DMNS_KEY1', 'expr': 'CASE WHEN (DSTR_BRD_DSTR_DMNS_KEY IS NULL) THEN 0 ELSE DSTR_BRD_DSTR_DMNS_KEY END'},
+                {'name': 'DSTR_CHC_DSTR_SCD_KEY1', 'expr': 'CASE WHEN (DSTR_CHC_DSTR_SCD_KEY IS NULL) THEN 0 ELSE DSTR_CHC_DSTR_SCD_KEY END'},
+                {'name': 'EST_SCD_KEY1', 'expr': 'CASE WHEN (EST_SCD_KEY IS NULL) THEN 0 ELSE EST_SCD_KEY END'},
+                {'name': 'TNCY_AGRMT_TM_STS_CODE', 'expr': 'NULL'},
+                {'name': 'TNCY_AGRMT_CMNC_DATE', 'expr': 'NULL'},
+                {'name': 'TNCY_AGRMT_TM_TRMT_DATE', 'expr': 'NULL'}
+            ],
+        )
         ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
         
         logger.info("Step: apply_AGGTRANS")
@@ -626,23 +594,44 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         
         logger.info("Step: write_DPA_FACT_TNCY_AND_PLT_SMRY")
         # Write to Target: write_DPA_FACT_TNCY_AND_PLT_SMRY
-        df_write = df_AGGTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"HSHLD_DSBL_MBR_CNT": "HSHLD_DSBL_MBR_CNT1", "HSHLD_FML_MBR_CNT": "HSHLD_FML_MBR_CNT1", "HSHLD_MALE_MBR_CNT": "HSHLD_MALE_MBR_CNT1", "HSHLD_MBR_CNT": "HSHLD_SIZE1", "HSHLD_UKWN_GNDR_MBR_CNT": "HSHLD_UNKWN_MBR_CNT1"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['TIME_DMNS_KEY', 'EST_SCD_KEY', 'TNCY_SCHM_TYPE_DMNS_KEY', 'DSTR_BRD_DSTR_DMNS_KEY', 'DSTR_CHC_DSTR_SCD_KEY', 'RSDN_LNG_DMNS_KEY', 'RENT_FCTR_DMNS_KEY', 'HSHLD_MBR_CNT', 'HSHLD_MALE_MBR_CNT', 'HSHLD_FML_MBR_CNT', 'HSHLD_UKWN_GNDR_MBR_CNT', 'HSHLD_DSBL_MBR_CNT', 'CUST_AGE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DPA_FACT_TNCY_AND_PLT_SMRY", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_AGGTRANS,
+            conn=conn_target,
+            table='DPA_FACT_TNCY_AND_PLT_SMRY',
+            mode='append',
+            source_columns=[
+                'TIME_DMNS_KEY',
+                'EST_SCD_KEY',
+                'TNCY_SCHM_TYPE_DMNS_KEY',
+                'DSTR_BRD_DSTR_DMNS_KEY',
+                'DSTR_CHC_DSTR_SCD_KEY',
+                'RSDN_LNG_DMNS_KEY',
+                'RENT_FCTR_DMNS_KEY',
+                'HSHLD_SIZE1',
+                'HSHLD_MALE_MBR_CNT1',
+                'HSHLD_FML_MBR_CNT1',
+                'HSHLD_UNKWN_MBR_CNT1',
+                'HSHLD_DSBL_MBR_CNT1',
+                'CUST_AGE',
+            ],
+            target_columns=[
+                'TIME_DMNS_KEY',
+                'EST_SCD_KEY',
+                'TNCY_SCHM_TYPE_DMNS_KEY',
+                'DSTR_BRD_DSTR_DMNS_KEY',
+                'DSTR_CHC_DSTR_SCD_KEY',
+                'RSDN_LNG_DMNS_KEY',
+                'RENT_FCTR_DMNS_KEY',
+                'HSHLD_MBR_CNT',
+                'HSHLD_MALE_MBR_CNT',
+                'HSHLD_FML_MBR_CNT',
+                'HSHLD_UKWN_GNDR_MBR_CNT',
+                'HSHLD_DSBL_MBR_CNT',
+                'CUST_AGE',
+            ],
+            config=config,
+        )
 
         logger.info("write_DPA_FACT_TNCY_AND_PLT_SMRY write completed")
         

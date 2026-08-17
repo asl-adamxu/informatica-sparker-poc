@@ -258,67 +258,91 @@ and u.hshld_size_code=h.hshld_size_code (+)
 and u.score_grp_code=s.score_grp_code (+)"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY.columns
-        _port_cols = ["TIME_DMNS_KEY", "EST_SCD_KEY", "OFCR_TYPE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MSD_CODE_SCD_KEY", "OFNDR_GNDR_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY", "ACTV_OFNC_TNCY_CNT", "CMLT_OFNC_TNCY_CNT", "AFT_CMLT_WRT_WARN_TNCY_CNT", "CMLT_WRT_WARN_CASE_CNT", "AFT_CMLT_WRT_WARN_CASE_CNT", "ACTV_PNT_ALLT_CASE_CNT", "CMLT_PNT_ALLT_CASE_CNT", "CMLT_MSD_TOT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY = df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY = df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY = lib.sq_output(
+            input_df=df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY,
+            port_cols={
+                'TIME_DMNS_KEY': 'decimal',
+                'EST_SCD_KEY': 'decimal',
+                'OFCR_TYPE_DMNS_KEY': 'decimal',
+                'HSHLD_SIZE_DMNS_KEY': 'decimal',
+                'MSD_CODE_SCD_KEY': 'decimal',
+                'OFNDR_GNDR_DMNS_KEY': 'decimal',
+                'OFNDR_AGE_GRP_DMNS_KEY': 'decimal',
+                'OFNC_SCORE_GRP_DMNS_KEY': 'decimal',
+                'ACTV_OFNC_TNCY_CNT': 'decimal',
+                'CMLT_OFNC_TNCY_CNT': 'decimal',
+                'AFT_CMLT_WRT_WARN_TNCY_CNT': 'decimal',
+                'CMLT_WRT_WARN_CASE_CNT': 'decimal',
+                'AFT_CMLT_WRT_WARN_CASE_CNT': 'decimal',
+                'ACTV_PNT_ALLT_CASE_CNT': 'decimal',
+                'CMLT_PNT_ALLT_CASE_CNT': 'decimal',
+                'CMLT_MSD_TOT_CASE_CNT': 'decimal',
+                'REC_RLS_IND': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+            },
+        )
         ctx.register_df("df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY", df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["TIME_DMNS_KEY", "EST_SCD_KEY", "OFCR_TYPE_DMNS_KEY", "HSHLD_SIZE_DMNS_KEY", "MSD_CODE_SCD_KEY", "OFNDR_GNDR_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY", "ACTV_OFNC_TNCY_CNT", "CMLT_OFNC_TNCY_CNT", "AFT_CMLT_WRT_WARN_TNCY_CNT", "CMLT_WRT_WARN_CASE_CNT", "AFT_CMLT_WRT_WARN_CASE_CNT", "ACTV_PNT_ALLT_CASE_CNT", "CMLT_PNT_ALLT_CASE_CNT", "CMLT_MSD_TOT_CASE_CNT", "REC_RLS_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_DDS_FACT_GMS_DLY_MSD_SMRY,
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_DPA_FACT_GMS_DLY_MSD_SMRY")
         # Write to Target: write_DPA_FACT_GMS_DLY_MSD_SMRY
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"ACTV_OFNC_TNCY_CNT": "ACTV_OFNC_TNCY_CNT", "ACTV_PNT_ALLT_CASE_CNT": "ACTV_PNT_ALLT_CASE_CNT", "AFT_CMLT_WRT_WARN_CASE_CNT": "AFT_CMLT_WRT_WARN_CASE_CNT", "AFT_CMLT_WRT_WARN_TNCY_CNT": "AFT_CMLT_WRT_WARN_TNCY_CNT", "CMLT_MSD_TOT_CASE_CNT": "CMLT_MSD_TOT_CASE_CNT", "CMLT_OFNC_TNCY_CNT": "CMLT_OFNC_TNCY_CNT", "CMLT_PNT_ALLT_CASE_CNT": "CMLT_PNT_ALLT_CASE_CNT", "CMLT_WRT_WARN_CASE_CNT": "CMLT_WRT_WARN_CASE_CNT", "EST_SCD_KEY": "EST_SCD_KEY", "HSHLD_SIZE_DMNS_KEY": "HSHLD_SIZE_DMNS_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "MSD_CODE_SCD_KEY": "MSD_CODE_SCD_KEY", "OFCR_TYPE_DMNS_KEY": "OFCR_TYPE_DMNS_KEY", "OFNC_SCORE_GRP_DMNS_KEY": "OFNC_SCORE_GRP_DMNS_KEY", "OFNDR_AGE_GRP_DMNS_KEY": "OFNDR_AGE_GRP_DMNS_KEY", "OFNDR_GNDR_DMNS_KEY": "OFNDR_GNDR_DMNS_KEY", "REC_RLS_IND": "REC_RLS_IND", "TIME_DMNS_KEY": "TIME_DMNS_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['TIME_DMNS_KEY', 'EST_SCD_KEY', 'OFCR_TYPE_DMNS_KEY', 'HSHLD_SIZE_DMNS_KEY', 'MSD_CODE_SCD_KEY', 'OFNDR_GNDR_DMNS_KEY', 'OFNDR_AGE_GRP_DMNS_KEY', 'OFNC_SCORE_GRP_DMNS_KEY', 'ACTV_OFNC_TNCY_CNT', 'CMLT_OFNC_TNCY_CNT', 'AFT_CMLT_WRT_WARN_TNCY_CNT', 'CMLT_WRT_WARN_CASE_CNT', 'AFT_CMLT_WRT_WARN_CASE_CNT', 'ACTV_PNT_ALLT_CASE_CNT', 'CMLT_PNT_ALLT_CASE_CNT', 'CMLT_MSD_TOT_CASE_CNT', 'REC_RLS_IND', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DPA_FACT_GMS_DLY_MSD_SMRY", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='DPA_FACT_GMS_DLY_MSD_SMRY',
+            mode='append',
+            source_columns=[
+                'TIME_DMNS_KEY',
+                'EST_SCD_KEY',
+                'OFCR_TYPE_DMNS_KEY',
+                'HSHLD_SIZE_DMNS_KEY',
+                'MSD_CODE_SCD_KEY',
+                'OFNDR_GNDR_DMNS_KEY',
+                'OFNDR_AGE_GRP_DMNS_KEY',
+                'OFNC_SCORE_GRP_DMNS_KEY',
+                'ACTV_OFNC_TNCY_CNT',
+                'CMLT_OFNC_TNCY_CNT',
+                'AFT_CMLT_WRT_WARN_TNCY_CNT',
+                'CMLT_WRT_WARN_CASE_CNT',
+                'AFT_CMLT_WRT_WARN_CASE_CNT',
+                'ACTV_PNT_ALLT_CASE_CNT',
+                'CMLT_PNT_ALLT_CASE_CNT',
+                'CMLT_MSD_TOT_CASE_CNT',
+                'REC_RLS_IND',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+            ],
+            target_columns=[
+                'TIME_DMNS_KEY',
+                'EST_SCD_KEY',
+                'OFCR_TYPE_DMNS_KEY',
+                'HSHLD_SIZE_DMNS_KEY',
+                'MSD_CODE_SCD_KEY',
+                'OFNDR_GNDR_DMNS_KEY',
+                'OFNDR_AGE_GRP_DMNS_KEY',
+                'OFNC_SCORE_GRP_DMNS_KEY',
+                'ACTV_OFNC_TNCY_CNT',
+                'CMLT_OFNC_TNCY_CNT',
+                'AFT_CMLT_WRT_WARN_TNCY_CNT',
+                'CMLT_WRT_WARN_CASE_CNT',
+                'AFT_CMLT_WRT_WARN_CASE_CNT',
+                'ACTV_PNT_ALLT_CASE_CNT',
+                'CMLT_PNT_ALLT_CASE_CNT',
+                'CMLT_MSD_TOT_CASE_CNT',
+                'REC_RLS_IND',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+            ],
+            config=config,
+        )
 
         logger.info("write_DPA_FACT_GMS_DLY_MSD_SMRY write completed")
         

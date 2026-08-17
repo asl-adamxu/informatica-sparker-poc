@@ -134,66 +134,82 @@ and to_date('$$v_rpt_date', 'yyyymmdd') between b.bgn_date and b.end_date
         query = query.replace("$$v_rpt_date", v_rpt_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_SQ_SOR_CMS_CASE = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_SQ_SOR_CMS_CASE.columns
-        _port_cols = ["CASE_KEY", "CMS_CASE_KEY", "BGN_DATE", "END_DATE", "CUST_RQS_KEY", "CASE_NUM", "RPT_CMS_HSE_EST_KEY", "RPT_CMS_HSE_BLK_KEY", "RPT_CMS_HSE_UNIT_KEY", "RPT_CASE_LOC_RMK_TEXT", "ACTL_CMS_HSE_EST_KEY", "ACTL_CMS_HSE_BLK_KEY", "ACTL_CMS_HSE_UNIT_KEY", "ACTL_CASE_LOC_RMK_TEXT", "CASE_CRE_DATE", "LAST_CASE_ACT_DATE", "CASE_CMPLT_DATE", "CASE_RMK_TEXT", "CASE_CRE_CMS_HSE_EST_KEY", "CASE_CRE_USER_ID", "CASE_CRE_USER_TYPE_CODE", "CASE_CRE_OFFC_TYPE_CODE", "CASE_ACT_CMS_HSE_EST_KEY", "CASE_ACT_USER_ID", "CASE_ACT_USER_TYPE_CODE", "CASE_ACT_OFFC_TYPE_CODE", "RLT_CASE_KEY", "CASE_PRIOR_CODE", "RESP_OFCR_USER_ID", "CASE_STS_CODE", "CASE_CNFRM_DATE", "CASE_RPLY_CNT", "LAST_CASE_RPLY_DATE", "DVC_REC_TXN_ID", "CUST_RQS_TXN_ID", "RLT_CASE_TXN_ID", "CLS_CASE_IND", "CASE_ITEM_KEY", "RPT_CASE_TYPE_KEY", "ACTL_CASE_TYPE_KEY", "CASE_CRE_HSE_EST_OFFC_KEY", "CASE_ACT_HSE_EST_OFFC_KEY"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_SQ_SOR_CMS_CASE = df_SQ_SOR_CMS_CASE.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_SOR_CMS_CASE = df_SQ_SOR_CMS_CASE.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_CMS_CASE.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_SQ_SOR_CMS_CASE = lib.sq_output(
+            input_df=df_SQ_SOR_CMS_CASE,
+            port_cols={
+                'CASE_KEY': 'decimal',
+                'CMS_CASE_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'CUST_RQS_KEY': 'decimal',
+                'CASE_NUM': 'string',
+                'RPT_CMS_HSE_EST_KEY': 'decimal',
+                'RPT_CMS_HSE_BLK_KEY': 'decimal',
+                'RPT_CMS_HSE_UNIT_KEY': 'decimal',
+                'RPT_CASE_LOC_RMK_TEXT': 'string',
+                'ACTL_CMS_HSE_EST_KEY': 'decimal',
+                'ACTL_CMS_HSE_BLK_KEY': 'decimal',
+                'ACTL_CMS_HSE_UNIT_KEY': 'decimal',
+                'ACTL_CASE_LOC_RMK_TEXT': 'string',
+                'CASE_CRE_DATE': 'date/time',
+                'LAST_CASE_ACT_DATE': 'date/time',
+                'CASE_CMPLT_DATE': 'date/time',
+                'CASE_RMK_TEXT': 'string',
+                'CASE_CRE_CMS_HSE_EST_KEY': 'decimal',
+                'CASE_CRE_USER_ID': 'string',
+                'CASE_CRE_USER_TYPE_CODE': 'string',
+                'CASE_CRE_OFFC_TYPE_CODE': 'string',
+                'CASE_ACT_CMS_HSE_EST_KEY': 'decimal',
+                'CASE_ACT_USER_ID': 'string',
+                'CASE_ACT_USER_TYPE_CODE': 'string',
+                'CASE_ACT_OFFC_TYPE_CODE': 'string',
+                'RLT_CASE_KEY': 'decimal',
+                'CASE_PRIOR_CODE': 'string',
+                'RESP_OFCR_USER_ID': 'string',
+                'CASE_STS_CODE': 'string',
+                'CASE_CNFRM_DATE': 'date/time',
+                'CASE_RPLY_CNT': 'decimal',
+                'LAST_CASE_RPLY_DATE': 'date/time',
+                'DVC_REC_TXN_ID': 'string',
+                'CUST_RQS_TXN_ID': 'string',
+                'RLT_CASE_TXN_ID': 'string',
+                'CLS_CASE_IND': 'string',
+                'CASE_ITEM_KEY': 'decimal',
+                'RPT_CASE_TYPE_KEY': 'decimal',
+                'ACTL_CASE_TYPE_KEY': 'decimal',
+                'CASE_CRE_HSE_EST_OFFC_KEY': 'decimal',
+                'CASE_ACT_HSE_EST_OFFC_KEY': 'decimal',
+            },
+        )
         ctx.register_df("df_SQ_SOR_CMS_CASE", df_SQ_SOR_CMS_CASE)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_SOR_CMS_CASE
-        _expr = """floor(datediff(last_day(to_date('$$v_rpt_mth' || '01', 'yyyyMMdd')), CASE_CRE_DATE) / 3 ) + 1"""
-        _expr = _expr.replace("$$v_rpt_date", str(v_rpt_date))
-        _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CASE_CRE_DATE_DIFF_GRP", expr(_expr))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CASE_OSTD_PRD_CODE", expr("cast(CASE WHEN sign( 7 - CASE_CRE_DATE_DIFF_GRP) = 1 THEN CASE_CRE_DATE_DIFF_GRP ELSE 7 END as string)"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["CASE_KEY", "CMS_CASE_KEY", "BGN_DATE", "END_DATE", "CUST_RQS_KEY", "CASE_NUM", "RPT_CMS_HSE_EST_KEY", "RPT_CMS_HSE_BLK_KEY", "RPT_CMS_HSE_UNIT_KEY", "RPT_CASE_LOC_RMK_TEXT", "ACTL_CMS_HSE_EST_KEY", "ACTL_CMS_HSE_BLK_KEY", "ACTL_CMS_HSE_UNIT_KEY", "ACTL_CASE_LOC_RMK_TEXT", "CASE_CRE_DATE", "LAST_CASE_ACT_DATE", "CASE_CMPLT_DATE", "CASE_RMK_TEXT", "CASE_CRE_CMS_HSE_EST_KEY", "CASE_CRE_USER_ID", "CASE_CRE_USER_TYPE_CODE", "CASE_CRE_OFFC_TYPE_CODE", "CASE_ACT_CMS_HSE_EST_KEY", "CASE_ACT_USER_ID", "CASE_ACT_USER_TYPE_CODE", "CASE_ACT_OFFC_TYPE_CODE", "RLT_CASE_KEY", "CASE_PRIOR_CODE", "RESP_OFCR_USER_ID", "CASE_STS_CODE", "CASE_CNFRM_DATE", "CASE_RPLY_CNT", "LAST_CASE_RPLY_DATE", "DVC_REC_TXN_ID", "CUST_RQS_TXN_ID", "RLT_CASE_TXN_ID", "CLS_CASE_IND", "CASE_ITEM_KEY", "RPT_CASE_TYPE_KEY", "ACTL_CASE_TYPE_KEY", "CASE_CRE_HSE_EST_OFFC_KEY", "CASE_ACT_HSE_EST_OFFC_KEY"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_SOR_CMS_CASE,
+            computed_columns=[
+                {'name': 'CASE_CRE_DATE_DIFF_GRP', 'expr': "floor(datediff(last_day(to_date('$$v_rpt_mth' || '01', 'yyyyMMdd')), CASE_CRE_DATE) / 3 ) + 1"},
+                {'name': 'CASE_OSTD_PRD_CODE', 'expr': 'cast(CASE WHEN sign( 7 - CASE_CRE_DATE_DIFF_GRP) = 1 THEN CASE_CRE_DATE_DIFF_GRP ELSE 7 END as string)'}
+            ],
+            substitutions={'$$v_rpt_mth': v_rpt_mth},
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: input_MPLT_GET_CASE_TYPE_SCD_KEY")
         # Expression: input_MPLT_GET_CASE_TYPE_SCD_KEY
-        df_MPLT_GET_CASE_TYPE_SCD_KEY_input = df_EXPTRANS
-        df_MPLT_GET_CASE_TYPE_SCD_KEY_input = df_MPLT_GET_CASE_TYPE_SCD_KEY_input.withColumn("IN_CASE_TYPE_KEY", expr("ACTL_CASE_TYPE_KEY"))
+        df_MPLT_GET_CASE_TYPE_SCD_KEY_input = lib.expression(
+            input_df=df_EXPTRANS,
+            computed_columns=[
+                {'name': 'IN_CASE_TYPE_KEY', 'expr': 'ACTL_CASE_TYPE_KEY'}
+            ],
+        )
         ctx.register_df("df_MPLT_GET_CASE_TYPE_SCD_KEY_input", df_MPLT_GET_CASE_TYPE_SCD_KEY_input)
         
         logger.info("Step: apply_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS")
         # Expression: apply_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS
-        df_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS = df_MPLT_GET_CASE_TYPE_SCD_KEY_input
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["IN_CASE_TYPE_KEY"]:
-            if _col.lower() not in [x.lower() for x in df_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS.columns]:
-                df_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS = df_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS = lib.expression(
+            input_df=df_MPLT_GET_CASE_TYPE_SCD_KEY_input,
+        )
         ctx.register_df("df_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS", df_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS)
         
         logger.info("Step: read_MPLT_GET_CASE_TYPE_SCD_KEY_LKPTRANS_SOR_CMS_REF_CASE_TYPE1")
@@ -258,24 +274,26 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
         
         logger.info("Step: rename_EXPTRANS1")
         # Expression: rename_EXPTRANS1
-        df_MPLT_GET_CASE_TYPE_SCD_KEY_rename_EXPTRANS1 = df_mplt_lkp_chain_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS
-        __expr_renames = [
-            ("CASE_CATG_KEY1", "IN_CASE_CATG_KEY1"),
-            ("CASE_TYPE_PATH_TEXT1", "IN_CASE_TYPE_PATH_TEXT1"),
-            ("CASE_CATG_KEY", "IN_CASE_CATG_KEY"),
-            ("CASE_TYPE_PATH_TEXT", "IN_CASE_TYPE_PATH_TEXT"),
-        ]
-        for _old, _new in __expr_renames:
-            df_MPLT_GET_CASE_TYPE_SCD_KEY_rename_EXPTRANS1 = df_MPLT_GET_CASE_TYPE_SCD_KEY_rename_EXPTRANS1.drop(_new).withColumnRenamed(_old, _new)
+        df_MPLT_GET_CASE_TYPE_SCD_KEY_rename_EXPTRANS1 = lib.expression(
+            input_df=df_mplt_lkp_chain_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS,
+            rename_columns=[
+                ('CASE_CATG_KEY1', 'IN_CASE_CATG_KEY1'),
+                ('CASE_TYPE_PATH_TEXT1', 'IN_CASE_TYPE_PATH_TEXT1'),
+                ('CASE_CATG_KEY', 'IN_CASE_CATG_KEY'),
+                ('CASE_TYPE_PATH_TEXT', 'IN_CASE_TYPE_PATH_TEXT')
+            ],
+        )
         ctx.register_df("df_MPLT_GET_CASE_TYPE_SCD_KEY_rename_EXPTRANS1", df_MPLT_GET_CASE_TYPE_SCD_KEY_rename_EXPTRANS1)
         
         logger.info("Step: apply_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS1")
         # Expression: apply_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS1
-        df_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS1 = df_MPLT_GET_CASE_TYPE_SCD_KEY_rename_EXPTRANS1
-        df_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS1 = df_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS1.withColumn("CASE_CATG_KEY", expr("CASE WHEN ((IN_CASE_CATG_KEY IS NULL)) THEN IN_CASE_CATG_KEY1 ELSE IN_CASE_CATG_KEY END"))
-        df_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS1 = df_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS1.withColumn("CASE_TYPE_PATH_TEXT", expr("CASE WHEN ((IN_CASE_TYPE_PATH_TEXT IS NULL)) THEN IN_CASE_TYPE_PATH_TEXT1 ELSE IN_CASE_TYPE_PATH_TEXT END"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS1 = lib.expression(
+            input_df=df_MPLT_GET_CASE_TYPE_SCD_KEY_rename_EXPTRANS1,
+            computed_columns=[
+                {'name': 'CASE_CATG_KEY', 'expr': 'CASE WHEN ((IN_CASE_CATG_KEY IS NULL)) THEN IN_CASE_CATG_KEY1 ELSE IN_CASE_CATG_KEY END'},
+                {'name': 'CASE_TYPE_PATH_TEXT', 'expr': 'CASE WHEN ((IN_CASE_TYPE_PATH_TEXT IS NULL)) THEN IN_CASE_TYPE_PATH_TEXT1 ELSE IN_CASE_TYPE_PATH_TEXT END'}
+            ],
+        )
         ctx.register_df("df_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS1", df_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS1)
         
         logger.info("Step: read_MPLT_GET_CASE_TYPE_SCD_KEY_LKPTRANS_SOR_CMS_SRF_CASE_CATG")
@@ -365,15 +383,46 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
             *[df_MPLT_GET_CASE_TYPE_SCD_KEY_LKPTRANS_DDS_DMNS_CMS_CASE_CATG[c] for c in df_MPLT_GET_CASE_TYPE_SCD_KEY_LKPTRANS_DDS_DMNS_CMS_CASE_CATG.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
         ctx.register_df("df_mplt_lkp_chain_MPLT_GET_CASE_TYPE_SCD_KEY_mplt_lkp_chain_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS1", df_mplt_lkp_chain_MPLT_GET_CASE_TYPE_SCD_KEY_mplt_lkp_chain_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS1)        
+        logger.info("Step: join_output_MPLT_GET_CASE_TYPE_SCD_KEY_0")
+        # Lookup: join_output_MPLT_GET_CASE_TYPE_SCD_KEY_0
+        # Merge on common columns — drop lookup columns that duplicate non-key input columns. 
+        # Matches are CASE-INSENSITIVE: SQ ports may be lowercase while Oracle lookup
+        _cc = list(dict.fromkeys(c for c in df_mplt_lkp_chain_MPLT_GET_CASE_TYPE_SCD_KEY_mplt_lkp_chain_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS1.columns if c.lower() in [x.lower() for x in df_mplt_lkp_chain_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS1.columns]))
+        if _cc:
+            __lkp_dup = [c for c in df_mplt_lkp_chain_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS1.columns if c.lower() in [x.lower() for x in df_mplt_lkp_chain_MPLT_GET_CASE_TYPE_SCD_KEY_mplt_lkp_chain_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS1.columns] and c.lower() not in [x.lower() for x in _cc]]
+            # Break attribute lineage on the merged side: when both inputs are built from the same source plan. 
+            # Re-projecting with aliases gives this side fresh attribute IDs without changing rows or column names.
+            __rhs = df_mplt_lkp_chain_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS1.drop(*__lkp_dup) if __lkp_dup else df_mplt_lkp_chain_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS1
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_MPLT_GET_CASE_TYPE_SCD_KEY_merge_output_0 = df_mplt_lkp_chain_MPLT_GET_CASE_TYPE_SCD_KEY_mplt_lkp_chain_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS1.join(
+                __rhs,
+                on=_cc, how="left"
+            )
+        else:
+            logger.warning("No common columns between df_mplt_lkp_chain_MPLT_GET_CASE_TYPE_SCD_KEY_mplt_lkp_chain_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS1 and df_mplt_lkp_chain_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS1 — using synthetic key join")
+            __rhs = df_mplt_lkp_chain_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS1.withColumn("_join_key", lit(1))
+            __rhs = __rhs.select(*[col(c).alias(c) for c in __rhs.columns])
+            df_MPLT_GET_CASE_TYPE_SCD_KEY_merge_output_0 = df_mplt_lkp_chain_MPLT_GET_CASE_TYPE_SCD_KEY_mplt_lkp_chain_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS1.withColumn("_join_key", lit(1)).join(
+                __rhs,
+                on="_join_key", how="left").drop("_join_key")
+        ctx.register_df("df_MPLT_GET_CASE_TYPE_SCD_KEY_merge_output_0", df_MPLT_GET_CASE_TYPE_SCD_KEY_merge_output_0)
+        
         logger.info("Step: apply_MPLT_GET_CASE_TYPE_SCD_KEY")
         # Expression: apply_MPLT_GET_CASE_TYPE_SCD_KEY
-        df_MPLT_GET_CASE_TYPE_SCD_KEY = df_mplt_lkp_chain_MPLT_GET_CASE_TYPE_SCD_KEY_mplt_lkp_chain_MPLT_GET_CASE_TYPE_SCD_KEY_EXPTRANS1
+        df_MPLT_GET_CASE_TYPE_SCD_KEY = lib.expression(
+            input_df=df_MPLT_GET_CASE_TYPE_SCD_KEY_merge_output_0,
+            pass_through_cols=['CASE_CATG_SCD_KEY', 'CASE_TYPE_SCD_KEY'],
+        )
         ctx.register_df("df_MPLT_GET_CASE_TYPE_SCD_KEY", df_MPLT_GET_CASE_TYPE_SCD_KEY)
         
         logger.info("Step: input_MPLT_LKP_EST_CODE")
         # Expression: input_MPLT_LKP_EST_CODE
-        df_MPLT_LKP_EST_CODE_input = df_EXPTRANS
-        df_MPLT_LKP_EST_CODE_input = df_MPLT_LKP_EST_CODE_input.withColumn("IN_CMS_HSE_EST_KEY", expr("ACTL_CMS_HSE_EST_KEY"))
+        df_MPLT_LKP_EST_CODE_input = lib.expression(
+            input_df=df_EXPTRANS,
+            computed_columns=[
+                {'name': 'IN_CMS_HSE_EST_KEY', 'expr': 'ACTL_CMS_HSE_EST_KEY'}
+            ],
+        )
         ctx.register_df("df_MPLT_LKP_EST_CODE_input", df_MPLT_LKP_EST_CODE_input)
         
         logger.info("Step: read_MPLT_LKP_EST_CODE_LKPTRANS_SOR_CMS_HSE_EST_STS")
@@ -408,13 +457,20 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
         ctx.register_df("df_mplt_lkp_chain_MPLT_LKP_EST_CODE_input", df_mplt_lkp_chain_MPLT_LKP_EST_CODE_input)        
         logger.info("Step: apply_MPLT_LKP_EST_CODE")
         # Expression: apply_MPLT_LKP_EST_CODE
-        df_MPLT_LKP_EST_CODE = df_mplt_lkp_chain_MPLT_LKP_EST_CODE_input
+        df_MPLT_LKP_EST_CODE = lib.expression(
+            input_df=df_mplt_lkp_chain_MPLT_LKP_EST_CODE_input,
+            pass_through_cols=['HSE_EST_CODE', 'HSE_EST_TYPE_CODE'],
+        )
         ctx.register_df("df_MPLT_LKP_EST_CODE", df_MPLT_LKP_EST_CODE)
         
         logger.info("Step: input_MPLT_LKP_BLK_CODE")
         # Expression: input_MPLT_LKP_BLK_CODE
-        df_MPLT_LKP_BLK_CODE_input = df_EXPTRANS
-        df_MPLT_LKP_BLK_CODE_input = df_MPLT_LKP_BLK_CODE_input.withColumn("IN_CMS_HSE_BLK_KEY", expr("ACTL_CMS_HSE_BLK_KEY"))
+        df_MPLT_LKP_BLK_CODE_input = lib.expression(
+            input_df=df_EXPTRANS,
+            computed_columns=[
+                {'name': 'IN_CMS_HSE_BLK_KEY', 'expr': 'ACTL_CMS_HSE_BLK_KEY'}
+            ],
+        )
         ctx.register_df("df_MPLT_LKP_BLK_CODE_input", df_MPLT_LKP_BLK_CODE_input)
         
         logger.info("Step: read_MPLT_LKP_BLK_CODE_LKPTRANS_SOR_CMS_HSE_BLK_STS")
@@ -448,13 +504,20 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
         ctx.register_df("df_mplt_lkp_chain_MPLT_LKP_BLK_CODE_input", df_mplt_lkp_chain_MPLT_LKP_BLK_CODE_input)        
         logger.info("Step: apply_MPLT_LKP_BLK_CODE")
         # Expression: apply_MPLT_LKP_BLK_CODE
-        df_MPLT_LKP_BLK_CODE = df_mplt_lkp_chain_MPLT_LKP_BLK_CODE_input
+        df_MPLT_LKP_BLK_CODE = lib.expression(
+            input_df=df_mplt_lkp_chain_MPLT_LKP_BLK_CODE_input,
+            pass_through_cols=['HSE_BLK_CODE'],
+        )
         ctx.register_df("df_MPLT_LKP_BLK_CODE", df_MPLT_LKP_BLK_CODE)
         
         logger.info("Step: input_MPLT_GET_OSTD_PRD_DMNS_KEY")
         # Expression: input_MPLT_GET_OSTD_PRD_DMNS_KEY
-        df_MPLT_GET_OSTD_PRD_DMNS_KEY_input = df_EXPTRANS
-        df_MPLT_GET_OSTD_PRD_DMNS_KEY_input = df_MPLT_GET_OSTD_PRD_DMNS_KEY_input.withColumn("IN_CASE_OSTD_PRD_CODE", expr("CASE_OSTD_PRD_CODE"))
+        df_MPLT_GET_OSTD_PRD_DMNS_KEY_input = lib.expression(
+            input_df=df_EXPTRANS,
+            computed_columns=[
+                {'name': 'IN_CASE_OSTD_PRD_CODE', 'expr': 'CASE_OSTD_PRD_CODE'}
+            ],
+        )
         ctx.register_df("df_MPLT_GET_OSTD_PRD_DMNS_KEY_input", df_MPLT_GET_OSTD_PRD_DMNS_KEY_input)
         
         logger.info("Step: read_MPLT_GET_OSTD_PRD_DMNS_KEY_LKPTRANS")
@@ -489,13 +552,20 @@ where CASE_OSTD_PRD_SCHM_CODE = 'OCUS'"""
         ctx.register_df("df_mplt_lkp_chain_MPLT_GET_OSTD_PRD_DMNS_KEY_input", df_mplt_lkp_chain_MPLT_GET_OSTD_PRD_DMNS_KEY_input)        
         logger.info("Step: apply_MPLT_GET_OSTD_PRD_DMNS_KEY")
         # Expression: apply_MPLT_GET_OSTD_PRD_DMNS_KEY
-        df_MPLT_GET_OSTD_PRD_DMNS_KEY = df_mplt_lkp_chain_MPLT_GET_OSTD_PRD_DMNS_KEY_input
+        df_MPLT_GET_OSTD_PRD_DMNS_KEY = lib.expression(
+            input_df=df_mplt_lkp_chain_MPLT_GET_OSTD_PRD_DMNS_KEY_input,
+            pass_through_cols=['CASE_OSTD_PRD_DMNS_KEY'],
+        )
         ctx.register_df("df_MPLT_GET_OSTD_PRD_DMNS_KEY", df_MPLT_GET_OSTD_PRD_DMNS_KEY)
         
         logger.info("Step: input_MPLT_GET_EST_OFFC_SCD_KEY")
         # Expression: input_MPLT_GET_EST_OFFC_SCD_KEY
-        df_MPLT_GET_EST_OFFC_SCD_KEY_input = df_EXPTRANS
-        df_MPLT_GET_EST_OFFC_SCD_KEY_input = df_MPLT_GET_EST_OFFC_SCD_KEY_input.withColumn("IN_HSE_EST_OFFC_KEY", expr("CASE_ACT_HSE_EST_OFFC_KEY"))
+        df_MPLT_GET_EST_OFFC_SCD_KEY_input = lib.expression(
+            input_df=df_EXPTRANS,
+            computed_columns=[
+                {'name': 'IN_HSE_EST_OFFC_KEY', 'expr': 'CASE_ACT_HSE_EST_OFFC_KEY'}
+            ],
+        )
         ctx.register_df("df_MPLT_GET_EST_OFFC_SCD_KEY_input", df_MPLT_GET_EST_OFFC_SCD_KEY_input)
         
         logger.info("Step: read_MPLT_GET_EST_OFFC_SCD_KEY_LKPTRANS_SOR_CMS_HSE_EST_OFFC")
@@ -552,23 +622,27 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
         ctx.register_df("df_mplt_lkp_chain_MPLT_GET_EST_OFFC_SCD_KEY_mplt_lkp_chain_MPLT_GET_EST_OFFC_SCD_KEY_input", df_mplt_lkp_chain_MPLT_GET_EST_OFFC_SCD_KEY_mplt_lkp_chain_MPLT_GET_EST_OFFC_SCD_KEY_input)        
         logger.info("Step: apply_MPLT_GET_EST_OFFC_SCD_KEY")
         # Expression: apply_MPLT_GET_EST_OFFC_SCD_KEY
-        df_MPLT_GET_EST_OFFC_SCD_KEY = df_mplt_lkp_chain_MPLT_GET_EST_OFFC_SCD_KEY_mplt_lkp_chain_MPLT_GET_EST_OFFC_SCD_KEY_input
+        df_MPLT_GET_EST_OFFC_SCD_KEY = lib.expression(
+            input_df=df_mplt_lkp_chain_MPLT_GET_EST_OFFC_SCD_KEY_mplt_lkp_chain_MPLT_GET_EST_OFFC_SCD_KEY_input,
+            pass_through_cols=['EST_OFFC_SCD_KEY'],
+        )
         ctx.register_df("df_MPLT_GET_EST_OFFC_SCD_KEY", df_MPLT_GET_EST_OFFC_SCD_KEY)
         
         logger.info("Step: input_MPLT_GET_EST_SCD_KEY")
         # Expression: input_MPLT_GET_EST_SCD_KEY
-        df_MPLT_GET_EST_SCD_KEY_input = df_MPLT_LKP_EST_CODE
-        df_MPLT_GET_EST_SCD_KEY_input = df_MPLT_GET_EST_SCD_KEY_input.withColumn("IN_HSE_EST_CODE", expr("HSE_EST_CODE"))
+        df_MPLT_GET_EST_SCD_KEY_input = lib.expression(
+            input_df=df_MPLT_LKP_EST_CODE,
+            computed_columns=[
+                {'name': 'IN_HSE_EST_CODE', 'expr': 'HSE_EST_CODE'}
+            ],
+        )
         ctx.register_df("df_MPLT_GET_EST_SCD_KEY_input", df_MPLT_GET_EST_SCD_KEY_input)
         
         logger.info("Step: apply_MPLT_GET_EST_SCD_KEY_EXPTRANS")
         # Expression: apply_MPLT_GET_EST_SCD_KEY_EXPTRANS
-        df_MPLT_GET_EST_SCD_KEY_EXPTRANS = df_MPLT_GET_EST_SCD_KEY_input
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["IN_HSE_EST_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_MPLT_GET_EST_SCD_KEY_EXPTRANS.columns]:
-                df_MPLT_GET_EST_SCD_KEY_EXPTRANS = df_MPLT_GET_EST_SCD_KEY_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_MPLT_GET_EST_SCD_KEY_EXPTRANS = lib.expression(
+            input_df=df_MPLT_GET_EST_SCD_KEY_input,
+        )
         ctx.register_df("df_MPLT_GET_EST_SCD_KEY_EXPTRANS", df_MPLT_GET_EST_SCD_KEY_EXPTRANS)
         
         logger.info("Step: read_MPLT_GET_EST_SCD_KEY_LKPTRANS")
@@ -603,14 +677,21 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
         ctx.register_df("df_mplt_lkp_chain_MPLT_GET_EST_SCD_KEY_EXPTRANS", df_mplt_lkp_chain_MPLT_GET_EST_SCD_KEY_EXPTRANS)        
         logger.info("Step: apply_MPLT_GET_EST_SCD_KEY")
         # Expression: apply_MPLT_GET_EST_SCD_KEY
-        df_MPLT_GET_EST_SCD_KEY = df_mplt_lkp_chain_MPLT_GET_EST_SCD_KEY_EXPTRANS
+        df_MPLT_GET_EST_SCD_KEY = lib.expression(
+            input_df=df_mplt_lkp_chain_MPLT_GET_EST_SCD_KEY_EXPTRANS,
+            pass_through_cols=['EST_SCD_KEY', 'RGN_CODE'],
+        )
         ctx.register_df("df_MPLT_GET_EST_SCD_KEY", df_MPLT_GET_EST_SCD_KEY)
         
         logger.info("Step: input_MPLT_GET_CMS_EST_SCD_KEY")
         # Expression: input_MPLT_GET_CMS_EST_SCD_KEY
-        df_MPLT_GET_CMS_EST_SCD_KEY_input = df_MPLT_LKP_EST_CODE
-        df_MPLT_GET_CMS_EST_SCD_KEY_input = df_MPLT_GET_CMS_EST_SCD_KEY_input.withColumn("IN_EST_CODE", expr("HSE_EST_CODE"))
-        df_MPLT_GET_CMS_EST_SCD_KEY_input = df_MPLT_GET_CMS_EST_SCD_KEY_input.withColumn("IN_EST_TYPE_CODE", expr("HSE_EST_TYPE_CODE"))
+        df_MPLT_GET_CMS_EST_SCD_KEY_input = lib.expression(
+            input_df=df_MPLT_LKP_EST_CODE,
+            computed_columns=[
+                {'name': 'IN_EST_CODE', 'expr': 'HSE_EST_CODE'},
+                {'name': 'IN_EST_TYPE_CODE', 'expr': 'HSE_EST_TYPE_CODE'}
+            ],
+        )
         ctx.register_df("df_MPLT_GET_CMS_EST_SCD_KEY_input", df_MPLT_GET_CMS_EST_SCD_KEY_input)
         
         logger.info("Step: read_MPLT_GET_CMS_EST_SCD_KEY_LKPTRANS")
@@ -646,7 +727,10 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
         ctx.register_df("df_mplt_lkp_chain_MPLT_GET_CMS_EST_SCD_KEY_input", df_mplt_lkp_chain_MPLT_GET_CMS_EST_SCD_KEY_input)        
         logger.info("Step: apply_MPLT_GET_CMS_EST_SCD_KEY")
         # Expression: apply_MPLT_GET_CMS_EST_SCD_KEY
-        df_MPLT_GET_CMS_EST_SCD_KEY = df_mplt_lkp_chain_MPLT_GET_CMS_EST_SCD_KEY_input
+        df_MPLT_GET_CMS_EST_SCD_KEY = lib.expression(
+            input_df=df_mplt_lkp_chain_MPLT_GET_CMS_EST_SCD_KEY_input,
+            pass_through_cols=['EST_SCD_KEY'],
+        )
         ctx.register_df("df_MPLT_GET_CMS_EST_SCD_KEY", df_MPLT_GET_CMS_EST_SCD_KEY)
         
         logger.info("Step: join_MPLT_GET_CMS_BLK_SCD_KEY_0")
@@ -675,19 +759,20 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
         
         logger.info("Step: input_MPLT_GET_CMS_BLK_SCD_KEY")
         # Expression: input_MPLT_GET_CMS_BLK_SCD_KEY
-        df_MPLT_GET_CMS_BLK_SCD_KEY_input = df_MPLT_GET_CMS_BLK_SCD_KEY_merge_input_0
-        df_MPLT_GET_CMS_BLK_SCD_KEY_input = df_MPLT_GET_CMS_BLK_SCD_KEY_input.withColumn("IN_EST_CODE", expr("HSE_EST_CODE"))
-        df_MPLT_GET_CMS_BLK_SCD_KEY_input = df_MPLT_GET_CMS_BLK_SCD_KEY_input.withColumn("IN_BLK_CODE", expr("HSE_BLK_CODE"))
+        df_MPLT_GET_CMS_BLK_SCD_KEY_input = lib.expression(
+            input_df=df_MPLT_GET_CMS_BLK_SCD_KEY_merge_input_0,
+            computed_columns=[
+                {'name': 'IN_EST_CODE', 'expr': 'HSE_EST_CODE'},
+                {'name': 'IN_BLK_CODE', 'expr': 'HSE_BLK_CODE'}
+            ],
+        )
         ctx.register_df("df_MPLT_GET_CMS_BLK_SCD_KEY_input", df_MPLT_GET_CMS_BLK_SCD_KEY_input)
         
         logger.info("Step: apply_MPLT_GET_CMS_BLK_SCD_KEY_EXPTRANS")
         # Expression: apply_MPLT_GET_CMS_BLK_SCD_KEY_EXPTRANS
-        df_MPLT_GET_CMS_BLK_SCD_KEY_EXPTRANS = df_MPLT_GET_CMS_BLK_SCD_KEY_input
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["IN_EST_CODE", "IN_BLK_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_MPLT_GET_CMS_BLK_SCD_KEY_EXPTRANS.columns]:
-                df_MPLT_GET_CMS_BLK_SCD_KEY_EXPTRANS = df_MPLT_GET_CMS_BLK_SCD_KEY_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_MPLT_GET_CMS_BLK_SCD_KEY_EXPTRANS = lib.expression(
+            input_df=df_MPLT_GET_CMS_BLK_SCD_KEY_input,
+        )
         ctx.register_df("df_MPLT_GET_CMS_BLK_SCD_KEY_EXPTRANS", df_MPLT_GET_CMS_BLK_SCD_KEY_EXPTRANS)
         
         logger.info("Step: read_MPLT_GET_CMS_BLK_SCD_KEY_LKPTRANS1")
@@ -723,7 +808,10 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
         ctx.register_df("df_mplt_lkp_chain_MPLT_GET_CMS_BLK_SCD_KEY_EXPTRANS", df_mplt_lkp_chain_MPLT_GET_CMS_BLK_SCD_KEY_EXPTRANS)        
         logger.info("Step: apply_MPLT_GET_CMS_BLK_SCD_KEY")
         # Expression: apply_MPLT_GET_CMS_BLK_SCD_KEY
-        df_MPLT_GET_CMS_BLK_SCD_KEY = df_mplt_lkp_chain_MPLT_GET_CMS_BLK_SCD_KEY_EXPTRANS
+        df_MPLT_GET_CMS_BLK_SCD_KEY = lib.expression(
+            input_df=df_mplt_lkp_chain_MPLT_GET_CMS_BLK_SCD_KEY_EXPTRANS,
+            pass_through_cols=['BLK_SCD_KEY'],
+        )
         ctx.register_df("df_MPLT_GET_CMS_BLK_SCD_KEY", df_MPLT_GET_CMS_BLK_SCD_KEY)
         
         logger.info("Step: join_MPLT_GET_BLK_SCD_KEY_0")
@@ -752,9 +840,13 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
         
         logger.info("Step: input_MPLT_GET_BLK_SCD_KEY")
         # Expression: input_MPLT_GET_BLK_SCD_KEY
-        df_MPLT_GET_BLK_SCD_KEY_input = df_MPLT_GET_BLK_SCD_KEY_merge_input_0
-        df_MPLT_GET_BLK_SCD_KEY_input = df_MPLT_GET_BLK_SCD_KEY_input.withColumn("IN_HSE_EST_CODE", expr("HSE_EST_CODE"))
-        df_MPLT_GET_BLK_SCD_KEY_input = df_MPLT_GET_BLK_SCD_KEY_input.withColumn("IN_HSE_BLK_CODE", expr("HSE_BLK_CODE"))
+        df_MPLT_GET_BLK_SCD_KEY_input = lib.expression(
+            input_df=df_MPLT_GET_BLK_SCD_KEY_merge_input_0,
+            computed_columns=[
+                {'name': 'IN_HSE_EST_CODE', 'expr': 'HSE_EST_CODE'},
+                {'name': 'IN_HSE_BLK_CODE', 'expr': 'HSE_BLK_CODE'}
+            ],
+        )
         ctx.register_df("df_MPLT_GET_BLK_SCD_KEY_input", df_MPLT_GET_BLK_SCD_KEY_input)
         
         logger.info("Step: read_MPLT_GET_BLK_SCD_KEY_LKPTRANS_DDS_HRCHY_EMS_BLK")
@@ -791,21 +883,23 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
         ctx.register_df("df_mplt_lkp_chain_MPLT_GET_BLK_SCD_KEY_input", df_mplt_lkp_chain_MPLT_GET_BLK_SCD_KEY_input)        
         logger.info("Step: rename_EXPTRANS2")
         # Expression: rename_EXPTRANS2
-        df_MPLT_GET_BLK_SCD_KEY_rename_EXPTRANS2 = df_mplt_lkp_chain_MPLT_GET_BLK_SCD_KEY_input
-        __expr_renames = [
-            ("BLK_AGE", "IN_BLK_AGE"),
-        ]
-        for _old, _new in __expr_renames:
-            df_MPLT_GET_BLK_SCD_KEY_rename_EXPTRANS2 = df_MPLT_GET_BLK_SCD_KEY_rename_EXPTRANS2.drop(_new).withColumnRenamed(_old, _new)
+        df_MPLT_GET_BLK_SCD_KEY_rename_EXPTRANS2 = lib.expression(
+            input_df=df_mplt_lkp_chain_MPLT_GET_BLK_SCD_KEY_input,
+            rename_columns=[
+                ('BLK_AGE', 'IN_BLK_AGE')
+            ],
+        )
         ctx.register_df("df_MPLT_GET_BLK_SCD_KEY_rename_EXPTRANS2", df_MPLT_GET_BLK_SCD_KEY_rename_EXPTRANS2)
         
         logger.info("Step: apply_MPLT_GET_BLK_SCD_KEY_EXPTRANS2")
         # Expression: apply_MPLT_GET_BLK_SCD_KEY_EXPTRANS2
-        df_MPLT_GET_BLK_SCD_KEY_EXPTRANS2 = df_MPLT_GET_BLK_SCD_KEY_rename_EXPTRANS2
-        df_MPLT_GET_BLK_SCD_KEY_EXPTRANS2 = df_MPLT_GET_BLK_SCD_KEY_EXPTRANS2.withColumn("BLK_AGE_CODE", expr("CASE WHEN IN_BLK_AGE IS NULL THEN '-1' WHEN IN_BLK_AGE = 0 THEN '0-5' ELSE CASE WHEN floor((IN_BLK_AGE-1)/5) = 0 THEN '0-5' WHEN floor((IN_BLK_AGE-1)/5) = 1 THEN '6-10' WHEN floor((IN_BLK_AGE-1)/5) = 2 THEN '11-15' WHEN floor((IN_BLK_AGE-1)/5) = 3 THEN '16-20' WHEN floor((IN_BLK_AGE-1)/5) = 4 THEN '21-25' ELSE '>25' END END"))
-        df_MPLT_GET_BLK_SCD_KEY_EXPTRANS2 = df_MPLT_GET_BLK_SCD_KEY_EXPTRANS2.withColumn("BLK_AGE_SCHM_CODE", expr("'HPL'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_MPLT_GET_BLK_SCD_KEY_EXPTRANS2 = lib.expression(
+            input_df=df_MPLT_GET_BLK_SCD_KEY_rename_EXPTRANS2,
+            computed_columns=[
+                {'name': 'BLK_AGE_CODE', 'expr': "CASE WHEN IN_BLK_AGE IS NULL THEN '-1' WHEN IN_BLK_AGE = 0 THEN '0-5' ELSE CASE WHEN floor((IN_BLK_AGE-1)/5) = 0 THEN '0-5' WHEN floor((IN_BLK_AGE-1)/5) = 1 THEN '6-10' WHEN floor((IN_BLK_AGE-1)/5) = 2 THEN '11-15' WHEN floor((IN_BLK_AGE-1)/5) = 3 THEN '16-20' WHEN floor((IN_BLK_AGE-1)/5) = 4 THEN '21-25' ELSE '>25' END END"},
+                {'name': 'BLK_AGE_SCHM_CODE', 'expr': "'HPL'"}
+            ],
+        )
         ctx.register_df("df_MPLT_GET_BLK_SCD_KEY_EXPTRANS2", df_MPLT_GET_BLK_SCD_KEY_EXPTRANS2)
         
         logger.info("Step: read_MPLT_GET_BLK_SCD_KEY_LKPTRANS_DDS_DMNS_EMS_BLK_AGE")
@@ -834,7 +928,10 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
         ctx.register_df("df_mplt_lkp_chain_MPLT_GET_BLK_SCD_KEY_EXPTRANS2", df_mplt_lkp_chain_MPLT_GET_BLK_SCD_KEY_EXPTRANS2)        
         logger.info("Step: apply_MPLT_GET_BLK_SCD_KEY")
         # Expression: apply_MPLT_GET_BLK_SCD_KEY
-        df_MPLT_GET_BLK_SCD_KEY = df_mplt_lkp_chain_MPLT_GET_BLK_SCD_KEY_EXPTRANS2
+        df_MPLT_GET_BLK_SCD_KEY = lib.expression(
+            input_df=df_mplt_lkp_chain_MPLT_GET_BLK_SCD_KEY_EXPTRANS2,
+            pass_through_cols=['BLK_SCD_KEY', 'BLK_AGE_DMNS_KEY'],
+        )
         ctx.register_df("df_MPLT_GET_BLK_SCD_KEY", df_MPLT_GET_BLK_SCD_KEY)
         
         logger.info("Step: merge_EXPTRANS1_1")
@@ -983,22 +1080,19 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
         
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
-        df_EXPTRANS1 = df_merge_EXPTRANS1_6
-        _expr = """'2' || substring('$$v_rpt_mth',1,6) || '00'"""
-        _expr = _expr.replace("$$v_rpt_date", str(v_rpt_date))
-        _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("TIME_DMNS_KEY", expr(_expr))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("CMS_CASE_ITEM_OSTD_CNT", expr("CASE WHEN CASE_CMPLT_DATE IS NULL THEN 1 ELSE 0 END"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("IN_CASE_CMPLT_DATE", expr("CASE_CMPLT_DATE"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("IN_CASE_KEY", expr("CASE_KEY"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("CMS_CASE_OSTD_KEY", expr("CASE WHEN CASE_CMPLT_DATE IS NULL THEN CASE_KEY ELSE NULL END"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("CMS_BLK_SCD_KEY", expr("BLK_SCD_KEY"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("CMS_EST_SCD_KEY", expr("EST_SCD_KEY"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "CASE_CATG_SCD_KEY", "BLK_SCD_KEY", "CASE_OSTD_PRD_DMNS_KEY", "EST_SCD_KEY"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS1.columns]:
-                df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS1 = lib.expression(
+            input_df=df_merge_EXPTRANS1_6,
+            computed_columns=[
+                {'name': 'TIME_DMNS_KEY', 'expr': "'2' || substring('$$v_rpt_mth',1,6) || '00'"},
+                {'name': 'CMS_CASE_ITEM_OSTD_CNT', 'expr': 'CASE WHEN CASE_CMPLT_DATE IS NULL THEN 1 ELSE 0 END'},
+                {'name': 'IN_CASE_CMPLT_DATE', 'expr': 'CASE_CMPLT_DATE'},
+                {'name': 'IN_CASE_KEY', 'expr': 'CASE_KEY'},
+                {'name': 'CMS_CASE_OSTD_KEY', 'expr': 'CASE WHEN CASE_CMPLT_DATE IS NULL THEN CASE_KEY ELSE NULL END'},
+                {'name': 'CMS_BLK_SCD_KEY', 'expr': 'BLK_SCD_KEY'},
+                {'name': 'CMS_EST_SCD_KEY', 'expr': 'EST_SCD_KEY'}
+            ],
+            substitutions={'$$v_rpt_mth': v_rpt_mth},
+        )
         ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
         
         logger.info("Step: apply_AGGTRANS1")
@@ -1061,90 +1155,98 @@ where last_day(to_date( '$$v_rpt_mth' || '01', 'YYYYMMDD')) between bgn_date and
         
         logger.info("Step: apply_FILTRANS")
         # Filter: apply_FILTRANS
-        __fil_input = df_AGGTRANS
-        df_FILTRANS = __fil_input.filter(expr("TTL_CMS_CASE_ITEM_OSTD_CNT > 0"))
+        df_FILTRANS = lib.filter(
+            input_df=df_AGGTRANS,
+            condition='TTL_CMS_CASE_ITEM_OSTD_CNT > 0',
+        )
         ctx.register_df("df_FILTRANS", df_FILTRANS)
 
         logger.info("Step: apply_FILTRANS1")
         # Filter: apply_FILTRANS1
-        __fil_input = df_AGGTRANS11
-        df_FILTRANS1 = __fil_input.filter(expr("TTL_CMS_CASE_OSTD_CNT > 0"))
+        df_FILTRANS1 = lib.filter(
+            input_df=df_AGGTRANS11,
+            condition='TTL_CMS_CASE_OSTD_CNT > 0',
+        )
         ctx.register_df("df_FILTRANS1", df_FILTRANS1)
 
         logger.info("Step: apply_EXPTRANS5")
         # Expression: apply_EXPTRANS5
-        df_EXPTRANS5 = df_FILTRANS
-        df_EXPTRANS5 = df_EXPTRANS5.withColumn("TIME_DMNS_KEY", expr("CASE WHEN TIME_DMNS_KEY IS NULL THEN 0 ELSE TIME_DMNS_KEY END"))
-        df_EXPTRANS5 = df_EXPTRANS5.withColumn("CASE_TYPE_SCD_KEY", expr("CASE WHEN CASE_TYPE_SCD_KEY IS NULL THEN 0 ELSE CASE_TYPE_SCD_KEY END"))
-        df_EXPTRANS5 = df_EXPTRANS5.withColumn("BLK_AGE_DMNS_KEY", expr("CASE WHEN BLK_AGE_DMNS_KEY IS NULL THEN 0 ELSE BLK_AGE_DMNS_KEY END"))
-        df_EXPTRANS5 = df_EXPTRANS5.withColumn("EST_OFFC_SCD_KEY", expr("CASE WHEN EST_OFFC_SCD_KEY IS NULL THEN 0 ELSE EST_OFFC_SCD_KEY END"))
-        df_EXPTRANS5 = df_EXPTRANS5.withColumn("CASE_CATG_SCD_KEY", expr("CASE WHEN CASE_CATG_SCD_KEY IS NULL THEN 0 ELSE CASE_CATG_SCD_KEY END"))
-        df_EXPTRANS5 = df_EXPTRANS5.withColumn("BLK_SCD_KEY", expr("CASE WHEN BLK_SCD_KEY IS NULL THEN 0 ELSE BLK_SCD_KEY END"))
-        df_EXPTRANS5 = df_EXPTRANS5.withColumn("CASE_OSTD_PRD_DMNS_KEY", expr("CASE WHEN CASE_OSTD_PRD_DMNS_KEY IS NULL THEN 0 ELSE CASE_OSTD_PRD_DMNS_KEY END"))
-        df_EXPTRANS5 = df_EXPTRANS5.withColumn("CMS_CASE_OSTD_CNT", expr("0"))
-        df_EXPTRANS5 = df_EXPTRANS5.withColumn("CMS_BLK_SCD_KEY", expr("CASE WHEN CMS_BLK_SCD_KEY IS NULL THEN 0 ELSE CMS_BLK_SCD_KEY END"))
-        df_EXPTRANS5 = df_EXPTRANS5.withColumn("EST_SCD_KEY", expr("CASE WHEN EST_SCD_KEY IS NULL THEN 0 ELSE EST_SCD_KEY END"))
-        df_EXPTRANS5 = df_EXPTRANS5.withColumn("CMS_EST_SCD_KEY", expr("CASE WHEN CMS_EST_SCD_KEY IS NULL THEN 0 ELSE CMS_EST_SCD_KEY END"))
-        df_EXPTRANS5 = df_EXPTRANS5.withColumn("CMS_CASE_ITEM_OSTD_CNT", expr("TTL_CMS_CASE_ITEM_OSTD_CNT"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS5 = lib.expression(
+            input_df=df_FILTRANS,
+            computed_columns=[
+                {'name': 'TIME_DMNS_KEY', 'expr': 'CASE WHEN TIME_DMNS_KEY IS NULL THEN 0 ELSE TIME_DMNS_KEY END'},
+                {'name': 'CASE_TYPE_SCD_KEY', 'expr': 'CASE WHEN CASE_TYPE_SCD_KEY IS NULL THEN 0 ELSE CASE_TYPE_SCD_KEY END'},
+                {'name': 'BLK_AGE_DMNS_KEY', 'expr': 'CASE WHEN BLK_AGE_DMNS_KEY IS NULL THEN 0 ELSE BLK_AGE_DMNS_KEY END'},
+                {'name': 'EST_OFFC_SCD_KEY', 'expr': 'CASE WHEN EST_OFFC_SCD_KEY IS NULL THEN 0 ELSE EST_OFFC_SCD_KEY END'},
+                {'name': 'CASE_CATG_SCD_KEY', 'expr': 'CASE WHEN CASE_CATG_SCD_KEY IS NULL THEN 0 ELSE CASE_CATG_SCD_KEY END'},
+                {'name': 'BLK_SCD_KEY', 'expr': 'CASE WHEN BLK_SCD_KEY IS NULL THEN 0 ELSE BLK_SCD_KEY END'},
+                {'name': 'CASE_OSTD_PRD_DMNS_KEY', 'expr': 'CASE WHEN CASE_OSTD_PRD_DMNS_KEY IS NULL THEN 0 ELSE CASE_OSTD_PRD_DMNS_KEY END'},
+                {'name': 'CMS_CASE_OSTD_CNT', 'expr': '0'},
+                {'name': 'CMS_BLK_SCD_KEY', 'expr': 'CASE WHEN CMS_BLK_SCD_KEY IS NULL THEN 0 ELSE CMS_BLK_SCD_KEY END'},
+                {'name': 'EST_SCD_KEY', 'expr': 'CASE WHEN EST_SCD_KEY IS NULL THEN 0 ELSE EST_SCD_KEY END'},
+                {'name': 'CMS_EST_SCD_KEY', 'expr': 'CASE WHEN CMS_EST_SCD_KEY IS NULL THEN 0 ELSE CMS_EST_SCD_KEY END'},
+                {'name': 'CMS_CASE_ITEM_OSTD_CNT', 'expr': 'TTL_CMS_CASE_ITEM_OSTD_CNT'}
+            ],
+        )
         ctx.register_df("df_EXPTRANS5", df_EXPTRANS5)
         
         logger.info("Step: apply_EXPTRANS51")
         # Expression: apply_EXPTRANS51
-        df_EXPTRANS51 = df_FILTRANS1
-        df_EXPTRANS51 = df_EXPTRANS51.withColumn("TIME_DMNS_KEY", expr("CASE WHEN TIME_DMNS_KEY IS NULL THEN 0 ELSE TIME_DMNS_KEY END"))
-        df_EXPTRANS51 = df_EXPTRANS51.withColumn("CASE_TYPE_SCD_KEY", expr("CASE WHEN CASE_TYPE_SCD_KEY IS NULL THEN 0 ELSE CASE_TYPE_SCD_KEY END"))
-        df_EXPTRANS51 = df_EXPTRANS51.withColumn("BLK_AGE_DMNS_KEY", expr("CASE WHEN BLK_AGE_DMNS_KEY IS NULL THEN 0 ELSE BLK_AGE_DMNS_KEY END"))
-        df_EXPTRANS51 = df_EXPTRANS51.withColumn("EST_OFFC_SCD_KEY", expr("CASE WHEN EST_OFFC_SCD_KEY IS NULL THEN 0 ELSE EST_OFFC_SCD_KEY END"))
-        df_EXPTRANS51 = df_EXPTRANS51.withColumn("CASE_CATG_SCD_KEY", expr("CASE WHEN CASE_CATG_SCD_KEY IS NULL THEN 0 ELSE CASE_CATG_SCD_KEY END"))
-        df_EXPTRANS51 = df_EXPTRANS51.withColumn("BLK_SCD_KEY", expr("CASE WHEN BLK_SCD_KEY IS NULL THEN 0 ELSE BLK_SCD_KEY END"))
-        df_EXPTRANS51 = df_EXPTRANS51.withColumn("CASE_OSTD_PRD_DMNS_KEY", expr("CASE WHEN CASE_OSTD_PRD_DMNS_KEY IS NULL THEN 0 ELSE CASE_OSTD_PRD_DMNS_KEY END"))
-        df_EXPTRANS51 = df_EXPTRANS51.withColumn("CMS_CASE_OSTD_CNT", expr("TTL_CMS_CASE_OSTD_CNT"))
-        df_EXPTRANS51 = df_EXPTRANS51.withColumn("CMS_BLK_SCD_KEY", expr("CASE WHEN CMS_BLK_SCD_KEY IS NULL THEN 0 ELSE CMS_BLK_SCD_KEY END"))
-        df_EXPTRANS51 = df_EXPTRANS51.withColumn("EST_SCD_KEY", expr("CASE WHEN EST_SCD_KEY IS NULL THEN 0 ELSE EST_SCD_KEY END"))
-        df_EXPTRANS51 = df_EXPTRANS51.withColumn("CMS_EST_SCD_KEY", expr("CASE WHEN CMS_EST_SCD_KEY IS NULL THEN 0 ELSE CMS_EST_SCD_KEY END"))
-        df_EXPTRANS51 = df_EXPTRANS51.withColumn("CMS_CASE_ITEM_OSTD_CNT", expr("0"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS51 = lib.expression(
+            input_df=df_FILTRANS1,
+            computed_columns=[
+                {'name': 'TIME_DMNS_KEY', 'expr': 'CASE WHEN TIME_DMNS_KEY IS NULL THEN 0 ELSE TIME_DMNS_KEY END'},
+                {'name': 'CASE_TYPE_SCD_KEY', 'expr': 'CASE WHEN CASE_TYPE_SCD_KEY IS NULL THEN 0 ELSE CASE_TYPE_SCD_KEY END'},
+                {'name': 'BLK_AGE_DMNS_KEY', 'expr': 'CASE WHEN BLK_AGE_DMNS_KEY IS NULL THEN 0 ELSE BLK_AGE_DMNS_KEY END'},
+                {'name': 'EST_OFFC_SCD_KEY', 'expr': 'CASE WHEN EST_OFFC_SCD_KEY IS NULL THEN 0 ELSE EST_OFFC_SCD_KEY END'},
+                {'name': 'CASE_CATG_SCD_KEY', 'expr': 'CASE WHEN CASE_CATG_SCD_KEY IS NULL THEN 0 ELSE CASE_CATG_SCD_KEY END'},
+                {'name': 'BLK_SCD_KEY', 'expr': 'CASE WHEN BLK_SCD_KEY IS NULL THEN 0 ELSE BLK_SCD_KEY END'},
+                {'name': 'CASE_OSTD_PRD_DMNS_KEY', 'expr': 'CASE WHEN CASE_OSTD_PRD_DMNS_KEY IS NULL THEN 0 ELSE CASE_OSTD_PRD_DMNS_KEY END'},
+                {'name': 'CMS_CASE_OSTD_CNT', 'expr': 'TTL_CMS_CASE_OSTD_CNT'},
+                {'name': 'CMS_BLK_SCD_KEY', 'expr': 'CASE WHEN CMS_BLK_SCD_KEY IS NULL THEN 0 ELSE CMS_BLK_SCD_KEY END'},
+                {'name': 'EST_SCD_KEY', 'expr': 'CASE WHEN EST_SCD_KEY IS NULL THEN 0 ELSE EST_SCD_KEY END'},
+                {'name': 'CMS_EST_SCD_KEY', 'expr': 'CASE WHEN CMS_EST_SCD_KEY IS NULL THEN 0 ELSE CMS_EST_SCD_KEY END'},
+                {'name': 'CMS_CASE_ITEM_OSTD_CNT', 'expr': '0'}
+            ],
+        )
         ctx.register_df("df_EXPTRANS51", df_EXPTRANS51)
         
         logger.info("Step: apply_Union")
         # Union: apply_Union
-        # Select + rename upstream columns per input, then union
-        df_Union_newgroup = df_EXPTRANS5.select(
-col("TIME_DMNS_KEY"),
-col("CASE_TYPE_SCD_KEY"),
-col("BLK_AGE_DMNS_KEY"),
-col("EST_OFFC_SCD_KEY"),
-col("CASE_CATG_SCD_KEY"),
-col("BLK_SCD_KEY"),
-col("CASE_OSTD_PRD_DMNS_KEY"),
-col("CMS_CASE_OSTD_CNT"),
-col("CMS_BLK_SCD_KEY"),
-col("EST_SCD_KEY"),
-col("CMS_EST_SCD_KEY"),
-col("CMS_CASE_ITEM_OSTD_CNT")        )
-        df_Union_newgroup1 = df_EXPTRANS51.select(
-col("TIME_DMNS_KEY"),
-col("CASE_TYPE_SCD_KEY"),
-col("BLK_AGE_DMNS_KEY"),
-col("EST_OFFC_SCD_KEY"),
-col("CASE_CATG_SCD_KEY"),
-col("BLK_SCD_KEY"),
-col("CASE_OSTD_PRD_DMNS_KEY"),
-col("CMS_CASE_OSTD_CNT"),
-col("CMS_BLK_SCD_KEY"),
-col("EST_SCD_KEY"),
-col("CMS_EST_SCD_KEY"),
-col("CMS_CASE_ITEM_OSTD_CNT")        )
-        df_Union = df_Union_newgroup
-        df_Union = df_Union.unionByName(df_Union_newgroup1, allowMissingColumns=True)
-        # Select only union output columns (add lit(None) for any missing)
-        for _col in ["TIME_DMNS_KEY", "CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "CASE_CATG_SCD_KEY", "BLK_SCD_KEY", "CASE_OSTD_PRD_DMNS_KEY", "CMS_CASE_OSTD_CNT", "CMS_BLK_SCD_KEY", "EST_SCD_KEY", "CMS_EST_SCD_KEY", "CMS_CASE_ITEM_OSTD_CNT"]:
-            if _col.lower() not in [x.lower() for x in df_Union.columns]:
-                df_Union = df_Union.withColumn(_col, lit(None))
-        df_Union = df_Union.select("TIME_DMNS_KEY", "CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "CASE_CATG_SCD_KEY", "BLK_SCD_KEY", "CASE_OSTD_PRD_DMNS_KEY", "CMS_CASE_OSTD_CNT", "CMS_BLK_SCD_KEY", "EST_SCD_KEY", "CMS_EST_SCD_KEY", "CMS_CASE_ITEM_OSTD_CNT")
+        df_Union = lib.union(
+            input_df=df_EXPTRANS51,
+            union_selects=[
+                {'df_input': df_EXPTRANS5, 'selects': [
+                    'TIME_DMNS_KEY',
+                    'CASE_TYPE_SCD_KEY',
+                    'BLK_AGE_DMNS_KEY',
+                    'EST_OFFC_SCD_KEY',
+                    'CASE_CATG_SCD_KEY',
+                    'BLK_SCD_KEY',
+                    'CASE_OSTD_PRD_DMNS_KEY',
+                    'CMS_CASE_OSTD_CNT',
+                    'CMS_BLK_SCD_KEY',
+                    'EST_SCD_KEY',
+                    'CMS_EST_SCD_KEY',
+                    'CMS_CASE_ITEM_OSTD_CNT'
+                ]},
+                {'df_input': df_EXPTRANS51, 'selects': [
+                    'TIME_DMNS_KEY',
+                    'CASE_TYPE_SCD_KEY',
+                    'BLK_AGE_DMNS_KEY',
+                    'EST_OFFC_SCD_KEY',
+                    'CASE_CATG_SCD_KEY',
+                    'BLK_SCD_KEY',
+                    'CASE_OSTD_PRD_DMNS_KEY',
+                    'CMS_CASE_OSTD_CNT',
+                    'CMS_BLK_SCD_KEY',
+                    'EST_SCD_KEY',
+                    'CMS_EST_SCD_KEY',
+                    'CMS_CASE_ITEM_OSTD_CNT'
+                ]},
+            ],
+            output_columns=['TIME_DMNS_KEY', 'CASE_TYPE_SCD_KEY', 'BLK_AGE_DMNS_KEY', 'EST_OFFC_SCD_KEY', 'CASE_CATG_SCD_KEY', 'BLK_SCD_KEY', 'CASE_OSTD_PRD_DMNS_KEY', 'CMS_CASE_OSTD_CNT', 'CMS_BLK_SCD_KEY', 'EST_SCD_KEY', 'CMS_EST_SCD_KEY', 'CMS_CASE_ITEM_OSTD_CNT'],
+        )
         ctx.register_df("df_Union", df_Union)
         
         logger.info("Step: apply_AGGTRANS2")
@@ -1172,24 +1274,57 @@ col("CMS_CASE_ITEM_OSTD_CNT")        )
         
         logger.info("Step: apply_EXPTRANS52")
         # Expression: apply_EXPTRANS52
-        df_EXPTRANS52 = df_AGGTRANS2
-        df_EXPTRANS52 = df_EXPTRANS52.withColumn("LAST_REC_TXN_DATE", expr("current_timestamp()"))
-        df_EXPTRANS52 = df_EXPTRANS52.withColumn("LAST_REC_TXN_TYPE_CODE", expr("'I'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["TIME_DMNS_KEY", "CASE_TYPE_SCD_KEY", "BLK_AGE_DMNS_KEY", "EST_OFFC_SCD_KEY", "CASE_CATG_SCD_KEY", "BLK_SCD_KEY", "CASE_OSTD_PRD_DMNS_KEY", "CMS_CASE_OSTD_CNT", "CMS_BLK_SCD_KEY", "EST_SCD_KEY", "CMS_EST_SCD_KEY", "CMS_CASE_ITEM_OSTD_CNT"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS52.columns]:
-                df_EXPTRANS52 = df_EXPTRANS52.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS52 = lib.expression(
+            input_df=df_AGGTRANS2,
+            computed_columns=[
+                {'name': 'LAST_REC_TXN_DATE', 'expr': 'current_timestamp()'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE', 'expr': "'I'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS52", df_EXPTRANS52)
         
         logger.info("Step: write_DPA_FACT_CMS_CASE_OSTD_SMRY")
         # Write to Target: write_DPA_FACT_CMS_CASE_OSTD_SMRY
-        df_write = df_EXPTRANS52
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['TIME_DMNS_KEY', 'CASE_TYPE_SCD_KEY', 'BLK_AGE_DMNS_KEY', 'EST_OFFC_SCD_KEY', 'CASE_CATG_SCD_KEY', 'BLK_SCD_KEY', 'CASE_OSTD_PRD_DMNS_KEY', 'CMS_CASE_OSTD_CNT', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'CMS_BLK_SCD_KEY', 'EST_SCD_KEY', 'CMS_EST_SCD_KEY', 'CMS_CASE_ITEM_OSTD_CNT']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DPA_FACT_CMS_CASE_OSTD_SMRY", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS52,
+            conn=conn_target,
+            table='DPA_FACT_CMS_CASE_OSTD_SMRY',
+            mode='append',
+            source_columns=[
+                'TIME_DMNS_KEY',
+                'CASE_TYPE_SCD_KEY',
+                'BLK_AGE_DMNS_KEY',
+                'EST_OFFC_SCD_KEY',
+                'CASE_CATG_SCD_KEY',
+                'BLK_SCD_KEY',
+                'CASE_OSTD_PRD_DMNS_KEY',
+                'CMS_CASE_OSTD_CNT',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'CMS_BLK_SCD_KEY',
+                'EST_SCD_KEY',
+                'CMS_EST_SCD_KEY',
+                'CMS_CASE_ITEM_OSTD_CNT',
+            ],
+            target_columns=[
+                'TIME_DMNS_KEY',
+                'CASE_TYPE_SCD_KEY',
+                'BLK_AGE_DMNS_KEY',
+                'EST_OFFC_SCD_KEY',
+                'CASE_CATG_SCD_KEY',
+                'BLK_SCD_KEY',
+                'CASE_OSTD_PRD_DMNS_KEY',
+                'CMS_CASE_OSTD_CNT',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'CMS_BLK_SCD_KEY',
+                'EST_SCD_KEY',
+                'CMS_EST_SCD_KEY',
+                'CMS_CASE_ITEM_OSTD_CNT',
+            ],
+            config=config,
+        )
 
         logger.info("write_DPA_FACT_CMS_CASE_OSTD_SMRY write completed")
         

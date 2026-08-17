@@ -112,45 +112,51 @@ group by rqs_chnl_dmns_key, case_catg_scd_key, est_scd_key"""
         query = query.replace("$$v_rpt_date", v_rpt_date)
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         df_SQ_DPA_FACT_CMS_CASE_PRNT_SMRY = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_SQ_DPA_FACT_CMS_CASE_PRNT_SMRY.columns
-        _port_cols = ["TIME_DMNS_KEY", "RQS_CHNL_DMNS_KEY", "CASE_CATG_SCD_KEY", "EST_SCD_KEY", "CMS_CASE_CNT", "CMS_RCPT_PRN_CNT", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_SQ_DPA_FACT_CMS_CASE_PRNT_SMRY = df_SQ_DPA_FACT_CMS_CASE_PRNT_SMRY.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_DPA_FACT_CMS_CASE_PRNT_SMRY = df_SQ_DPA_FACT_CMS_CASE_PRNT_SMRY.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DPA_FACT_CMS_CASE_PRNT_SMRY.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_SQ_DPA_FACT_CMS_CASE_PRNT_SMRY = lib.sq_output(
+            input_df=df_SQ_DPA_FACT_CMS_CASE_PRNT_SMRY,
+            port_cols={
+                'TIME_DMNS_KEY': 'decimal',
+                'RQS_CHNL_DMNS_KEY': 'decimal',
+                'CASE_CATG_SCD_KEY': 'decimal',
+                'EST_SCD_KEY': 'decimal',
+                'CMS_CASE_CNT': 'decimal',
+                'CMS_RCPT_PRN_CNT': 'decimal',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+            },
+        )
         ctx.register_df("df_SQ_DPA_FACT_CMS_CASE_PRNT_SMRY", df_SQ_DPA_FACT_CMS_CASE_PRNT_SMRY)
         
         logger.info("Step: write_DPA_FACT_CMS_CASE_PRNT_SMRY1")
         # Write to Target: write_DPA_FACT_CMS_CASE_PRNT_SMRY1
-        df_write = df_SQ_DPA_FACT_CMS_CASE_PRNT_SMRY
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['TIME_DMNS_KEY', 'RQS_CHNL_DMNS_KEY', 'CASE_CATG_SCD_KEY', 'EST_SCD_KEY', 'CMS_CASE_CNT', 'CMS_RCPT_PRN_CNT', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DPA_FACT_CMS_CASE_PRNT_SMRY", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_DPA_FACT_CMS_CASE_PRNT_SMRY,
+            conn=conn_target,
+            table='DPA_FACT_CMS_CASE_PRNT_SMRY',
+            mode='append',
+            source_columns=[
+                'TIME_DMNS_KEY',
+                'RQS_CHNL_DMNS_KEY',
+                'CASE_CATG_SCD_KEY',
+                'EST_SCD_KEY',
+                'CMS_CASE_CNT',
+                'CMS_RCPT_PRN_CNT',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+            ],
+            target_columns=[
+                'TIME_DMNS_KEY',
+                'RQS_CHNL_DMNS_KEY',
+                'CASE_CATG_SCD_KEY',
+                'EST_SCD_KEY',
+                'CMS_CASE_CNT',
+                'CMS_RCPT_PRN_CNT',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+            ],
+            config=config,
+        )
 
         logger.info("write_DPA_FACT_CMS_CASE_PRNT_SMRY1 write completed")
         

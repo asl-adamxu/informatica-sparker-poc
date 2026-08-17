@@ -58,38 +58,46 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_DPA_DMNS_SNSH_CNTR")
         # Source Qualifier: apply_SQ_DPA_DMNS_SNSH_CNTR
         df_SQ_DPA_DMNS_SNSH_CNTR = df_DPA_DMNS_SNSH_CNTR
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["DMNS_SNSH_CNTR_KEY", "CNTR_KEY", "SNSH_KEY", "CNTR_NUM", "CNTR_TTL", "TNDR_NUM", "SNSH_CNTR_DISP_SEQ_NUM"]
-        df_SQ_DPA_DMNS_SNSH_CNTR = df_SQ_DPA_DMNS_SNSH_CNTR.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DPA_DMNS_SNSH_CNTR.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DPA_DMNS_SNSH_CNTR = lib.sq_output(
+            input_df=df_SQ_DPA_DMNS_SNSH_CNTR,
+            port_cols={
+                'DMNS_SNSH_CNTR_KEY': 'double',
+                'CNTR_KEY': 'decimal',
+                'SNSH_KEY': 'decimal',
+                'CNTR_NUM': 'string',
+                'CNTR_TTL': 'string',
+                'TNDR_NUM': 'string',
+                'SNSH_CNTR_DISP_SEQ_NUM': 'double',
+            },
+        )
         ctx.register_df("df_SQ_DPA_DMNS_SNSH_CNTR", df_SQ_DPA_DMNS_SNSH_CNTR)
         
         logger.info("Step: write_DDS_DMNS_SNSH_CNTR")
         # Write to Target: write_DDS_DMNS_SNSH_CNTR
-        df_write = df_SQ_DPA_DMNS_SNSH_CNTR
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"CNTR_KEY": "CNTR_KEY", "CNTR_NUM": "CNTR_NUM", "CNTR_TTL": "CNTR_TTL", "DMNS_SNSH_CNTR_KEY": "DMNS_SNSH_CNTR_KEY", "SNSH_CNTR_DISP_SEQ_NUM": "SNSH_CNTR_DISP_SEQ_NUM", "SNSH_KEY": "SNSH_KEY", "TNDR_NUM": "TNDR_NUM"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("DMNS_SNSH_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("SNSH_YEAR", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("SNSH_MTH", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("DISP_FIN_YEAR_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("DISP_SNSH_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("SNSH_DISP_SEQ_NUM", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['DMNS_SNSH_KEY', 'SNSH_YEAR', 'SNSH_MTH', 'DISP_FIN_YEAR_TEXT', 'DISP_SNSH_TEXT', 'SNSH_DISP_SEQ_NUM']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DDS_DMNS_SNSH", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_DPA_DMNS_SNSH_CNTR,
+            conn=conn_target,
+            table='DDS_DMNS_SNSH',
+            mode='append',
+            source_columns=[
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ],
+            target_columns=[
+                'DMNS_SNSH_KEY',
+                'SNSH_YEAR',
+                'SNSH_MTH',
+                'DISP_FIN_YEAR_TEXT',
+                'DISP_SNSH_TEXT',
+                'SNSH_DISP_SEQ_NUM',
+            ],
+            config=config,
+        )
 
         logger.info("write_DDS_DMNS_SNSH_CNTR write completed")
         

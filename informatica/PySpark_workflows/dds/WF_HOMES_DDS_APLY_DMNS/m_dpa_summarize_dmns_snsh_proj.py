@@ -45,7 +45,6 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
     metrics = metrics or lib.NullMetrics()
     metrics.start()
 
-    conn_target = lib.get_db_config(config, "DPA")
 
     v_snsh_date = ""
     # Load mapping variables from job_params or UTL_JOB_PARAM file
@@ -105,46 +104,29 @@ and TO_DATE ('$$v_snsh_date', 'YYYYMMDD') BETWEEN pp.bgn_date AND pp.end_date
 and TO_DATE ('$$v_snsh_date', 'YYYYMMDD') BETWEEN ss.bgn_date AND ss.end_date"""
         query = query.replace("$$v_snsh_date", v_snsh_date)
         df_SQ_SOR_HOM_PRG_SNSH_PROJ_STS = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_SQ_SOR_HOM_PRG_SNSH_PROJ_STS.columns
-        _port_cols = ["PROJ_HOM_BK", "SNSH_KEY", "DSTR_CODE", "PROJ_NUM", "DEV_TYPE_CODE", "PHASE_CODE", "PROJ_TTL", "SNSH_PROJ_DISP_SEQ_NUM"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_SQ_SOR_HOM_PRG_SNSH_PROJ_STS = df_SQ_SOR_HOM_PRG_SNSH_PROJ_STS.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_SOR_HOM_PRG_SNSH_PROJ_STS = df_SQ_SOR_HOM_PRG_SNSH_PROJ_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_HOM_PRG_SNSH_PROJ_STS.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_SQ_SOR_HOM_PRG_SNSH_PROJ_STS = lib.sq_output(
+            input_df=df_SQ_SOR_HOM_PRG_SNSH_PROJ_STS,
+            port_cols={
+                'PROJ_HOM_BK': 'decimal',
+                'SNSH_KEY': 'decimal',
+                'DSTR_CODE': 'string',
+                'PROJ_NUM': 'string',
+                'DEV_TYPE_CODE': 'string',
+                'PHASE_CODE': 'string',
+                'PROJ_TTL': 'string',
+                'SNSH_PROJ_DISP_SEQ_NUM': 'decimal',
+            },
+        )
         ctx.register_df("df_SQ_SOR_HOM_PRG_SNSH_PROJ_STS", df_SQ_SOR_HOM_PRG_SNSH_PROJ_STS)
         
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
-        df_EXPTRANS1 = df_SQ_SOR_HOM_PRG_SNSH_PROJ_STS
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("SNSH_HOM_KEY", expr("SNSH_KEY"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["PROJ_HOM_BK", "DSTR_CODE", "PROJ_NUM", "DEV_TYPE_CODE", "PHASE_CODE", "PROJ_TTL", "SNSH_PROJ_DISP_SEQ_NUM"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS1.columns]:
-                df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS1 = lib.expression(
+            input_df=df_SQ_SOR_HOM_PRG_SNSH_PROJ_STS,
+            computed_columns=[
+                {'name': 'SNSH_HOM_KEY', 'expr': 'SNSH_KEY'}
+            ],
+        )
         ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
         
         logger.info("Step: read_LKP_DDS_DMNS_SNSH_PROJ1")
@@ -163,7 +145,7 @@ and TO_DATE ('$$v_snsh_date', 'YYYYMMDD') BETWEEN ss.bgn_date AND ss.end_date"""
         _lkp_input = _lkp_input.withColumn("IN_SNSH_KEY", col("SNSH_HOM_KEY"))
         # Join condition: IN_PROJ_KEY=PROJ_KEY AND IN_SNSH_KEY=SNSH_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_SNSH_PROJ1).alias("_lkp"),
             (col("_main.IN_PROJ_KEY") == col("_lkp.PROJ_KEY")) &
             (col("_main.IN_SNSH_KEY") == col("_lkp.SNSH_KEY")),
@@ -172,102 +154,30 @@ and TO_DATE ('$$v_snsh_date', 'YYYYMMDD') BETWEEN ss.bgn_date AND ss.end_date"""
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_DDS_DMNS_SNSH_PROJ1[c] for c in df_LKP_DDS_DMNS_SNSH_PROJ1.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
+        ctx.register_df("df_lkp_merge_EXPTRANS1", df_lkp_merge_EXPTRANS1)        
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_lkp_merge_1
-        df_EXPTRANS = df_EXPTRANS.withColumn("PROJ_DISP_SEQ_NUM", expr("SNSH_PROJ_DISP_SEQ_NUM"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("IN_PROJ_DISP_SEQ_NUM", expr("SNSH_PROJ_DISP_SEQ_NUM"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("IN_PHASE_CODE", expr("PHASE_CODE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("IN_PROJ_TTL", expr("PROJ_TTL"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CHANGE_FLAG", expr("CASE WHEN (DMNS_SNSH_PROJ_KEY IS NULL) OR CASE WHEN PROJ_NUM = PROJ_NUM THEN false ELSE true END OR CASE WHEN PHASE_CODE = PHASE_CODE THEN false ELSE true END OR CASE WHEN PROJ_TTL = PROJ_TTL THEN false ELSE true END THEN 1 ELSE 0 END"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("IN_PROJ_NUM", expr("PROJ_NUM"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["PHASE_CODE", "PROJ_TTL", "DMNS_SNSH_PROJ_KEY", "PROJ_NUM", "PROJ_KEY", "SNSH_KEY", "IN_PROJ_KEY", "IN_SNSH_KEY"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_lkp_merge_EXPTRANS1,
+            computed_columns=[
+                {'name': 'PROJ_DISP_SEQ_NUM', 'expr': 'SNSH_PROJ_DISP_SEQ_NUM'},
+                {'name': 'IN_PROJ_DISP_SEQ_NUM', 'expr': 'SNSH_PROJ_DISP_SEQ_NUM'},
+                {'name': 'IN_PHASE_CODE', 'expr': 'PHASE_CODE'},
+                {'name': 'IN_PROJ_NUM', 'expr': 'PROJ_NUM'},
+                {'name': 'CHANGE_FLAG', 'expr': 'CASE WHEN (DMNS_SNSH_PROJ_KEY IS NULL) OR CASE WHEN PROJ_NUM = PROJ_NUM THEN false ELSE true END OR CASE WHEN PHASE_CODE = PHASE_CODE THEN false ELSE true END OR CASE WHEN PROJ_TTL = PROJ_TTL THEN false ELSE true END THEN 1 ELSE 0 END'},
+                {'name': 'IN_PROJ_TTL', 'expr': 'PROJ_TTL'}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: apply_FIL_CHANGE")
         # Filter: apply_FIL_CHANGE
-        __fil_input = df_EXPTRANS
-        df_FIL_CHANGE = __fil_input.filter(expr("CHANGE_FLAG = 1 AND ( NOT (DMNS_SNSH_PROJ_KEY IS NULL))"))
+        df_FIL_CHANGE = lib.filter(
+            input_df=df_EXPTRANS,
+            condition='CHANGE_FLAG = 1 AND ( NOT (DMNS_SNSH_PROJ_KEY IS NULL))',
+        )
         ctx.register_df("df_FIL_CHANGE", df_FIL_CHANGE)
 
-        logger.info("Step: apply_FIL_NEW")
-        # Filter: apply_FIL_NEW
-        __fil_input = df_EXPTRANS
-        df_FIL_NEW = __fil_input.filter(expr("CHANGE_FLAG = 1 AND (DMNS_SNSH_PROJ_KEY IS NULL)"))
-        ctx.register_df("df_FIL_NEW", df_FIL_NEW)
-        # Connected sequence generator: attach NEXTVAL (start 0)
-        df_FIL_NEW = df_FIL_NEW.withColumn(
-            "NEXTVAL",
-            monotonically_increasing_id() + 0
-        )
-        ctx.register_df("df_FIL_NEW", df_FIL_NEW)
-
-        logger.info("Step: apply_Union_Transformation")
-        # Union: apply_Union_Transformation
-        # Select + rename upstream columns per input, then union
-        df_Union_Transformation_change = df_FIL_CHANGE.select(
-            col("DMNS_SNSH_PROJ_KEY").alias("DMNS_SNSH_PROJ_KEY"),
-            col("IN_PROJ_KEY").alias("IN_PROJ_KEY"),
-            col("IN_SNSH_KEY").alias("IN_SNSH_KEY"),
-            col("IN_PROJ_NUM").alias("IN_PROJ_NUM"),
-            col("IN_PHASE_CODE").alias("IN_PHASE_CODE"),
-            col("IN_PROJ_TTL").alias("IN_PROJ_TTL"),
-            col("IN_PROJ_DISP_SEQ_NUM").alias("IN_PROJ_DISP_SEQ_NUM")        )
-        df_Union_Transformation_new = df_FIL_NEW.select(
-            col("NEXTVAL").alias("DMNS_SNSH_PROJ_KEY"),
-            col("IN_PROJ_KEY").alias("IN_PROJ_KEY"),
-            col("IN_SNSH_KEY").alias("IN_SNSH_KEY"),
-            col("IN_PROJ_NUM").alias("IN_PROJ_NUM"),
-            col("IN_PHASE_CODE").alias("IN_PHASE_CODE"),
-            col("IN_PROJ_TTL").alias("IN_PROJ_TTL"),
-            col("IN_PROJ_DISP_SEQ_NUM").alias("IN_PROJ_DISP_SEQ_NUM")        )
-        df_Union_Transformation = df_Union_Transformation_change
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_new, allowMissingColumns=True)
-        # Select only union output columns (add lit(None) for any missing)
-        for _col in ["DMNS_SNSH_PROJ_KEY", "IN_PROJ_KEY", "IN_SNSH_KEY", "IN_PROJ_NUM", "IN_PHASE_CODE", "IN_PROJ_TTL", "IN_PROJ_DISP_SEQ_NUM"]:
-            if _col.lower() not in [x.lower() for x in df_Union_Transformation.columns]:
-                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
-        df_Union_Transformation = df_Union_Transformation.select("DMNS_SNSH_PROJ_KEY", "IN_PROJ_KEY", "IN_SNSH_KEY", "IN_PROJ_NUM", "IN_PHASE_CODE", "IN_PROJ_TTL", "IN_PROJ_DISP_SEQ_NUM")
-        ctx.register_df("df_Union_Transformation", df_Union_Transformation)
-        
-        logger.info("Step: write_DPA_DMNS_SNSH_PROJ")
-        # Write to Target: write_DPA_DMNS_SNSH_PROJ
-        df_write = df_Union_Transformation
-        # Cast NullType columns to StringType
-        for _c in df_write.columns:
-            if isinstance(df_write.schema[_c].dataType, NullType):
-                df_write = df_write.withColumn(_c, col(_c).cast(StringType()))
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"DMNS_SNSH_PROJ_KEY": "DMNS_SNSH_PROJ_KEY", "PHASE_CODE": "IN_PHASE_CODE", "PROJ_KEY": "IN_PROJ_KEY", "PROJ_NUM": "IN_PROJ_NUM", "PROJ_TTL": "IN_PROJ_TTL", "SNSH_KEY": "IN_SNSH_KEY", "SNSH_PROJ_DISP_SEQ_NUM": "IN_PROJ_DISP_SEQ_NUM"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("DMNS_SNSH_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("SNSH_YEAR", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("SNSH_MTH", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("DISP_FIN_YEAR_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("DISP_SNSH_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("SNSH_DISP_SEQ_NUM", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['DMNS_SNSH_KEY', 'SNSH_YEAR', 'SNSH_MTH', 'DISP_FIN_YEAR_TEXT', 'DISP_SNSH_TEXT', 'SNSH_DISP_SEQ_NUM']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DPA_DMNS_SNSH", mode="append")
-
-        logger.info("write_DPA_DMNS_SNSH_PROJ write completed")
         
         metrics.complete()
         logger.info("Mapping M_DPA_SUMMARIZE_DMNS_SNSH_PROJ completed: SUCCESS")

@@ -58,31 +58,39 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_DPA_DMNS_PHCP")
         # Source Qualifier: apply_SQ_DPA_DMNS_PHCP
         df_SQ_DPA_DMNS_PHCP = df_DPA_DMNS_PHCP
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["DMNS_PHCP_KEY", "PHCP_IND", "PHCP_DESP_TEXT", "PHCP_DISP_SEQ_NUM"]
-        df_SQ_DPA_DMNS_PHCP = df_SQ_DPA_DMNS_PHCP.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DPA_DMNS_PHCP.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DPA_DMNS_PHCP = lib.sq_output(
+            input_df=df_SQ_DPA_DMNS_PHCP,
+            port_cols={
+                'DMNS_PHCP_KEY': 'double',
+                'PHCP_IND': 'string',
+                'PHCP_DESP_TEXT': 'string',
+                'PHCP_DISP_SEQ_NUM': 'double',
+            },
+        )
         ctx.register_df("df_SQ_DPA_DMNS_PHCP", df_SQ_DPA_DMNS_PHCP)
         
         logger.info("Step: write_DDS_DMNS_PHCP")
         # Write to Target: write_DDS_DMNS_PHCP
-        df_write = df_SQ_DPA_DMNS_PHCP
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"DMNS_PHCP_KEY": "DMNS_PHCP_KEY", "PHCP_DESP_TEXT": "PHCP_DESP_TEXT", "PHCP_DISP_SEQ_NUM": "PHCP_DISP_SEQ_NUM", "PHCP_IND": "PHCP_IND"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['DMNS_PHCP_KEY', 'PHCP_IND', 'PHCP_DESP_TEXT', 'PHCP_DISP_SEQ_NUM']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DDS_DMNS_PHCP", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_DPA_DMNS_PHCP,
+            conn=conn_target,
+            table='DDS_DMNS_PHCP',
+            mode='append',
+            source_columns=[
+                'DMNS_PHCP_KEY',
+                'PHCP_IND',
+                'PHCP_DESP_TEXT',
+                'PHCP_DISP_SEQ_NUM',
+            ],
+            target_columns=[
+                'DMNS_PHCP_KEY',
+                'PHCP_IND',
+                'PHCP_DESP_TEXT',
+                'PHCP_DISP_SEQ_NUM',
+            ],
+            config=config,
+        )
 
         logger.info("write_DDS_DMNS_PHCP write completed")
         

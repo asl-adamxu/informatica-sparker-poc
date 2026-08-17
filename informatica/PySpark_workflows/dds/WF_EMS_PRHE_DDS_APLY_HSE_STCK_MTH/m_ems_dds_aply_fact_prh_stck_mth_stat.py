@@ -159,49 +159,37 @@ ON
         query = query.replace("$$v_rpt_mth", v_rpt_mth)
         query = query.replace("$$v_snsh_date", v_snsh_date)
         df_SQ_SOR_HSM_UNIT = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_SQ_SOR_HSM_UNIT.columns
-        _port_cols = ["UNIT_ADDR_CODE", "UNIT_KEY", "EMMS_UNIT_KEY", "UNIT_TAKE_OVER_DATE", "MAX_UNIT_HEAD_CNT", "MIN_UNIT_HEAD_CNT", "UNIT_IFA_AREA", "UNIT_TYPE_CODE", "HSE_UNIT_TM_STS_CODE", "HSE_UNIT_TM_VOID_STS_BGN_DATE", "HSE_UNIT_DMLH_DATE", "UNIT_RSRV_CATG_CODE", "HSE_UNIT_RSRV_OPR_CODE", "UNIT_ALCT_STS_CODE", "HSE_UNIT_ENV_CODE"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_SQ_SOR_HSM_UNIT = df_SQ_SOR_HSM_UNIT.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_SQ_SOR_HSM_UNIT = df_SQ_SOR_HSM_UNIT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_HSM_UNIT.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_SQ_SOR_HSM_UNIT = lib.sq_output(
+            input_df=df_SQ_SOR_HSM_UNIT,
+            port_cols={
+                'UNIT_ADDR_CODE': 'string',
+                'UNIT_KEY': 'decimal',
+                'EMMS_UNIT_KEY': 'string',
+                'UNIT_TAKE_OVER_DATE': 'date/time',
+                'MAX_UNIT_HEAD_CNT': 'decimal',
+                'MIN_UNIT_HEAD_CNT': 'decimal',
+                'UNIT_IFA_AREA': 'decimal',
+                'UNIT_TYPE_CODE': 'string',
+                'HSE_UNIT_TM_STS_CODE': 'string',
+                'HSE_UNIT_TM_VOID_STS_BGN_DATE': 'date/time',
+                'HSE_UNIT_DMLH_DATE': 'date/time',
+                'UNIT_RSRV_CATG_CODE': 'string',
+                'HSE_UNIT_RSRV_OPR_CODE': 'string',
+                'UNIT_ALCT_STS_CODE': 'string',
+                'HSE_UNIT_ENV_CODE': 'string',
+            },
+        )
         ctx.register_df("df_SQ_SOR_HSM_UNIT", df_SQ_SOR_HSM_UNIT)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_SOR_HSM_UNIT
-        _expr = """200000000+cast(substring('$$v_rpt_mth',1,4) as decimal)*10000+cast(substring('$$v_rpt_mth',5,2) as decimal)*100"""
-        _expr = _expr.replace("$$v_rpt_mth", str(v_rpt_mth))
-        _expr = _expr.replace("$$v_snsh_date", str(v_snsh_date))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TIME_DMNS_KEY", expr(_expr))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["UNIT_ADDR_CODE", "UNIT_KEY", "MIN_UNIT_HEAD_CNT", "MAX_UNIT_HEAD_CNT", "UNIT_IFA_AREA", "UNIT_TYPE_CODE", "HSE_UNIT_TM_STS_CODE", "UNIT_TAKE_OVER_DATE", "HSE_UNIT_TM_VOID_STS_BGN_DATE", "HSE_UNIT_DMLH_DATE", "UNIT_RSRV_CATG_CODE", "HSE_UNIT_RSRV_OPR_CODE", "UNIT_ALCT_STS_CODE", "HSE_UNIT_ENV_CODE", "EMMS_UNIT_KEY"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_SOR_HSM_UNIT,
+            computed_columns=[
+                {'name': 'TIME_DMNS_KEY', 'expr': "200000000+cast(substring('$$v_rpt_mth',1,4) as decimal)*10000+cast(substring('$$v_rpt_mth',5,2) as decimal)*100"}
+            ],
+            substitutions={'$$v_rpt_mth': v_rpt_mth},
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: read_LKP_SOR_EMS_SRP_MRRS_RENT_RCV")
@@ -224,7 +212,7 @@ where (SOR_EMS_SRP_MRRS_RENT_RCV.SYS_RPT_YEAR*100+SOR_EMS_SRP_MRRS_RENT_RCV.SYS_
         _lkp_input = df_EXPTRANS
         # Join condition: EMMS_UNIT_KEY=UNIT_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS = _lkp_input.alias("_main").join(
             broadcast(df_LKP_SOR_EMS_SRP_MRRS_RENT_RCV).alias("_lkp"),
             (col("_main.EMMS_UNIT_KEY") == col("_lkp.UNIT_KEY")),
             "left"
@@ -232,7 +220,7 @@ where (SOR_EMS_SRP_MRRS_RENT_RCV.SYS_RPT_YEAR*100+SOR_EMS_SRP_MRRS_RENT_RCV.SYS_
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_SOR_EMS_SRP_MRRS_RENT_RCV[c] for c in df_LKP_SOR_EMS_SRP_MRRS_RENT_RCV.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
+        ctx.register_df("df_lkp_merge_EXPTRANS", df_lkp_merge_EXPTRANS)        
         logger.info("Step: read_LKP_UNIT_ADVS_ENV_CODE_IND")
         # Reading Data From Source - read_LKP_UNIT_ADVS_ENV_CODE_IND
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -259,11 +247,11 @@ select t1.unit_key, e1, e2, e3 from
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_UNIT_ADVS_ENV_CODE_IND = df_LKP_UNIT_ADVS_ENV_CODE_IND.dropDuplicates(subset=["UNIT_KEY"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_1
+        _lkp_input = df_lkp_merge_EXPTRANS
         _lkp_input = _lkp_input.withColumn("UNIT_KEY1", col("UNIT_KEY"))
         # Join condition: UNIT_KEY1=UNIT_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS = _lkp_input.alias("_main").join(
             broadcast(df_LKP_UNIT_ADVS_ENV_CODE_IND).alias("_lkp"),
             (col("_main.UNIT_KEY1") == col("_lkp.UNIT_KEY")),
             "left"
@@ -290,11 +278,11 @@ and to_date('$$v_snsh_date', 'YYYYMMDD') between bgn_date and end_date"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_LAST_TPS_DOT = df_LKP_LAST_TPS_DOT.dropDuplicates(subset=["UNIT_KEY"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_1
+        _lkp_input = df_lkp_merge_EXPTRANS
         _lkp_input = _lkp_input.withColumn("UNIT_KEY1", col("UNIT_KEY"))
         # Join condition: UNIT_KEY1=UNIT_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS = _lkp_input.alias("_main").join(
             broadcast(df_LKP_LAST_TPS_DOT).alias("_lkp"),
             (col("_main.UNIT_KEY1") == col("_lkp.UNIT_KEY")),
             "left"
@@ -328,11 +316,11 @@ group by UNIT_KEY"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_LAST_DOT = df_LKP_LAST_DOT.dropDuplicates(subset=["UNIT_KEY"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_1
+        _lkp_input = df_lkp_merge_EXPTRANS
         _lkp_input = _lkp_input.withColumn("UNIT_KEY1", col("UNIT_KEY"))
         # Join condition: UNIT_KEY1=UNIT_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS = _lkp_input.alias("_main").join(
             broadcast(df_LKP_LAST_DOT).alias("_lkp"),
             (col("_main.UNIT_KEY1") == col("_lkp.UNIT_KEY")),
             "left"
@@ -361,11 +349,11 @@ FROM EIS_HA_PRH_VACFLT"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_ALCT_STS_CODE = df_LKP_ALCT_STS_CODE.dropDuplicates(subset=["UNIT_ADDR_CODE"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_1
+        _lkp_input = df_lkp_merge_EXPTRANS
         _lkp_input = _lkp_input.withColumn("UNIT_ADDR_CODE1", col("UNIT_ADDR_CODE"))
         # Join condition: UNIT_ADDR_CODE1=UNIT_ADDR_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS = _lkp_input.alias("_main").join(
             broadcast(df_LKP_ALCT_STS_CODE).alias("_lkp"),
             (col("_main.UNIT_ADDR_CODE1") == col("_lkp.UNIT_ADDR_CODE")),
             "left"
@@ -405,11 +393,11 @@ AND B.EST_KEY = E.EST_KEY"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DSTR_EST = df_LKP_DSTR_EST.dropDuplicates(subset=["UNIT_ADDR_CODE"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_1
+        _lkp_input = df_lkp_merge_EXPTRANS
         _lkp_input = _lkp_input.withColumn("UNIT_CODE_ADDR", col("UNIT_ADDR_CODE"))
         # Join condition: UNIT_CODE_ADDR=UNIT_ADDR_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DSTR_EST).alias("_lkp"),
             (col("_main.UNIT_CODE_ADDR") == col("_lkp.UNIT_ADDR_CODE")),
             "left"
@@ -434,11 +422,11 @@ from EIS_HA_PRH_RNTL_UNIT"""
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_STAT_IND = df_LKP_STAT_IND.dropDuplicates(subset=["UNIT_ADDR_CODE"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_1
+        _lkp_input = df_lkp_merge_EXPTRANS
         _lkp_input = _lkp_input.withColumn("UNIT_ADDR_CODE1", col("UNIT_ADDR_CODE"))
         # Join condition: UNIT_ADDR_CODE1=UNIT_ADDR_CODE
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS = _lkp_input.alias("_main").join(
             broadcast(df_LKP_STAT_IND).alias("_lkp"),
             (col("_main.UNIT_ADDR_CODE1") == col("_lkp.UNIT_ADDR_CODE")),
             "left"
@@ -449,16 +437,15 @@ from EIS_HA_PRH_RNTL_UNIT"""
         
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
-        df_EXPTRANS1 = df_lkp_merge_1
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("UNIT_TAKE_OVER_DATE1", expr("date_format(UNIT_TAKE_OVER_DATE, 'yyyyMMdd')"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("HSE_UNIT_TM_VOID_STS_BGN_DATE1", expr("date_format(HSE_UNIT_TM_VOID_STS_BGN_DATE, 'yyyyMMdd')"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("LAST_TPS_DOT1", expr("date_format(LAST_TPS_DOT, 'yyyyMMdd')"))
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("LAST_DOT1", expr("date_format(LAST_DOT, 'yyyyMMdd')"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["LAST_TPS_DOT", "LAST_DOT"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS1.columns]:
-                df_EXPTRANS1 = df_EXPTRANS1.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS1 = lib.expression(
+            input_df=df_lkp_merge_EXPTRANS,
+            computed_columns=[
+                {'name': 'UNIT_TAKE_OVER_DATE1', 'expr': "date_format(UNIT_TAKE_OVER_DATE, 'yyyyMMdd')"},
+                {'name': 'HSE_UNIT_TM_VOID_STS_BGN_DATE1', 'expr': "date_format(HSE_UNIT_TM_VOID_STS_BGN_DATE, 'yyyyMMdd')"},
+                {'name': 'LAST_TPS_DOT1', 'expr': "date_format(LAST_TPS_DOT, 'yyyyMMdd')"},
+                {'name': 'LAST_DOT1', 'expr': "date_format(LAST_DOT, 'yyyyMMdd')"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
         
         logger.info("Step: read_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR")
@@ -476,10 +463,10 @@ WHERE add_months(to_date('$$v_rpt_mth'||'01', 'YYYYMMDD'),-1)-1 between DDS_HRCH
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR = df_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR.dropDuplicates(subset=["EMMS_SBDSTR_KEY"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_1
+        _lkp_input = df_lkp_merge_EXPTRANS
         # Join condition: DSTR_CHC_DSTR_EMMS_KEY=EMMS_SBDSTR_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_2 = _lkp_input.alias("_main").join(
+        df_lkp_merge_LKP_DSTR_EST = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR).alias("_lkp"),
             (col("_main.DSTR_CHC_DSTR_EMMS_KEY") == col("_lkp.EMMS_SBDSTR_KEY")),
             "left"
@@ -487,7 +474,7 @@ WHERE add_months(to_date('$$v_rpt_mth'||'01', 'YYYYMMDD'),-1)-1 between DDS_HRCH
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR[c] for c in df_LKP_DDS_HRCHY_EMS_DSTR_CHC_DSTR.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)        
+        ctx.register_df("df_lkp_merge_LKP_DSTR_EST", df_lkp_merge_LKP_DSTR_EST)        
         logger.info("Step: read_LKP_DDS_HRCHY_EMS_EST")
         # Reading Data From Source - read_LKP_DDS_HRCHY_EMS_EST
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -520,11 +507,11 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_HRCHY_EMS_EST = df_LKP_DDS_HRCHY_EMS_EST.dropDuplicates(subset=["EST_KEY"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_2
+        _lkp_input = df_lkp_merge_LKP_DSTR_EST
         _lkp_input = _lkp_input.withColumn("EST_KEY1", col("EST_KEY"))
         # Join condition: EST_KEY1=EST_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_2 = _lkp_input.alias("_main").join(
+        df_lkp_merge_LKP_DSTR_EST = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_HRCHY_EMS_EST).alias("_lkp"),
             (col("_main.EST_KEY1") == col("_lkp.EST_KEY")),
             "left"
@@ -544,10 +531,10 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR = df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR.dropDuplicates(subset=["EMMS_DSTR_KEY"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_2
+        _lkp_input = df_lkp_merge_LKP_DSTR_EST
         # Join condition: DSTR_BRD_DSTR_EMMS_KEY=EMMS_DSTR_KEY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_2 = _lkp_input.alias("_main").join(
+        df_lkp_merge_LKP_DSTR_EST = _lkp_input.alias("_main").join(
             broadcast(df_LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR).alias("_lkp"),
             (col("_main.DSTR_BRD_DSTR_EMMS_KEY") == col("_lkp.EMMS_DSTR_KEY")),
             "left"
@@ -558,32 +545,71 @@ WHERE add_months(TO_DATE('$$v_rpt_mth'||'01', 'YYYYMMDD'),1)-1 between DDS_HRCHY
         
         logger.info("Step: write_DDS_FACT_EMS_PRH_STCK_MTH_STAT")
         # Write to Target: write_DDS_FACT_EMS_PRH_STCK_MTH_STAT
-        df_write = df_lkp_merge_1
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"ALCT_STS_CODE": "ALCT_STS_CODE", "DSTR_BRD_DSTR_CODE": "DSTR_BRD_DSTR_CODE", "DSTR_CHC_DSTR_CODE": "DSTR_CHC_DSTR_CODE", "DSTR_CHC_SBDSTR_CODE": "DSTR_CHC_SBDSTR_CODE", "DTMO_CODE": "DTMO_CODE", "EI1": "HSE_UNIT_ENV_CODE", "EI2": "EI2", "EI3": "EI3", "EI4": "EI4", "EMMS_ALCT_STS_CODE": "UNIT_ALCT_STS_CODE", "FLAT_IND": "INDICATOR", "FLAT_STS": "HSE_UNIT_TM_STS_CODE", "FLAT_TYPE": "UNIT_TYPE_CODE", "HEAD_MAX": "MAX_UNIT_HEAD_CNT", "HEAD_MIN": "MIN_UNIT_HEAD_CNT", "IFA": "UNIT_IFA_AREA", "LAST_DOT": "LAST_DOT1", "LAST_TPS_DOT": "LAST_TPS_DOT1", "MGT_DSTR_CODE": "MGT_DSTR_CODE", "MTH_RENT": "UNIT_GRS_RENT_AMT", "RGN_CODE": "RGN_CODE", "RSRV_CATG": "UNIT_RSRV_CATG_CODE", "RSRV_OPR": "HSE_UNIT_RSRV_OPR_CODE", "TAKE_OVER_DATE": "UNIT_TAKE_OVER_DATE1", "UNIT_ADDR_CODE": "UNIT_ADDR_CODE", "VOID_SINCE_DATE": "HSE_UNIT_TM_VOID_STS_BGN_DATE1"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['UNIT_ADDR_CODE', 'FLAT_TYPE', 'HEAD_MIN', 'HEAD_MAX', 'IFA', 'EI1', 'EI2', 'EI3', 'EI4', 'FLAT_STS', 'FLAT_IND', 'EMMS_ALCT_STS_CODE', 'ALCT_STS_CODE', 'RSRV_OPR', 'RSRV_CATG', 'MTH_RENT', 'VOID_SINCE_DATE', 'TAKE_OVER_DATE', 'LAST_DOT', 'LAST_TPS_DOT', 'RGN_CODE', 'MGT_DSTR_CODE', 'DTMO_CODE', 'DSTR_BRD_DSTR_CODE', 'DSTR_CHC_DSTR_CODE', 'DSTR_CHC_SBDSTR_CODE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to flat file — prefer config.yml objects metadata, then derived default path
-        _write_obj = objects.get("DDS_FACT_EMS_PRH_STCK_MTH_STAT")
-        if _write_obj and isinstance(_write_obj, dict):
-            _write_path = _write_obj.get('path', '/tmp/DDS_FACT_EMS_PRH_STCK_MTH_STAT')
-            _write_fmt = _write_obj.get('format', 'csv')
-        # Runtime fallback: skip write if path resolves to /dev/null
-        if _write_path and _write_path.strip() in ("/dev/null", "NUL"):
-            logger.info("Target %s resolved to /dev/null, skipping write", "write_DDS_FACT_EMS_PRH_STCK_MTH_STAT")
-        else:
-            lib.write_file(df_write, _write_path, format=_write_fmt, mode="overwrite")
+        lib.write_target(
+            spark=spark,
+            df=df_lkp_merge_EXPTRANS,
+            conn=conn_target,
+            table='DDS_FACT_EMS_PRH_STCK_MTH_STAT',
+            mode='append',
+            sink_type='csv',
+            source_columns=[
+                'UNIT_ADDR_CODE',
+                'UNIT_TYPE_CODE',
+                'MIN_UNIT_HEAD_CNT',
+                'MAX_UNIT_HEAD_CNT',
+                'UNIT_IFA_AREA',
+                'HSE_UNIT_ENV_CODE',
+                'EI2',
+                'EI3',
+                'EI4',
+                'HSE_UNIT_TM_STS_CODE',
+                'INDICATOR',
+                'UNIT_ALCT_STS_CODE',
+                'ALCT_STS_CODE',
+                'HSE_UNIT_RSRV_OPR_CODE',
+                'UNIT_RSRV_CATG_CODE',
+                'UNIT_GRS_RENT_AMT',
+                'HSE_UNIT_TM_VOID_STS_BGN_DATE1',
+                'UNIT_TAKE_OVER_DATE1',
+                'LAST_DOT1',
+                'LAST_TPS_DOT1',
+                'RGN_CODE',
+                'MGT_DSTR_CODE',
+                'DTMO_CODE',
+                'DSTR_BRD_DSTR_CODE',
+                'DSTR_CHC_DSTR_CODE',
+                'DSTR_CHC_SBDSTR_CODE',
+            ],
+            target_columns=[
+                'UNIT_ADDR_CODE',
+                'FLAT_TYPE',
+                'HEAD_MIN',
+                'HEAD_MAX',
+                'IFA',
+                'EI1',
+                'EI2',
+                'EI3',
+                'EI4',
+                'FLAT_STS',
+                'FLAT_IND',
+                'EMMS_ALCT_STS_CODE',
+                'ALCT_STS_CODE',
+                'RSRV_OPR',
+                'RSRV_CATG',
+                'MTH_RENT',
+                'VOID_SINCE_DATE',
+                'TAKE_OVER_DATE',
+                'LAST_DOT',
+                'LAST_TPS_DOT',
+                'RGN_CODE',
+                'MGT_DSTR_CODE',
+                'DTMO_CODE',
+                'DSTR_BRD_DSTR_CODE',
+                'DSTR_CHC_DSTR_CODE',
+                'DSTR_CHC_SBDSTR_CODE',
+            ],
+            config=config,
+        )
 
         logger.info("write_DDS_FACT_EMS_PRH_STCK_MTH_STAT write completed")
         

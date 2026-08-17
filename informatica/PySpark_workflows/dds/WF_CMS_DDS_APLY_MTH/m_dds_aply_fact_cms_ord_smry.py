@@ -58,19 +58,75 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_DPA_FACT_CMS_ORD_SMRY")
         # Source Qualifier: apply_SQ_DPA_FACT_CMS_ORD_SMRY
         df_SQ_DPA_FACT_CMS_ORD_SMRY = df_DPA_FACT_CMS_ORD_SMRY
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["TIME_DMNS_KEY", "EST_OFFC_SCD_KEY", "UNIT_SIZE_DMNS_KEY", "BLK_SCD_KEY", "BLK_AGE_DMNS_KEY", "ERP_WO_CNT", "ERP_WO_CMPLT_CNT", "ARTSN_ORD_CNT", "ARTSN_ORD_CMPLT_CNT", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "CMS_BLK_SCD_KEY", "EST_SCD_KEY", "CMS_EST_SCD_KEY", "ERP_WO_ITEM_CNT", "ERP_WO_ITEM_CMPLT_CNT"]
-        df_SQ_DPA_FACT_CMS_ORD_SMRY = df_SQ_DPA_FACT_CMS_ORD_SMRY.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DPA_FACT_CMS_ORD_SMRY.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DPA_FACT_CMS_ORD_SMRY = lib.sq_output(
+            input_df=df_SQ_DPA_FACT_CMS_ORD_SMRY,
+            port_cols={
+                'TIME_DMNS_KEY': 'decimal',
+                'EST_OFFC_SCD_KEY': 'decimal',
+                'UNIT_SIZE_DMNS_KEY': 'decimal',
+                'BLK_SCD_KEY': 'decimal',
+                'BLK_AGE_DMNS_KEY': 'decimal',
+                'ERP_WO_CNT': 'decimal',
+                'ERP_WO_CMPLT_CNT': 'decimal',
+                'ARTSN_ORD_CNT': 'decimal',
+                'ARTSN_ORD_CMPLT_CNT': 'decimal',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'CMS_BLK_SCD_KEY': 'decimal',
+                'EST_SCD_KEY': 'decimal',
+                'CMS_EST_SCD_KEY': 'decimal',
+                'ERP_WO_ITEM_CNT': 'decimal',
+                'ERP_WO_ITEM_CMPLT_CNT': 'decimal',
+            },
+        )
         ctx.register_df("df_SQ_DPA_FACT_CMS_ORD_SMRY", df_SQ_DPA_FACT_CMS_ORD_SMRY)
         
         logger.info("Step: write_DDS_FACT_CMS_ORD_SMRY")
         # Write to Target: write_DDS_FACT_CMS_ORD_SMRY
-        df_write = df_SQ_DPA_FACT_CMS_ORD_SMRY
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['TIME_DMNS_KEY', 'EST_OFFC_SCD_KEY', 'UNIT_SIZE_DMNS_KEY', 'BLK_SCD_KEY', 'BLK_AGE_DMNS_KEY', 'ERP_WO_CNT', 'ERP_WO_CMPLT_CNT', 'ARTSN_ORD_CNT', 'ARTSN_ORD_CMPLT_CNT', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE', 'CMS_BLK_SCD_KEY', 'EST_SCD_KEY', 'CMS_EST_SCD_KEY', 'ERP_WO_ITEM_CNT', 'ERP_WO_ITEM_CMPLT_CNT']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "DDS_FACT_CMS_ORD_SMRY", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_DPA_FACT_CMS_ORD_SMRY,
+            conn=conn_target,
+            table='DDS_FACT_CMS_ORD_SMRY',
+            mode='append',
+            source_columns=[
+                'TIME_DMNS_KEY',
+                'EST_OFFC_SCD_KEY',
+                'UNIT_SIZE_DMNS_KEY',
+                'BLK_SCD_KEY',
+                'BLK_AGE_DMNS_KEY',
+                'ERP_WO_CNT',
+                'ERP_WO_CMPLT_CNT',
+                'ARTSN_ORD_CNT',
+                'ARTSN_ORD_CMPLT_CNT',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'CMS_BLK_SCD_KEY',
+                'EST_SCD_KEY',
+                'CMS_EST_SCD_KEY',
+                'ERP_WO_ITEM_CNT',
+                'ERP_WO_ITEM_CMPLT_CNT',
+            ],
+            target_columns=[
+                'TIME_DMNS_KEY',
+                'EST_OFFC_SCD_KEY',
+                'UNIT_SIZE_DMNS_KEY',
+                'BLK_SCD_KEY',
+                'BLK_AGE_DMNS_KEY',
+                'ERP_WO_CNT',
+                'ERP_WO_CMPLT_CNT',
+                'ARTSN_ORD_CNT',
+                'ARTSN_ORD_CMPLT_CNT',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'CMS_BLK_SCD_KEY',
+                'EST_SCD_KEY',
+                'CMS_EST_SCD_KEY',
+                'ERP_WO_ITEM_CNT',
+                'ERP_WO_ITEM_CMPLT_CNT',
+            ],
+            config=config,
+        )
 
         logger.info("write_DDS_FACT_CMS_ORD_SMRY write completed")
         

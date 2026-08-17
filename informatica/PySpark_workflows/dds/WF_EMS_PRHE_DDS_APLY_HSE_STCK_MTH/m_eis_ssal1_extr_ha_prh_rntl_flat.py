@@ -92,39 +92,58 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_HA_PRH_RNTL_UNIT")
         # Source Qualifier: apply_HA_PRH_RNTL_UNIT
         df_HA_PRH_RNTL_UNIT_1 = df_HA_PRH_RNTL_UNIT
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["estate", "block", "unit", "con_ref", "shrind", "indicator", "vcnt_ind"]
-        df_HA_PRH_RNTL_UNIT_1 = df_HA_PRH_RNTL_UNIT_1.select([col(c) if c.lower() in [x.lower() for x in df_HA_PRH_RNTL_UNIT_1.columns] else lit(None).alias(c) for c in _port_cols])
+        df_HA_PRH_RNTL_UNIT_1 = lib.sq_output(
+            input_df=df_HA_PRH_RNTL_UNIT_1,
+            port_cols={
+                'estate': 'string',
+                'block': 'string',
+                'unit': 'string',
+                'con_ref': 'string',
+                'shrind': 'string',
+                'indicator': 'decimal',
+                'vcnt_ind': 'string',
+            },
+        )
         ctx.register_df("df_HA_PRH_RNTL_UNIT_1", df_HA_PRH_RNTL_UNIT_1)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_HA_PRH_RNTL_UNIT_1
-        df_EXPTRANS = df_EXPTRANS.withColumn("out_vcnt_ind", expr("CASE WHEN ltrim(rtrim(vcnt_ind)) = '' THEN null ELSE cast(vcnt_ind as decimal) END"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_HA_PRH_RNTL_UNIT_1,
+            computed_columns=[
+                {'name': 'out_vcnt_ind', 'expr': "CASE WHEN ltrim(rtrim(vcnt_ind)) = '' THEN null ELSE cast(vcnt_ind as decimal) END"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EIS_HA_PRH_RNTL_UNIT")
         # Write to Target: write_EIS_HA_PRH_RNTL_UNIT
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BLOCK": "block", "CON_REF": "con_ref", "ESTATE": "estate", "INDICATOR": "indicator", "SHRIND": "shrind", "UNIT": "unit", "VCNT_IND": "out_vcnt_ind"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with
-                # the target name (e.g. vcnt_ind vs VCNT_IND after rename)
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['ESTATE', 'BLOCK', 'UNIT', 'CON_REF', 'SHRIND', 'INDICATOR', 'VCNT_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EIS_HA_PRH_RNTL_UNIT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EIS_HA_PRH_RNTL_UNIT',
+            mode='append',
+            source_columns=[
+                'ESTATE',
+                'BLOCK',
+                'UNIT',
+                'CON_REF',
+                'SHRIND',
+                'INDICATOR',
+                'out_vcnt_ind',
+            ],
+            target_columns=[
+                'ESTATE',
+                'BLOCK',
+                'UNIT',
+                'CON_REF',
+                'SHRIND',
+                'INDICATOR',
+                'VCNT_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_EIS_HA_PRH_RNTL_UNIT write completed")
         
