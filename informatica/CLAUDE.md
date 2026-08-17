@@ -16,6 +16,12 @@ This file captures conventions, patterns, and rules established during developme
 
 ## Recent Architecture Changes
 
+### Dynamic I/U/D split UPDATEs only target columns (v2026.08.17)
+
+- **Bug**: `lib.write_target`'s dynamic `has_update_flag` branch computed UPDATE SET columns as ALL non-key columns of `_df_upd`. The frame can carry non-target columns from upstream mapplets (e.g. `DUMMY`, `UPDATE_FLAG` in flat_rent's `write_DDS_RLS_CNTL`) → `UPDATE ... SET DUMMY=?, ...` → ORA-00904. The static `DD_UPDATE` branch was already safe (target-aligned); the dynamic branch was not.
+- **Fix** (`runtime_lib.py.j2`): align unconnected targets to `lit(None)` and restrict `_upd_cols` to `target_columns` minus keys, mirroring the static branch. Regression test: `test_dynamic_split_update_batches_target_columns_only`.
+- **Update Strategy semantics recap**: XML `Update Strategy Expression` (e.g. `UPDATE_FLAG`) with `DD_INSERT`/`DD_UPDATE`/`DD_DELETE` constants → generator renders the constants as **strings** (`'DD_INSERT'`) in the computed column → `lib.update_strategy` string-compares to build `_update_flag` ('I'/'U'/'D', otherwise→'I') → `lib.write_target` splits: batch delete by keys → batch update by keys (target columns only) → INSERT rows flow to normal append. Matches Informatica per-row 0/1/2 semantics for this convention; caveats: `DD_UPSERT` (3) unsupported (falls to insert), and a strategy field carrying raw numerics (0/1/2) instead of `DD_*` constants would mismatch the string comparison.
+
 ### Filter/Router lookup-preference descendant override (v2026.08.17)
 
 - **Problem**: `_get_input_df`'s Filter/Router preference returned the last lookup's registered chain even when the filter's NON-lookup upstream carries a row-preserving descendant of that chain (a fuller frame with the downstream transformation's computed columns). `FILTRANS` in `M_EMS_DPA_SUMMARIZE_FACT_MTH_RENT_AND_ARR_SMRY_D` read a stale branch (`df_lkp_merge_EXPTRANS2`) and lost `EXPTRANS1`'s columns, despite EXPTRANS1 being its XML-declared upstream.
