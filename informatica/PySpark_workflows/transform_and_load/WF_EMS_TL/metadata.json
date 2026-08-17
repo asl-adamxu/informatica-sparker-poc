@@ -5379,7 +5379,7 @@
       ]
     },
     {
-      "mapping": "M_S5_SOR_LOAD_EMS_RFX_RENT_SCHD_HIST_FOR_UPDATE ",
+      "mapping": "M_S5_SOR_LOAD_EMS_RFX_RENT_SCHD_HIST_FOR_UPDATE",
       "targets": [
         {
           "table": "SOR_EMS_RFX_RENT_SCHD_HIST",
@@ -5444,7 +5444,7 @@
       ]
     },
     {
-      "mapping": "M_S5_SOR_LOAD_EMS_TAM_ADTN_ROOM_FOR_UPDATE ",
+      "mapping": "M_S5_SOR_LOAD_EMS_TAM_ADTN_ROOM_FOR_UPDATE",
       "targets": [
         {
           "table": "SOR_EMS_TAM_ADTN_ROOM",
@@ -5635,7 +5635,7 @@
       ]
     },
     {
-      "mapping": "M_S5_SOR_LOAD_EMS_TRF_RQS_RCV_FOR_UPDATE ",
+      "mapping": "M_S5_SOR_LOAD_EMS_TRF_RQS_RCV_FOR_UPDATE",
       "targets": [
         {
           "table": "SOR_EMS_TRF_RQS_RCV",
@@ -5726,7 +5726,7 @@
       ]
     },
     {
-      "mapping": "M_S5_SOR_LOAD_EMS_TOW_TPS_BYBK_FOR_UPDATE ",
+      "mapping": "M_S5_SOR_LOAD_EMS_TOW_TPS_BYBK_FOR_UPDATE",
       "targets": [
         {
           "table": "SOR_EMS_TOW_TPS_BYBK",
@@ -5852,7 +5852,7 @@
       ]
     },
     {
-      "mapping": "M_S5_SOR_LOAD_EMS_TAM_TNCY_AGRMT_FOR_UPDATE ",
+      "mapping": "M_S5_SOR_LOAD_EMS_TAM_TNCY_AGRMT_FOR_UPDATE",
       "targets": [
         {
           "table": "SOR_EMS_TAM_TNCY_AGRMT",
@@ -6021,7 +6021,7 @@
       ]
     },
     {
-      "mapping": "M_S5_SOR_LOAD_EMS_TAM_FLAT_RCVR_FOR_UPDATE ",
+      "mapping": "M_S5_SOR_LOAD_EMS_TAM_FLAT_RCVR_FOR_UPDATE",
       "targets": [
         {
           "table": "SOR_EMS_TAM_FLAT_RCVR",
@@ -6047,7 +6047,7 @@
       ]
     },
     {
-      "mapping": "M_S5_SOR_LOAD_EMS_TRF_REF_CASE_FOR_UPDATE ",
+      "mapping": "M_S5_SOR_LOAD_EMS_TRF_REF_CASE_FOR_UPDATE",
       "targets": [
         {
           "table": "SOR_EMS_TRF_REF_CASE",
@@ -6073,7 +6073,7 @@
       ]
     },
     {
-      "mapping": "M_S5_SOR_LOAD_EMS_TEM_TNT_WARN_FOR_UPDATE ",
+      "mapping": "M_S5_SOR_LOAD_EMS_TEM_TNT_WARN_FOR_UPDATE",
       "targets": [
         {
           "table": "SOR_EMS_TEM_TNT_WARN",
@@ -6138,7 +6138,7 @@
       ]
     },
     {
-      "mapping": "M_S5_SOR_LOAD_EMS_TPS_APLY_FOR_UPDATE ",
+      "mapping": "M_S5_SOR_LOAD_EMS_TPS_APLY_FOR_UPDATE",
       "targets": [
         {
           "table": "SOR_EMS_TPS_APLY",
@@ -6221,7 +6221,7 @@
       ]
     },
     {
-      "mapping": "M_S5_SOR_LOAD_EMS_TOW_TPS_AGRMT_FOR_UPDATE ",
+      "mapping": "M_S5_SOR_LOAD_EMS_TOW_TPS_AGRMT_FOR_UPDATE",
       "targets": [
         {
           "table": "SOR_EMS_TOW_TPS_AGRMT",
@@ -6403,7 +6403,7 @@
       ]
     },
     {
-      "mapping": "M_S5_SOR_LOAD_EMS_SRA_TNT_AST_DCLR_FOR_UPDATE ",
+      "mapping": "M_S5_SOR_LOAD_EMS_SRA_TNT_AST_DCLR_FOR_UPDATE",
       "targets": [
         {
           "table": "SOR_EMS_SRA_TNT_AST_DCLR",
@@ -6507,7 +6507,7 @@
       ]
     },
     {
-      "mapping": "M_S5_SOR_LOAD_EMS_TAM_EXTNT_INFO_FOR_UPDATE ",
+      "mapping": "M_S5_SOR_LOAD_EMS_TAM_EXTNT_INFO_FOR_UPDATE",
       "targets": [
         {
           "table": "SOR_EMS_TAM_EXTNT_INFO",

@@ -66,6 +66,7 @@ tests/test_metadata_builder.py
 tests/test_numeric_update_strategy_expression.py
 tests/test_router_wiring.py
 tests/test_runtime_lib_oracle_pushdown.py
+tests/test_session_mapping_name_whitespace.py
 tests/test_sp_calls_fallback.py
 tests/test_sq_wiring.py
 tests/test_union_sorter_wiring.py

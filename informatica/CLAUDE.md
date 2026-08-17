@@ -16,6 +16,12 @@ This file captures conventions, patterns, and rules established during developme
 
 ## Recent Architecture Changes
 
+### Trailing-whitespace mapping/session names (v2026.08.17)
+
+- **Bug**: legacy XML carries trailing whitespace in `<MAPPING NAME="M_..._FOR_UPDATE ">` and the session's `MAPPINGNAME` (12 sessions in WF_EMS_TL, e.g. `S_S5_SOR_LOAD_EMS_TEM_TNT_WARN_FOR_UPDATE`). The generated mapping FILE name sanitized the space to `_` (`_make_safe_name` → `m_..._for_update_.py`), but the EXECUTION_PLAN kept the raw `"M_..._FOR_UPDATE "` — the workflow runtime looks up modules by `mapping_functions[mapping_name.lower()]`, so the run failed with `ValueError: mapping 'M_..._FOR_UPDATE ' not found` at `WL_EMS_SOR_LOAD_1B1C_FOR_UPDATE`.
+- **Fix** (`parser.py`): `strip()` on both `<MAPPING NAME>` (`_parse_mapping`) and the session's `MAPPINGNAME` — the plan name then lowercase-equals the generated module key (the file name loses the trailing `_`). No name collisions after stripping (verified across WF_EMS_TL). Test: `test_session_mapping_name_whitespace.py` (synthetic XML: mapping name stripped, session mapping name stripped, plan-name≡module-key invariant); 196 tests pass.
+- **Regenerated**: WF_EMS_TL reconverted (581/0/0); all 581 plan sessions resolve to modules on disk; the 12 stale `m_*_.py` files from the old naming were removed.
+
 ### Numeric Update Strategy Expressions (v2026.08.17)
 
 - **Bug**: `_handle_target` classified any strategy expression without `DD_` as a dynamic field strategy, so a numeric literal `"0"` (UPDTRANS in `M_S5_SSAL2_TRANSFORM_EMS_CSA_DRP_SWD_PYMT`, WF_EMS_TL) set `has_update_flag=True` → the write step split on `_update_flag`, but `_handle_update_strategy` correctly treated "0" as static DD_INSERT (pass-through, no `_update_flag` created) → `[UNRESOLVED_COLUMN] 'Filter ('_update_flag = I)` at `write_SSA_EMS_CSA_DRP_SWD_PYMT1`.

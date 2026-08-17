@@ -94,7 +94,11 @@ class InfaXMLParser:
 
     def _parse_mapping(self, mapping_elem) -> MappingDefinition:
         mapping = MappingDefinition(
-            name=mapping_elem.get("NAME", ""),
+            # strip(): legacy XML may carry trailing whitespace in the NAME
+            # (e.g. "M_..._FOR_UPDATE ") — the generated file name sanitizes
+            # it to "_", so an unstripped name would never match the module
+            # key at workflow runtime (ValueError: mapping not found).
+            name=(mapping_elem.get("NAME", "") or "").strip(),
             description=mapping_elem.get("DESCRIPTION", ""),
             is_valid=mapping_elem.get("ISVALID", "YES") == "YES"
         )
@@ -680,7 +684,11 @@ class InfaXMLParser:
 
             session = {
                 "name": session_elem.get("NAME", ""),
-                "mapping_name": session_elem.get("MAPPINGNAME", ""),
+                # strip(): the SESSION MAPPINGNAME may carry a trailing space
+                # matching the (dirty) MAPPING NAME — it must equal the
+                # mapping's stripped name or the workflow runtime cannot
+                # resolve the generated module (ValueError: mapping not found).
+                "mapping_name": (session_elem.get("MAPPINGNAME", "") or "").strip(),
                 "description": session_elem.get("DESCRIPTION", ""),
                 "is_valid": session_elem.get("ISVALID", "YES") == "YES",
                 "pre_sql": _session_sqls.get("pre_sql", ""),

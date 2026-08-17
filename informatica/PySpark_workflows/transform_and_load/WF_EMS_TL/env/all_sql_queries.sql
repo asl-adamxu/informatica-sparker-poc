@@ -7567,7 +7567,7 @@ SELECT * FROM SSA_EMS_CSA_DRP_SWD_PYMT_STS;
 -- Write to target table: SOR_EMS_CSA_DRP_SWD_PYMT_STS;
 
 -- =============================================================================
--- Mapping: M_S5_SOR_LOAD_EMS_RFX_RENT_SCHD_HIST_FOR_UPDATE 
+-- Mapping: M_S5_SOR_LOAD_EMS_RFX_RENT_SCHD_HIST_FOR_UPDATE
 -- =============================================================================
 
 -- [TABLE_READ] Step: read_SSA_EMS_RFX_RENT_SCHD_HIST
@@ -7637,7 +7637,7 @@ SELECT * FROM SSA_EMS_PHA_APLY;
 -- Write to target table: SOR_EMS_PHA_APLY_RSN_LOG;
 
 -- =============================================================================
--- Mapping: M_S5_SOR_LOAD_EMS_TAM_ADTN_ROOM_FOR_UPDATE 
+-- Mapping: M_S5_SOR_LOAD_EMS_TAM_ADTN_ROOM_FOR_UPDATE
 -- =============================================================================
 
 -- [TABLE_READ] Step: read_SSA_EMS_TAM_ADTN_ROOM
@@ -7847,7 +7847,7 @@ SELECT * FROM SSA_EMS_CPM_PTCL;
 -- Write to target table: SOR_EMS_CPM_PTCL;
 
 -- =============================================================================
--- Mapping: M_S5_SOR_LOAD_EMS_TRF_RQS_RCV_FOR_UPDATE 
+-- Mapping: M_S5_SOR_LOAD_EMS_TRF_RQS_RCV_FOR_UPDATE
 -- =============================================================================
 
 -- [TABLE_READ] Step: read_SSA_EMS_TRF_RQS_RCV
@@ -7945,7 +7945,7 @@ SELECT * FROM SSA_EMS_PAW_ALWN_PYMT;
 -- Write to target table: SOR_EMS_PAW_ALWN_PYMT;
 
 -- =============================================================================
--- Mapping: M_S5_SOR_LOAD_EMS_TOW_TPS_BYBK_FOR_UPDATE 
+-- Mapping: M_S5_SOR_LOAD_EMS_TOW_TPS_BYBK_FOR_UPDATE
 -- =============================================================================
 
 -- [TABLE_READ] Step: read_SSA_EMS_TOW_TPS_BYBK
@@ -8085,7 +8085,7 @@ SELECT * FROM SSA_EMS_RAL_RAES_APLY;
 -- Write to target table: SOR_EMS_RAL_RAES_APLY;
 
 -- =============================================================================
--- Mapping: M_S5_SOR_LOAD_EMS_TAM_TNCY_AGRMT_FOR_UPDATE 
+-- Mapping: M_S5_SOR_LOAD_EMS_TAM_TNCY_AGRMT_FOR_UPDATE
 -- =============================================================================
 
 -- [TABLE_READ] Step: read_SSA_EMS_TAM_TNCY_AGRMT
@@ -8267,7 +8267,7 @@ SELECT * FROM SSA_EMS_HSC_HOS_PCHS_PRC;
 -- Write to target table: SOR_EMS_HSC_HOS_PCHS_PRC;
 
 -- =============================================================================
--- Mapping: M_S5_SOR_LOAD_EMS_TAM_FLAT_RCVR_FOR_UPDATE 
+-- Mapping: M_S5_SOR_LOAD_EMS_TAM_FLAT_RCVR_FOR_UPDATE
 -- =============================================================================
 
 -- [TABLE_READ] Step: read_SSA_EMS_TAM_FLAT_RCVR
@@ -8295,7 +8295,7 @@ SELECT * FROM SSA_EMS_REF_QTA_CATG_USER;
 -- Write to target table: SOR_EMS_REF_QTA_CATG_USER;
 
 -- =============================================================================
--- Mapping: M_S5_SOR_LOAD_EMS_TRF_REF_CASE_FOR_UPDATE 
+-- Mapping: M_S5_SOR_LOAD_EMS_TRF_REF_CASE_FOR_UPDATE
 -- =============================================================================
 
 -- [TABLE_READ] Step: read_SSA_EMS_TRF_REF_CASE
@@ -8323,7 +8323,7 @@ SELECT * FROM SSA_EMS_HSC_HOS_RCPT;
 -- Write to target table: SOR_EMS_HSC_HOS_RCPT;
 
 -- =============================================================================
--- Mapping: M_S5_SOR_LOAD_EMS_TEM_TNT_WARN_FOR_UPDATE 
+-- Mapping: M_S5_SOR_LOAD_EMS_TEM_TNT_WARN_FOR_UPDATE
 -- =============================================================================
 
 -- [TABLE_READ] Step: read_SSA_EMS_TEM_TNT_WARN
@@ -8393,7 +8393,7 @@ SELECT * FROM SSA_EMS_TAM_RFBH_ORD;
 -- Write to target table: SOR_EMS_TAM_RFBH_ORD;
 
 -- =============================================================================
--- Mapping: M_S5_SOR_LOAD_EMS_TPS_APLY_FOR_UPDATE 
+-- Mapping: M_S5_SOR_LOAD_EMS_TPS_APLY_FOR_UPDATE
 -- =============================================================================
 
 -- [TABLE_READ] Step: read_SSA_EMS_TPS_APLY
@@ -8491,7 +8491,7 @@ SELECT * FROM SSA_EMS_HOW_HOS_OWN;
 -- Write to target table: SOR_EMS_HOW_HOS_OWN;
 
 -- =============================================================================
--- Mapping: M_S5_SOR_LOAD_EMS_TOW_TPS_AGRMT_FOR_UPDATE 
+-- Mapping: M_S5_SOR_LOAD_EMS_TOW_TPS_AGRMT_FOR_UPDATE
 -- =============================================================================
 
 -- [TABLE_READ] Step: read_SSA_EMS_TOW_TPS_AGRMT
@@ -8687,7 +8687,7 @@ SELECT * FROM SSA_EMS_TAM_RAS;
 -- Write to target table: SOR_EMS_TAM_RAS;
 
 -- =============================================================================
--- Mapping: M_S5_SOR_LOAD_EMS_SRA_TNT_AST_DCLR_FOR_UPDATE 
+-- Mapping: M_S5_SOR_LOAD_EMS_SRA_TNT_AST_DCLR_FOR_UPDATE
 -- =============================================================================
 
 -- [TABLE_READ] Step: read_SSA_EMS_SRA_TNT_AST_DCLR
@@ -8799,7 +8799,7 @@ SELECT * FROM SSA_EMS_HSP_TNT_INCM_DCLR;
 -- Write to target table: SOR_EMS_HSP_TNT_INCM_DCLR;
 
 -- =============================================================================
--- Mapping: M_S5_SOR_LOAD_EMS_TAM_EXTNT_INFO_FOR_UPDATE 
+-- Mapping: M_S5_SOR_LOAD_EMS_TAM_EXTNT_INFO_FOR_UPDATE
 -- =============================================================================
 
 -- [TABLE_READ] Step: read_SSA_EMS_TAM_EXTNT_INFO
