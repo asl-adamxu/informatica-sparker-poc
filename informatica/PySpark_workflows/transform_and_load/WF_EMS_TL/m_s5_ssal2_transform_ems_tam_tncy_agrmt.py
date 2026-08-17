@@ -1137,6 +1137,15 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Strategy: OUT_V_UPD_STRATEGY_STATUS
         df_UPD_SSAL2_MSTR1 = lib.update_strategy(
             input_df=df_MPLT_DLKP_CACHE_STATUS,
+            rename_columns=[
+                ('TNCY_AGRMT_BK1', 'TNCY_AGRMT_BK'),
+                ('CUST_KEY1', 'CUST_KEY'),
+                ('HSE_SRVC_APLY_KEY1', 'HSE_SRVC_APLY_KEY'),
+                ('TNCY_AGRMT_KEY1', 'TNCY_AGRMT_KEY'),
+                ('OUT_V_OPR_IND', 'OUT_OPR_IND'),
+                ('OUT_V_LAST_REC_TXN_DATE', 'OUT_LAST_REC_TXN_DATE'),
+                ('OUT_V_LAST_REC_TXN_TYPE_CODE', 'OUT_LAST_REC_TXN_TYPE_CODE')
+            ],
             strategy_field='OUT_V_UPD_STRATEGY_STATUS',
         )
         ctx.register_df("df_UPD_SSAL2_MSTR1", df_UPD_SSAL2_MSTR1)

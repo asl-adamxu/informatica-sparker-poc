@@ -61,7 +61,9 @@ tests/test_lib_union.py
 tests/test_lib_update_strategy.py
 tests/test_lib_write_target.py
 tests/test_lookup_filter_wiring.py
+tests/test_mapplet_unconnected_input.py
 tests/test_metadata_builder.py
+tests/test_numeric_update_strategy_expression.py
 tests/test_router_wiring.py
 tests/test_runtime_lib_oracle_pushdown.py
 tests/test_sp_calls_fallback.py

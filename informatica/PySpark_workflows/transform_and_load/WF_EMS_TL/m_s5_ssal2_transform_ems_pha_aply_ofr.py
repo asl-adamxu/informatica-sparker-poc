@@ -1282,6 +1282,11 @@ WHERE SOR_EMS_PHA_APLY_OFR_STS.END_DATE = TO_DATE ('99991231', 'YYYYMMDD')"""
         # Strategy: OUT_V_UPD_STRATEGY_STATUS
         df_UPD_SSAL2_MSTR1 = lib.update_strategy(
             input_df=df_merge_UPD_SSAL2_MSTR1_0,
+            rename_columns=[
+                ('OUT_V_OPR_IND', 'OUT_OPR_IND'),
+                ('OUT_V_LAST_REC_TXN_DATE', 'OUT_LAST_REC_TXN_DATE'),
+                ('OUT_V_LAST_REC_TXN_TYPE_CODE', 'OUT_LAST_REC_TXN_TYPE_CODE')
+            ],
             strategy_field='OUT_V_UPD_STRATEGY_STATUS',
         )
         ctx.register_df("df_UPD_SSAL2_MSTR1", df_UPD_SSAL2_MSTR1)
@@ -1291,6 +1296,11 @@ WHERE SOR_EMS_PHA_APLY_OFR_STS.END_DATE = TO_DATE ('99991231', 'YYYYMMDD')"""
         # Strategy: OUT_V_UPD_STRATEGY_STATUS
         df_UPD_SSAL2_MSTR11 = lib.update_strategy(
             input_df=df_MPLT_DLKP_CACHE_STATUS1,
+            rename_columns=[
+                ('OUT_V_OPR_IND', 'OUT_OPR_IND'),
+                ('OUT_V_LAST_REC_TXN_DATE', 'OUT_LAST_REC_TXN_DATE'),
+                ('OUT_V_LAST_REC_TXN_TYPE_CODE', 'OUT_LAST_REC_TXN_TYPE_CODE')
+            ],
             strategy_field='OUT_V_UPD_STRATEGY_STATUS',
         )
         ctx.register_df("df_UPD_SSAL2_MSTR11", df_UPD_SSAL2_MSTR11)

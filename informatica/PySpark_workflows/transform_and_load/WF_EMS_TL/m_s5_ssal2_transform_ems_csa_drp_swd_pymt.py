@@ -449,7 +449,7 @@ AND SOR_EMS_CSA_DRP_SWD_PYMT_STS.DRP_SWD_PYMT_KEY=SSA_EMS_CSA_DRP_SWD_PYMT.DRP_S
         
         logger.info("Step: apply_UPDTRANS")
         # Update Strategy: apply_UPDTRANS
-        # Strategy: 0
+        # Strategy: DD_INSERT
         df_UPDTRANS = lib.update_strategy(
             input_df=df_EXPTRANS3,
         )
@@ -671,8 +671,6 @@ AND SOR_EMS_CSA_DRP_SWD_PYMT_STS.DRP_SWD_PYMT_KEY=SSA_EMS_CSA_DRP_SWD_PYMT.DRP_S
                 'OPR_IND',
                 'SOR_DATE',
             ],
-            delete_keys=['DRP_SWD_PYMT_KEY'],
-            has_update_flag=True,
             config=config,
         )
 
@@ -699,6 +697,18 @@ AND SOR_EMS_CSA_DRP_SWD_PYMT_STS.DRP_SWD_PYMT_KEY=SSA_EMS_CSA_DRP_SWD_PYMT.DRP_S
         # Strategy: OUT_V_UPD_STRATEGY_STATUS
         df_UPD_SSAL2_MSTR1 = lib.update_strategy(
             input_df=df_MPLT_DLKP_CACHE_STATUS,
+            rename_columns=[
+                ('OUT_V_OPR_IND', 'OUT_OPR_IND'),
+                ('OUT_V_LAST_REC_TXN_DATE', 'OUT_LAST_REC_TXN_DATE'),
+                ('OUT_V_LAST_REC_TXN_TYPE_CODE', 'OUT_LAST_REC_TXN_TYPE_CODE'),
+                ('DRP_SWD_PYMT_KEY1', 'DRP_SWD_PYMT_KEY'),
+                ('DRP_SWD_PYMT_BK1', 'DRP_SWD_PYMT_BK'),
+                ('CUST_KEY1', 'CUST_KEY'),
+                ('HSE_SRVC_APLY_KEY1', 'HSE_SRVC_APLY_KEY'),
+                ('SWD_CASE_FILE_REF_NUM1', 'SWD_CASE_FILE_REF_NUM'),
+                ('DRP_TXN_VAL_DATE1', 'DRP_TXN_VAL_DATE'),
+                ('DRP_PYMT_SEQ_NUM1', 'DRP_PYMT_SEQ_NUM')
+            ],
             strategy_field='OUT_V_UPD_STRATEGY_STATUS',
         )
         ctx.register_df("df_UPD_SSAL2_MSTR1", df_UPD_SSAL2_MSTR1)
@@ -962,6 +972,11 @@ AND SOR_EMS_CSA_DRP_SWD_PYMT_STS.DRP_SWD_PYMT_KEY=SSA_EMS_CSA_DRP_SWD_PYMT.DRP_S
         # Strategy: OUT_V_UPD_STRATEGY_STATUS
         df_UPD_SSAL2_MSTR11 = lib.update_strategy(
             input_df=df_MPLT_DLKP_CACHE_STATUS1,
+            rename_columns=[
+                ('OUT_V_LAST_REC_TXN_DATE', 'OUT_LAST_REC_TXN_DATE'),
+                ('OUT_V_LAST_REC_TXN_TYPE_CODE', 'OUT_LAST_REC_TXN_TYPE_CODE'),
+                ('OUT_V_OPR_IND', 'OUT_OPR_IND')
+            ],
             strategy_field='OUT_V_UPD_STRATEGY_STATUS',
         )
         ctx.register_df("df_UPD_SSAL2_MSTR11", df_UPD_SSAL2_MSTR11)

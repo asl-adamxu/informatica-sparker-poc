@@ -672,6 +672,9 @@ where SOR_EMS_WTP_RVW_YEAR_STS.WTP_CYCL_YEAR_MTH_KEY = ss.WTP_CYCL_YEAR_MTH_KEY 
         # Strategy: OUT_V_UPD_STRATEGY_STATUS
         df_UPD_SSAL2_MSTR = lib.update_strategy(
             input_df=df_EXP_OPR_IND,
+            rename_columns=[
+                ('OUT_OPR_IND', 'OUT_V_OPR_IND')
+            ],
             strategy_field='OUT_V_UPD_STRATEGY_STATUS',
         )
         ctx.register_df("df_UPD_SSAL2_MSTR", df_UPD_SSAL2_MSTR)

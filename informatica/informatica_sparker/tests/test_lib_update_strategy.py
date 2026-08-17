@@ -9,6 +9,28 @@ def test_dynamic_strategy_flag(runtime_lib, spark):
     assert sorted(r["_update_flag"] for r in out.collect()) == ["D", "I", "I", "U"]
 
 
+def test_dynamic_strategy_numeric_flag(runtime_lib, spark):
+    """A strategy field carrying raw numerics maps 0/1/2/3 to the I/U/D/R
+    flags (Informatica numeric constants 0=DD_INSERT, 1=DD_UPDATE,
+    2=DD_DELETE, 3=DD_REJECT). Rows flagged R are dropped by the write
+    target's I/U/D split (never inserted); unknown values keep the
+    otherwise→I fallback."""
+    df = spark.createDataFrame([(0,), (1,), (2,), (3,), (9,)], ["FLAG"])
+    out = runtime_lib.update_strategy(
+        spark=spark, input_df=df, name="UPD", strategy_field="FLAG")
+    assert sorted(r["_update_flag"] for r in out.collect()) == ["D", "I", "I", "R", "U"]
+
+
+def test_dynamic_strategy_mixed_string_and_numeric(runtime_lib, spark):
+    """String constants and numeric equivalents coexist in one column —
+    'DD_UPDATE' and 1 both map to U."""
+    df = spark.createDataFrame(
+        [("DD_UPDATE",), (1,), ("DD_DELETE",), (0,)], ["FLAG"])
+    out = runtime_lib.update_strategy(
+        spark=spark, input_df=df, name="UPD", strategy_field="FLAG")
+    assert sorted(r["_update_flag"] for r in out.collect()) == ["D", "I", "U", "U"]
+
+
 def test_static_pass_through(runtime_lib, spark):
     df = spark.createDataFrame([(1,)], ["V"])
     out = runtime_lib.update_strategy(spark=spark, input_df=df, name="UPD")

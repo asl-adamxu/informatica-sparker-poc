@@ -942,6 +942,18 @@ AND SOR_EMS_CPM_BNFT_MBR_STS.HSE_BNFT_MBR_KEY=SSA_EMS_CPM_BNFT_MBR.HSE_BNFT_MBR_
         # Strategy: OUT_V_UPD_STRATEGY_STATUS
         df_UPD_SSAL2_MSTR1 = lib.update_strategy(
             input_df=df_MPLT_DLKP_CACHE_STATUS,
+            rename_columns=[
+                ('OUT_V_OPR_IND', 'OUT_OPR_IND'),
+                ('OUT_V_LAST_REC_TXN_DATE', 'OUT_LAST_REC_TXN_DATE'),
+                ('OUT_V_LAST_REC_TXN_TYPE_CODE', 'OUT_LAST_REC_TXN_TYPE_CODE'),
+                ('HSE_BNFT_MBR_KEY1', 'HSE_BNFT_MBR_KEY'),
+                ('HSE_BNFT_MBR_BK1', 'HSE_BNFT_MBR_BK'),
+                ('PTCL_KEY1', 'PTCL_KEY'),
+                ('HSE_BNFT_MBR_ID_TYPE_CODE1', 'HSE_BNFT_MBR_ID_TYPE_CODE'),
+                ('HSE_BNFT_MBR_ID_NUM1', 'HSE_BNFT_MBR_ID_NUM'),
+                ('HSE_BNFT_INTR_KEY_CODE1', 'HSE_BNFT_INTR_KEY_CODE'),
+                ('HSE_BNFT_TYPE_CODE1', 'HSE_BNFT_TYPE_CODE')
+            ],
             strategy_field='OUT_V_UPD_STRATEGY_STATUS',
         )
         ctx.register_df("df_UPD_SSAL2_MSTR1", df_UPD_SSAL2_MSTR1)
@@ -1165,6 +1177,11 @@ AND SOR_EMS_CPM_BNFT_MBR_STS.HSE_BNFT_MBR_KEY=SSA_EMS_CPM_BNFT_MBR.HSE_BNFT_MBR_
         # Strategy: OUT_V_UPD_STRATEGY_STATUS
         df_UPD_SSAL2_MSTR11 = lib.update_strategy(
             input_df=df_MPLT_DLKP_CACHE_STATUS1,
+            rename_columns=[
+                ('OUT_V_LAST_REC_TXN_DATE', 'OUT_LAST_REC_TXN_DATE'),
+                ('OUT_V_LAST_REC_TXN_TYPE_CODE', 'OUT_LAST_REC_TXN_TYPE_CODE'),
+                ('OUT_V_OPR_IND', 'OUT_OPR_IND')
+            ],
             strategy_field='OUT_V_UPD_STRATEGY_STATUS',
         )
         ctx.register_df("df_UPD_SSAL2_MSTR11", df_UPD_SSAL2_MSTR11)

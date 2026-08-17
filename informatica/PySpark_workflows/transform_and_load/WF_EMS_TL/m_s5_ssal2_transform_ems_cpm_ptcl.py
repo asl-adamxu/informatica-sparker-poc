@@ -664,6 +664,15 @@ AND SOR_EMS_CPM_PTCL_STS.PTCL_KEY=SSA_EMS_CPM_PTCL.PTCL_KEY"""
         # Strategy: OUT_V_UPD_STRATEGY_STATUS
         df_UPD_SSAL2_MSTR1 = lib.update_strategy(
             input_df=df_MPLT_DLKP_CACHE_STATUS,
+            rename_columns=[
+                ('OUT_V_OPR_IND', 'OUT_OPR_IND'),
+                ('OUT_V_LAST_REC_TXN_DATE', 'OUT_LAST_REC_TXN_DATE'),
+                ('OUT_V_LAST_REC_TXN_TYPE_CODE', 'OUT_LAST_REC_TXN_TYPE_CODE'),
+                ('PTCL_KEY1', 'PTCL_KEY'),
+                ('PTCL_BK1', 'PTCL_BK'),
+                ('CUST_MBR_ID_TYPE_CODE1', 'CUST_MBR_ID_TYPE_CODE'),
+                ('CUST_MBR_ID_NUM1', 'CUST_MBR_ID_NUM')
+            ],
             strategy_field='OUT_V_UPD_STRATEGY_STATUS',
         )
         ctx.register_df("df_UPD_SSAL2_MSTR1", df_UPD_SSAL2_MSTR1)
@@ -921,6 +930,11 @@ AND SOR_EMS_CPM_PTCL_STS.PTCL_KEY=SSA_EMS_CPM_PTCL.PTCL_KEY"""
         # Strategy: OUT_V_UPD_STRATEGY_STATUS
         df_UPD_SSAL2_MSTR11 = lib.update_strategy(
             input_df=df_MPLT_DLKP_CACHE_STATUS1,
+            rename_columns=[
+                ('OUT_V_LAST_REC_TXN_DATE', 'OUT_LAST_REC_TXN_DATE'),
+                ('OUT_V_LAST_REC_TXN_TYPE_CODE', 'OUT_LAST_REC_TXN_TYPE_CODE'),
+                ('OUT_V_OPR_IND', 'OUT_OPR_IND')
+            ],
             strategy_field='OUT_V_UPD_STRATEGY_STATUS',
         )
         ctx.register_df("df_UPD_SSAL2_MSTR11", df_UPD_SSAL2_MSTR11)

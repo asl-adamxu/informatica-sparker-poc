@@ -1925,6 +1925,11 @@ ORDER BY CUST_APLY_MBR_KEY """
         # Strategy: OUT_V_UPD_STRATEGY_STATUS
         df_UPD_SSAL2_MSTR11 = lib.update_strategy(
             input_df=df_MPLT_DLKP_CACHE_STATUS1,
+            rename_columns=[
+                ('OUT_V_LAST_REC_TXN_DATE', 'OUT_LAST_REC_TXN_DATE'),
+                ('OUT_V_LAST_REC_TXN_TYPE_CODE', 'OUT_LAST_REC_TXN_TYPE_CODE'),
+                ('OUT_V_OPR_IND', 'OUT_OPR_IND')
+            ],
             strategy_field='OUT_V_UPD_STRATEGY_STATUS',
         )
         ctx.register_df("df_UPD_SSAL2_MSTR11", df_UPD_SSAL2_MSTR11)
@@ -1934,6 +1939,19 @@ ORDER BY CUST_APLY_MBR_KEY """
         # Strategy: OUT_V_UPD_STRATEGY_STATUS
         df_UPD_SSAL2_MSTR1 = lib.update_strategy(
             input_df=df_MPLT_DLKP_CACHE_STATUS1,
+            rename_columns=[
+                ('CUST_APLY_MBR_KEY1', 'CUST_APLY_MBR_KEY'),
+                ('CUST_APLY_MBR_BK1', 'CUST_APLY_MBR_BK'),
+                ('CUST_KEY1', 'CUST_KEY'),
+                ('PTCL_KEY1', 'PTCL_KEY'),
+                ('CUST_APLY_KEY1', 'CUST_APLY_KEY'),
+                ('CUST_MBR_ID_NUM1', 'CUST_MBR_ID_NUM'),
+                ('CUST_MBR_ID_TYPE_CODE1', 'CUST_MBR_ID_TYPE_CODE'),
+                ('HSE_SRVC_APLY_TYPE_CODE1', 'HSE_SRVC_APLY_TYPE_CODE'),
+                ('OUT_V_LAST_REC_TXN_DATE', 'OUT_LAST_REC_TXN_DATE'),
+                ('OUT_V_LAST_REC_TXN_TYPE_CODE', 'OUT_LAST_REC_TXN_TYPE_CODE'),
+                ('OUT_V_OPR_IND', 'OUT_OPR_IND')
+            ],
             strategy_field='OUT_V_UPD_STRATEGY_STATUS',
         )
         ctx.register_df("df_UPD_SSAL2_MSTR1", df_UPD_SSAL2_MSTR1)

@@ -27,6 +27,56 @@ _NUMERIC_DATATYPES = {
 }
 _BARE_IDENTIFIER_RE = re.compile(r'^[A-Za-z_$][A-Za-z0-9_$]*$')
 
+# Informatica Update Strategy Expression accepts the DD_* constants, an
+# identifier referencing a strategy field (per-row 0/1/2/3 semantics), or the
+# numeric constants themselves: 0=DD_INSERT, 1=DD_UPDATE, 2=DD_DELETE,
+# 3=DD_REJECT (no reject-row support — falls to insert, matching the literal
+# DD_REJECT handling). Numeric literals are normalized to their DD_* constant
+# so the Update Strategy handler and the Write Target handler classify
+# identically.
+_STRATEGY_NUM_TO_DD = {
+    "0": "DD_INSERT",
+    "1": "DD_UPDATE",
+    "2": "DD_DELETE",
+    "3": "DD_REJECT",
+}
+
+
+def _classify_update_strategy(strategy_expr: str) -> Dict[str, Any]:
+    """Classify an Update Strategy Expression (shared by the Update Strategy
+    and Write Target handlers so they can never disagree on a strategy).
+
+    A numeric literal (e.g. "0" = DD_INSERT) must NOT be misread as a dynamic
+    field strategy — M_S5_SSAL2_TRANSFORM_EMS_CSA_DRP_SWD_PYMT UPDTRANS
+    crashed with UNRESOLVED_COLUMN on `_update_flag` because the write step
+    split on a column the strategy step never created.
+    """
+    expr = (strategy_expr or "").strip()
+    normalized = _STRATEGY_NUM_TO_DD.get(expr, expr)
+    upper = normalized.upper()
+    has_update = "DD_UPDATE" in upper
+    has_delete = "DD_DELETE" in upper
+    is_field_ref = bool(
+        expr
+        and "DD_" not in upper
+        and _BARE_IDENTIFIER_RE.match(expr)
+    )
+    if is_field_ref:
+        static_dd = ""
+    elif has_delete:
+        static_dd = "DD_DELETE"
+    elif has_update:
+        static_dd = "DD_UPDATE"
+    else:
+        static_dd = "DD_INSERT"
+    return {
+        "normalized": normalized,
+        "has_update": has_update,
+        "has_delete": has_delete,
+        "is_field_ref": is_field_ref,
+        "static_dd": static_dd,
+    }
+
 
 def _build_expression_cfg(step, computed_columns, output_columns, transform,
                           plan, inline_lkp_info, re_module, transform_map):
@@ -3385,14 +3435,15 @@ class TransformHandlers:
         if transform:
             strategy_expr = transform.table_attributes.get("Update Strategy Expression", "DD_INSERT")
 
-        has_update = "DD_UPDATE" in strategy_expr.upper()
-        has_delete = "DD_DELETE" in strategy_expr.upper()
+        _strat = _classify_update_strategy(strategy_expr)
+        has_update = _strat["has_update"]
+        has_delete = _strat["has_delete"]
 
         step = ApplyUpdateStrategyStep(
             step_name=f"apply_{instance.name}",
             df_input=input_df,
             df_output=df_output,
-            strategy_expression=strategy_expr
+            strategy_expression=_strat["normalized"]
         )
 
         step.params["has_update"] = has_update
@@ -3400,21 +3451,18 @@ class TransformHandlers:
         step.params["needs_merge"] = has_update or has_delete
 
         # Determine if strategy_expr is a field reference (e.g. "UPDATE_FLAG")
-        # or a static DD_* value. Field references need dynamic when() logic.
-        _is_field_ref = bool(
-            strategy_expr
-            and "DD_" not in strategy_expr.upper()
-            and re.match(r'^[A-Za-z_]\w*$', strategy_expr)
-        )
-        if _is_field_ref:
+        # or a static DD_* value (incl. numeric constants 0/1/2 normalized to
+        # DD_INSERT/DD_UPDATE/DD_DELETE). Field references need dynamic when()
+        # logic.
+        if _strat["is_field_ref"]:
             step.params["strategy_field"] = strategy_expr
             step.comments.append(f"Strategy from field '{strategy_expr}' — dynamic DD_INSERT/UPDATE/DELETE")
-        elif has_delete:
+        elif _strat["static_dd"] == "DD_DELETE":
             # Static DD_DELETE — no _update_flag split needed; the write step
             # deletes all rows by primary key directly.
             step.params["static_dd"] = "DD_DELETE"
             step.comments.append("DD_DELETE: all rows deleted by primary key")
-        elif has_update:
+        elif _strat["static_dd"] == "DD_UPDATE":
             # Static DD_UPDATE — no _update_flag split needed; the write step
             # batch-updates all rows by primary key directly.
             step.params["static_dd"] = "DD_UPDATE"
@@ -3622,8 +3670,9 @@ class TransformHandlers:
             if connector.to_instance == instance.name:
                 from_trans = self.transform_map.get(connector.from_instance)
                 if from_trans:
-                    strategy_expr = from_trans.table_attributes.get("Update Strategy Expression", "")
-                    if "DD_DELETE" in strategy_expr.upper():
+                    _strat = _classify_update_strategy(
+                        from_trans.table_attributes.get("Update Strategy Expression", ""))
+                    if _strat["static_dd"] == "DD_DELETE":
                         is_delete = True
                         static_dd = "DD_DELETE"
                         if target_keys:
@@ -3631,8 +3680,9 @@ class TransformHandlers:
                         elif connector.from_field and connector.from_field not in delete_keys:
                             delete_keys.append(connector.from_field)
                         break
-                    # Static DD_UPDATE: mark all rows for update (by target primary key)
-                    elif "DD_UPDATE" in strategy_expr.upper():
+                    # Static DD_UPDATE (incl. numeric "1"): mark all rows for
+                    # update (by target primary key)
+                    elif _strat["static_dd"] == "DD_UPDATE":
                         has_update_flag = True
                         static_dd = "DD_UPDATE"
                         if target_keys:
@@ -3640,8 +3690,10 @@ class TransformHandlers:
                         elif connector.from_field and connector.from_field not in delete_keys:
                             delete_keys.append(connector.from_field)
                         break
-                    # Dynamic strategy from field (e.g. UPDATE_FLAG column)
-                    elif strategy_expr and "DD_" not in strategy_expr.upper():
+                    # Dynamic strategy from field (e.g. UPDATE_FLAG column);
+                    # numeric literals ("0"/"2") normalize to DD_INSERT/
+                    # DD_DELETE above and are NOT field strategies.
+                    elif _strat["is_field_ref"]:
                         has_update_flag = True
                         if target_keys and not delete_keys:
                             delete_keys = list(target_keys)

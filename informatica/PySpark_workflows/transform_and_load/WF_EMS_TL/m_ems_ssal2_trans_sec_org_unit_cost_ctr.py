@@ -117,7 +117,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         df_MPLT_AGMT_EMS_RVC_COST_CTR_EXP_NULL_BKEY = lib.expression(
             input_df=df_MPLT_AGMT_EMS_RVC_COST_CTR_rename_EXP_NULL_BKEY,
             computed_columns=[
-                {'name': 'OUT_BKEY', 'expr': "CASE WHEN ltrim(rtrim(IN_BKEY)) IS NULL THEN 'UNKNOWN' WHEN ltrim(rtrim(IN_BKEY)) = '' THEN 'UNKNOWN' ELSE IN_BKEY END"},
+                {'name': 'OUT_BKEY', 'expr': "CASE WHEN ltrim(rtrim(NULL)) IS NULL THEN 'UNKNOWN' WHEN ltrim(rtrim(NULL)) = '' THEN 'UNKNOWN' ELSE NULL END"},
                 {'name': 'OUT_SHORT_BKEY', 'expr': "CASE WHEN ltrim(rtrim(IN_SHORT_BKEY)) IS NULL THEN '?' WHEN ltrim(rtrim(IN_SHORT_BKEY)) = '' THEN '?' ELSE IN_SHORT_BKEY END"}
             ],
         )
@@ -138,6 +138,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         df_MPLT_AGMT_EMS_RVC_COST_CTR_EXPTRANS = lib.expression(
             input_df=df_MPLT_AGMT_EMS_RVC_COST_CTR_rename_EXPTRANS,
             computed_columns=[
+                {'name': 'IN_COST_CTR_KEY', 'expr': 'NULL'},
                 {'name': 'DUMMY', 'expr': "'1'"}
             ],
         )
@@ -310,7 +311,7 @@ WHERE COST_CTR_CODE IS NOT NULL"""
         df_MPLT_AGMT_EMS_RVN_CLCT_OFFC_EXP_NULL_BKEY = lib.expression(
             input_df=df_MPLT_AGMT_EMS_RVN_CLCT_OFFC_rename_EXP_NULL_BKEY,
             computed_columns=[
-                {'name': 'OUT_BKEY', 'expr': "CASE WHEN ltrim(rtrim(IN_BKEY)) IS NULL THEN 'UNKNOWN' WHEN ltrim(rtrim(IN_BKEY)) = '' THEN 'UNKNOWN' ELSE IN_BKEY END"},
+                {'name': 'OUT_BKEY', 'expr': "CASE WHEN ltrim(rtrim(NULL)) IS NULL THEN 'UNKNOWN' WHEN ltrim(rtrim(NULL)) = '' THEN 'UNKNOWN' ELSE NULL END"},
                 {'name': 'OUT_SHORT_BKEY', 'expr': "CASE WHEN ltrim(rtrim(IN_SHORT_BKEY)) IS NULL THEN '?' WHEN ltrim(rtrim(IN_SHORT_BKEY)) = '' THEN '?' ELSE IN_SHORT_BKEY END"}
             ],
         )
@@ -331,6 +332,7 @@ WHERE COST_CTR_CODE IS NOT NULL"""
         df_MPLT_AGMT_EMS_RVN_CLCT_OFFC_EXPTRANS = lib.expression(
             input_df=df_MPLT_AGMT_EMS_RVN_CLCT_OFFC_rename_EXPTRANS,
             computed_columns=[
+                {'name': 'IN_CLCT_OFFC_KEY', 'expr': 'NULL'},
                 {'name': 'RVN_CLCT_OFFC_KEY', 'expr': 'NULL'},
                 {'name': 'DUMMY', 'expr': 'NULL'}
             ],
@@ -986,6 +988,12 @@ FROM SSA_EMS_SEC_ORG_UNIT_COST_CTR"""
         # Strategy: OUT_V_UPD_STRATEGY_STATUS
         df_UPD_SSAL2_MSTR11 = lib.update_strategy(
             input_df=df_MPLT_DLKP_CACHE_STATUS1,
+            rename_columns=[
+                ('COST_CTR_TNCY_TYPE_CODE', 'COST_CTR_TNCY_TYPE_KEY'),
+                ('OUT_V_LAST_REC_TXN_DATE', 'OUT_LAST_REC_TXN_DATE'),
+                ('OUT_V_LAST_REC_TXN_TYPE_CODE', 'OUT_LAST_REC_TXN_TYPE_CODE'),
+                ('OUT_V_OPR_IND', 'OUT_OPR_IND')
+            ],
             strategy_field='OUT_V_UPD_STRATEGY_STATUS',
         )
         ctx.register_df("df_UPD_SSAL2_MSTR11", df_UPD_SSAL2_MSTR11)

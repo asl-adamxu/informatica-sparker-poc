@@ -1163,19 +1163,31 @@ def sq_output(spark=None, input_df=None, name=None, port_cols=None,
 
 
 def update_strategy(spark=None, input_df=None, name=None,
-                    strategy_field=None, config=None, **kwargs):
+                    strategy_field=None, rename_columns=None, config=None, **kwargs):
     """Convert one Informatica Update Strategy.
 
     Dynamic field strategies derive the _update_flag column (I/U/D) from the
     strategy field. Static strategies (DD_INSERT/DD_UPDATE/DD_DELETE) pass
-    through — the target write applies them directly.
+    through — the target write applies them directly. Connector renames run
+    BEFORE the flag derivation so the OUTPUT ports carry the names downstream
+    components reference (e.g. OUT_V_LAST_REC_TXN_DATE → OUT_LAST_REC_TXN_DATE).
     """
+    if rename_columns:
+        input_df = _rename_columns(input_df, rename_columns)
     if strategy_field:
+        # Strategy values may be the DD_* constants (strings, produced by
+        # DECODE(..., DD_INSERT, ...) translation) OR the raw numeric
+        # equivalents 0/1/2/3 when the port carries numbers. Mixed
+        # comparisons are safe under Spark type coercion (a non-castable
+        # literal → NULL → branch skipped). 3 = DD_REJECT: flagged "R" so the
+        # write_target I/U/D split drops the row (rejected rows never reach
+        # the target).
         return input_df.withColumn(
             "_update_flag",
-            when(col(strategy_field) == "DD_INSERT", lit("I"))
-            .when(col(strategy_field) == "DD_UPDATE", lit("U"))
-            .when(col(strategy_field) == "DD_DELETE", lit("D"))
+            when((col(strategy_field) == "DD_INSERT") | (col(strategy_field) == 0), lit("I"))
+            .when((col(strategy_field) == "DD_UPDATE") | (col(strategy_field) == 1), lit("U"))
+            .when((col(strategy_field) == "DD_DELETE") | (col(strategy_field) == 2), lit("D"))
+            .when((col(strategy_field) == "DD_REJECT") | (col(strategy_field) == 3), lit("R"))
             .otherwise(lit("I")),
         )
     return input_df
