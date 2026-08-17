@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_RAL_RAES_APLY")
@@ -79,98 +64,267 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_RAL_RAES_APLY")
         # Source Qualifier: apply_SQ_RAL_RAES_APLY
         df_SQ_RAL_RAES_APLY = df_RAL_RAES_APLY
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_RAL_RAES_APLY = df_SQ_RAL_RAES_APLY.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HSE_SRVC_APLY_NUM", "RAES_APLY_STS_CODE", "RAES_APLY_STG_CODE", "RAES_APLY_STS_UPD_DATE", "RAES_APLY_STG_UPD_DATE", "RAES_APLY_CRE_DATE", "RAES_APLY_UPD_DATE", "RAES_APLY_ROPT_IND", "RAES_APLY_LIFT_STOP_IND", "RAES_APLY_BLDG_AGE", "RAES_APLY_LVNG_AREA", "RAES_APLY_LDLR_NAME", "RAES_APLY_INTVWR_CODE", "RAES_APLY_INTVW_DATE", "RAES_APLY_SRVC_TEAM_NAME", "RAES_APLY_RMK_TEXT", "APLY_RSN_CODE", "RAES_APLY_CNCL_CODE", "RAES_APLY_CNTC_ENG_NAME", "RAES_APLY_CNTC_CHI_NAME", "RAES_APLY_CNTC_PHONE_NUM", "RAES_APLY_CRSP_FLAT_NUM", "RAES_APLY_CRSP_FLR_NUM", "RAES_APLY_CRSP_BLK_NUM", "RAES_APLY_CRSP_BLDG_NAME", "RAES_APLY_CRSP_STRT_NAME", "RAES_APLY_CRSP_DSTR_CODE", "RAES_APLY_CRSP_DSTR_NAME", "RAES_APLY_CRSP_CODE_ADDR", "RAES_APLY_CRSP_WORK_PHONE_NUM", "RAES_ACMD_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "QTA_CATG_TYPE_CODE"]
-        df_SQ_RAL_RAES_APLY = df_SQ_RAL_RAES_APLY.select([col(c) if c.lower() in [x.lower() for x in df_SQ_RAL_RAES_APLY.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_RAL_RAES_APLY = lib.sq_output(
+            input_df=df_SQ_RAL_RAES_APLY,
+            port_cols={
+                'HSE_SRVC_APLY_NUM': 'string',
+                'RAES_APLY_STS_CODE': 'string',
+                'RAES_APLY_STG_CODE': 'string',
+                'RAES_APLY_STS_UPD_DATE': 'date/time',
+                'RAES_APLY_STG_UPD_DATE': 'date/time',
+                'RAES_APLY_CRE_DATE': 'date/time',
+                'RAES_APLY_UPD_DATE': 'date/time',
+                'RAES_APLY_ROPT_IND': 'string',
+                'RAES_APLY_LIFT_STOP_IND': 'string',
+                'RAES_APLY_BLDG_AGE': 'decimal',
+                'RAES_APLY_LVNG_AREA': 'decimal',
+                'RAES_APLY_LDLR_NAME': 'string',
+                'RAES_APLY_INTVWR_CODE': 'string',
+                'RAES_APLY_INTVW_DATE': 'date/time',
+                'RAES_APLY_SRVC_TEAM_NAME': 'string',
+                'RAES_APLY_RMK_TEXT': 'string',
+                'APLY_RSN_CODE': 'string',
+                'RAES_APLY_CNCL_CODE': 'string',
+                'RAES_APLY_CNTC_ENG_NAME': 'string',
+                'RAES_APLY_CNTC_CHI_NAME': 'string',
+                'RAES_APLY_CNTC_PHONE_NUM': 'string',
+                'RAES_APLY_CRSP_FLAT_NUM': 'string',
+                'RAES_APLY_CRSP_FLR_NUM': 'string',
+                'RAES_APLY_CRSP_BLK_NUM': 'string',
+                'RAES_APLY_CRSP_BLDG_NAME': 'string',
+                'RAES_APLY_CRSP_STRT_NAME': 'string',
+                'RAES_APLY_CRSP_DSTR_CODE': 'string',
+                'RAES_APLY_CRSP_DSTR_NAME': 'string',
+                'RAES_APLY_CRSP_CODE_ADDR': 'string',
+                'RAES_APLY_CRSP_WORK_PHONE_NUM': 'string',
+                'RAES_ACMD_TYPE_CODE': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'string',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'QTA_CATG_TYPE_CODE': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_RAL_RAES_APLY", df_SQ_RAL_RAES_APLY)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_RAL_RAES_APLY
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_SRVC_APLY_NUM_OUT", expr("ltrim(rtrim(HSE_SRVC_APLY_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APLY_STS_CODE_OUT", expr("ltrim(rtrim(RAES_APLY_STS_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APLY_STG_CODE_OUT", expr("ltrim(rtrim(RAES_APLY_STG_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APLY_STS_UPD_DATE_OUT", expr("RAES_APLY_STS_UPD_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APLY_STG_UPD_DATE_OUT", expr("RAES_APLY_STG_UPD_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APLY_CRE_DATE_OUT", expr("RAES_APLY_CRE_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APLY_UPD_DATE_OUT", expr("RAES_APLY_UPD_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APLY_ROPT_IND_OUT", expr("ltrim(rtrim(RAES_APLY_ROPT_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APLY_LIFT_STOP_IND_OUT", expr("ltrim(rtrim(RAES_APLY_LIFT_STOP_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APLY_BLDG_AGE_OUT", expr("RAES_APLY_BLDG_AGE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APLY_LVNG_AREA_OUT", expr("RAES_APLY_LVNG_AREA"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APLY_LDLR_NAME_OUT", expr("ltrim(rtrim(RAES_APLY_LDLR_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APLY_INTVWR_CODE_OUT", expr("ltrim(rtrim(RAES_APLY_INTVWR_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APLY_INTVW_DATE_OUT", expr("RAES_APLY_INTVW_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APLY_SRVC_TEAM_NAME_OUT", expr("ltrim(rtrim(RAES_APLY_SRVC_TEAM_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APLY_RMK_TEXT_OUT", expr("ltrim(rtrim(RAES_APLY_RMK_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APLY_RSN_CODE_OUT", expr("ltrim(rtrim(APLY_RSN_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APLY_CNCL_CODE_OUT", expr("ltrim(rtrim(RAES_APLY_CNCL_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APLY_CNTC_ENG_NAME_OUT", expr("ltrim(rtrim(RAES_APLY_CNTC_ENG_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APLY_CNTC_CHI_NAME_OUT", expr("ltrim(rtrim(RAES_APLY_CNTC_CHI_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APLY_CNTC_PHONE_NUM_OUT", expr("ltrim(rtrim(RAES_APLY_CNTC_PHONE_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APLY_CRSP_FLAT_NUM_OUT", expr("ltrim(rtrim(RAES_APLY_CRSP_FLAT_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APLY_CRSP_FLR_NUM_OUT", expr("ltrim(rtrim(RAES_APLY_CRSP_FLR_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APLY_CRSP_BLK_NUM_OUT", expr("ltrim(rtrim(RAES_APLY_CRSP_BLK_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APLY_CRSP_BLDG_NAME_OUT", expr("ltrim(rtrim(RAES_APLY_CRSP_BLDG_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APLY_CRSP_STRT_NAME_OUT", expr("ltrim(rtrim(RAES_APLY_CRSP_STRT_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APLY_CRSP_DSTR_CODE_OUT", expr("ltrim(rtrim(RAES_APLY_CRSP_DSTR_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APLY_CRSP_DSTR_NAME_OUT", expr("ltrim(rtrim(RAES_APLY_CRSP_DSTR_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APLY_CRSP_CODE_ADDR_OUT", expr("ltrim(rtrim(RAES_APLY_CRSP_CODE_ADDR))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APLY_CRSP_WORK_PHONE_NUM_OUT", expr("ltrim(rtrim(RAES_APLY_CRSP_WORK_PHONE_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_ACMD_TYPE_CODE_OUT", expr("ltrim(rtrim(RAES_ACMD_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE_OUT", expr("LAST_REC_TXN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("QTA_CATG_TYPE_CODE_OUT", expr("ltrim(rtrim(QTA_CATG_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("'|'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_RAL_RAES_APLY,
+            computed_columns=[
+                {'name': 'HSE_SRVC_APLY_NUM_OUT', 'expr': 'ltrim(rtrim(HSE_SRVC_APLY_NUM))'},
+                {'name': 'RAES_APLY_STS_CODE_OUT', 'expr': 'ltrim(rtrim(RAES_APLY_STS_CODE))'},
+                {'name': 'RAES_APLY_STG_CODE_OUT', 'expr': 'ltrim(rtrim(RAES_APLY_STG_CODE))'},
+                {'name': 'RAES_APLY_STS_UPD_DATE_OUT', 'expr': 'RAES_APLY_STS_UPD_DATE'},
+                {'name': 'RAES_APLY_STG_UPD_DATE_OUT', 'expr': 'RAES_APLY_STG_UPD_DATE'},
+                {'name': 'RAES_APLY_CRE_DATE_OUT', 'expr': 'RAES_APLY_CRE_DATE'},
+                {'name': 'RAES_APLY_UPD_DATE_OUT', 'expr': 'RAES_APLY_UPD_DATE'},
+                {'name': 'RAES_APLY_ROPT_IND_OUT', 'expr': 'ltrim(rtrim(RAES_APLY_ROPT_IND))'},
+                {'name': 'RAES_APLY_LIFT_STOP_IND_OUT', 'expr': 'ltrim(rtrim(RAES_APLY_LIFT_STOP_IND))'},
+                {'name': 'RAES_APLY_BLDG_AGE_OUT', 'expr': 'RAES_APLY_BLDG_AGE'},
+                {'name': 'RAES_APLY_LVNG_AREA_OUT', 'expr': 'RAES_APLY_LVNG_AREA'},
+                {'name': 'RAES_APLY_LDLR_NAME_OUT', 'expr': 'ltrim(rtrim(RAES_APLY_LDLR_NAME))'},
+                {'name': 'RAES_APLY_INTVWR_CODE_OUT', 'expr': 'ltrim(rtrim(RAES_APLY_INTVWR_CODE))'},
+                {'name': 'RAES_APLY_INTVW_DATE_OUT', 'expr': 'RAES_APLY_INTVW_DATE'},
+                {'name': 'RAES_APLY_SRVC_TEAM_NAME_OUT', 'expr': 'ltrim(rtrim(RAES_APLY_SRVC_TEAM_NAME))'},
+                {'name': 'RAES_APLY_RMK_TEXT_OUT', 'expr': 'ltrim(rtrim(RAES_APLY_RMK_TEXT))'},
+                {'name': 'APLY_RSN_CODE_OUT', 'expr': 'ltrim(rtrim(APLY_RSN_CODE))'},
+                {'name': 'RAES_APLY_CNCL_CODE_OUT', 'expr': 'ltrim(rtrim(RAES_APLY_CNCL_CODE))'},
+                {'name': 'RAES_APLY_CNTC_ENG_NAME_OUT', 'expr': 'ltrim(rtrim(RAES_APLY_CNTC_ENG_NAME))'},
+                {'name': 'RAES_APLY_CNTC_CHI_NAME_OUT', 'expr': 'ltrim(rtrim(RAES_APLY_CNTC_CHI_NAME))'},
+                {'name': 'RAES_APLY_CNTC_PHONE_NUM_OUT', 'expr': 'ltrim(rtrim(RAES_APLY_CNTC_PHONE_NUM))'},
+                {'name': 'RAES_APLY_CRSP_FLAT_NUM_OUT', 'expr': 'ltrim(rtrim(RAES_APLY_CRSP_FLAT_NUM))'},
+                {'name': 'RAES_APLY_CRSP_FLR_NUM_OUT', 'expr': 'ltrim(rtrim(RAES_APLY_CRSP_FLR_NUM))'},
+                {'name': 'RAES_APLY_CRSP_BLK_NUM_OUT', 'expr': 'ltrim(rtrim(RAES_APLY_CRSP_BLK_NUM))'},
+                {'name': 'RAES_APLY_CRSP_BLDG_NAME_OUT', 'expr': 'ltrim(rtrim(RAES_APLY_CRSP_BLDG_NAME))'},
+                {'name': 'RAES_APLY_CRSP_STRT_NAME_OUT', 'expr': 'ltrim(rtrim(RAES_APLY_CRSP_STRT_NAME))'},
+                {'name': 'RAES_APLY_CRSP_DSTR_CODE_OUT', 'expr': 'ltrim(rtrim(RAES_APLY_CRSP_DSTR_CODE))'},
+                {'name': 'RAES_APLY_CRSP_DSTR_NAME_OUT', 'expr': 'ltrim(rtrim(RAES_APLY_CRSP_DSTR_NAME))'},
+                {'name': 'RAES_APLY_CRSP_CODE_ADDR_OUT', 'expr': 'ltrim(rtrim(RAES_APLY_CRSP_CODE_ADDR))'},
+                {'name': 'RAES_APLY_CRSP_WORK_PHONE_NUM_OUT', 'expr': 'ltrim(rtrim(RAES_APLY_CRSP_WORK_PHONE_NUM))'},
+                {'name': 'RAES_ACMD_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(RAES_ACMD_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_DATE_OUT', 'expr': 'LAST_REC_TXN_DATE'},
+                {'name': 'LAST_REC_TXN_USER_ID_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID))'},
+                {'name': 'QTA_CATG_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(QTA_CATG_TYPE_CODE))'},
+                {'name': 'DUMMY', 'expr': "'|'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EMS_RAL_RAES_APLY")
         # Write to Target: write_EMS_RAL_RAES_APLY
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"APLY_RSN_CODE": "APLY_RSN_CODE_OUT", "HSE_SRVC_APLY_NUM": "HSE_SRVC_APLY_NUM_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "QTA_CATG_TYPE_CODE": "QTA_CATG_TYPE_CODE_OUT", "RAES_ACMD_TYPE_CODE": "RAES_ACMD_TYPE_CODE_OUT", "RAES_APLY_BLDG_AGE": "RAES_APLY_BLDG_AGE_OUT", "RAES_APLY_CNCL_CODE": "RAES_APLY_CNCL_CODE_OUT", "RAES_APLY_CNTC_CHI_NAME": "RAES_APLY_CNTC_CHI_NAME_OUT", "RAES_APLY_CNTC_ENG_NAME": "RAES_APLY_CNTC_ENG_NAME_OUT", "RAES_APLY_CNTC_PHONE_NUM": "RAES_APLY_CNTC_PHONE_NUM_OUT", "RAES_APLY_CRE_DATE": "RAES_APLY_CRE_DATE_OUT", "RAES_APLY_CRSP_BLDG_NAME": "RAES_APLY_CRSP_BLDG_NAME_OUT", "RAES_APLY_CRSP_BLK_NUM": "RAES_APLY_CRSP_BLK_NUM_OUT", "RAES_APLY_CRSP_CODE_ADDR": "RAES_APLY_CRSP_CODE_ADDR_OUT", "RAES_APLY_CRSP_DSTR_CODE": "RAES_APLY_CRSP_DSTR_CODE_OUT", "RAES_APLY_CRSP_DSTR_NAME": "RAES_APLY_CRSP_DSTR_NAME_OUT", "RAES_APLY_CRSP_FLAT_NUM": "RAES_APLY_CRSP_FLAT_NUM_OUT", "RAES_APLY_CRSP_FLR_NUM": "RAES_APLY_CRSP_FLR_NUM_OUT", "RAES_APLY_CRSP_STRT_NAME": "RAES_APLY_CRSP_STRT_NAME_OUT", "RAES_APLY_CRSP_WORK_PHONE_NUM": "RAES_APLY_CRSP_WORK_PHONE_NUM_OUT", "RAES_APLY_INTVWR_CODE": "RAES_APLY_INTVWR_CODE_OUT", "RAES_APLY_INTVW_DATE": "RAES_APLY_INTVW_DATE_OUT", "RAES_APLY_LDLR_NAME": "RAES_APLY_LDLR_NAME_OUT", "RAES_APLY_LIFT_STOP_IND": "RAES_APLY_LIFT_STOP_IND_OUT", "RAES_APLY_LVNG_AREA": "RAES_APLY_LVNG_AREA_OUT", "RAES_APLY_RMK_TEXT": "RAES_APLY_RMK_TEXT_OUT", "RAES_APLY_ROPT_IND": "RAES_APLY_ROPT_IND_OUT", "RAES_APLY_SRVC_TEAM_NAME": "RAES_APLY_SRVC_TEAM_NAME_OUT", "RAES_APLY_STG_CODE": "RAES_APLY_STG_CODE_OUT", "RAES_APLY_STG_UPD_DATE": "RAES_APLY_STG_UPD_DATE_OUT", "RAES_APLY_STS_CODE": "RAES_APLY_STS_CODE_OUT", "RAES_APLY_STS_UPD_DATE": "RAES_APLY_STS_UPD_DATE_OUT", "RAES_APLY_UPD_DATE": "RAES_APLY_UPD_DATE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HSE_SRVC_APLY_NUM', 'RAES_APLY_STS_CODE', 'RAES_APLY_STG_CODE', 'RAES_APLY_STS_UPD_DATE', 'RAES_APLY_STG_UPD_DATE', 'RAES_APLY_CRE_DATE', 'RAES_APLY_UPD_DATE', 'RAES_APLY_ROPT_IND', 'RAES_APLY_LIFT_STOP_IND', 'RAES_APLY_BLDG_AGE', 'RAES_APLY_LVNG_AREA', 'RAES_APLY_LDLR_NAME', 'RAES_APLY_INTVWR_CODE', 'RAES_APLY_INTVW_DATE', 'RAES_APLY_SRVC_TEAM_NAME', 'RAES_APLY_RMK_TEXT', 'APLY_RSN_CODE', 'RAES_APLY_CNCL_CODE', 'RAES_APLY_CNTC_ENG_NAME', 'RAES_APLY_CNTC_CHI_NAME', 'RAES_APLY_CNTC_PHONE_NUM', 'RAES_APLY_CRSP_FLAT_NUM', 'RAES_APLY_CRSP_FLR_NUM', 'RAES_APLY_CRSP_BLK_NUM', 'RAES_APLY_CRSP_BLDG_NAME', 'RAES_APLY_CRSP_STRT_NAME', 'RAES_APLY_CRSP_DSTR_CODE', 'RAES_APLY_CRSP_DSTR_NAME', 'RAES_APLY_CRSP_CODE_ADDR', 'RAES_APLY_CRSP_WORK_PHONE_NUM', 'RAES_ACMD_TYPE_CODE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'QTA_CATG_TYPE_CODE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_RAL_RAES_APLY", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_RAL_RAES_APLY',
+            mode='append',
+            source_columns=[
+                'HSE_SRVC_APLY_NUM_OUT',
+                'RAES_APLY_STS_CODE_OUT',
+                'RAES_APLY_STG_CODE_OUT',
+                'RAES_APLY_STS_UPD_DATE_OUT',
+                'RAES_APLY_STG_UPD_DATE_OUT',
+                'RAES_APLY_CRE_DATE_OUT',
+                'RAES_APLY_UPD_DATE_OUT',
+                'RAES_APLY_ROPT_IND_OUT',
+                'RAES_APLY_LIFT_STOP_IND_OUT',
+                'RAES_APLY_BLDG_AGE_OUT',
+                'RAES_APLY_LVNG_AREA_OUT',
+                'RAES_APLY_LDLR_NAME_OUT',
+                'RAES_APLY_INTVWR_CODE_OUT',
+                'RAES_APLY_INTVW_DATE_OUT',
+                'RAES_APLY_SRVC_TEAM_NAME_OUT',
+                'RAES_APLY_RMK_TEXT_OUT',
+                'APLY_RSN_CODE_OUT',
+                'RAES_APLY_CNCL_CODE_OUT',
+                'RAES_APLY_CNTC_ENG_NAME_OUT',
+                'RAES_APLY_CNTC_CHI_NAME_OUT',
+                'RAES_APLY_CNTC_PHONE_NUM_OUT',
+                'RAES_APLY_CRSP_FLAT_NUM_OUT',
+                'RAES_APLY_CRSP_FLR_NUM_OUT',
+                'RAES_APLY_CRSP_BLK_NUM_OUT',
+                'RAES_APLY_CRSP_BLDG_NAME_OUT',
+                'RAES_APLY_CRSP_STRT_NAME_OUT',
+                'RAES_APLY_CRSP_DSTR_CODE_OUT',
+                'RAES_APLY_CRSP_DSTR_NAME_OUT',
+                'RAES_APLY_CRSP_CODE_ADDR_OUT',
+                'RAES_APLY_CRSP_WORK_PHONE_NUM_OUT',
+                'RAES_ACMD_TYPE_CODE_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'QTA_CATG_TYPE_CODE_OUT',
+            ],
+            target_columns=[
+                'HSE_SRVC_APLY_NUM',
+                'RAES_APLY_STS_CODE',
+                'RAES_APLY_STG_CODE',
+                'RAES_APLY_STS_UPD_DATE',
+                'RAES_APLY_STG_UPD_DATE',
+                'RAES_APLY_CRE_DATE',
+                'RAES_APLY_UPD_DATE',
+                'RAES_APLY_ROPT_IND',
+                'RAES_APLY_LIFT_STOP_IND',
+                'RAES_APLY_BLDG_AGE',
+                'RAES_APLY_LVNG_AREA',
+                'RAES_APLY_LDLR_NAME',
+                'RAES_APLY_INTVWR_CODE',
+                'RAES_APLY_INTVW_DATE',
+                'RAES_APLY_SRVC_TEAM_NAME',
+                'RAES_APLY_RMK_TEXT',
+                'APLY_RSN_CODE',
+                'RAES_APLY_CNCL_CODE',
+                'RAES_APLY_CNTC_ENG_NAME',
+                'RAES_APLY_CNTC_CHI_NAME',
+                'RAES_APLY_CNTC_PHONE_NUM',
+                'RAES_APLY_CRSP_FLAT_NUM',
+                'RAES_APLY_CRSP_FLR_NUM',
+                'RAES_APLY_CRSP_BLK_NUM',
+                'RAES_APLY_CRSP_BLDG_NAME',
+                'RAES_APLY_CRSP_STRT_NAME',
+                'RAES_APLY_CRSP_DSTR_CODE',
+                'RAES_APLY_CRSP_DSTR_NAME',
+                'RAES_APLY_CRSP_CODE_ADDR',
+                'RAES_APLY_CRSP_WORK_PHONE_NUM',
+                'RAES_ACMD_TYPE_CODE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'QTA_CATG_TYPE_CODE',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_RAL_RAES_APLY write completed")
         logger.info("Step: write_EMS_RAL_RAES_APLY1")
         # Write to Target: write_EMS_RAL_RAES_APLY1
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"APLY_RSN_CODE": "APLY_RSN_CODE_OUT", "DUMMY": "DUMMY", "HSE_SRVC_APLY_NUM": "HSE_SRVC_APLY_NUM_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "QTA_CATG_TYPE_CODE": "QTA_CATG_TYPE_CODE_OUT", "RAES_ACMD_TYPE_CODE": "RAES_ACMD_TYPE_CODE_OUT", "RAES_APLY_BLDG_AGE": "RAES_APLY_BLDG_AGE_OUT", "RAES_APLY_CNCL_CODE": "RAES_APLY_CNCL_CODE_OUT", "RAES_APLY_CNTC_CHI_NAME": "RAES_APLY_CNTC_CHI_NAME_OUT", "RAES_APLY_CNTC_ENG_NAME": "RAES_APLY_CNTC_ENG_NAME_OUT", "RAES_APLY_CNTC_PHONE_NUM": "RAES_APLY_CNTC_PHONE_NUM_OUT", "RAES_APLY_CRE_DATE": "RAES_APLY_CRE_DATE_OUT", "RAES_APLY_CRSP_BLDG_NAME": "RAES_APLY_CRSP_BLDG_NAME_OUT", "RAES_APLY_CRSP_BLK_NUM": "RAES_APLY_CRSP_BLK_NUM_OUT", "RAES_APLY_CRSP_CODE_ADDR": "RAES_APLY_CRSP_CODE_ADDR_OUT", "RAES_APLY_CRSP_DSTR_CODE": "RAES_APLY_CRSP_DSTR_CODE_OUT", "RAES_APLY_CRSP_DSTR_NAME": "RAES_APLY_CRSP_DSTR_NAME_OUT", "RAES_APLY_CRSP_FLAT_NUM": "RAES_APLY_CRSP_FLAT_NUM_OUT", "RAES_APLY_CRSP_FLR_NUM": "RAES_APLY_CRSP_FLR_NUM_OUT", "RAES_APLY_CRSP_STRT_NAME": "RAES_APLY_CRSP_STRT_NAME_OUT", "RAES_APLY_CRSP_WORK_PHONE_NUM": "RAES_APLY_CRSP_WORK_PHONE_NUM_OUT", "RAES_APLY_INTVWR_CODE": "RAES_APLY_INTVWR_CODE_OUT", "RAES_APLY_INTVW_DATE": "RAES_APLY_INTVW_DATE_OUT", "RAES_APLY_LDLR_NAME": "RAES_APLY_LDLR_NAME_OUT", "RAES_APLY_LIFT_STOP_IND": "RAES_APLY_LIFT_STOP_IND_OUT", "RAES_APLY_LVNG_AREA": "RAES_APLY_LVNG_AREA_OUT", "RAES_APLY_RMK_TEXT": "RAES_APLY_RMK_TEXT_OUT", "RAES_APLY_ROPT_IND": "RAES_APLY_ROPT_IND_OUT", "RAES_APLY_SRVC_TEAM_NAME": "RAES_APLY_SRVC_TEAM_NAME_OUT", "RAES_APLY_STG_CODE": "RAES_APLY_STG_CODE_OUT", "RAES_APLY_STG_UPD_DATE": "RAES_APLY_STG_UPD_DATE_OUT", "RAES_APLY_STS_CODE": "RAES_APLY_STS_CODE_OUT", "RAES_APLY_STS_UPD_DATE": "RAES_APLY_STS_UPD_DATE_OUT", "RAES_APLY_UPD_DATE": "RAES_APLY_UPD_DATE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HSE_SRVC_APLY_NUM', 'RAES_APLY_STS_CODE', 'RAES_APLY_STG_CODE', 'RAES_APLY_STS_UPD_DATE', 'RAES_APLY_STG_UPD_DATE', 'RAES_APLY_CRE_DATE', 'RAES_APLY_UPD_DATE', 'RAES_APLY_ROPT_IND', 'RAES_APLY_LIFT_STOP_IND', 'RAES_APLY_BLDG_AGE', 'RAES_APLY_LVNG_AREA', 'RAES_APLY_LDLR_NAME', 'RAES_APLY_INTVWR_CODE', 'RAES_APLY_INTVW_DATE', 'RAES_APLY_SRVC_TEAM_NAME', 'RAES_APLY_RMK_TEXT', 'APLY_RSN_CODE', 'RAES_APLY_CNCL_CODE', 'RAES_APLY_CNTC_ENG_NAME', 'RAES_APLY_CNTC_CHI_NAME', 'RAES_APLY_CNTC_PHONE_NUM', 'RAES_APLY_CRSP_FLAT_NUM', 'RAES_APLY_CRSP_FLR_NUM', 'RAES_APLY_CRSP_BLK_NUM', 'RAES_APLY_CRSP_BLDG_NAME', 'RAES_APLY_CRSP_STRT_NAME', 'RAES_APLY_CRSP_DSTR_CODE', 'RAES_APLY_CRSP_DSTR_NAME', 'RAES_APLY_CRSP_CODE_ADDR', 'RAES_APLY_CRSP_WORK_PHONE_NUM', 'RAES_ACMD_TYPE_CODE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'QTA_CATG_TYPE_CODE', 'DUMMY']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_RAL_RAES_APLY1", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_RAL_RAES_APLY1',
+            mode='append',
+            source_columns=[
+                'HSE_SRVC_APLY_NUM_OUT',
+                'RAES_APLY_STS_CODE_OUT',
+                'RAES_APLY_STG_CODE_OUT',
+                'RAES_APLY_STS_UPD_DATE_OUT',
+                'RAES_APLY_STG_UPD_DATE_OUT',
+                'RAES_APLY_CRE_DATE_OUT',
+                'RAES_APLY_UPD_DATE_OUT',
+                'RAES_APLY_ROPT_IND_OUT',
+                'RAES_APLY_LIFT_STOP_IND_OUT',
+                'RAES_APLY_BLDG_AGE_OUT',
+                'RAES_APLY_LVNG_AREA_OUT',
+                'RAES_APLY_LDLR_NAME_OUT',
+                'RAES_APLY_INTVWR_CODE_OUT',
+                'RAES_APLY_INTVW_DATE_OUT',
+                'RAES_APLY_SRVC_TEAM_NAME_OUT',
+                'RAES_APLY_RMK_TEXT_OUT',
+                'APLY_RSN_CODE_OUT',
+                'RAES_APLY_CNCL_CODE_OUT',
+                'RAES_APLY_CNTC_ENG_NAME_OUT',
+                'RAES_APLY_CNTC_CHI_NAME_OUT',
+                'RAES_APLY_CNTC_PHONE_NUM_OUT',
+                'RAES_APLY_CRSP_FLAT_NUM_OUT',
+                'RAES_APLY_CRSP_FLR_NUM_OUT',
+                'RAES_APLY_CRSP_BLK_NUM_OUT',
+                'RAES_APLY_CRSP_BLDG_NAME_OUT',
+                'RAES_APLY_CRSP_STRT_NAME_OUT',
+                'RAES_APLY_CRSP_DSTR_CODE_OUT',
+                'RAES_APLY_CRSP_DSTR_NAME_OUT',
+                'RAES_APLY_CRSP_CODE_ADDR_OUT',
+                'RAES_APLY_CRSP_WORK_PHONE_NUM_OUT',
+                'RAES_ACMD_TYPE_CODE_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'QTA_CATG_TYPE_CODE_OUT',
+                'DUMMY',
+            ],
+            target_columns=[
+                'HSE_SRVC_APLY_NUM',
+                'RAES_APLY_STS_CODE',
+                'RAES_APLY_STG_CODE',
+                'RAES_APLY_STS_UPD_DATE',
+                'RAES_APLY_STG_UPD_DATE',
+                'RAES_APLY_CRE_DATE',
+                'RAES_APLY_UPD_DATE',
+                'RAES_APLY_ROPT_IND',
+                'RAES_APLY_LIFT_STOP_IND',
+                'RAES_APLY_BLDG_AGE',
+                'RAES_APLY_LVNG_AREA',
+                'RAES_APLY_LDLR_NAME',
+                'RAES_APLY_INTVWR_CODE',
+                'RAES_APLY_INTVW_DATE',
+                'RAES_APLY_SRVC_TEAM_NAME',
+                'RAES_APLY_RMK_TEXT',
+                'APLY_RSN_CODE',
+                'RAES_APLY_CNCL_CODE',
+                'RAES_APLY_CNTC_ENG_NAME',
+                'RAES_APLY_CNTC_CHI_NAME',
+                'RAES_APLY_CNTC_PHONE_NUM',
+                'RAES_APLY_CRSP_FLAT_NUM',
+                'RAES_APLY_CRSP_FLR_NUM',
+                'RAES_APLY_CRSP_BLK_NUM',
+                'RAES_APLY_CRSP_BLDG_NAME',
+                'RAES_APLY_CRSP_STRT_NAME',
+                'RAES_APLY_CRSP_DSTR_CODE',
+                'RAES_APLY_CRSP_DSTR_NAME',
+                'RAES_APLY_CRSP_CODE_ADDR',
+                'RAES_APLY_CRSP_WORK_PHONE_NUM',
+                'RAES_ACMD_TYPE_CODE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'QTA_CATG_TYPE_CODE',
+                'DUMMY',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_RAL_RAES_APLY1 write completed")
         

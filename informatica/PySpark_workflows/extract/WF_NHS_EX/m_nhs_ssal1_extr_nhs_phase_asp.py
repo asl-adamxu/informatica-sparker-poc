@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_NHS_PHASE_ASP")
@@ -79,44 +64,174 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_NHS_PHASE_ASP")
         # Source Qualifier: apply_SQ_NHS_PHASE_ASP
         df_SQ_NHS_PHASE_ASP = df_NHS_PHASE_ASP
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_NHS_PHASE_ASP = df_SQ_NHS_PHASE_ASP.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["PHASE_ASP_ID", "HOS_APLY_KEY", "PHASE_CODE", "PRIOR_NUM", "PAID_AMT", "ROW_VER_NUM", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "ELCT_SRVC_APLY_IND", "CNCL_RMK_TEXT", "WSD_SRVC_APLY_IND", "ASP_SIGN_DATE", "ASP_TMPL_ID", "ASP_CRE_USER_ID", "MBR_ID_TYPE_CODE_1", "MBR_ID_NUM_1", "MBR_ID_CERT_NUM_1", "MBR_ID_TYPE_CODE_2", "MBR_ID_NUM_2", "MBR_ID_CERT_NUM_2", "MBR_ID_TYPE_CODE_3", "MBR_ID_NUM_3", "MBR_ID_CERT_NUM_3", "ELDR_MBR_IND_1", "ELDR_MBR_IND_2", "ELDR_MBR_IND_3", "ASP_CNCL_IND", "ASP_CNCL_DATE", "TPS_UNIT_ADDR", "FLAT_SLCT_KEY", "PRIOR_CATG_GRP_CODE", "CRT_TYPE_CODE", "CSHR_ORD_NUM_1", "CSHR_ORD_NUM_2", "CSHR_ORD_NUM_3", "PCHSR_DUE_DATE", "VDR_DUE_DATE", "PYMT_DUE_DATE", "RSCN_DATE", "CHQ_PAID_AMT", "CSHR_ORD_PAID_AMT", "ASP_CRE_TS", "FRST_ASGN_DATE", "ASGN_SLCTR_ID", "EFAS_PRIOR_NUM_SFX_NUM"]
-        df_SQ_NHS_PHASE_ASP = df_SQ_NHS_PHASE_ASP.select([col(c) if c.lower() in [x.lower() for x in df_SQ_NHS_PHASE_ASP.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_NHS_PHASE_ASP = lib.sq_output(
+            input_df=df_SQ_NHS_PHASE_ASP,
+            port_cols={
+                'PHASE_ASP_ID': 'decimal',
+                'HOS_APLY_KEY': 'decimal',
+                'PHASE_CODE': 'string',
+                'PRIOR_NUM': 'decimal',
+                'PAID_AMT': 'decimal',
+                'ROW_VER_NUM': 'decimal',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'ELCT_SRVC_APLY_IND': 'string',
+                'CNCL_RMK_TEXT': 'string',
+                'WSD_SRVC_APLY_IND': 'string',
+                'ASP_SIGN_DATE': 'date/time',
+                'ASP_TMPL_ID': 'decimal',
+                'ASP_CRE_USER_ID': 'string',
+                'MBR_ID_TYPE_CODE_1': 'string',
+                'MBR_ID_NUM_1': 'string',
+                'MBR_ID_CERT_NUM_1': 'string',
+                'MBR_ID_TYPE_CODE_2': 'string',
+                'MBR_ID_NUM_2': 'string',
+                'MBR_ID_CERT_NUM_2': 'string',
+                'MBR_ID_TYPE_CODE_3': 'string',
+                'MBR_ID_NUM_3': 'string',
+                'MBR_ID_CERT_NUM_3': 'string',
+                'ELDR_MBR_IND_1': 'string',
+                'ELDR_MBR_IND_2': 'string',
+                'ELDR_MBR_IND_3': 'string',
+                'ASP_CNCL_IND': 'string',
+                'ASP_CNCL_DATE': 'date/time',
+                'TPS_UNIT_ADDR': 'string',
+                'FLAT_SLCT_KEY': 'decimal',
+                'PRIOR_CATG_GRP_CODE': 'string',
+                'CRT_TYPE_CODE': 'string',
+                'CSHR_ORD_NUM_1': 'string',
+                'CSHR_ORD_NUM_2': 'string',
+                'CSHR_ORD_NUM_3': 'string',
+                'PCHSR_DUE_DATE': 'date/time',
+                'VDR_DUE_DATE': 'date/time',
+                'PYMT_DUE_DATE': 'date/time',
+                'RSCN_DATE': 'date/time',
+                'CHQ_PAID_AMT': 'decimal',
+                'CSHR_ORD_PAID_AMT': 'decimal',
+                'ASP_CRE_TS': 'date/time',
+                'FRST_ASGN_DATE': 'date/time',
+                'ASGN_SLCTR_ID': 'decimal',
+                'EFAS_PRIOR_NUM_SFX_NUM': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_NHS_PHASE_ASP", df_SQ_NHS_PHASE_ASP)
         
         logger.info("Step: apply_EXP_L1")
         # Expression: apply_EXP_L1
-        df_EXP_L1 = df_SQ_NHS_PHASE_ASP
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["PHASE_ASP_ID", "HOS_APLY_KEY", "PHASE_CODE", "PRIOR_NUM", "PAID_AMT", "ROW_VER_NUM", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "ELCT_SRVC_APLY_IND", "CNCL_RMK_TEXT", "WSD_SRVC_APLY_IND", "ASP_SIGN_DATE", "ASP_TMPL_ID", "ASP_CRE_USER_ID", "MBR_ID_TYPE_CODE_1", "MBR_ID_NUM_1", "MBR_ID_CERT_NUM_1", "MBR_ID_TYPE_CODE_2", "MBR_ID_NUM_2", "MBR_ID_CERT_NUM_2", "MBR_ID_TYPE_CODE_3", "MBR_ID_NUM_3", "MBR_ID_CERT_NUM_3", "ELDR_MBR_IND_1", "ELDR_MBR_IND_2", "ELDR_MBR_IND_3", "ASP_CNCL_IND", "ASP_CNCL_DATE", "TPS_UNIT_ADDR", "FLAT_SLCT_KEY", "PRIOR_CATG_GRP_CODE", "CRT_TYPE_CODE", "CSHR_ORD_NUM_1", "CSHR_ORD_NUM_2", "CSHR_ORD_NUM_3", "PCHSR_DUE_DATE", "VDR_DUE_DATE", "PYMT_DUE_DATE", "RSCN_DATE", "CHQ_PAID_AMT", "CSHR_ORD_PAID_AMT", "ASP_CRE_TS", "FRST_ASGN_DATE", "ASGN_SLCTR_ID", "EFAS_PRIOR_NUM_SFX_NUM"]:
-            if _col.lower() not in [x.lower() for x in df_EXP_L1.columns]:
-                df_EXP_L1 = df_EXP_L1.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_L1 = lib.expression(
+            input_df=df_SQ_NHS_PHASE_ASP,
+        )
         ctx.register_df("df_EXP_L1", df_EXP_L1)
         
         logger.info("Step: write_NHS_PHASE_ASP1")
         # Write to Target: write_NHS_PHASE_ASP1
-        df_write = df_EXP_L1
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"ASGN_SLCTR_ID": "ASGN_SLCTR_ID", "ASP_CNCL_DATE": "ASP_CNCL_DATE", "ASP_CNCL_IND": "ASP_CNCL_IND", "ASP_CRE_TS": "ASP_CRE_TS", "ASP_CRE_USER_ID": "ASP_CRE_USER_ID", "ASP_SIGN_DATE": "ASP_SIGN_DATE", "ASP_TMPL_ID": "ASP_TMPL_ID", "CHQ_PAID_AMT": "CHQ_PAID_AMT", "CNCL_RMK_TEXT": "CNCL_RMK_TEXT", "CRT_TYPE_CODE": "CRT_TYPE_CODE", "CSHR_ORD_NUM_1": "CSHR_ORD_NUM_1", "CSHR_ORD_NUM_2": "CSHR_ORD_NUM_2", "CSHR_ORD_NUM_3": "CSHR_ORD_NUM_3", "CSHR_ORD_PAID_AMT": "CSHR_ORD_PAID_AMT", "EFAS_PRIOR_NUM_SFX_NUM": "EFAS_PRIOR_NUM_SFX_NUM", "ELCT_SRVC_APLY_IND": "ELCT_SRVC_APLY_IND", "ELDR_MBR_IND_1": "ELDR_MBR_IND_1", "ELDR_MBR_IND_2": "ELDR_MBR_IND_2", "ELDR_MBR_IND_3": "ELDR_MBR_IND_3", "FLAT_SLCT_KEY": "FLAT_SLCT_KEY", "FRST_ASGN_DATE": "FRST_ASGN_DATE", "HOS_APLY_KEY": "HOS_APLY_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "MBR_ID_CERT_NUM_1": "MBR_ID_CERT_NUM_1", "MBR_ID_CERT_NUM_2": "MBR_ID_CERT_NUM_2", "MBR_ID_CERT_NUM_3": "MBR_ID_CERT_NUM_3", "MBR_ID_NUM_1": "MBR_ID_NUM_1", "MBR_ID_NUM_2": "MBR_ID_NUM_2", "MBR_ID_NUM_3": "MBR_ID_NUM_3", "MBR_ID_TYPE_CODE_1": "MBR_ID_TYPE_CODE_1", "MBR_ID_TYPE_CODE_2": "MBR_ID_TYPE_CODE_2", "MBR_ID_TYPE_CODE_3": "MBR_ID_TYPE_CODE_3", "PAID_AMT": "PAID_AMT", "PCHSR_DUE_DATE": "PCHSR_DUE_DATE", "PHASE_ASP_ID": "PHASE_ASP_ID", "PHASE_CODE": "PHASE_CODE", "PRIOR_CATG_GRP_CODE": "PRIOR_CATG_GRP_CODE", "PRIOR_NUM": "PRIOR_NUM", "PYMT_DUE_DATE": "PYMT_DUE_DATE", "ROW_VER_NUM": "ROW_VER_NUM", "RSCN_DATE": "RSCN_DATE", "TPS_UNIT_ADDR": "TPS_UNIT_ADDR", "VDR_DUE_DATE": "VDR_DUE_DATE", "WSD_SRVC_APLY_IND": "WSD_SRVC_APLY_IND"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['PHASE_ASP_ID', 'HOS_APLY_KEY', 'PHASE_CODE', 'PRIOR_NUM', 'PAID_AMT', 'ROW_VER_NUM', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'ELCT_SRVC_APLY_IND', 'CNCL_RMK_TEXT', 'WSD_SRVC_APLY_IND', 'ASP_SIGN_DATE', 'ASP_TMPL_ID', 'ASP_CRE_USER_ID', 'MBR_ID_TYPE_CODE_1', 'MBR_ID_NUM_1', 'MBR_ID_CERT_NUM_1', 'MBR_ID_TYPE_CODE_2', 'MBR_ID_NUM_2', 'MBR_ID_CERT_NUM_2', 'MBR_ID_TYPE_CODE_3', 'MBR_ID_NUM_3', 'MBR_ID_CERT_NUM_3', 'ELDR_MBR_IND_1', 'ELDR_MBR_IND_2', 'ELDR_MBR_IND_3', 'ASP_CNCL_IND', 'ASP_CNCL_DATE', 'TPS_UNIT_ADDR', 'FLAT_SLCT_KEY', 'PRIOR_CATG_GRP_CODE', 'CRT_TYPE_CODE', 'CSHR_ORD_NUM_1', 'CSHR_ORD_NUM_2', 'CSHR_ORD_NUM_3', 'PCHSR_DUE_DATE', 'VDR_DUE_DATE', 'PYMT_DUE_DATE', 'RSCN_DATE', 'CHQ_PAID_AMT', 'CSHR_ORD_PAID_AMT', 'ASP_CRE_TS', 'FRST_ASGN_DATE', 'ASGN_SLCTR_ID', 'EFAS_PRIOR_NUM_SFX_NUM']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "NHS_PHASE_ASP", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_L1,
+            conn=conn_target,
+            table='NHS_PHASE_ASP',
+            mode='append',
+            source_columns=[
+                'PHASE_ASP_ID',
+                'HOS_APLY_KEY',
+                'PHASE_CODE',
+                'PRIOR_NUM',
+                'PAID_AMT',
+                'ROW_VER_NUM',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'ELCT_SRVC_APLY_IND',
+                'CNCL_RMK_TEXT',
+                'WSD_SRVC_APLY_IND',
+                'ASP_SIGN_DATE',
+                'ASP_TMPL_ID',
+                'ASP_CRE_USER_ID',
+                'MBR_ID_TYPE_CODE_1',
+                'MBR_ID_NUM_1',
+                'MBR_ID_CERT_NUM_1',
+                'MBR_ID_TYPE_CODE_2',
+                'MBR_ID_NUM_2',
+                'MBR_ID_CERT_NUM_2',
+                'MBR_ID_TYPE_CODE_3',
+                'MBR_ID_NUM_3',
+                'MBR_ID_CERT_NUM_3',
+                'ELDR_MBR_IND_1',
+                'ELDR_MBR_IND_2',
+                'ELDR_MBR_IND_3',
+                'ASP_CNCL_IND',
+                'ASP_CNCL_DATE',
+                'TPS_UNIT_ADDR',
+                'FLAT_SLCT_KEY',
+                'PRIOR_CATG_GRP_CODE',
+                'CRT_TYPE_CODE',
+                'CSHR_ORD_NUM_1',
+                'CSHR_ORD_NUM_2',
+                'CSHR_ORD_NUM_3',
+                'PCHSR_DUE_DATE',
+                'VDR_DUE_DATE',
+                'PYMT_DUE_DATE',
+                'RSCN_DATE',
+                'CHQ_PAID_AMT',
+                'CSHR_ORD_PAID_AMT',
+                'ASP_CRE_TS',
+                'FRST_ASGN_DATE',
+                'ASGN_SLCTR_ID',
+                'EFAS_PRIOR_NUM_SFX_NUM',
+            ],
+            target_columns=[
+                'PHASE_ASP_ID',
+                'HOS_APLY_KEY',
+                'PHASE_CODE',
+                'PRIOR_NUM',
+                'PAID_AMT',
+                'ROW_VER_NUM',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'ELCT_SRVC_APLY_IND',
+                'CNCL_RMK_TEXT',
+                'WSD_SRVC_APLY_IND',
+                'ASP_SIGN_DATE',
+                'ASP_TMPL_ID',
+                'ASP_CRE_USER_ID',
+                'MBR_ID_TYPE_CODE_1',
+                'MBR_ID_NUM_1',
+                'MBR_ID_CERT_NUM_1',
+                'MBR_ID_TYPE_CODE_2',
+                'MBR_ID_NUM_2',
+                'MBR_ID_CERT_NUM_2',
+                'MBR_ID_TYPE_CODE_3',
+                'MBR_ID_NUM_3',
+                'MBR_ID_CERT_NUM_3',
+                'ELDR_MBR_IND_1',
+                'ELDR_MBR_IND_2',
+                'ELDR_MBR_IND_3',
+                'ASP_CNCL_IND',
+                'ASP_CNCL_DATE',
+                'TPS_UNIT_ADDR',
+                'FLAT_SLCT_KEY',
+                'PRIOR_CATG_GRP_CODE',
+                'CRT_TYPE_CODE',
+                'CSHR_ORD_NUM_1',
+                'CSHR_ORD_NUM_2',
+                'CSHR_ORD_NUM_3',
+                'PCHSR_DUE_DATE',
+                'VDR_DUE_DATE',
+                'PYMT_DUE_DATE',
+                'RSCN_DATE',
+                'CHQ_PAID_AMT',
+                'CSHR_ORD_PAID_AMT',
+                'ASP_CRE_TS',
+                'FRST_ASGN_DATE',
+                'ASGN_SLCTR_ID',
+                'EFAS_PRIOR_NUM_SFX_NUM',
+            ],
+            config=config,
+        )
 
         logger.info("write_NHS_PHASE_ASP1 write completed")
         

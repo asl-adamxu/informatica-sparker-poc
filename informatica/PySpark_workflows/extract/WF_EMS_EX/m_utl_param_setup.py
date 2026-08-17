@@ -92,18 +92,23 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_UTL_SESSION_LIST")
         # Source Qualifier: apply_SQ_UTL_SESSION_LIST
         df_SQ_UTL_SESSION_LIST = df_UTL_SESSION_LIST
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["SESSION"]
-        df_SQ_UTL_SESSION_LIST = df_SQ_UTL_SESSION_LIST.select([col(c) if c.lower() in [x.lower() for x in df_SQ_UTL_SESSION_LIST.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_UTL_SESSION_LIST = lib.sq_output(
+            input_df=df_SQ_UTL_SESSION_LIST,
+            port_cols={
+                'SESSION': 'string',
+            },
+        )
         ctx.register_df("df_SQ_UTL_SESSION_LIST", df_SQ_UTL_SESSION_LIST)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_UTL_SESSION_LIST
-        df_EXPTRANS = df_EXPTRANS.withColumn("PARAMETER", expr("CASE WHEN instr(SESSION, '=')=0 THEN SESSION ELSE substring(SESSION,1,instr(SESSION,'=')) END"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PROPERTY", expr("CASE WHEN instr(SESSION, '=')=0 THEN NULL ELSE substring(SESSION,instr(SESSION,'=')+1) END"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_UTL_SESSION_LIST,
+            computed_columns=[
+                {'name': 'PARAMETER', 'expr': "CASE WHEN instr(SESSION, '=')=0 THEN SESSION ELSE substring(SESSION,1,instr(SESSION,'=')) END"},
+                {'name': 'PROPERTY', 'expr': "CASE WHEN instr(SESSION, '=')=0 THEN NULL ELSE substring(SESSION,instr(SESSION,'=')+1) END"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: read_LKPTRANS")
@@ -123,7 +128,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _lkp_input = df_EXPTRANS
         # Join condition: PROPERTY=PRPTY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXPTRANS = _lkp_input.alias("_main").join(
             broadcast(df_LKPTRANS).alias("_lkp"),
             (col("_main.PROPERTY") == col("_lkp.PRPTY")),
             "left"
@@ -131,42 +136,34 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKPTRANS[c] for c in df_LKPTRANS.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
+        ctx.register_df("df_lkp_merge_EXPTRANS", df_lkp_merge_EXPTRANS)        
         logger.info("Step: apply_EXPTRANS1")
         # Expression: apply_EXPTRANS1
-        df_EXPTRANS1 = df_lkp_merge_1
-        df_EXPTRANS1 = df_EXPTRANS1.withColumn("LINE", expr("concat(PARAMETER,CASE WHEN (VAL IS NULL) THEN '' ELSE VAL END)"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS1 = lib.expression(
+            input_df=df_lkp_merge_EXPTRANS,
+            computed_columns=[
+                {'name': 'LINE', 'expr': "concat(PARAMETER,CASE WHEN (VAL IS NULL) THEN '' ELSE VAL END)"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS1", df_EXPTRANS1)
         
         logger.info("Step: write_UTL_JOB_PARAM")
         # Write to Target: write_UTL_JOB_PARAM
-        df_write = df_EXPTRANS1
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"LINE": "LINE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['LINE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to flat file — prefer config.yml objects metadata, then derived default path
-        _write_obj = objects.get("UTL_JOB_PARAM")
-        if _write_obj and isinstance(_write_obj, dict):
-            _write_path = _write_obj.get('path', '/tmp/UTL_JOB_PARAM')
-            _write_fmt = _write_obj.get('format', 'csv')
-        # Runtime fallback: skip write if path resolves to /dev/null
-        if _write_path and _write_path.strip() in ("/dev/null", "NUL"):
-            logger.info("Target %s resolved to /dev/null, skipping write", "write_UTL_JOB_PARAM")
-        else:
-            lib.write_file(df_write, _write_path, format=_write_fmt, mode="overwrite")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS1,
+            conn=conn_target,
+            table='UTL_JOB_PARAM',
+            mode='append',
+            sink_type='csv',
+            source_columns=[
+                'LINE',
+            ],
+            target_columns=[
+                'LINE',
+            ],
+            config=config,
+        )
 
         logger.info("write_UTL_JOB_PARAM write completed")
         

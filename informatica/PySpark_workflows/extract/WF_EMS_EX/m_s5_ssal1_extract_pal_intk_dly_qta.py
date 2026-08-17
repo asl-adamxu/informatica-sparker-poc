@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_PAL_INTK_DLY_QTA")
@@ -79,68 +64,87 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_PAL_INTK_DLY_QTA")
         # Source Qualifier: apply_SQ_PAL_INTK_DLY_QTA
         df_SQ_PAL_INTK_DLY_QTA = df_PAL_INTK_DLY_QTA
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_PAL_INTK_DLY_QTA = df_SQ_PAL_INTK_DLY_QTA.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HSE_EST_KEY", "INTK_QTA_NUM", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID"]
-        df_SQ_PAL_INTK_DLY_QTA = df_SQ_PAL_INTK_DLY_QTA.select([col(c) if c.lower() in [x.lower() for x in df_SQ_PAL_INTK_DLY_QTA.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_PAL_INTK_DLY_QTA = lib.sq_output(
+            input_df=df_SQ_PAL_INTK_DLY_QTA,
+            port_cols={
+                'HSE_EST_KEY': 'string',
+                'INTK_QTA_NUM': 'decimal',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'string',
+                'LAST_REC_TXN_USER_ID': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_PAL_INTK_DLY_QTA", df_SQ_PAL_INTK_DLY_QTA)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_PAL_INTK_DLY_QTA
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_EST_KEY1", expr("ltrim(rtrim(HSE_EST_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("INTK_QTA_NUM1", expr("INTK_QTA_NUM"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE1", expr("ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE1", expr("LAST_REC_TXN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID1", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("'|'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_PAL_INTK_DLY_QTA,
+            computed_columns=[
+                {'name': 'HSE_EST_KEY1', 'expr': 'ltrim(rtrim(HSE_EST_KEY))'},
+                {'name': 'INTK_QTA_NUM1', 'expr': 'INTK_QTA_NUM'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE1', 'expr': 'ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_DATE1', 'expr': 'LAST_REC_TXN_DATE'},
+                {'name': 'LAST_REC_TXN_USER_ID1', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID))'},
+                {'name': 'DUMMY', 'expr': "'|'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EMS_PAL_INTK_DLY_QTA")
         # Write to Target: write_EMS_PAL_INTK_DLY_QTA
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"HSE_EST_KEY": "HSE_EST_KEY1", "INTK_QTA_NUM": "INTK_QTA_NUM1", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE1", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE1", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID1"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HSE_EST_KEY', 'INTK_QTA_NUM', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_PAL_INTK_DLY_QTA", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_PAL_INTK_DLY_QTA',
+            mode='append',
+            source_columns=[
+                'HSE_EST_KEY1',
+                'INTK_QTA_NUM1',
+                'LAST_REC_TXN_TYPE_CODE1',
+                'LAST_REC_TXN_DATE1',
+                'LAST_REC_TXN_USER_ID1',
+            ],
+            target_columns=[
+                'HSE_EST_KEY',
+                'INTK_QTA_NUM',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_PAL_INTK_DLY_QTA write completed")
         logger.info("Step: write_EMS_PAL_INTK_DLY_QTA1")
         # Write to Target: write_EMS_PAL_INTK_DLY_QTA1
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"DUMMY": "DUMMY", "HSE_EST_KEY": "HSE_EST_KEY1", "INTK_QTA_NUM": "INTK_QTA_NUM1", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE1", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE1", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID1"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HSE_EST_KEY', 'INTK_QTA_NUM', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'DUMMY']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_PAL_INTK_DLY_QTA1", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_PAL_INTK_DLY_QTA1',
+            mode='append',
+            source_columns=[
+                'HSE_EST_KEY1',
+                'INTK_QTA_NUM1',
+                'LAST_REC_TXN_TYPE_CODE1',
+                'LAST_REC_TXN_DATE1',
+                'LAST_REC_TXN_USER_ID1',
+                'DUMMY',
+            ],
+            target_columns=[
+                'HSE_EST_KEY',
+                'INTK_QTA_NUM',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'DUMMY',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_PAL_INTK_DLY_QTA1 write completed")
         

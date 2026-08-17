@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_TOW_TPS_BYBK")
@@ -79,85 +64,181 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_TOW_TPS_BYBK")
         # Source Qualifier: apply_SQ_TOW_TPS_BYBK
         df_SQ_TOW_TPS_BYBK = df_TOW_TPS_BYBK
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_TOW_TPS_BYBK = df_SQ_TOW_TPS_BYBK.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["TPS_BYBK_REF_NUM", "TPS_BYBK_CRE_DATE", "HSE_SRVC_APLY_KEY", "TPS_ACTL_ASGN_DATE", "TPS_TNTV_ASGN_DATE", "TPS_BYBK_PRC_AMT", "TPS_RTNT_AMT", "TPS_BYBK_RMK_TEXT", "TPS_RVRS_RSN_TEXT", "RFBH_RQR_IND", "TPS_RVRS_RSN_CODE", "TPS_BYBK_TYPE_CODE", "TPS_BYBK_STS_CODE", "TPS_WTHDRW_RSN_CODE", "TPS_WTHDRW_RSN_TEXT", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "TPS_BYBK_UPD_DATE", "TPS_BYBK_CMPLT_DATE_INPT_MTH", "TPS_BYBK_CMPLT_DATE_INPT_DATE"]
-        df_SQ_TOW_TPS_BYBK = df_SQ_TOW_TPS_BYBK.select([col(c) if c.lower() in [x.lower() for x in df_SQ_TOW_TPS_BYBK.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_TOW_TPS_BYBK = lib.sq_output(
+            input_df=df_SQ_TOW_TPS_BYBK,
+            port_cols={
+                'TPS_BYBK_REF_NUM': 'string',
+                'TPS_BYBK_CRE_DATE': 'date/time',
+                'HSE_SRVC_APLY_KEY': 'string',
+                'TPS_ACTL_ASGN_DATE': 'date/time',
+                'TPS_TNTV_ASGN_DATE': 'date/time',
+                'TPS_BYBK_PRC_AMT': 'decimal',
+                'TPS_RTNT_AMT': 'decimal',
+                'TPS_BYBK_RMK_TEXT': 'string',
+                'TPS_RVRS_RSN_TEXT': 'string',
+                'RFBH_RQR_IND': 'string',
+                'TPS_RVRS_RSN_CODE': 'string',
+                'TPS_BYBK_TYPE_CODE': 'string',
+                'TPS_BYBK_STS_CODE': 'string',
+                'TPS_WTHDRW_RSN_CODE': 'string',
+                'TPS_WTHDRW_RSN_TEXT': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'string',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'TPS_BYBK_UPD_DATE': 'date/time',
+                'TPS_BYBK_CMPLT_DATE_INPT_MTH': 'date/time',
+                'TPS_BYBK_CMPLT_DATE_INPT_DATE': 'date/time',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_TOW_TPS_BYBK", df_SQ_TOW_TPS_BYBK)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_TOW_TPS_BYBK
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_BYBK_REF_NUM_OUT", expr("ltrim(rtrim(TPS_BYBK_REF_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_BYBK_CRE_DATE_OUT", expr("TPS_BYBK_CRE_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_SRVC_APLY_KEY_OUT", expr("ltrim(rtrim(HSE_SRVC_APLY_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_ACTL_ASGN_DATE_OUT", expr("TPS_ACTL_ASGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_TNTV_ASGN_DATE_OUT", expr("TPS_TNTV_ASGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_BYBK_PRC_AMT_OUT", expr("TPS_BYBK_PRC_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_RTNT_AMT_OUT", expr("TPS_RTNT_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_BYBK_RMK_TEXT_OUT", expr("ltrim(rtrim(TPS_BYBK_RMK_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_RVRS_RSN_TEXT_OUT", expr("ltrim(rtrim(TPS_RVRS_RSN_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RFBH_RQR_IND_OUT", expr("ltrim(rtrim(RFBH_RQR_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_RVRS_RSN_CODE_OUT", expr("ltrim(rtrim(TPS_RVRS_RSN_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_BYBK_TYPE_CODE_OUT", expr("ltrim(rtrim(TPS_BYBK_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_BYBK_STS_CODE_OUT", expr("ltrim(rtrim(TPS_BYBK_STS_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_WTHDRW_RSN_CODE_OUT", expr("ltrim(rtrim(TPS_WTHDRW_RSN_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_WTHDRW_RSN_TEXT_OUT", expr("ltrim(rtrim(TPS_WTHDRW_RSN_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE_OUT", expr("LAST_REC_TXN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_BYBK_UPD_DATE_OUT", expr("TPS_BYBK_UPD_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("'|'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["TPS_BYBK_CMPLT_DATE_INPT_MTH", "TPS_BYBK_CMPLT_DATE_INPT_DATE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_TOW_TPS_BYBK,
+            computed_columns=[
+                {'name': 'TPS_BYBK_REF_NUM_OUT', 'expr': 'ltrim(rtrim(TPS_BYBK_REF_NUM))'},
+                {'name': 'TPS_BYBK_CRE_DATE_OUT', 'expr': 'TPS_BYBK_CRE_DATE'},
+                {'name': 'HSE_SRVC_APLY_KEY_OUT', 'expr': 'ltrim(rtrim(HSE_SRVC_APLY_KEY))'},
+                {'name': 'TPS_ACTL_ASGN_DATE_OUT', 'expr': 'TPS_ACTL_ASGN_DATE'},
+                {'name': 'TPS_TNTV_ASGN_DATE_OUT', 'expr': 'TPS_TNTV_ASGN_DATE'},
+                {'name': 'TPS_BYBK_PRC_AMT_OUT', 'expr': 'TPS_BYBK_PRC_AMT'},
+                {'name': 'TPS_RTNT_AMT_OUT', 'expr': 'TPS_RTNT_AMT'},
+                {'name': 'TPS_BYBK_RMK_TEXT_OUT', 'expr': 'ltrim(rtrim(TPS_BYBK_RMK_TEXT))'},
+                {'name': 'TPS_RVRS_RSN_TEXT_OUT', 'expr': 'ltrim(rtrim(TPS_RVRS_RSN_TEXT))'},
+                {'name': 'RFBH_RQR_IND_OUT', 'expr': 'ltrim(rtrim(RFBH_RQR_IND))'},
+                {'name': 'TPS_RVRS_RSN_CODE_OUT', 'expr': 'ltrim(rtrim(TPS_RVRS_RSN_CODE))'},
+                {'name': 'TPS_BYBK_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(TPS_BYBK_TYPE_CODE))'},
+                {'name': 'TPS_BYBK_STS_CODE_OUT', 'expr': 'ltrim(rtrim(TPS_BYBK_STS_CODE))'},
+                {'name': 'TPS_WTHDRW_RSN_CODE_OUT', 'expr': 'ltrim(rtrim(TPS_WTHDRW_RSN_CODE))'},
+                {'name': 'TPS_WTHDRW_RSN_TEXT_OUT', 'expr': 'ltrim(rtrim(TPS_WTHDRW_RSN_TEXT))'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_DATE_OUT', 'expr': 'LAST_REC_TXN_DATE'},
+                {'name': 'LAST_REC_TXN_USER_ID_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID))'},
+                {'name': 'TPS_BYBK_UPD_DATE_OUT', 'expr': 'TPS_BYBK_UPD_DATE'},
+                {'name': 'DUMMY', 'expr': "'|'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EMS_TOW_TPS_BYBK1")
         # Write to Target: write_EMS_TOW_TPS_BYBK1
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"DUMMY": "DUMMY", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "RFBH_RQR_IND": "RFBH_RQR_IND_OUT", "TPS_ACTL_ASGN_DATE": "TPS_ACTL_ASGN_DATE_OUT", "TPS_BYBK_CMPLT_DATE_INPT_DATE": "TPS_BYBK_CMPLT_DATE_INPT_DATE", "TPS_BYBK_CMPLT_DATE_INPT_MTH": "TPS_BYBK_CMPLT_DATE_INPT_MTH", "TPS_BYBK_CRE_DATE": "TPS_BYBK_CRE_DATE_OUT", "TPS_BYBK_PRC_AMT": "TPS_BYBK_PRC_AMT_OUT", "TPS_BYBK_REF_NUM": "TPS_BYBK_REF_NUM_OUT", "TPS_BYBK_RMK_TEXT": "TPS_BYBK_RMK_TEXT_OUT", "TPS_BYBK_STS_CODE": "TPS_BYBK_STS_CODE_OUT", "TPS_BYBK_TYPE_CODE": "TPS_BYBK_TYPE_CODE_OUT", "TPS_BYBK_UPD_DATE": "TPS_BYBK_UPD_DATE_OUT", "TPS_RTNT_AMT": "TPS_RTNT_AMT_OUT", "TPS_RVRS_RSN_CODE": "TPS_RVRS_RSN_CODE_OUT", "TPS_RVRS_RSN_TEXT": "TPS_RVRS_RSN_TEXT_OUT", "TPS_TNTV_ASGN_DATE": "TPS_TNTV_ASGN_DATE_OUT", "TPS_WTHDRW_RSN_CODE": "TPS_WTHDRW_RSN_CODE_OUT", "TPS_WTHDRW_RSN_TEXT": "TPS_WTHDRW_RSN_TEXT_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['TPS_BYBK_REF_NUM', 'TPS_BYBK_CRE_DATE', 'HSE_SRVC_APLY_KEY', 'TPS_ACTL_ASGN_DATE', 'TPS_TNTV_ASGN_DATE', 'TPS_BYBK_PRC_AMT', 'TPS_RTNT_AMT', 'TPS_BYBK_RMK_TEXT', 'TPS_RVRS_RSN_TEXT', 'RFBH_RQR_IND', 'TPS_RVRS_RSN_CODE', 'TPS_BYBK_TYPE_CODE', 'TPS_BYBK_STS_CODE', 'TPS_WTHDRW_RSN_CODE', 'TPS_WTHDRW_RSN_TEXT', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'TPS_BYBK_UPD_DATE', 'TPS_BYBK_CMPLT_DATE_INPT_MTH', 'TPS_BYBK_CMPLT_DATE_INPT_DATE', 'DUMMY']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_TOW_TPS_BYBK1", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_TOW_TPS_BYBK1',
+            mode='append',
+            source_columns=[
+                'TPS_BYBK_REF_NUM_OUT',
+                'TPS_BYBK_CRE_DATE_OUT',
+                'HSE_SRVC_APLY_KEY_OUT',
+                'TPS_ACTL_ASGN_DATE_OUT',
+                'TPS_TNTV_ASGN_DATE_OUT',
+                'TPS_BYBK_PRC_AMT_OUT',
+                'TPS_RTNT_AMT_OUT',
+                'TPS_BYBK_RMK_TEXT_OUT',
+                'TPS_RVRS_RSN_TEXT_OUT',
+                'RFBH_RQR_IND_OUT',
+                'TPS_RVRS_RSN_CODE_OUT',
+                'TPS_BYBK_TYPE_CODE_OUT',
+                'TPS_BYBK_STS_CODE_OUT',
+                'TPS_WTHDRW_RSN_CODE_OUT',
+                'TPS_WTHDRW_RSN_TEXT_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'TPS_BYBK_UPD_DATE_OUT',
+                'TPS_BYBK_CMPLT_DATE_INPT_MTH',
+                'TPS_BYBK_CMPLT_DATE_INPT_DATE',
+                'DUMMY',
+            ],
+            target_columns=[
+                'TPS_BYBK_REF_NUM',
+                'TPS_BYBK_CRE_DATE',
+                'HSE_SRVC_APLY_KEY',
+                'TPS_ACTL_ASGN_DATE',
+                'TPS_TNTV_ASGN_DATE',
+                'TPS_BYBK_PRC_AMT',
+                'TPS_RTNT_AMT',
+                'TPS_BYBK_RMK_TEXT',
+                'TPS_RVRS_RSN_TEXT',
+                'RFBH_RQR_IND',
+                'TPS_RVRS_RSN_CODE',
+                'TPS_BYBK_TYPE_CODE',
+                'TPS_BYBK_STS_CODE',
+                'TPS_WTHDRW_RSN_CODE',
+                'TPS_WTHDRW_RSN_TEXT',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'TPS_BYBK_UPD_DATE',
+                'TPS_BYBK_CMPLT_DATE_INPT_MTH',
+                'TPS_BYBK_CMPLT_DATE_INPT_DATE',
+                'DUMMY',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_TOW_TPS_BYBK1 write completed")
         logger.info("Step: write_EMS_TOW_TPS_BYBK")
         # Write to Target: write_EMS_TOW_TPS_BYBK
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "RFBH_RQR_IND": "RFBH_RQR_IND_OUT", "TPS_ACTL_ASGN_DATE": "TPS_ACTL_ASGN_DATE_OUT", "TPS_BYBK_CMPLT_DATE_INPT_DATE": "TPS_BYBK_CMPLT_DATE_INPT_DATE", "TPS_BYBK_CMPLT_DATE_INPT_MTH": "TPS_BYBK_CMPLT_DATE_INPT_MTH", "TPS_BYBK_CRE_DATE": "TPS_BYBK_CRE_DATE_OUT", "TPS_BYBK_PRC_AMT": "TPS_BYBK_PRC_AMT_OUT", "TPS_BYBK_REF_NUM": "TPS_BYBK_REF_NUM_OUT", "TPS_BYBK_RMK_TEXT": "TPS_BYBK_RMK_TEXT_OUT", "TPS_BYBK_STS_CODE": "TPS_BYBK_STS_CODE_OUT", "TPS_BYBK_TYPE_CODE": "TPS_BYBK_TYPE_CODE_OUT", "TPS_BYBK_UPD_DATE": "TPS_BYBK_UPD_DATE_OUT", "TPS_RTNT_AMT": "TPS_RTNT_AMT_OUT", "TPS_RVRS_RSN_CODE": "TPS_RVRS_RSN_CODE_OUT", "TPS_RVRS_RSN_TEXT": "TPS_RVRS_RSN_TEXT_OUT", "TPS_TNTV_ASGN_DATE": "TPS_TNTV_ASGN_DATE_OUT", "TPS_WTHDRW_RSN_CODE": "TPS_WTHDRW_RSN_CODE_OUT", "TPS_WTHDRW_RSN_TEXT": "TPS_WTHDRW_RSN_TEXT_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['TPS_BYBK_REF_NUM', 'TPS_BYBK_CRE_DATE', 'HSE_SRVC_APLY_KEY', 'TPS_ACTL_ASGN_DATE', 'TPS_TNTV_ASGN_DATE', 'TPS_BYBK_PRC_AMT', 'TPS_RTNT_AMT', 'TPS_BYBK_RMK_TEXT', 'TPS_RVRS_RSN_TEXT', 'RFBH_RQR_IND', 'TPS_RVRS_RSN_CODE', 'TPS_BYBK_TYPE_CODE', 'TPS_BYBK_STS_CODE', 'TPS_WTHDRW_RSN_CODE', 'TPS_WTHDRW_RSN_TEXT', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'TPS_BYBK_UPD_DATE', 'TPS_BYBK_CMPLT_DATE_INPT_MTH', 'TPS_BYBK_CMPLT_DATE_INPT_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_TOW_TPS_BYBK", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_TOW_TPS_BYBK',
+            mode='append',
+            source_columns=[
+                'TPS_BYBK_REF_NUM_OUT',
+                'TPS_BYBK_CRE_DATE_OUT',
+                'HSE_SRVC_APLY_KEY_OUT',
+                'TPS_ACTL_ASGN_DATE_OUT',
+                'TPS_TNTV_ASGN_DATE_OUT',
+                'TPS_BYBK_PRC_AMT_OUT',
+                'TPS_RTNT_AMT_OUT',
+                'TPS_BYBK_RMK_TEXT_OUT',
+                'TPS_RVRS_RSN_TEXT_OUT',
+                'RFBH_RQR_IND_OUT',
+                'TPS_RVRS_RSN_CODE_OUT',
+                'TPS_BYBK_TYPE_CODE_OUT',
+                'TPS_BYBK_STS_CODE_OUT',
+                'TPS_WTHDRW_RSN_CODE_OUT',
+                'TPS_WTHDRW_RSN_TEXT_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'TPS_BYBK_UPD_DATE_OUT',
+                'TPS_BYBK_CMPLT_DATE_INPT_MTH',
+                'TPS_BYBK_CMPLT_DATE_INPT_DATE',
+            ],
+            target_columns=[
+                'TPS_BYBK_REF_NUM',
+                'TPS_BYBK_CRE_DATE',
+                'HSE_SRVC_APLY_KEY',
+                'TPS_ACTL_ASGN_DATE',
+                'TPS_TNTV_ASGN_DATE',
+                'TPS_BYBK_PRC_AMT',
+                'TPS_RTNT_AMT',
+                'TPS_BYBK_RMK_TEXT',
+                'TPS_RVRS_RSN_TEXT',
+                'RFBH_RQR_IND',
+                'TPS_RVRS_RSN_CODE',
+                'TPS_BYBK_TYPE_CODE',
+                'TPS_BYBK_STS_CODE',
+                'TPS_WTHDRW_RSN_CODE',
+                'TPS_WTHDRW_RSN_TEXT',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'TPS_BYBK_UPD_DATE',
+                'TPS_BYBK_CMPLT_DATE_INPT_MTH',
+                'TPS_BYBK_CMPLT_DATE_INPT_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_TOW_TPS_BYBK write completed")
         

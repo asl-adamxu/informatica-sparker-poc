@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_SMS_CEP_APLY_V")
@@ -79,88 +64,204 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SMS_CEP_APLY_V")
         # Source Qualifier: apply_SQ_SMS_CEP_APLY_V
         df_SQ_SMS_CEP_APLY_V = df_SMS_CEP_APLY_V
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_SMS_CEP_APLY_V = df_SQ_SMS_CEP_APLY_V.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["CEP_APLY_NUM", "GF_CERT_NUM", "UNIT_CODE_ADDR", "SPLT_FMLY_IND", "FMLY_INCM_AMT", "PRPTY_OWNR_IND", "LTR_ASRN_IND", "RENT_FCTR_RATE", "CEP_APLY_DATE", "FMLY_SIZE_NUM", "LAST_STS_CHNG_DATE", "CEP_APLY_STS_CODE", "VLD_CHK_IND", "DBL_BNFT_IND", "CEP_CERT_PRN_IND", "RNTL_ELGBL_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "GF_CERT_TYPE_CODE", "CEP_APLY_RINSTA_RSN_CODE", "CEP_APLY_CNCL_RSN_CODE", "CEP_APLY_REJ_RSN_CODE", "LAST_REC_TXN_USER_ID_TYPE_CODE"]
-        df_SQ_SMS_CEP_APLY_V = df_SQ_SMS_CEP_APLY_V.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SMS_CEP_APLY_V.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SMS_CEP_APLY_V = lib.sq_output(
+            input_df=df_SQ_SMS_CEP_APLY_V,
+            port_cols={
+                'CEP_APLY_NUM': 'string',
+                'GF_CERT_NUM': 'string',
+                'UNIT_CODE_ADDR': 'string',
+                'SPLT_FMLY_IND': 'string',
+                'FMLY_INCM_AMT': 'decimal',
+                'PRPTY_OWNR_IND': 'string',
+                'LTR_ASRN_IND': 'string',
+                'RENT_FCTR_RATE': 'decimal',
+                'CEP_APLY_DATE': 'date/time',
+                'FMLY_SIZE_NUM': 'decimal',
+                'LAST_STS_CHNG_DATE': 'date/time',
+                'CEP_APLY_STS_CODE': 'string',
+                'VLD_CHK_IND': 'string',
+                'DBL_BNFT_IND': 'string',
+                'CEP_CERT_PRN_IND': 'string',
+                'RNTL_ELGBL_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'string',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'GF_CERT_TYPE_CODE': 'string',
+                'CEP_APLY_RINSTA_RSN_CODE': 'decimal',
+                'CEP_APLY_CNCL_RSN_CODE': 'decimal',
+                'CEP_APLY_REJ_RSN_CODE': 'decimal',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_SMS_CEP_APLY_V", df_SQ_SMS_CEP_APLY_V)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_SMS_CEP_APLY_V
-        df_EXPTRANS = df_EXPTRANS.withColumn("CEP_APLY_NUM_OUT", expr("ltrim(rtrim(CEP_APLY_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CEP_APLY_HKIC_NUM_OUT", expr("NULL"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("GF_CERT_NUM_OUT", expr("ltrim(rtrim(GF_CERT_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("UNIT_CODE_ADDR_OUT", expr("ltrim(rtrim(UNIT_CODE_ADDR))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("SPLT_FMLY_IND_OUT", expr("ltrim(rtrim(SPLT_FMLY_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("FMLY_INCM_AMT_OUT", expr("FMLY_INCM_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PRPTY_OWNR_IND_OUT", expr("ltrim(rtrim(PRPTY_OWNR_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LTR_ASRN_IND_OUT", expr("ltrim(rtrim(LTR_ASRN_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RENT_FCTR_RATE_OUT", expr("RENT_FCTR_RATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CEP_APLY_DATE_OUT", expr("CEP_APLY_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("FMLY_SIZE_NUM_OUT", expr("FMLY_SIZE_NUM"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_STS_CHNG_DATE_OUT", expr("LAST_STS_CHNG_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CEP_APLY_STS_CODE_OUT", expr("ltrim(rtrim(CEP_APLY_STS_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("VLD_CHK_IND_OUT", expr("ltrim(rtrim(VLD_CHK_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DBL_BNFT_IND_OUT", expr("ltrim(rtrim(DBL_BNFT_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CEP_CERT_PRN_IND_OUT", expr("ltrim(rtrim(CEP_CERT_PRN_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RNTL_ELGBL_IND_OUT", expr("ltrim(rtrim(RNTL_ELGBL_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE_OUT", expr("LAST_REC_TXN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("GF_CERT_TYPE_CODE_OUT", expr("ltrim(rtrim(GF_CERT_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CEP_APLY_RINSTA_RSN_CODE_OUT", expr("CEP_APLY_RINSTA_RSN_CODE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CEP_APLY_CNCL_RSN_CODE_OUT", expr("CEP_APLY_CNCL_RSN_CODE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CEP_APLY_REJ_RSN_CODE_OUT", expr("CEP_APLY_REJ_RSN_CODE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("'|'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_SMS_CEP_APLY_V,
+            computed_columns=[
+                {'name': 'CEP_APLY_NUM_OUT', 'expr': 'ltrim(rtrim(CEP_APLY_NUM))'},
+                {'name': 'CEP_APLY_HKIC_NUM_OUT', 'expr': 'NULL'},
+                {'name': 'GF_CERT_NUM_OUT', 'expr': 'ltrim(rtrim(GF_CERT_NUM))'},
+                {'name': 'UNIT_CODE_ADDR_OUT', 'expr': 'ltrim(rtrim(UNIT_CODE_ADDR))'},
+                {'name': 'SPLT_FMLY_IND_OUT', 'expr': 'ltrim(rtrim(SPLT_FMLY_IND))'},
+                {'name': 'FMLY_INCM_AMT_OUT', 'expr': 'FMLY_INCM_AMT'},
+                {'name': 'PRPTY_OWNR_IND_OUT', 'expr': 'ltrim(rtrim(PRPTY_OWNR_IND))'},
+                {'name': 'LTR_ASRN_IND_OUT', 'expr': 'ltrim(rtrim(LTR_ASRN_IND))'},
+                {'name': 'RENT_FCTR_RATE_OUT', 'expr': 'RENT_FCTR_RATE'},
+                {'name': 'CEP_APLY_DATE_OUT', 'expr': 'CEP_APLY_DATE'},
+                {'name': 'FMLY_SIZE_NUM_OUT', 'expr': 'FMLY_SIZE_NUM'},
+                {'name': 'LAST_STS_CHNG_DATE_OUT', 'expr': 'LAST_STS_CHNG_DATE'},
+                {'name': 'CEP_APLY_STS_CODE_OUT', 'expr': 'ltrim(rtrim(CEP_APLY_STS_CODE))'},
+                {'name': 'VLD_CHK_IND_OUT', 'expr': 'ltrim(rtrim(VLD_CHK_IND))'},
+                {'name': 'DBL_BNFT_IND_OUT', 'expr': 'ltrim(rtrim(DBL_BNFT_IND))'},
+                {'name': 'CEP_CERT_PRN_IND_OUT', 'expr': 'ltrim(rtrim(CEP_CERT_PRN_IND))'},
+                {'name': 'RNTL_ELGBL_IND_OUT', 'expr': 'ltrim(rtrim(RNTL_ELGBL_IND))'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_DATE_OUT', 'expr': 'LAST_REC_TXN_DATE'},
+                {'name': 'LAST_REC_TXN_USER_ID_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID))'},
+                {'name': 'GF_CERT_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(GF_CERT_TYPE_CODE))'},
+                {'name': 'CEP_APLY_RINSTA_RSN_CODE_OUT', 'expr': 'CEP_APLY_RINSTA_RSN_CODE'},
+                {'name': 'CEP_APLY_CNCL_RSN_CODE_OUT', 'expr': 'CEP_APLY_CNCL_RSN_CODE'},
+                {'name': 'CEP_APLY_REJ_RSN_CODE_OUT', 'expr': 'CEP_APLY_REJ_RSN_CODE'},
+                {'name': 'LAST_REC_TXN_USER_ID_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID_TYPE_CODE))'},
+                {'name': 'DUMMY', 'expr': "'|'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EMS_SMS_CEP_APLY")
         # Write to Target: write_EMS_SMS_CEP_APLY
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"CEP_APLY_CNCL_RSN_CODE": "CEP_APLY_CNCL_RSN_CODE_OUT", "CEP_APLY_DATE": "CEP_APLY_DATE_OUT", "CEP_APLY_HKIC_NUM": "CEP_APLY_HKIC_NUM_OUT", "CEP_APLY_NUM": "CEP_APLY_NUM_OUT", "CEP_APLY_REJ_RSN_CODE": "CEP_APLY_REJ_RSN_CODE_OUT", "CEP_APLY_RINSTA_RSN_CODE": "CEP_APLY_RINSTA_RSN_CODE_OUT", "CEP_APLY_STS_CODE": "CEP_APLY_STS_CODE_OUT", "CEP_CERT_PRN_IND": "CEP_CERT_PRN_IND_OUT", "DBL_BNFT_IND": "DBL_BNFT_IND_OUT", "FMLY_INCM_AMT": "FMLY_INCM_AMT_OUT", "FMLY_SIZE_NUM": "FMLY_SIZE_NUM_OUT", "GF_CERT_NUM": "GF_CERT_NUM_OUT", "GF_CERT_TYPE_CODE": "GF_CERT_TYPE_CODE_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "LAST_REC_TXN_USER_ID_TYPE_CODE": "LAST_REC_TXN_USER_ID_TYPE_CODE_OUT", "LAST_STS_CHNG_DATE": "LAST_STS_CHNG_DATE_OUT", "LTR_ASRN_IND": "LTR_ASRN_IND_OUT", "PRPTY_OWNR_IND": "PRPTY_OWNR_IND_OUT", "RENT_FCTR_RATE": "RENT_FCTR_RATE_OUT", "RNTL_ELGBL_IND": "RNTL_ELGBL_IND_OUT", "SPLT_FMLY_IND": "SPLT_FMLY_IND_OUT", "UNIT_CODE_ADDR": "UNIT_CODE_ADDR_OUT", "VLD_CHK_IND": "VLD_CHK_IND_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['CEP_APLY_NUM', 'CEP_APLY_HKIC_NUM', 'GF_CERT_NUM', 'UNIT_CODE_ADDR', 'SPLT_FMLY_IND', 'FMLY_INCM_AMT', 'PRPTY_OWNR_IND', 'LTR_ASRN_IND', 'RENT_FCTR_RATE', 'CEP_APLY_DATE', 'FMLY_SIZE_NUM', 'LAST_STS_CHNG_DATE', 'CEP_APLY_STS_CODE', 'VLD_CHK_IND', 'DBL_BNFT_IND', 'CEP_CERT_PRN_IND', 'RNTL_ELGBL_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'GF_CERT_TYPE_CODE', 'CEP_APLY_RINSTA_RSN_CODE', 'CEP_APLY_CNCL_RSN_CODE', 'CEP_APLY_REJ_RSN_CODE', 'LAST_REC_TXN_USER_ID_TYPE_CODE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_SMS_CEP_APLY", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_SMS_CEP_APLY',
+            mode='append',
+            source_columns=[
+                'CEP_APLY_NUM_OUT',
+                'CEP_APLY_HKIC_NUM_OUT',
+                'GF_CERT_NUM_OUT',
+                'UNIT_CODE_ADDR_OUT',
+                'SPLT_FMLY_IND_OUT',
+                'FMLY_INCM_AMT_OUT',
+                'PRPTY_OWNR_IND_OUT',
+                'LTR_ASRN_IND_OUT',
+                'RENT_FCTR_RATE_OUT',
+                'CEP_APLY_DATE_OUT',
+                'FMLY_SIZE_NUM_OUT',
+                'LAST_STS_CHNG_DATE_OUT',
+                'CEP_APLY_STS_CODE_OUT',
+                'VLD_CHK_IND_OUT',
+                'DBL_BNFT_IND_OUT',
+                'CEP_CERT_PRN_IND_OUT',
+                'RNTL_ELGBL_IND_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'GF_CERT_TYPE_CODE_OUT',
+                'CEP_APLY_RINSTA_RSN_CODE_OUT',
+                'CEP_APLY_CNCL_RSN_CODE_OUT',
+                'CEP_APLY_REJ_RSN_CODE_OUT',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE_OUT',
+            ],
+            target_columns=[
+                'CEP_APLY_NUM',
+                'CEP_APLY_HKIC_NUM',
+                'GF_CERT_NUM',
+                'UNIT_CODE_ADDR',
+                'SPLT_FMLY_IND',
+                'FMLY_INCM_AMT',
+                'PRPTY_OWNR_IND',
+                'LTR_ASRN_IND',
+                'RENT_FCTR_RATE',
+                'CEP_APLY_DATE',
+                'FMLY_SIZE_NUM',
+                'LAST_STS_CHNG_DATE',
+                'CEP_APLY_STS_CODE',
+                'VLD_CHK_IND',
+                'DBL_BNFT_IND',
+                'CEP_CERT_PRN_IND',
+                'RNTL_ELGBL_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'GF_CERT_TYPE_CODE',
+                'CEP_APLY_RINSTA_RSN_CODE',
+                'CEP_APLY_CNCL_RSN_CODE',
+                'CEP_APLY_REJ_RSN_CODE',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_SMS_CEP_APLY write completed")
         logger.info("Step: write_EMS_SMS_CEP_APLY1")
         # Write to Target: write_EMS_SMS_CEP_APLY1
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"CEP_APLY_CNCL_RSN_CODE": "CEP_APLY_CNCL_RSN_CODE_OUT", "CEP_APLY_DATE": "CEP_APLY_DATE_OUT", "CEP_APLY_HKIC_NUM": "CEP_APLY_HKIC_NUM_OUT", "CEP_APLY_NUM": "CEP_APLY_NUM_OUT", "CEP_APLY_REJ_RSN_CODE": "CEP_APLY_REJ_RSN_CODE_OUT", "CEP_APLY_RINSTA_RSN_CODE": "CEP_APLY_RINSTA_RSN_CODE_OUT", "CEP_APLY_STS_CODE": "CEP_APLY_STS_CODE_OUT", "CEP_CERT_PRN_IND": "CEP_CERT_PRN_IND_OUT", "DBL_BNFT_IND": "DBL_BNFT_IND_OUT", "DUMMY": "DUMMY", "FMLY_INCM_AMT": "FMLY_INCM_AMT_OUT", "FMLY_SIZE_NUM": "FMLY_SIZE_NUM_OUT", "GF_CERT_NUM": "GF_CERT_NUM_OUT", "GF_CERT_TYPE_CODE": "GF_CERT_TYPE_CODE_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "LAST_REC_TXN_USER_ID_TYPE_CODE": "LAST_REC_TXN_USER_ID_TYPE_CODE_OUT", "LAST_STS_CHNG_DATE": "LAST_STS_CHNG_DATE_OUT", "LTR_ASRN_IND": "LTR_ASRN_IND_OUT", "PRPTY_OWNR_IND": "PRPTY_OWNR_IND_OUT", "RENT_FCTR_RATE": "RENT_FCTR_RATE_OUT", "RNTL_ELGBL_IND": "RNTL_ELGBL_IND_OUT", "SPLT_FMLY_IND": "SPLT_FMLY_IND_OUT", "UNIT_CODE_ADDR": "UNIT_CODE_ADDR_OUT", "VLD_CHK_IND": "VLD_CHK_IND_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['CEP_APLY_NUM', 'CEP_APLY_HKIC_NUM', 'GF_CERT_NUM', 'UNIT_CODE_ADDR', 'SPLT_FMLY_IND', 'FMLY_INCM_AMT', 'PRPTY_OWNR_IND', 'LTR_ASRN_IND', 'RENT_FCTR_RATE', 'CEP_APLY_DATE', 'FMLY_SIZE_NUM', 'LAST_STS_CHNG_DATE', 'CEP_APLY_STS_CODE', 'VLD_CHK_IND', 'DBL_BNFT_IND', 'CEP_CERT_PRN_IND', 'RNTL_ELGBL_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'GF_CERT_TYPE_CODE', 'CEP_APLY_RINSTA_RSN_CODE', 'CEP_APLY_CNCL_RSN_CODE', 'CEP_APLY_REJ_RSN_CODE', 'LAST_REC_TXN_USER_ID_TYPE_CODE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_SMS_CEP_APLY", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_SMS_CEP_APLY',
+            mode='append',
+            source_columns=[
+                'CEP_APLY_NUM_OUT',
+                'CEP_APLY_HKIC_NUM_OUT',
+                'GF_CERT_NUM_OUT',
+                'UNIT_CODE_ADDR_OUT',
+                'SPLT_FMLY_IND_OUT',
+                'FMLY_INCM_AMT_OUT',
+                'PRPTY_OWNR_IND_OUT',
+                'LTR_ASRN_IND_OUT',
+                'RENT_FCTR_RATE_OUT',
+                'CEP_APLY_DATE_OUT',
+                'FMLY_SIZE_NUM_OUT',
+                'LAST_STS_CHNG_DATE_OUT',
+                'CEP_APLY_STS_CODE_OUT',
+                'VLD_CHK_IND_OUT',
+                'DBL_BNFT_IND_OUT',
+                'CEP_CERT_PRN_IND_OUT',
+                'RNTL_ELGBL_IND_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'GF_CERT_TYPE_CODE_OUT',
+                'CEP_APLY_RINSTA_RSN_CODE_OUT',
+                'CEP_APLY_CNCL_RSN_CODE_OUT',
+                'CEP_APLY_REJ_RSN_CODE_OUT',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE_OUT',
+            ],
+            target_columns=[
+                'CEP_APLY_NUM',
+                'CEP_APLY_HKIC_NUM',
+                'GF_CERT_NUM',
+                'UNIT_CODE_ADDR',
+                'SPLT_FMLY_IND',
+                'FMLY_INCM_AMT',
+                'PRPTY_OWNR_IND',
+                'LTR_ASRN_IND',
+                'RENT_FCTR_RATE',
+                'CEP_APLY_DATE',
+                'FMLY_SIZE_NUM',
+                'LAST_STS_CHNG_DATE',
+                'CEP_APLY_STS_CODE',
+                'VLD_CHK_IND',
+                'DBL_BNFT_IND',
+                'CEP_CERT_PRN_IND',
+                'RNTL_ELGBL_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'GF_CERT_TYPE_CODE',
+                'CEP_APLY_RINSTA_RSN_CODE',
+                'CEP_APLY_CNCL_RSN_CODE',
+                'CEP_APLY_REJ_RSN_CODE',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_SMS_CEP_APLY1 write completed")
         

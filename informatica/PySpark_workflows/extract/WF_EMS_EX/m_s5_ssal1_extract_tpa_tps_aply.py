@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_TPA_TPS_APLY_V")
@@ -79,99 +64,257 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_TPA_TPS_APLY_V")
         # Source Qualifier: apply_SQ_TPA_TPS_APLY_V
         df_SQ_TPA_TPS_APLY_V = df_TPA_TPS_APLY_V
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_TPA_TPS_APLY_V = df_SQ_TPA_TPS_APLY_V.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HSE_EST_CODE", "CUR_IND", "HSE_BLK_CODE", "TPS_APLY_TYPE_CODE", "HSE_UNIT_FLAT_NUM", "UNIT_CNV_REF_CODE", "TPS_APLY_SEQ_NUM", "ORIG_APLY_TYPE_CODE", "ORIG_APLY_REF_CODE", "TPS_CHS_DSCT_PCT", "TPS_CHS_LIST_AMT", "CR_PCT", "TPS_CHS_PCHS_AMT", "PCHS_BAL_AMT", "TPS_APLY_CRE_DATE", "TPS_APLY_APRV_DATE", "TPS_APLY_REJ_DATE", "TPS_APLY_RSCN_DATE", "ASGN_DATE", "APLY_MBR_TYPE_CODE", "APLY_MBR_REF_CODE", "ADTN_ROOM_CODE_ADDR", "PRIOR_NUM", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "LAST_REC_TXN_USER_ID_TYPE_CODE", "TPS_APLY_CNCL_RSCN_RSN_CODE", "TPS_APLY_CNCL_RSCN_RSN_TEXT", "TPS_APLY_RVRT_RSN_TEXT", "HOS_PHASE_CODE", "TPS_SPLT_FMLY_IND"]
-        df_SQ_TPA_TPS_APLY_V = df_SQ_TPA_TPS_APLY_V.select([col(c) if c.lower() in [x.lower() for x in df_SQ_TPA_TPS_APLY_V.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_TPA_TPS_APLY_V = lib.sq_output(
+            input_df=df_SQ_TPA_TPS_APLY_V,
+            port_cols={
+                'HSE_EST_CODE': 'string',
+                'CUR_IND': 'string',
+                'HSE_BLK_CODE': 'string',
+                'TPS_APLY_TYPE_CODE': 'string',
+                'HSE_UNIT_FLAT_NUM': 'string',
+                'UNIT_CNV_REF_CODE': 'string',
+                'TPS_APLY_SEQ_NUM': 'string',
+                'ORIG_APLY_TYPE_CODE': 'string',
+                'ORIG_APLY_REF_CODE': 'string',
+                'TPS_CHS_DSCT_PCT': 'decimal',
+                'TPS_CHS_LIST_AMT': 'decimal',
+                'CR_PCT': 'decimal',
+                'TPS_CHS_PCHS_AMT': 'decimal',
+                'PCHS_BAL_AMT': 'decimal',
+                'TPS_APLY_CRE_DATE': 'date/time',
+                'TPS_APLY_APRV_DATE': 'date/time',
+                'TPS_APLY_REJ_DATE': 'date/time',
+                'TPS_APLY_RSCN_DATE': 'date/time',
+                'ASGN_DATE': 'date/time',
+                'APLY_MBR_TYPE_CODE': 'string',
+                'APLY_MBR_REF_CODE': 'string',
+                'ADTN_ROOM_CODE_ADDR': 'string',
+                'PRIOR_NUM': 'decimal',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'string',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE': 'string',
+                'TPS_APLY_CNCL_RSCN_RSN_CODE': 'decimal',
+                'TPS_APLY_CNCL_RSCN_RSN_TEXT': 'string',
+                'TPS_APLY_RVRT_RSN_TEXT': 'string',
+                'HOS_PHASE_CODE': 'string',
+                'TPS_SPLT_FMLY_IND': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_TPA_TPS_APLY_V", df_SQ_TPA_TPS_APLY_V)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_TPA_TPS_APLY_V
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_EST_CODE_OUT", expr("ltrim(rtrim(HSE_EST_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUR_IND_OUT", expr("ltrim(rtrim(CUR_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_BLK_CODE_OUT", expr("ltrim(rtrim(HSE_BLK_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_APLY_TYPE_CODE_OUT", expr("ltrim(rtrim(TPS_APLY_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_UNIT_FLAT_NUM_OUT", expr("ltrim(rtrim(HSE_UNIT_FLAT_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("UNIT_CNV_REF_CODE_OUT", expr("ltrim(rtrim(UNIT_CNV_REF_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_APLY_SEQ_NUM_OUT", expr("ltrim(rtrim(TPS_APLY_SEQ_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ORIG_APLY_TYPE_CODE_OUT", expr("ltrim(rtrim(ORIG_APLY_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ORIG_APLY_REF_CODE_OUT", expr("ltrim(rtrim(ORIG_APLY_REF_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_CHS_DSCT_PCT_OUT", expr("TPS_CHS_DSCT_PCT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_CHS_LIST_AMT_OUT", expr("TPS_CHS_LIST_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CR_PCT_OUT", expr("CR_PCT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_CHS_PCHS_AMT_OUT", expr("TPS_CHS_PCHS_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PCHS_BAL_AMT_OUT", expr("PCHS_BAL_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_APLY_CRE_DATE_OUT", expr("TPS_APLY_CRE_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_APLY_APRV_DATE_OUT", expr("TPS_APLY_APRV_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_APLY_REJ_DATE_OUT", expr("TPS_APLY_REJ_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_APLY_RSCN_DATE_OUT", expr("TPS_APLY_RSCN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ASGN_DATE_OUT", expr("ASGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APLY_MBR_TYPE_CODE_OUT", expr("ltrim(rtrim(APLY_MBR_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APLY_MBR_REF_CODE_OUT", expr("ltrim(rtrim(APLY_MBR_REF_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ADTN_ROOM_CODE_ADDR_OUT", expr("ltrim(rtrim(ADTN_ROOM_CODE_ADDR))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PRIOR_NUM_OUT", expr("PRIOR_NUM"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE_OUT", expr("LAST_REC_TXN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOME_PHONE_NUM_OUT", expr("NULL"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OFFC_PHONE_NUM_OUT", expr("NULL"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_APLY_CNCL_RSCN_RSN_CODE_OUT", expr("TPS_APLY_CNCL_RSCN_RSN_CODE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_APLY_CNCL_RSCN_RSN_TEXT_OUT", expr("ltrim(rtrim(TPS_APLY_CNCL_RSCN_RSN_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_APLY_RVRT_RSN_TEXT_OUT", expr("ltrim(rtrim(TPS_APLY_RVRT_RSN_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_PHASE_CODE_OUT", expr("ltrim(rtrim(HOS_PHASE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_SPLT_FMLY_IND_OUT", expr("ltrim(rtrim(TPS_SPLT_FMLY_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("'|'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_TPA_TPS_APLY_V,
+            computed_columns=[
+                {'name': 'HSE_EST_CODE_OUT', 'expr': 'ltrim(rtrim(HSE_EST_CODE))'},
+                {'name': 'CUR_IND_OUT', 'expr': 'ltrim(rtrim(CUR_IND))'},
+                {'name': 'HSE_BLK_CODE_OUT', 'expr': 'ltrim(rtrim(HSE_BLK_CODE))'},
+                {'name': 'TPS_APLY_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(TPS_APLY_TYPE_CODE))'},
+                {'name': 'HSE_UNIT_FLAT_NUM_OUT', 'expr': 'ltrim(rtrim(HSE_UNIT_FLAT_NUM))'},
+                {'name': 'UNIT_CNV_REF_CODE_OUT', 'expr': 'ltrim(rtrim(UNIT_CNV_REF_CODE))'},
+                {'name': 'TPS_APLY_SEQ_NUM_OUT', 'expr': 'ltrim(rtrim(TPS_APLY_SEQ_NUM))'},
+                {'name': 'ORIG_APLY_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(ORIG_APLY_TYPE_CODE))'},
+                {'name': 'ORIG_APLY_REF_CODE_OUT', 'expr': 'ltrim(rtrim(ORIG_APLY_REF_CODE))'},
+                {'name': 'TPS_CHS_DSCT_PCT_OUT', 'expr': 'TPS_CHS_DSCT_PCT'},
+                {'name': 'TPS_CHS_LIST_AMT_OUT', 'expr': 'TPS_CHS_LIST_AMT'},
+                {'name': 'CR_PCT_OUT', 'expr': 'CR_PCT'},
+                {'name': 'TPS_CHS_PCHS_AMT_OUT', 'expr': 'TPS_CHS_PCHS_AMT'},
+                {'name': 'PCHS_BAL_AMT_OUT', 'expr': 'PCHS_BAL_AMT'},
+                {'name': 'TPS_APLY_CRE_DATE_OUT', 'expr': 'TPS_APLY_CRE_DATE'},
+                {'name': 'TPS_APLY_APRV_DATE_OUT', 'expr': 'TPS_APLY_APRV_DATE'},
+                {'name': 'TPS_APLY_REJ_DATE_OUT', 'expr': 'TPS_APLY_REJ_DATE'},
+                {'name': 'TPS_APLY_RSCN_DATE_OUT', 'expr': 'TPS_APLY_RSCN_DATE'},
+                {'name': 'ASGN_DATE_OUT', 'expr': 'ASGN_DATE'},
+                {'name': 'APLY_MBR_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(APLY_MBR_TYPE_CODE))'},
+                {'name': 'APLY_MBR_REF_CODE_OUT', 'expr': 'ltrim(rtrim(APLY_MBR_REF_CODE))'},
+                {'name': 'ADTN_ROOM_CODE_ADDR_OUT', 'expr': 'ltrim(rtrim(ADTN_ROOM_CODE_ADDR))'},
+                {'name': 'PRIOR_NUM_OUT', 'expr': 'PRIOR_NUM'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_DATE_OUT', 'expr': 'LAST_REC_TXN_DATE'},
+                {'name': 'LAST_REC_TXN_USER_ID_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID))'},
+                {'name': 'LAST_REC_TXN_USER_ID_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID_TYPE_CODE))'},
+                {'name': 'HOME_PHONE_NUM_OUT', 'expr': 'NULL'},
+                {'name': 'OFFC_PHONE_NUM_OUT', 'expr': 'NULL'},
+                {'name': 'TPS_APLY_CNCL_RSCN_RSN_CODE_OUT', 'expr': 'TPS_APLY_CNCL_RSCN_RSN_CODE'},
+                {'name': 'TPS_APLY_CNCL_RSCN_RSN_TEXT_OUT', 'expr': 'ltrim(rtrim(TPS_APLY_CNCL_RSCN_RSN_TEXT))'},
+                {'name': 'TPS_APLY_RVRT_RSN_TEXT_OUT', 'expr': 'ltrim(rtrim(TPS_APLY_RVRT_RSN_TEXT))'},
+                {'name': 'HOS_PHASE_CODE_OUT', 'expr': 'ltrim(rtrim(HOS_PHASE_CODE))'},
+                {'name': 'TPS_SPLT_FMLY_IND_OUT', 'expr': 'ltrim(rtrim(TPS_SPLT_FMLY_IND))'},
+                {'name': 'DUMMY', 'expr': "'|'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EMS_TPA_TPS_APLY1")
         # Write to Target: write_EMS_TPA_TPS_APLY1
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"ADTN_ROOM_CODE_ADDR": "ADTN_ROOM_CODE_ADDR_OUT", "APLY_MBR_REF_CODE": "APLY_MBR_REF_CODE_OUT", "APLY_MBR_TYPE_CODE": "APLY_MBR_TYPE_CODE_OUT", "ASGN_DATE": "ASGN_DATE_OUT", "CR_PCT": "CR_PCT_OUT", "CUR_IND": "CUR_IND_OUT", "DUMMY": "TPS_SPLT_FMLY_IND_OUT", "HOME_PHONE_NUM": "HOME_PHONE_NUM_OUT", "HOS_PHASE_CODE": "HOS_PHASE_CODE_OUT", "HSE_BLK_CODE": "HSE_BLK_CODE_OUT", "HSE_EST_CODE": "HSE_EST_CODE_OUT", "HSE_UNIT_FLAT_NUM": "HSE_UNIT_FLAT_NUM_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "LAST_REC_TXN_USER_ID_TYPE_CODE": "LAST_REC_TXN_USER_ID_TYPE_CODE_OUT", "OFFC_PHONE_NUM": "OFFC_PHONE_NUM_OUT", "ORIG_APLY_REF_CODE": "ORIG_APLY_REF_CODE_OUT", "ORIG_APLY_TYPE_CODE": "ORIG_APLY_TYPE_CODE_OUT", "PCHS_BAL_AMT": "PCHS_BAL_AMT_OUT", "PRIOR_NUM": "PRIOR_NUM_OUT", "TPS_APLY_APRV_DATE": "TPS_APLY_APRV_DATE_OUT", "TPS_APLY_CNCL_RSCN_RSN_CODE": "TPS_APLY_CNCL_RSCN_RSN_CODE_OUT", "TPS_APLY_CNCL_RSCN_RSN_TEXT": "TPS_APLY_CNCL_RSCN_RSN_TEXT_OUT", "TPS_APLY_CRE_DATE": "TPS_APLY_CRE_DATE_OUT", "TPS_APLY_REJ_DATE": "TPS_APLY_REJ_DATE_OUT", "TPS_APLY_RSCN_DATE": "TPS_APLY_RSCN_DATE_OUT", "TPS_APLY_RVRT_RSN_TEXT": "TPS_APLY_RVRT_RSN_TEXT_OUT", "TPS_APLY_SEQ_NUM": "TPS_APLY_SEQ_NUM_OUT", "TPS_APLY_TYPE_CODE": "TPS_APLY_TYPE_CODE_OUT", "TPS_CHS_DSCT_PCT": "TPS_CHS_DSCT_PCT_OUT", "TPS_CHS_LIST_AMT": "TPS_CHS_LIST_AMT_OUT", "TPS_CHS_PCHS_AMT": "TPS_CHS_PCHS_AMT_OUT", "UNIT_CNV_REF_CODE": "UNIT_CNV_REF_CODE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("TPS_SPLT_FMLY_IND", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HSE_EST_CODE', 'CUR_IND', 'HSE_BLK_CODE', 'TPS_APLY_TYPE_CODE', 'HSE_UNIT_FLAT_NUM', 'UNIT_CNV_REF_CODE', 'TPS_APLY_SEQ_NUM', 'ORIG_APLY_TYPE_CODE', 'ORIG_APLY_REF_CODE', 'TPS_CHS_DSCT_PCT', 'TPS_CHS_LIST_AMT', 'CR_PCT', 'TPS_CHS_PCHS_AMT', 'PCHS_BAL_AMT', 'TPS_APLY_CRE_DATE', 'TPS_APLY_APRV_DATE', 'TPS_APLY_REJ_DATE', 'TPS_APLY_RSCN_DATE', 'ASGN_DATE', 'APLY_MBR_TYPE_CODE', 'APLY_MBR_REF_CODE', 'ADTN_ROOM_CODE_ADDR', 'PRIOR_NUM', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'LAST_REC_TXN_USER_ID_TYPE_CODE', 'HOME_PHONE_NUM', 'OFFC_PHONE_NUM', 'TPS_APLY_CNCL_RSCN_RSN_CODE', 'TPS_APLY_CNCL_RSCN_RSN_TEXT', 'TPS_APLY_RVRT_RSN_TEXT', 'HOS_PHASE_CODE', 'TPS_SPLT_FMLY_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_TPA_TPS_APLY", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_TPA_TPS_APLY',
+            mode='append',
+            source_columns=[
+                'HSE_EST_CODE_OUT',
+                'CUR_IND_OUT',
+                'HSE_BLK_CODE_OUT',
+                'TPS_APLY_TYPE_CODE_OUT',
+                'HSE_UNIT_FLAT_NUM_OUT',
+                'UNIT_CNV_REF_CODE_OUT',
+                'TPS_APLY_SEQ_NUM_OUT',
+                'ORIG_APLY_TYPE_CODE_OUT',
+                'ORIG_APLY_REF_CODE_OUT',
+                'TPS_CHS_DSCT_PCT_OUT',
+                'TPS_CHS_LIST_AMT_OUT',
+                'CR_PCT_OUT',
+                'TPS_CHS_PCHS_AMT_OUT',
+                'PCHS_BAL_AMT_OUT',
+                'TPS_APLY_CRE_DATE_OUT',
+                'TPS_APLY_APRV_DATE_OUT',
+                'TPS_APLY_REJ_DATE_OUT',
+                'TPS_APLY_RSCN_DATE_OUT',
+                'ASGN_DATE_OUT',
+                'APLY_MBR_TYPE_CODE_OUT',
+                'APLY_MBR_REF_CODE_OUT',
+                'ADTN_ROOM_CODE_ADDR_OUT',
+                'PRIOR_NUM_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE_OUT',
+                'HOME_PHONE_NUM_OUT',
+                'OFFC_PHONE_NUM_OUT',
+                'TPS_APLY_CNCL_RSCN_RSN_CODE_OUT',
+                'TPS_APLY_CNCL_RSCN_RSN_TEXT_OUT',
+                'TPS_APLY_RVRT_RSN_TEXT_OUT',
+                'HOS_PHASE_CODE_OUT',
+                None,
+            ],
+            target_columns=[
+                'HSE_EST_CODE',
+                'CUR_IND',
+                'HSE_BLK_CODE',
+                'TPS_APLY_TYPE_CODE',
+                'HSE_UNIT_FLAT_NUM',
+                'UNIT_CNV_REF_CODE',
+                'TPS_APLY_SEQ_NUM',
+                'ORIG_APLY_TYPE_CODE',
+                'ORIG_APLY_REF_CODE',
+                'TPS_CHS_DSCT_PCT',
+                'TPS_CHS_LIST_AMT',
+                'CR_PCT',
+                'TPS_CHS_PCHS_AMT',
+                'PCHS_BAL_AMT',
+                'TPS_APLY_CRE_DATE',
+                'TPS_APLY_APRV_DATE',
+                'TPS_APLY_REJ_DATE',
+                'TPS_APLY_RSCN_DATE',
+                'ASGN_DATE',
+                'APLY_MBR_TYPE_CODE',
+                'APLY_MBR_REF_CODE',
+                'ADTN_ROOM_CODE_ADDR',
+                'PRIOR_NUM',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE',
+                'HOME_PHONE_NUM',
+                'OFFC_PHONE_NUM',
+                'TPS_APLY_CNCL_RSCN_RSN_CODE',
+                'TPS_APLY_CNCL_RSCN_RSN_TEXT',
+                'TPS_APLY_RVRT_RSN_TEXT',
+                'HOS_PHASE_CODE',
+                'TPS_SPLT_FMLY_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_TPA_TPS_APLY1 write completed")
         logger.info("Step: write_EMS_TPA_TPS_APLY")
         # Write to Target: write_EMS_TPA_TPS_APLY
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"ADTN_ROOM_CODE_ADDR": "ADTN_ROOM_CODE_ADDR_OUT", "APLY_MBR_REF_CODE": "APLY_MBR_REF_CODE_OUT", "APLY_MBR_TYPE_CODE": "APLY_MBR_TYPE_CODE_OUT", "ASGN_DATE": "ASGN_DATE_OUT", "CR_PCT": "CR_PCT_OUT", "CUR_IND": "CUR_IND_OUT", "HOME_PHONE_NUM": "HOME_PHONE_NUM_OUT", "HOS_PHASE_CODE": "HOS_PHASE_CODE_OUT", "HSE_BLK_CODE": "HSE_BLK_CODE_OUT", "HSE_EST_CODE": "HSE_EST_CODE_OUT", "HSE_UNIT_FLAT_NUM": "HSE_UNIT_FLAT_NUM_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "LAST_REC_TXN_USER_ID_TYPE_CODE": "LAST_REC_TXN_USER_ID_TYPE_CODE_OUT", "OFFC_PHONE_NUM": "OFFC_PHONE_NUM_OUT", "ORIG_APLY_REF_CODE": "ORIG_APLY_REF_CODE_OUT", "ORIG_APLY_TYPE_CODE": "ORIG_APLY_TYPE_CODE_OUT", "PCHS_BAL_AMT": "PCHS_BAL_AMT_OUT", "PRIOR_NUM": "PRIOR_NUM_OUT", "TPS_APLY_APRV_DATE": "TPS_APLY_APRV_DATE_OUT", "TPS_APLY_CNCL_RSCN_RSN_CODE": "TPS_APLY_CNCL_RSCN_RSN_CODE_OUT", "TPS_APLY_CNCL_RSCN_RSN_TEXT": "TPS_APLY_CNCL_RSCN_RSN_TEXT_OUT", "TPS_APLY_CRE_DATE": "TPS_APLY_CRE_DATE_OUT", "TPS_APLY_REJ_DATE": "TPS_APLY_REJ_DATE_OUT", "TPS_APLY_RSCN_DATE": "TPS_APLY_RSCN_DATE_OUT", "TPS_APLY_RVRT_RSN_TEXT": "TPS_APLY_RVRT_RSN_TEXT_OUT", "TPS_APLY_SEQ_NUM": "TPS_APLY_SEQ_NUM_OUT", "TPS_APLY_TYPE_CODE": "TPS_APLY_TYPE_CODE_OUT", "TPS_CHS_DSCT_PCT": "TPS_CHS_DSCT_PCT_OUT", "TPS_CHS_LIST_AMT": "TPS_CHS_LIST_AMT_OUT", "TPS_CHS_PCHS_AMT": "TPS_CHS_PCHS_AMT_OUT", "TPS_SPLT_FMLY_IND": "TPS_SPLT_FMLY_IND_OUT", "UNIT_CNV_REF_CODE": "UNIT_CNV_REF_CODE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HSE_EST_CODE', 'CUR_IND', 'HSE_BLK_CODE', 'TPS_APLY_TYPE_CODE', 'HSE_UNIT_FLAT_NUM', 'UNIT_CNV_REF_CODE', 'TPS_APLY_SEQ_NUM', 'ORIG_APLY_TYPE_CODE', 'ORIG_APLY_REF_CODE', 'TPS_CHS_DSCT_PCT', 'TPS_CHS_LIST_AMT', 'CR_PCT', 'TPS_CHS_PCHS_AMT', 'PCHS_BAL_AMT', 'TPS_APLY_CRE_DATE', 'TPS_APLY_APRV_DATE', 'TPS_APLY_REJ_DATE', 'TPS_APLY_RSCN_DATE', 'ASGN_DATE', 'APLY_MBR_TYPE_CODE', 'APLY_MBR_REF_CODE', 'ADTN_ROOM_CODE_ADDR', 'PRIOR_NUM', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'LAST_REC_TXN_USER_ID_TYPE_CODE', 'HOME_PHONE_NUM', 'OFFC_PHONE_NUM', 'TPS_APLY_CNCL_RSCN_RSN_CODE', 'TPS_APLY_CNCL_RSCN_RSN_TEXT', 'TPS_APLY_RVRT_RSN_TEXT', 'HOS_PHASE_CODE', 'TPS_SPLT_FMLY_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_TPA_TPS_APLY", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_TPA_TPS_APLY',
+            mode='append',
+            source_columns=[
+                'HSE_EST_CODE_OUT',
+                'CUR_IND_OUT',
+                'HSE_BLK_CODE_OUT',
+                'TPS_APLY_TYPE_CODE_OUT',
+                'HSE_UNIT_FLAT_NUM_OUT',
+                'UNIT_CNV_REF_CODE_OUT',
+                'TPS_APLY_SEQ_NUM_OUT',
+                'ORIG_APLY_TYPE_CODE_OUT',
+                'ORIG_APLY_REF_CODE_OUT',
+                'TPS_CHS_DSCT_PCT_OUT',
+                'TPS_CHS_LIST_AMT_OUT',
+                'CR_PCT_OUT',
+                'TPS_CHS_PCHS_AMT_OUT',
+                'PCHS_BAL_AMT_OUT',
+                'TPS_APLY_CRE_DATE_OUT',
+                'TPS_APLY_APRV_DATE_OUT',
+                'TPS_APLY_REJ_DATE_OUT',
+                'TPS_APLY_RSCN_DATE_OUT',
+                'ASGN_DATE_OUT',
+                'APLY_MBR_TYPE_CODE_OUT',
+                'APLY_MBR_REF_CODE_OUT',
+                'ADTN_ROOM_CODE_ADDR_OUT',
+                'PRIOR_NUM_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE_OUT',
+                'HOME_PHONE_NUM_OUT',
+                'OFFC_PHONE_NUM_OUT',
+                'TPS_APLY_CNCL_RSCN_RSN_CODE_OUT',
+                'TPS_APLY_CNCL_RSCN_RSN_TEXT_OUT',
+                'TPS_APLY_RVRT_RSN_TEXT_OUT',
+                'HOS_PHASE_CODE_OUT',
+                'TPS_SPLT_FMLY_IND_OUT',
+            ],
+            target_columns=[
+                'HSE_EST_CODE',
+                'CUR_IND',
+                'HSE_BLK_CODE',
+                'TPS_APLY_TYPE_CODE',
+                'HSE_UNIT_FLAT_NUM',
+                'UNIT_CNV_REF_CODE',
+                'TPS_APLY_SEQ_NUM',
+                'ORIG_APLY_TYPE_CODE',
+                'ORIG_APLY_REF_CODE',
+                'TPS_CHS_DSCT_PCT',
+                'TPS_CHS_LIST_AMT',
+                'CR_PCT',
+                'TPS_CHS_PCHS_AMT',
+                'PCHS_BAL_AMT',
+                'TPS_APLY_CRE_DATE',
+                'TPS_APLY_APRV_DATE',
+                'TPS_APLY_REJ_DATE',
+                'TPS_APLY_RSCN_DATE',
+                'ASGN_DATE',
+                'APLY_MBR_TYPE_CODE',
+                'APLY_MBR_REF_CODE',
+                'ADTN_ROOM_CODE_ADDR',
+                'PRIOR_NUM',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE',
+                'HOME_PHONE_NUM',
+                'OFFC_PHONE_NUM',
+                'TPS_APLY_CNCL_RSCN_RSN_CODE',
+                'TPS_APLY_CNCL_RSCN_RSN_TEXT',
+                'TPS_APLY_RVRT_RSN_TEXT',
+                'HOS_PHASE_CODE',
+                'TPS_SPLT_FMLY_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_TPA_TPS_APLY write completed")
         

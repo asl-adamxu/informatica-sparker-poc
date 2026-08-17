@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_HSP_TNT_INCM_DCLR")
@@ -79,93 +64,235 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_HSP_TNT_INCM_DCLR")
         # Source Qualifier: apply_SQ_HSP_TNT_INCM_DCLR
         df_SQ_HSP_TNT_INCM_DCLR = df_HSP_TNT_INCM_DCLR
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_HSP_TNT_INCM_DCLR = df_SQ_HSP_TNT_INCM_DCLR.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HSP_REC_KEY", "CUST_KEY", "HSE_SRVC_APLY_KEY", "HSE_UNIT_KEY", "HSP_RVW_CYCL_YEAR_MTH", "HSP_STS_CODE", "HSP_IDF_STS_IND", "HSP_REF_PHRM_IND", "HSP_OPT_NOT_DCLR_IND", "HSP_FRST_PRN_IND", "FMLY_SIZE_NUM", "HSHLD_INCM_AMT", "HSP_RENT_FCTR_CODE", "HSP_RENT_BGN_DATE", "HSP_RENT_END_DATE", "HSP_RENT_CHNG_RSN_CODE", "HSP_RENT_CHNG_RSN_TEXT", "HSP_RMK_TEXT", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "RENT_RVW_CATG_CODE", "RENT_RVW_CATG_BGN_DATE", "HSP_CASE_TYPE_CODE", "HSP_EXTRC_DATE", "IMG_DOC_KEY", "IMG_MINS_KEY", "ORIG_HSE_SRVC_APLY_KEY", "EXTR_RENT_FRST_PRN_IND", "EXTR_RENT_DTL_FRST_PRN_IND"]
-        df_SQ_HSP_TNT_INCM_DCLR = df_SQ_HSP_TNT_INCM_DCLR.select([col(c) if c.lower() in [x.lower() for x in df_SQ_HSP_TNT_INCM_DCLR.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_HSP_TNT_INCM_DCLR = lib.sq_output(
+            input_df=df_SQ_HSP_TNT_INCM_DCLR,
+            port_cols={
+                'HSP_REC_KEY': 'decimal',
+                'CUST_KEY': 'string',
+                'HSE_SRVC_APLY_KEY': 'string',
+                'HSE_UNIT_KEY': 'string',
+                'HSP_RVW_CYCL_YEAR_MTH': 'decimal',
+                'HSP_STS_CODE': 'string',
+                'HSP_IDF_STS_IND': 'string',
+                'HSP_REF_PHRM_IND': 'string',
+                'HSP_OPT_NOT_DCLR_IND': 'string',
+                'HSP_FRST_PRN_IND': 'string',
+                'FMLY_SIZE_NUM': 'decimal',
+                'HSHLD_INCM_AMT': 'decimal',
+                'HSP_RENT_FCTR_CODE': 'decimal',
+                'HSP_RENT_BGN_DATE': 'date/time',
+                'HSP_RENT_END_DATE': 'date/time',
+                'HSP_RENT_CHNG_RSN_CODE': 'string',
+                'HSP_RENT_CHNG_RSN_TEXT': 'string',
+                'HSP_RMK_TEXT': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'string',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'RENT_RVW_CATG_CODE': 'string',
+                'RENT_RVW_CATG_BGN_DATE': 'date/time',
+                'HSP_CASE_TYPE_CODE': 'string',
+                'HSP_EXTRC_DATE': 'date/time',
+                'IMG_DOC_KEY': 'string',
+                'IMG_MINS_KEY': 'string',
+                'ORIG_HSE_SRVC_APLY_KEY': 'string',
+                'EXTR_RENT_FRST_PRN_IND': 'string',
+                'EXTR_RENT_DTL_FRST_PRN_IND': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_HSP_TNT_INCM_DCLR", df_SQ_HSP_TNT_INCM_DCLR)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_HSP_TNT_INCM_DCLR
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSP_REC_KEY_OUT", expr("HSP_REC_KEY"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_KEY_OUT", expr("ltrim(rtrim(CUST_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_SRVC_APLY_KEY_OUT", expr("ltrim(rtrim(HSE_SRVC_APLY_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_UNIT_KEY_OUT", expr("ltrim(rtrim(HSE_UNIT_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSP_RVW_YEAR_OUT", expr("HSP_RVW_CYCL_YEAR_MTH"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSP_STS_CODE_OUT", expr("ltrim(rtrim(HSP_STS_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSP_IDF_STS_IND_OUT", expr("ltrim(rtrim(HSP_IDF_STS_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSP_REF_PHRM_IND_OUT", expr("ltrim(rtrim(HSP_REF_PHRM_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSP_OPT_NOT_DCLR_IND_OUT", expr("ltrim(rtrim(HSP_OPT_NOT_DCLR_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSP_FRST_PRN_IND_OUT", expr("ltrim(rtrim(HSP_FRST_PRN_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("FMLY_SIZE_NUM_OUT", expr("FMLY_SIZE_NUM"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSHLD_INCM_AMT_OUT", expr("HSHLD_INCM_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSP_RENT_FCTR_CODE_OUT", expr("HSP_RENT_FCTR_CODE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSP_RENT_BGN_DATE_OUT", expr("HSP_RENT_BGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSP_RENT_END_DATE_OUT", expr("HSP_RENT_END_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSP_RENT_CHNG_RSN_CODE_OUT", expr("ltrim(rtrim(HSP_RENT_CHNG_RSN_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSP_RENT_CHNG_RSN_TEXT_OUT", expr("ltrim(rtrim(HSP_RENT_CHNG_RSN_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSP_RMK_TEXT_OUT", expr("ltrim(rtrim(HSP_RMK_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE_OUT", expr("LAST_REC_TXN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RENT_RVW_CATG_CODE_OUT", expr("ltrim(rtrim(RENT_RVW_CATG_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RENT_RVW_CATG_BGN_DATE_OUT", expr("RENT_RVW_CATG_BGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSP_CASE_TYPE_CODE_OUT", expr("ltrim(rtrim(HSP_CASE_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSP_EXTRC_DATE_OUT", expr("HSP_EXTRC_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("'|'"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("IMG_DOC_KEY_OUT", expr("ltrim(rtrim(IMG_DOC_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("IMG_MINS_KEY_OUT", expr("ltrim(rtrim(IMG_MINS_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ORIG_HSE_SRVC_APLY_KEY_OUT", expr("ltrim(rtrim(ORIG_HSE_SRVC_APLY_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("EXTR_RENT_FRST_PRN_IND_OUT", expr("ltrim(rtrim(EXTR_RENT_FRST_PRN_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("EXTR_RENT_DTL_FRST_PRN_IND_OUT", expr("ltrim(rtrim(EXTR_RENT_DTL_FRST_PRN_IND))"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_HSP_TNT_INCM_DCLR,
+            computed_columns=[
+                {'name': 'HSP_REC_KEY_OUT', 'expr': 'HSP_REC_KEY'},
+                {'name': 'CUST_KEY_OUT', 'expr': 'ltrim(rtrim(CUST_KEY))'},
+                {'name': 'HSE_SRVC_APLY_KEY_OUT', 'expr': 'ltrim(rtrim(HSE_SRVC_APLY_KEY))'},
+                {'name': 'HSE_UNIT_KEY_OUT', 'expr': 'ltrim(rtrim(HSE_UNIT_KEY))'},
+                {'name': 'HSP_RVW_YEAR_OUT', 'expr': 'HSP_RVW_CYCL_YEAR_MTH'},
+                {'name': 'HSP_STS_CODE_OUT', 'expr': 'ltrim(rtrim(HSP_STS_CODE))'},
+                {'name': 'HSP_IDF_STS_IND_OUT', 'expr': 'ltrim(rtrim(HSP_IDF_STS_IND))'},
+                {'name': 'HSP_REF_PHRM_IND_OUT', 'expr': 'ltrim(rtrim(HSP_REF_PHRM_IND))'},
+                {'name': 'HSP_OPT_NOT_DCLR_IND_OUT', 'expr': 'ltrim(rtrim(HSP_OPT_NOT_DCLR_IND))'},
+                {'name': 'HSP_FRST_PRN_IND_OUT', 'expr': 'ltrim(rtrim(HSP_FRST_PRN_IND))'},
+                {'name': 'FMLY_SIZE_NUM_OUT', 'expr': 'FMLY_SIZE_NUM'},
+                {'name': 'HSHLD_INCM_AMT_OUT', 'expr': 'HSHLD_INCM_AMT'},
+                {'name': 'HSP_RENT_FCTR_CODE_OUT', 'expr': 'HSP_RENT_FCTR_CODE'},
+                {'name': 'HSP_RENT_BGN_DATE_OUT', 'expr': 'HSP_RENT_BGN_DATE'},
+                {'name': 'HSP_RENT_END_DATE_OUT', 'expr': 'HSP_RENT_END_DATE'},
+                {'name': 'HSP_RENT_CHNG_RSN_CODE_OUT', 'expr': 'ltrim(rtrim(HSP_RENT_CHNG_RSN_CODE))'},
+                {'name': 'HSP_RENT_CHNG_RSN_TEXT_OUT', 'expr': 'ltrim(rtrim(HSP_RENT_CHNG_RSN_TEXT))'},
+                {'name': 'HSP_RMK_TEXT_OUT', 'expr': 'ltrim(rtrim(HSP_RMK_TEXT))'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_DATE_OUT', 'expr': 'LAST_REC_TXN_DATE'},
+                {'name': 'LAST_REC_TXN_USER_ID_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID))'},
+                {'name': 'RENT_RVW_CATG_CODE_OUT', 'expr': 'ltrim(rtrim(RENT_RVW_CATG_CODE))'},
+                {'name': 'RENT_RVW_CATG_BGN_DATE_OUT', 'expr': 'RENT_RVW_CATG_BGN_DATE'},
+                {'name': 'HSP_CASE_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(HSP_CASE_TYPE_CODE))'},
+                {'name': 'HSP_EXTRC_DATE_OUT', 'expr': 'HSP_EXTRC_DATE'},
+                {'name': 'DUMMY', 'expr': "'|'"},
+                {'name': 'IMG_DOC_KEY_OUT', 'expr': 'ltrim(rtrim(IMG_DOC_KEY))'},
+                {'name': 'IMG_MINS_KEY_OUT', 'expr': 'ltrim(rtrim(IMG_MINS_KEY))'},
+                {'name': 'ORIG_HSE_SRVC_APLY_KEY_OUT', 'expr': 'ltrim(rtrim(ORIG_HSE_SRVC_APLY_KEY))'},
+                {'name': 'EXTR_RENT_FRST_PRN_IND_OUT', 'expr': 'ltrim(rtrim(EXTR_RENT_FRST_PRN_IND))'},
+                {'name': 'EXTR_RENT_DTL_FRST_PRN_IND_OUT', 'expr': 'ltrim(rtrim(EXTR_RENT_DTL_FRST_PRN_IND))'}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EMS_HSP_TNT_INCM_DCLR1")
         # Write to Target: write_EMS_HSP_TNT_INCM_DCLR1
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"CUST_KEY": "CUST_KEY_OUT", "DUMMY": "DUMMY", "EXTR_RENT_DTL_FRST_PRN_IND": "EXTR_RENT_DTL_FRST_PRN_IND_OUT", "EXTR_RENT_FRST_PRN_IND": "EXTR_RENT_FRST_PRN_IND_OUT", "FMLY_SIZE_NUM": "FMLY_SIZE_NUM_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "HSE_UNIT_KEY": "HSE_UNIT_KEY_OUT", "HSHLD_INCM_AMT": "HSHLD_INCM_AMT_OUT", "HSP_CASE_TYPE_CODE": "HSP_CASE_TYPE_CODE_OUT", "HSP_EXTRC_DATE": "HSP_EXTRC_DATE_OUT", "HSP_FRST_PRN_IND": "HSP_FRST_PRN_IND_OUT", "HSP_IDF_STS_IND": "HSP_IDF_STS_IND_OUT", "HSP_OPT_NOT_DCLR_IND": "HSP_OPT_NOT_DCLR_IND_OUT", "HSP_REC_KEY": "HSP_REC_KEY_OUT", "HSP_REF_PHRM_IND": "HSP_REF_PHRM_IND_OUT", "HSP_RENT_BGN_DATE": "HSP_RENT_BGN_DATE_OUT", "HSP_RENT_CHNG_RSN_CODE": "HSP_RENT_CHNG_RSN_CODE_OUT", "HSP_RENT_CHNG_RSN_TEXT": "HSP_RENT_CHNG_RSN_TEXT_OUT", "HSP_RENT_END_DATE": "HSP_RENT_END_DATE_OUT", "HSP_RENT_FCTR_CODE": "HSP_RENT_FCTR_CODE_OUT", "HSP_RMK_TEXT": "HSP_RMK_TEXT_OUT", "HSP_RVW_YEAR": "HSP_RVW_YEAR_OUT", "HSP_STS_CODE": "HSP_STS_CODE_OUT", "IMG_DOC_KEY": "IMG_DOC_KEY_OUT", "IMG_MINS_KEY": "IMG_MINS_KEY_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "ORIG_HSE_SRVC_APLY_KEY": "ORIG_HSE_SRVC_APLY_KEY_OUT", "RENT_RVW_CATG_BGN_DATE": "RENT_RVW_CATG_BGN_DATE_OUT", "RENT_RVW_CATG_CODE": "RENT_RVW_CATG_CODE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HSP_REC_KEY', 'CUST_KEY', 'HSE_SRVC_APLY_KEY', 'HSE_UNIT_KEY', 'HSP_RVW_YEAR', 'HSP_STS_CODE', 'HSP_IDF_STS_IND', 'HSP_REF_PHRM_IND', 'HSP_OPT_NOT_DCLR_IND', 'HSP_FRST_PRN_IND', 'FMLY_SIZE_NUM', 'HSHLD_INCM_AMT', 'HSP_RENT_FCTR_CODE', 'HSP_RENT_BGN_DATE', 'HSP_RENT_END_DATE', 'HSP_RENT_CHNG_RSN_CODE', 'HSP_RENT_CHNG_RSN_TEXT', 'HSP_RMK_TEXT', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'RENT_RVW_CATG_CODE', 'RENT_RVW_CATG_BGN_DATE', 'HSP_CASE_TYPE_CODE', 'HSP_EXTRC_DATE', 'IMG_DOC_KEY', 'IMG_MINS_KEY', 'ORIG_HSE_SRVC_APLY_KEY', 'EXTR_RENT_DTL_FRST_PRN_IND', 'EXTR_RENT_FRST_PRN_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_HSP_TNT_INCM_DCLR", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_HSP_TNT_INCM_DCLR',
+            mode='append',
+            source_columns=[
+                'HSP_REC_KEY_OUT',
+                'CUST_KEY_OUT',
+                'HSE_SRVC_APLY_KEY_OUT',
+                'HSE_UNIT_KEY_OUT',
+                'HSP_RVW_YEAR_OUT',
+                'HSP_STS_CODE_OUT',
+                'HSP_IDF_STS_IND_OUT',
+                'HSP_REF_PHRM_IND_OUT',
+                'HSP_OPT_NOT_DCLR_IND_OUT',
+                'HSP_FRST_PRN_IND_OUT',
+                'FMLY_SIZE_NUM_OUT',
+                'HSHLD_INCM_AMT_OUT',
+                'HSP_RENT_FCTR_CODE_OUT',
+                'HSP_RENT_BGN_DATE_OUT',
+                'HSP_RENT_END_DATE_OUT',
+                'HSP_RENT_CHNG_RSN_CODE_OUT',
+                'HSP_RENT_CHNG_RSN_TEXT_OUT',
+                'HSP_RMK_TEXT_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'RENT_RVW_CATG_CODE_OUT',
+                'RENT_RVW_CATG_BGN_DATE_OUT',
+                'HSP_CASE_TYPE_CODE_OUT',
+                'HSP_EXTRC_DATE_OUT',
+                'IMG_DOC_KEY_OUT',
+                'IMG_MINS_KEY_OUT',
+                'ORIG_HSE_SRVC_APLY_KEY_OUT',
+                'EXTR_RENT_DTL_FRST_PRN_IND_OUT',
+                'EXTR_RENT_FRST_PRN_IND_OUT',
+            ],
+            target_columns=[
+                'HSP_REC_KEY',
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'HSE_UNIT_KEY',
+                'HSP_RVW_YEAR',
+                'HSP_STS_CODE',
+                'HSP_IDF_STS_IND',
+                'HSP_REF_PHRM_IND',
+                'HSP_OPT_NOT_DCLR_IND',
+                'HSP_FRST_PRN_IND',
+                'FMLY_SIZE_NUM',
+                'HSHLD_INCM_AMT',
+                'HSP_RENT_FCTR_CODE',
+                'HSP_RENT_BGN_DATE',
+                'HSP_RENT_END_DATE',
+                'HSP_RENT_CHNG_RSN_CODE',
+                'HSP_RENT_CHNG_RSN_TEXT',
+                'HSP_RMK_TEXT',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'RENT_RVW_CATG_CODE',
+                'RENT_RVW_CATG_BGN_DATE',
+                'HSP_CASE_TYPE_CODE',
+                'HSP_EXTRC_DATE',
+                'IMG_DOC_KEY',
+                'IMG_MINS_KEY',
+                'ORIG_HSE_SRVC_APLY_KEY',
+                'EXTR_RENT_DTL_FRST_PRN_IND',
+                'EXTR_RENT_FRST_PRN_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_HSP_TNT_INCM_DCLR1 write completed")
         logger.info("Step: write_EMS_HSP_TNT_INCM_DCLR")
         # Write to Target: write_EMS_HSP_TNT_INCM_DCLR
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"CUST_KEY": "CUST_KEY_OUT", "EXTR_RENT_DTL_FRST_PRN_IND": "EXTR_RENT_DTL_FRST_PRN_IND_OUT", "EXTR_RENT_FRST_PRN_IND": "EXTR_RENT_FRST_PRN_IND_OUT", "FMLY_SIZE_NUM": "FMLY_SIZE_NUM_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "HSE_UNIT_KEY": "HSE_UNIT_KEY_OUT", "HSHLD_INCM_AMT": "HSHLD_INCM_AMT_OUT", "HSP_CASE_TYPE_CODE": "HSP_CASE_TYPE_CODE_OUT", "HSP_EXTRC_DATE": "HSP_EXTRC_DATE_OUT", "HSP_FRST_PRN_IND": "HSP_FRST_PRN_IND_OUT", "HSP_IDF_STS_IND": "HSP_IDF_STS_IND_OUT", "HSP_OPT_NOT_DCLR_IND": "HSP_OPT_NOT_DCLR_IND_OUT", "HSP_REC_KEY": "HSP_REC_KEY_OUT", "HSP_REF_PHRM_IND": "HSP_REF_PHRM_IND_OUT", "HSP_RENT_BGN_DATE": "HSP_RENT_BGN_DATE_OUT", "HSP_RENT_CHNG_RSN_CODE": "HSP_RENT_CHNG_RSN_CODE_OUT", "HSP_RENT_CHNG_RSN_TEXT": "HSP_RENT_CHNG_RSN_TEXT_OUT", "HSP_RENT_END_DATE": "HSP_RENT_END_DATE_OUT", "HSP_RENT_FCTR_CODE": "HSP_RENT_FCTR_CODE_OUT", "HSP_RMK_TEXT": "HSP_RMK_TEXT_OUT", "HSP_RVW_YEAR": "HSP_RVW_YEAR_OUT", "HSP_STS_CODE": "HSP_STS_CODE_OUT", "IMG_DOC_KEY": "IMG_DOC_KEY_OUT", "IMG_MINS_KEY": "IMG_MINS_KEY_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "ORIG_HSE_SRVC_APLY_KEY": "ORIG_HSE_SRVC_APLY_KEY_OUT", "RENT_RVW_CATG_BGN_DATE": "RENT_RVW_CATG_BGN_DATE_OUT", "RENT_RVW_CATG_CODE": "RENT_RVW_CATG_CODE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HSP_REC_KEY', 'CUST_KEY', 'HSE_SRVC_APLY_KEY', 'HSE_UNIT_KEY', 'HSP_RVW_YEAR', 'HSP_STS_CODE', 'HSP_IDF_STS_IND', 'HSP_REF_PHRM_IND', 'HSP_OPT_NOT_DCLR_IND', 'HSP_FRST_PRN_IND', 'FMLY_SIZE_NUM', 'HSHLD_INCM_AMT', 'HSP_RENT_FCTR_CODE', 'HSP_RENT_BGN_DATE', 'HSP_RENT_END_DATE', 'HSP_RENT_CHNG_RSN_CODE', 'HSP_RENT_CHNG_RSN_TEXT', 'HSP_RMK_TEXT', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'RENT_RVW_CATG_CODE', 'RENT_RVW_CATG_BGN_DATE', 'HSP_CASE_TYPE_CODE', 'HSP_EXTRC_DATE', 'IMG_DOC_KEY', 'IMG_MINS_KEY', 'ORIG_HSE_SRVC_APLY_KEY', 'EXTR_RENT_DTL_FRST_PRN_IND', 'EXTR_RENT_FRST_PRN_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_HSP_TNT_INCM_DCLR", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_HSP_TNT_INCM_DCLR',
+            mode='append',
+            source_columns=[
+                'HSP_REC_KEY_OUT',
+                'CUST_KEY_OUT',
+                'HSE_SRVC_APLY_KEY_OUT',
+                'HSE_UNIT_KEY_OUT',
+                'HSP_RVW_YEAR_OUT',
+                'HSP_STS_CODE_OUT',
+                'HSP_IDF_STS_IND_OUT',
+                'HSP_REF_PHRM_IND_OUT',
+                'HSP_OPT_NOT_DCLR_IND_OUT',
+                'HSP_FRST_PRN_IND_OUT',
+                'FMLY_SIZE_NUM_OUT',
+                'HSHLD_INCM_AMT_OUT',
+                'HSP_RENT_FCTR_CODE_OUT',
+                'HSP_RENT_BGN_DATE_OUT',
+                'HSP_RENT_END_DATE_OUT',
+                'HSP_RENT_CHNG_RSN_CODE_OUT',
+                'HSP_RENT_CHNG_RSN_TEXT_OUT',
+                'HSP_RMK_TEXT_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'RENT_RVW_CATG_CODE_OUT',
+                'RENT_RVW_CATG_BGN_DATE_OUT',
+                'HSP_CASE_TYPE_CODE_OUT',
+                'HSP_EXTRC_DATE_OUT',
+                'IMG_DOC_KEY_OUT',
+                'IMG_MINS_KEY_OUT',
+                'ORIG_HSE_SRVC_APLY_KEY_OUT',
+                'EXTR_RENT_DTL_FRST_PRN_IND_OUT',
+                'EXTR_RENT_FRST_PRN_IND_OUT',
+            ],
+            target_columns=[
+                'HSP_REC_KEY',
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'HSE_UNIT_KEY',
+                'HSP_RVW_YEAR',
+                'HSP_STS_CODE',
+                'HSP_IDF_STS_IND',
+                'HSP_REF_PHRM_IND',
+                'HSP_OPT_NOT_DCLR_IND',
+                'HSP_FRST_PRN_IND',
+                'FMLY_SIZE_NUM',
+                'HSHLD_INCM_AMT',
+                'HSP_RENT_FCTR_CODE',
+                'HSP_RENT_BGN_DATE',
+                'HSP_RENT_END_DATE',
+                'HSP_RENT_CHNG_RSN_CODE',
+                'HSP_RENT_CHNG_RSN_TEXT',
+                'HSP_RMK_TEXT',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'RENT_RVW_CATG_CODE',
+                'RENT_RVW_CATG_BGN_DATE',
+                'HSP_CASE_TYPE_CODE',
+                'HSP_EXTRC_DATE',
+                'IMG_DOC_KEY',
+                'IMG_MINS_KEY',
+                'ORIG_HSE_SRVC_APLY_KEY',
+                'EXTR_RENT_DTL_FRST_PRN_IND',
+                'EXTR_RENT_FRST_PRN_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_HSP_TNT_INCM_DCLR write completed")
         

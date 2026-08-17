@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_CPM_CUST_APLY_MBR")
@@ -79,137 +64,546 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_CPM_CUST_APLY_MBR")
         # Source Qualifier: apply_SQ_CPM_CUST_APLY_MBR
         df_SQ_CPM_CUST_APLY_MBR = df_CPM_CUST_APLY_MBR
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_CPM_CUST_APLY_MBR = df_SQ_CPM_CUST_APLY_MBR.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HSE_SRVC_APLY_KEY", "CUST_KEY", "CUST_MBR_ID_NUM", "CUST_MBR_ID_TYPE_CODE", "CUST_APLY_MBR_STS_CODE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "CUST_MBR_AST_AMT", "CUST_MBR_CC_CODE_1", "CUST_MBR_CC_CODE_2", "CUST_MBR_CC_CODE_3", "CUST_MBR_CC_CODE_4", "CUST_MBR_CC_CODE_5", "CUST_MBR_CC_CODE_6", "CUST_MBR_CHI_ENTRY_DATE", "CUST_MBR_CHI_NAME", "CUST_MBR_CNTC_CODE", "CUST_MBR_CRSP_CHI_ADDR_1", "CUST_MBR_CRSP_CHI_ADDR_2", "CUST_MBR_CRSP_CHI_ADDR_3", "CUST_MBR_CRSP_CHI_ADDR_4", "CUST_MBR_CRSP_CHI_ADDR_5", "CUST_MBR_CRSP_CODE_ADDR", "CUST_MBR_CRSP_ENG_ADDR_1", "CUST_MBR_CRSP_ENG_ADDR_2", "CUST_MBR_CRSP_ENG_ADDR_3", "CUST_MBR_CRSP_ENG_ADDR_4", "CUST_MBR_CRSP_ENG_ADDR_5", "CUST_MBR_DOB_DATE", "CUST_MBR_DOB_IND", "CUST_MBR_DVRC_BFR_IND", "CUST_MBR_ELDR_IND", "CUST_MBR_EMAIL_ADDR", "CUST_MBR_ENG_NAME", "CUST_MBR_GNDR_CODE", "CUST_MBR_HOME_CHI_ADDR_1", "CUST_MBR_HOME_CHI_ADDR_2", "CUST_MBR_HOME_CHI_ADDR_3", "CUST_MBR_HOME_CHI_ADDR_4", "CUST_MBR_HOME_CHI_ADDR_5", "CUST_MBR_HOME_CODE_ADDR", "CUST_MBR_HOME_ENG_ADDR_1", "CUST_MBR_HOME_ENG_ADDR_2", "CUST_MBR_HOME_ENG_ADDR_3", "CUST_MBR_HOME_ENG_ADDR_4", "CUST_MBR_HOME_ENG_ADDR_5", "CUST_MBR_HOME_PHONE_NUM", "CUST_MBR_HSHLD_HEAD_CODE", "CUST_MBR_ID_CERT_NUM", "CUST_MBR_ID_ISS_DATE", "CUST_MBR_INCM_AMT", "CUST_MBR_MBL_PHONE_NUM", "CUST_MBR_MRTL_STS_CODE", "CUST_MBR_OCPY_STS_CODE", "CUST_MBR_OFFC_PHONE_NUM", "CUST_MBR_OWNR_CODE", "CUST_MBR_RLNQ_DATE", "CUST_MBR_RLTN_CODE", "CUST_MBR_RR_IND", "CUST_MBR_STS_UPD_DATE", "CUST_MBR_TEMP_STAY_BGN_DATE", "CUST_MBR_TEMP_STAY_END_DATE", "CUST_MBR_UP_IND", "DSBL_CATG_CODE_1", "DSBL_CATG_CODE_2", "DSBL_CATG_CODE_3", "HSE_SRVC_APLY_TYPE_CODE", "OWN_SRDR_RSN_CODE", "RLT_MBR_ID_NUM", "RLT_MBR_ID_TYPE_CODE", "PREV_CUST_MBR_ENG_NAME", "PREV_CUST_MBR_CHI_NAME", "CUST_MBR_HK_LAND_RGHT_IND", "CUST_MBR_GUDN_IND", "CUST_MBR_JNT_CSTDY_IND", "CUST_MBR_ENTRY_DATE_CNFR_IND", "CUST_MBR_HSTL_TYPE_CODE", "CUST_MBR_CSSA_IND", "PREV_CUST_MBR_CSSA_IND", "CUST_MBR_PRGNT_IND", "CUST_MBR_EXPCT_CHILD_NUM", "CUST_MBR_EXPCT_DLVR_DATE", "CUST_MBR_SIGN_IND", "CUST_MBR_SEQ_NUM", "DOC_CHK_IND", "SRC_SYS_CODE", "CUR_TNT_IND", "ACTL_CUST_MBR_INCM_AMT", "ACTL_CUST_MBR_AST_AMT", "LAST_REC_TXN_MBR_CODE", "CUST_MBR_DSBL_ALWN_RCPT_IND"]
-        df_SQ_CPM_CUST_APLY_MBR = df_SQ_CPM_CUST_APLY_MBR.select([col(c) if c.lower() in [x.lower() for x in df_SQ_CPM_CUST_APLY_MBR.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_CPM_CUST_APLY_MBR = lib.sq_output(
+            input_df=df_SQ_CPM_CUST_APLY_MBR,
+            port_cols={
+                'HSE_SRVC_APLY_KEY': 'string',
+                'CUST_KEY': 'string',
+                'CUST_MBR_ID_NUM': 'string',
+                'CUST_MBR_ID_TYPE_CODE': 'string',
+                'CUST_APLY_MBR_STS_CODE': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'CUST_MBR_AST_AMT': 'decimal',
+                'CUST_MBR_CC_CODE_1': 'string',
+                'CUST_MBR_CC_CODE_2': 'string',
+                'CUST_MBR_CC_CODE_3': 'string',
+                'CUST_MBR_CC_CODE_4': 'string',
+                'CUST_MBR_CC_CODE_5': 'string',
+                'CUST_MBR_CC_CODE_6': 'string',
+                'CUST_MBR_CHI_ENTRY_DATE': 'date/time',
+                'CUST_MBR_CHI_NAME': 'string',
+                'CUST_MBR_CNTC_CODE': 'string',
+                'CUST_MBR_CRSP_CHI_ADDR_1': 'string',
+                'CUST_MBR_CRSP_CHI_ADDR_2': 'string',
+                'CUST_MBR_CRSP_CHI_ADDR_3': 'string',
+                'CUST_MBR_CRSP_CHI_ADDR_4': 'string',
+                'CUST_MBR_CRSP_CHI_ADDR_5': 'string',
+                'CUST_MBR_CRSP_CODE_ADDR': 'string',
+                'CUST_MBR_CRSP_ENG_ADDR_1': 'string',
+                'CUST_MBR_CRSP_ENG_ADDR_2': 'string',
+                'CUST_MBR_CRSP_ENG_ADDR_3': 'string',
+                'CUST_MBR_CRSP_ENG_ADDR_4': 'string',
+                'CUST_MBR_CRSP_ENG_ADDR_5': 'string',
+                'CUST_MBR_DOB_DATE': 'date/time',
+                'CUST_MBR_DOB_IND': 'string',
+                'CUST_MBR_DVRC_BFR_IND': 'string',
+                'CUST_MBR_ELDR_IND': 'string',
+                'CUST_MBR_EMAIL_ADDR': 'string',
+                'CUST_MBR_ENG_NAME': 'string',
+                'CUST_MBR_GNDR_CODE': 'string',
+                'CUST_MBR_HOME_CHI_ADDR_1': 'string',
+                'CUST_MBR_HOME_CHI_ADDR_2': 'string',
+                'CUST_MBR_HOME_CHI_ADDR_3': 'string',
+                'CUST_MBR_HOME_CHI_ADDR_4': 'string',
+                'CUST_MBR_HOME_CHI_ADDR_5': 'string',
+                'CUST_MBR_HOME_CODE_ADDR': 'string',
+                'CUST_MBR_HOME_ENG_ADDR_1': 'string',
+                'CUST_MBR_HOME_ENG_ADDR_2': 'string',
+                'CUST_MBR_HOME_ENG_ADDR_3': 'string',
+                'CUST_MBR_HOME_ENG_ADDR_4': 'string',
+                'CUST_MBR_HOME_ENG_ADDR_5': 'string',
+                'CUST_MBR_HOME_PHONE_NUM': 'string',
+                'CUST_MBR_HSHLD_HEAD_CODE': 'string',
+                'CUST_MBR_ID_CERT_NUM': 'string',
+                'CUST_MBR_ID_ISS_DATE': 'date/time',
+                'CUST_MBR_INCM_AMT': 'decimal',
+                'CUST_MBR_MBL_PHONE_NUM': 'string',
+                'CUST_MBR_MRTL_STS_CODE': 'string',
+                'CUST_MBR_OCPY_STS_CODE': 'string',
+                'CUST_MBR_OFFC_PHONE_NUM': 'string',
+                'CUST_MBR_OWNR_CODE': 'string',
+                'CUST_MBR_RLNQ_DATE': 'date/time',
+                'CUST_MBR_RLTN_CODE': 'string',
+                'CUST_MBR_RR_IND': 'string',
+                'CUST_MBR_STS_UPD_DATE': 'date/time',
+                'CUST_MBR_TEMP_STAY_BGN_DATE': 'date/time',
+                'CUST_MBR_TEMP_STAY_END_DATE': 'date/time',
+                'CUST_MBR_UP_IND': 'string',
+                'DSBL_CATG_CODE_1': 'string',
+                'DSBL_CATG_CODE_2': 'string',
+                'DSBL_CATG_CODE_3': 'string',
+                'HSE_SRVC_APLY_TYPE_CODE': 'string',
+                'OWN_SRDR_RSN_CODE': 'string',
+                'RLT_MBR_ID_NUM': 'string',
+                'RLT_MBR_ID_TYPE_CODE': 'string',
+                'PREV_CUST_MBR_ENG_NAME': 'string',
+                'PREV_CUST_MBR_CHI_NAME': 'string',
+                'CUST_MBR_HK_LAND_RGHT_IND': 'string',
+                'CUST_MBR_GUDN_IND': 'string',
+                'CUST_MBR_JNT_CSTDY_IND': 'string',
+                'CUST_MBR_ENTRY_DATE_CNFR_IND': 'string',
+                'CUST_MBR_HSTL_TYPE_CODE': 'string',
+                'CUST_MBR_CSSA_IND': 'string',
+                'PREV_CUST_MBR_CSSA_IND': 'string',
+                'CUST_MBR_PRGNT_IND': 'string',
+                'CUST_MBR_EXPCT_CHILD_NUM': 'decimal',
+                'CUST_MBR_EXPCT_DLVR_DATE': 'date/time',
+                'CUST_MBR_SIGN_IND': 'string',
+                'CUST_MBR_SEQ_NUM': 'decimal',
+                'DOC_CHK_IND': 'string',
+                'SRC_SYS_CODE': 'string',
+                'CUR_TNT_IND': 'string',
+                'ACTL_CUST_MBR_INCM_AMT': 'decimal',
+                'ACTL_CUST_MBR_AST_AMT': 'decimal',
+                'LAST_REC_TXN_MBR_CODE': 'string',
+                'CUST_MBR_DSBL_ALWN_RCPT_IND': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_CPM_CUST_APLY_MBR", df_SQ_CPM_CUST_APLY_MBR)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_CPM_CUST_APLY_MBR
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_SRVC_APLY_KEY_OUT", expr("ltrim(rtrim(HSE_SRVC_APLY_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_KEY_OUT", expr("ltrim(rtrim(CUST_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_ID_NUM_OUT", expr("ltrim(rtrim(CUST_MBR_ID_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_ID_TYPE_CODE_OUT", expr("ltrim(rtrim(CUST_MBR_ID_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_APLY_MBR_STS_CODE_OUT", expr("ltrim(rtrim(CUST_APLY_MBR_STS_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_AST_AMT_OUT", expr("CUST_MBR_AST_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_CC_CODE_1_OUT", expr("ltrim(rtrim(CUST_MBR_CC_CODE_1))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_CC_CODE_2_OUT", expr("ltrim(rtrim(CUST_MBR_CC_CODE_2))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_CC_CODE_3_OUT", expr("ltrim(rtrim(CUST_MBR_CC_CODE_3))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_CC_CODE_4_OUT", expr("ltrim(rtrim(CUST_MBR_CC_CODE_4))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_CC_CODE_5_OUT", expr("ltrim(rtrim(CUST_MBR_CC_CODE_5))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_CC_CODE_6_OUT", expr("ltrim(rtrim(CUST_MBR_CC_CODE_6))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_CHI_ENTRY_DATE_OUT", expr("CUST_MBR_CHI_ENTRY_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_CHI_NAME_OUT", expr("ltrim(rtrim(CUST_MBR_CHI_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_CNTC_CODE1", expr("ltrim(rtrim(CUST_MBR_CNTC_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_CRSP_CHI_ADDR_1_OUT", expr("ltrim(rtrim(CUST_MBR_CRSP_CHI_ADDR_1))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_CRSP_CHI_ADDR_2_OUT", expr("ltrim(rtrim(CUST_MBR_CRSP_CHI_ADDR_2))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_CRSP_CHI_ADDR_3_OUT", expr("ltrim(rtrim(CUST_MBR_CRSP_CHI_ADDR_3))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_CRSP_CHI_ADDR_4_OUT", expr("ltrim(rtrim(CUST_MBR_CRSP_CHI_ADDR_4))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_CRSP_CHI_ADDR_5_OUT", expr("ltrim(rtrim(CUST_MBR_CRSP_CHI_ADDR_5))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_CRSP_CODE_ADDR_OUT", expr("ltrim(rtrim(CUST_MBR_CRSP_CODE_ADDR))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_CRSP_ENG_ADDR_1_OUT", expr("ltrim(rtrim(CUST_MBR_CRSP_ENG_ADDR_1))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_CRSP_ENG_ADDR_2_OUT", expr("ltrim(rtrim(CUST_MBR_CRSP_ENG_ADDR_2))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_CRSP_ENG_ADDR_3_OUT", expr("ltrim(rtrim(CUST_MBR_CRSP_ENG_ADDR_3))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_CRSP_ENG_ADDR_4_OUT", expr("ltrim(rtrim(CUST_MBR_CRSP_ENG_ADDR_4))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_CRSP_ENG_ADDR_5_OUT", expr("ltrim(rtrim(CUST_MBR_CRSP_ENG_ADDR_5))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_DOB_DATE_OUT", expr("CUST_MBR_DOB_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_DOB_IND_OUT", expr("ltrim(rtrim(CUST_MBR_DOB_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_DVRC_BFR_IND_OUT", expr("ltrim(rtrim(CUST_MBR_DVRC_BFR_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_ELDR_IND_OUT", expr("ltrim(rtrim(CUST_MBR_ELDR_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_EMAIL_ADDR_OUT", expr("ltrim(rtrim(CUST_MBR_EMAIL_ADDR))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_ENG_NAME_OUT", expr("ltrim(rtrim(CUST_MBR_ENG_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_GNDR_CODE_OUT", expr("ltrim(rtrim(CUST_MBR_GNDR_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_HOME_CHI_ADDR_1_OUT", expr("ltrim(rtrim(CUST_MBR_HOME_CHI_ADDR_1))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_HOME_CHI_ADDR_2_OUT", expr("ltrim(rtrim(CUST_MBR_HOME_CHI_ADDR_2))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_HOME_CHI_ADDR_3_OUT", expr("ltrim(rtrim(CUST_MBR_HOME_CHI_ADDR_3))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_HOME_CHI_ADDR_4_OUT", expr("ltrim(rtrim(CUST_MBR_HOME_CHI_ADDR_4))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_HOME_CHI_ADDR_5_OUT", expr("ltrim(rtrim(CUST_MBR_HOME_CHI_ADDR_5))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_HOME_CODE_ADDR_OUT", expr("ltrim(rtrim(CUST_MBR_HOME_CODE_ADDR))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_HOME_ENG_ADDR_1_OUT", expr("ltrim(rtrim(CUST_MBR_HOME_ENG_ADDR_1))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_HOME_ENG_ADDR_2_OUT", expr("ltrim(rtrim(CUST_MBR_HOME_ENG_ADDR_2))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_HOME_ENG_ADDR_3_OUT", expr("ltrim(rtrim(CUST_MBR_HOME_ENG_ADDR_3))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_HOME_ENG_ADDR_4_OUT", expr("ltrim(rtrim(CUST_MBR_HOME_ENG_ADDR_4))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_HOME_ENG_ADDR_5_OUT", expr("ltrim(rtrim(CUST_MBR_HOME_ENG_ADDR_5))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_HOME_PHONE_NUM_OUT", expr("ltrim(rtrim(CUST_MBR_HOME_PHONE_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_HSHLD_HEAD_CODE_OUT", expr("ltrim(rtrim(CUST_MBR_HSHLD_HEAD_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_ID_CERT_NUM_OUT", expr("ltrim(rtrim(CUST_MBR_ID_CERT_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_ID_ISS_DATE_OUT", expr("CUST_MBR_ID_ISS_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_INCM_AMT_OUT", expr("CUST_MBR_INCM_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_MBL_PHONE_NUM_OUT", expr("ltrim(rtrim(CUST_MBR_MBL_PHONE_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_MRTL_STS_CODE_OUT", expr("ltrim(rtrim(CUST_MBR_MRTL_STS_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_OCPY_STS_CODE_OUT", expr("ltrim(rtrim(CUST_MBR_OCPY_STS_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_OFFC_PHONE_NUM_OUT", expr("ltrim(rtrim(CUST_MBR_OFFC_PHONE_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_OWNR_CODE_OUT", expr("ltrim(rtrim(CUST_MBR_OWNR_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_RLNQ_DATE_OUT", expr("CUST_MBR_RLNQ_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_RLTN_CODE_OUT", expr("ltrim(rtrim(CUST_MBR_RLTN_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_RR_IND_OUT", expr("ltrim(rtrim(CUST_MBR_RR_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_STS_UPD_DATE_OUT", expr("CUST_MBR_STS_UPD_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_TEMP_STAY_BGN_DATE_OUT", expr("CUST_MBR_TEMP_STAY_BGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_TEMP_STAY_END_DATE_OUT", expr("CUST_MBR_TEMP_STAY_END_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_MBR_UP_IND_OUT", expr("ltrim(rtrim(CUST_MBR_UP_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DSBL_CATG_CODE_1_OUT", expr("ltrim(rtrim(DSBL_CATG_CODE_1))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DSBL_CATG_CODE_2_OUT", expr("ltrim(rtrim(DSBL_CATG_CODE_2))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DSBL_CATG_CODE_3_OUT", expr("ltrim(rtrim(DSBL_CATG_CODE_3))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_SRVC_APLY_TYPE_CODE_OUT", expr("ltrim(rtrim(HSE_SRVC_APLY_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OWN_SRDR_RSN_CODE_OUT", expr("ltrim(rtrim(OWN_SRDR_RSN_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RLT_MBR_ID_NUM_OUT", expr("ltrim(rtrim(RLT_MBR_ID_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RLT_MBR_ID_TYPE_CODE_OUT", expr("ltrim(rtrim(RLT_MBR_ID_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("'|'"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_DATE))"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["LAST_REC_TXN_DATE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_CPM_CUST_APLY_MBR,
+            computed_columns=[
+                {'name': 'HSE_SRVC_APLY_KEY_OUT', 'expr': 'ltrim(rtrim(HSE_SRVC_APLY_KEY))'},
+                {'name': 'CUST_KEY_OUT', 'expr': 'ltrim(rtrim(CUST_KEY))'},
+                {'name': 'CUST_MBR_ID_NUM_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_ID_NUM))'},
+                {'name': 'CUST_MBR_ID_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_ID_TYPE_CODE))'},
+                {'name': 'CUST_APLY_MBR_STS_CODE_OUT', 'expr': 'ltrim(rtrim(CUST_APLY_MBR_STS_CODE))'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_USER_ID_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID))'},
+                {'name': 'CUST_MBR_AST_AMT_OUT', 'expr': 'CUST_MBR_AST_AMT'},
+                {'name': 'CUST_MBR_CC_CODE_1_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_CC_CODE_1))'},
+                {'name': 'CUST_MBR_CC_CODE_2_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_CC_CODE_2))'},
+                {'name': 'CUST_MBR_CC_CODE_3_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_CC_CODE_3))'},
+                {'name': 'CUST_MBR_CC_CODE_4_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_CC_CODE_4))'},
+                {'name': 'CUST_MBR_CC_CODE_5_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_CC_CODE_5))'},
+                {'name': 'CUST_MBR_CC_CODE_6_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_CC_CODE_6))'},
+                {'name': 'CUST_MBR_CHI_ENTRY_DATE_OUT', 'expr': 'CUST_MBR_CHI_ENTRY_DATE'},
+                {'name': 'CUST_MBR_CHI_NAME_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_CHI_NAME))'},
+                {'name': 'CUST_MBR_CNTC_CODE1', 'expr': 'ltrim(rtrim(CUST_MBR_CNTC_CODE))'},
+                {'name': 'CUST_MBR_CRSP_CHI_ADDR_1_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_CRSP_CHI_ADDR_1))'},
+                {'name': 'CUST_MBR_CRSP_CHI_ADDR_2_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_CRSP_CHI_ADDR_2))'},
+                {'name': 'CUST_MBR_CRSP_CHI_ADDR_3_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_CRSP_CHI_ADDR_3))'},
+                {'name': 'CUST_MBR_CRSP_CHI_ADDR_4_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_CRSP_CHI_ADDR_4))'},
+                {'name': 'CUST_MBR_CRSP_CHI_ADDR_5_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_CRSP_CHI_ADDR_5))'},
+                {'name': 'CUST_MBR_CRSP_CODE_ADDR_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_CRSP_CODE_ADDR))'},
+                {'name': 'CUST_MBR_CRSP_ENG_ADDR_1_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_CRSP_ENG_ADDR_1))'},
+                {'name': 'CUST_MBR_CRSP_ENG_ADDR_2_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_CRSP_ENG_ADDR_2))'},
+                {'name': 'CUST_MBR_CRSP_ENG_ADDR_3_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_CRSP_ENG_ADDR_3))'},
+                {'name': 'CUST_MBR_CRSP_ENG_ADDR_4_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_CRSP_ENG_ADDR_4))'},
+                {'name': 'CUST_MBR_CRSP_ENG_ADDR_5_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_CRSP_ENG_ADDR_5))'},
+                {'name': 'CUST_MBR_DOB_DATE_OUT', 'expr': 'CUST_MBR_DOB_DATE'},
+                {'name': 'CUST_MBR_DOB_IND_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_DOB_IND))'},
+                {'name': 'CUST_MBR_DVRC_BFR_IND_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_DVRC_BFR_IND))'},
+                {'name': 'CUST_MBR_ELDR_IND_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_ELDR_IND))'},
+                {'name': 'CUST_MBR_EMAIL_ADDR_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_EMAIL_ADDR))'},
+                {'name': 'CUST_MBR_ENG_NAME_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_ENG_NAME))'},
+                {'name': 'CUST_MBR_GNDR_CODE_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_GNDR_CODE))'},
+                {'name': 'CUST_MBR_HOME_CHI_ADDR_1_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_HOME_CHI_ADDR_1))'},
+                {'name': 'CUST_MBR_HOME_CHI_ADDR_2_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_HOME_CHI_ADDR_2))'},
+                {'name': 'CUST_MBR_HOME_CHI_ADDR_3_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_HOME_CHI_ADDR_3))'},
+                {'name': 'CUST_MBR_HOME_CHI_ADDR_4_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_HOME_CHI_ADDR_4))'},
+                {'name': 'CUST_MBR_HOME_CHI_ADDR_5_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_HOME_CHI_ADDR_5))'},
+                {'name': 'CUST_MBR_HOME_CODE_ADDR_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_HOME_CODE_ADDR))'},
+                {'name': 'CUST_MBR_HOME_ENG_ADDR_1_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_HOME_ENG_ADDR_1))'},
+                {'name': 'CUST_MBR_HOME_ENG_ADDR_2_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_HOME_ENG_ADDR_2))'},
+                {'name': 'CUST_MBR_HOME_ENG_ADDR_3_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_HOME_ENG_ADDR_3))'},
+                {'name': 'CUST_MBR_HOME_ENG_ADDR_4_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_HOME_ENG_ADDR_4))'},
+                {'name': 'CUST_MBR_HOME_ENG_ADDR_5_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_HOME_ENG_ADDR_5))'},
+                {'name': 'CUST_MBR_HOME_PHONE_NUM_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_HOME_PHONE_NUM))'},
+                {'name': 'CUST_MBR_HSHLD_HEAD_CODE_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_HSHLD_HEAD_CODE))'},
+                {'name': 'CUST_MBR_ID_CERT_NUM_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_ID_CERT_NUM))'},
+                {'name': 'CUST_MBR_ID_ISS_DATE_OUT', 'expr': 'CUST_MBR_ID_ISS_DATE'},
+                {'name': 'CUST_MBR_INCM_AMT_OUT', 'expr': 'CUST_MBR_INCM_AMT'},
+                {'name': 'CUST_MBR_MBL_PHONE_NUM_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_MBL_PHONE_NUM))'},
+                {'name': 'CUST_MBR_MRTL_STS_CODE_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_MRTL_STS_CODE))'},
+                {'name': 'CUST_MBR_OCPY_STS_CODE_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_OCPY_STS_CODE))'},
+                {'name': 'CUST_MBR_OFFC_PHONE_NUM_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_OFFC_PHONE_NUM))'},
+                {'name': 'CUST_MBR_OWNR_CODE_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_OWNR_CODE))'},
+                {'name': 'CUST_MBR_RLNQ_DATE_OUT', 'expr': 'CUST_MBR_RLNQ_DATE'},
+                {'name': 'CUST_MBR_RLTN_CODE_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_RLTN_CODE))'},
+                {'name': 'CUST_MBR_RR_IND_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_RR_IND))'},
+                {'name': 'CUST_MBR_STS_UPD_DATE_OUT', 'expr': 'CUST_MBR_STS_UPD_DATE'},
+                {'name': 'CUST_MBR_TEMP_STAY_BGN_DATE_OUT', 'expr': 'CUST_MBR_TEMP_STAY_BGN_DATE'},
+                {'name': 'CUST_MBR_TEMP_STAY_END_DATE_OUT', 'expr': 'CUST_MBR_TEMP_STAY_END_DATE'},
+                {'name': 'CUST_MBR_UP_IND_OUT', 'expr': 'ltrim(rtrim(CUST_MBR_UP_IND))'},
+                {'name': 'DSBL_CATG_CODE_1_OUT', 'expr': 'ltrim(rtrim(DSBL_CATG_CODE_1))'},
+                {'name': 'DSBL_CATG_CODE_2_OUT', 'expr': 'ltrim(rtrim(DSBL_CATG_CODE_2))'},
+                {'name': 'DSBL_CATG_CODE_3_OUT', 'expr': 'ltrim(rtrim(DSBL_CATG_CODE_3))'},
+                {'name': 'HSE_SRVC_APLY_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(HSE_SRVC_APLY_TYPE_CODE))'},
+                {'name': 'OWN_SRDR_RSN_CODE_OUT', 'expr': 'ltrim(rtrim(OWN_SRDR_RSN_CODE))'},
+                {'name': 'RLT_MBR_ID_NUM_OUT', 'expr': 'ltrim(rtrim(RLT_MBR_ID_NUM))'},
+                {'name': 'RLT_MBR_ID_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(RLT_MBR_ID_TYPE_CODE))'},
+                {'name': 'DUMMY', 'expr': "'|'"},
+                {'name': 'LAST_REC_TXN_DATE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_DATE))'}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EMS_CPM_CUST_APLY_MBR1")
         # Write to Target: write_EMS_CPM_CUST_APLY_MBR1
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"CUST_APLY_MBR_STS_CODE": "CUST_APLY_MBR_STS_CODE_OUT", "CUST_KEY": "CUST_KEY_OUT", "CUST_MBR_AST_AMT": "CUST_MBR_AST_AMT_OUT", "CUST_MBR_CC_CODE_1": "CUST_MBR_CC_CODE_1_OUT", "CUST_MBR_CC_CODE_2": "CUST_MBR_CC_CODE_2_OUT", "CUST_MBR_CC_CODE_3": "CUST_MBR_CC_CODE_3_OUT", "CUST_MBR_CC_CODE_4": "CUST_MBR_CC_CODE_4_OUT", "CUST_MBR_CC_CODE_5": "CUST_MBR_CC_CODE_5_OUT", "CUST_MBR_CC_CODE_6": "CUST_MBR_CC_CODE_6_OUT", "CUST_MBR_CHI_ENTRY_DATE": "CUST_MBR_CHI_ENTRY_DATE_OUT", "CUST_MBR_CHI_NAME": "CUST_MBR_CHI_NAME_OUT", "CUST_MBR_CNTC_CODE": "CUST_MBR_CNTC_CODE1", "CUST_MBR_CRSP_CHI_ADDR_1": "CUST_MBR_CRSP_CHI_ADDR_1_OUT", "CUST_MBR_CRSP_CHI_ADDR_2": "CUST_MBR_CRSP_CHI_ADDR_2_OUT", "CUST_MBR_CRSP_CHI_ADDR_3": "CUST_MBR_CRSP_CHI_ADDR_3_OUT", "CUST_MBR_CRSP_CHI_ADDR_4": "CUST_MBR_CRSP_CHI_ADDR_4_OUT", "CUST_MBR_CRSP_CHI_ADDR_5": "CUST_MBR_CRSP_CHI_ADDR_5_OUT", "CUST_MBR_CRSP_CODE_ADDR": "CUST_MBR_CRSP_CODE_ADDR_OUT", "CUST_MBR_CRSP_ENG_ADDR_1": "CUST_MBR_CRSP_ENG_ADDR_1_OUT", "CUST_MBR_CRSP_ENG_ADDR_2": "CUST_MBR_CRSP_ENG_ADDR_2_OUT", "CUST_MBR_CRSP_ENG_ADDR_3": "CUST_MBR_CRSP_ENG_ADDR_3_OUT", "CUST_MBR_CRSP_ENG_ADDR_4": "CUST_MBR_CRSP_ENG_ADDR_4_OUT", "CUST_MBR_CRSP_ENG_ADDR_5": "CUST_MBR_CRSP_ENG_ADDR_5_OUT", "CUST_MBR_DOB_DATE": "CUST_MBR_DOB_DATE_OUT", "CUST_MBR_DOB_IND": "CUST_MBR_DOB_IND_OUT", "CUST_MBR_DVRC_BFR_IND": "CUST_MBR_DVRC_BFR_IND_OUT", "CUST_MBR_ELDR_IND": "CUST_MBR_ELDR_IND_OUT", "CUST_MBR_EMAIL_ADDR": "CUST_MBR_EMAIL_ADDR_OUT", "CUST_MBR_ENG_NAME": "CUST_MBR_ENG_NAME_OUT", "CUST_MBR_GNDR_CODE": "CUST_MBR_GNDR_CODE_OUT", "CUST_MBR_HOME_CHI_ADDR_1": "CUST_MBR_HOME_CHI_ADDR_1_OUT", "CUST_MBR_HOME_CHI_ADDR_2": "CUST_MBR_HOME_CHI_ADDR_2_OUT", "CUST_MBR_HOME_CHI_ADDR_3": "CUST_MBR_HOME_CHI_ADDR_3_OUT", "CUST_MBR_HOME_CHI_ADDR_4": "CUST_MBR_HOME_CHI_ADDR_4_OUT", "CUST_MBR_HOME_CHI_ADDR_5": "CUST_MBR_HOME_CHI_ADDR_5_OUT", "CUST_MBR_HOME_CODE_ADDR": "CUST_MBR_HOME_CODE_ADDR_OUT", "CUST_MBR_HOME_ENG_ADDR_1": "CUST_MBR_HOME_ENG_ADDR_1_OUT", "CUST_MBR_HOME_ENG_ADDR_2": "CUST_MBR_HOME_ENG_ADDR_2_OUT", "CUST_MBR_HOME_ENG_ADDR_3": "CUST_MBR_HOME_ENG_ADDR_3_OUT", "CUST_MBR_HOME_ENG_ADDR_4": "CUST_MBR_HOME_ENG_ADDR_4_OUT", "CUST_MBR_HOME_ENG_ADDR_5": "CUST_MBR_HOME_ENG_ADDR_5_OUT", "CUST_MBR_HOME_PHONE_NUM": "CUST_MBR_HOME_PHONE_NUM_OUT", "CUST_MBR_HSHLD_HEAD_CODE": "CUST_MBR_HSHLD_HEAD_CODE_OUT", "CUST_MBR_ID_CERT_NUM": "CUST_MBR_ID_CERT_NUM_OUT", "CUST_MBR_ID_ISS_DATE": "CUST_MBR_ID_ISS_DATE_OUT", "CUST_MBR_ID_NUM": "CUST_MBR_ID_NUM_OUT", "CUST_MBR_ID_TYPE_CODE": "CUST_MBR_ID_TYPE_CODE_OUT", "CUST_MBR_INCM_AMT": "CUST_MBR_INCM_AMT_OUT", "CUST_MBR_MBL_PHONE_NUM": "CUST_MBR_MBL_PHONE_NUM_OUT", "CUST_MBR_MRTL_STS_CODE": "CUST_MBR_MRTL_STS_CODE_OUT", "CUST_MBR_OCPY_STS_CODE": "CUST_MBR_OCPY_STS_CODE_OUT", "CUST_MBR_OFFC_PHONE_NUM": "CUST_MBR_OFFC_PHONE_NUM_OUT", "CUST_MBR_OWNR_CODE": "CUST_MBR_OWNR_CODE_OUT", "CUST_MBR_RLNQ_DATE": "CUST_MBR_RLNQ_DATE_OUT", "CUST_MBR_RLTN_CODE": "CUST_MBR_RLTN_CODE_OUT", "CUST_MBR_RR_IND": "CUST_MBR_RR_IND_OUT", "CUST_MBR_STS_UPD_DATE": "CUST_MBR_STS_UPD_DATE_OUT", "CUST_MBR_TEMP_STAY_BGN_DATE": "CUST_MBR_TEMP_STAY_BGN_DATE_OUT", "CUST_MBR_TEMP_STAY_END_DATE": "CUST_MBR_TEMP_STAY_END_DATE_OUT", "CUST_MBR_UP_IND": "CUST_MBR_UP_IND_OUT", "DSBL_CATG_CODE_1": "DSBL_CATG_CODE_1_OUT", "DSBL_CATG_CODE_2": "DSBL_CATG_CODE_2_OUT", "DSBL_CATG_CODE_3": "DSBL_CATG_CODE_3_OUT", "DUMMY": "DUMMY", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "HSE_SRVC_APLY_TYPE_CODE": "HSE_SRVC_APLY_TYPE_CODE_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "OWN_SRDR_RSN_CODE": "OWN_SRDR_RSN_CODE_OUT", "RLT_MBR_ID_NUM": "RLT_MBR_ID_NUM_OUT", "RLT_MBR_ID_TYPE_CODE": "RLT_MBR_ID_TYPE_CODE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HSE_SRVC_APLY_KEY', 'CUST_KEY', 'CUST_MBR_ID_NUM', 'CUST_MBR_ID_TYPE_CODE', 'CUST_APLY_MBR_STS_CODE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'CUST_MBR_AST_AMT', 'CUST_MBR_CC_CODE_1', 'CUST_MBR_CC_CODE_2', 'CUST_MBR_CC_CODE_3', 'CUST_MBR_CC_CODE_4', 'CUST_MBR_CC_CODE_5', 'CUST_MBR_CC_CODE_6', 'CUST_MBR_CHI_ENTRY_DATE', 'CUST_MBR_CHI_NAME', 'CUST_MBR_CNTC_CODE', 'CUST_MBR_CRSP_CHI_ADDR_1', 'CUST_MBR_CRSP_CHI_ADDR_2', 'CUST_MBR_CRSP_CHI_ADDR_3', 'CUST_MBR_CRSP_CHI_ADDR_4', 'CUST_MBR_CRSP_CHI_ADDR_5', 'CUST_MBR_CRSP_CODE_ADDR', 'CUST_MBR_CRSP_ENG_ADDR_1', 'CUST_MBR_CRSP_ENG_ADDR_2', 'CUST_MBR_CRSP_ENG_ADDR_3', 'CUST_MBR_CRSP_ENG_ADDR_4', 'CUST_MBR_CRSP_ENG_ADDR_5', 'CUST_MBR_DOB_DATE', 'CUST_MBR_DOB_IND', 'CUST_MBR_DVRC_BFR_IND', 'CUST_MBR_ELDR_IND', 'CUST_MBR_EMAIL_ADDR', 'CUST_MBR_ENG_NAME', 'CUST_MBR_GNDR_CODE', 'CUST_MBR_HOME_CHI_ADDR_1', 'CUST_MBR_HOME_CHI_ADDR_2', 'CUST_MBR_HOME_CHI_ADDR_3', 'CUST_MBR_HOME_CHI_ADDR_4', 'CUST_MBR_HOME_CHI_ADDR_5', 'CUST_MBR_HOME_CODE_ADDR', 'CUST_MBR_HOME_ENG_ADDR_1', 'CUST_MBR_HOME_ENG_ADDR_2', 'CUST_MBR_HOME_ENG_ADDR_3', 'CUST_MBR_HOME_ENG_ADDR_4', 'CUST_MBR_HOME_ENG_ADDR_5', 'CUST_MBR_HOME_PHONE_NUM', 'CUST_MBR_HSHLD_HEAD_CODE', 'CUST_MBR_ID_CERT_NUM', 'CUST_MBR_ID_ISS_DATE', 'CUST_MBR_INCM_AMT', 'CUST_MBR_MBL_PHONE_NUM', 'CUST_MBR_MRTL_STS_CODE', 'CUST_MBR_OCPY_STS_CODE', 'CUST_MBR_OFFC_PHONE_NUM', 'CUST_MBR_OWNR_CODE', 'CUST_MBR_RLNQ_DATE', 'CUST_MBR_RLTN_CODE', 'CUST_MBR_RR_IND', 'CUST_MBR_STS_UPD_DATE', 'CUST_MBR_TEMP_STAY_BGN_DATE', 'CUST_MBR_TEMP_STAY_END_DATE', 'CUST_MBR_UP_IND', 'DSBL_CATG_CODE_1', 'DSBL_CATG_CODE_2', 'DSBL_CATG_CODE_3', 'HSE_SRVC_APLY_TYPE_CODE', 'OWN_SRDR_RSN_CODE', 'RLT_MBR_ID_NUM', 'RLT_MBR_ID_TYPE_CODE', 'DUMMY']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_CPM_CUST_APLY_MBR1", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_CPM_CUST_APLY_MBR1',
+            mode='append',
+            source_columns=[
+                'HSE_SRVC_APLY_KEY_OUT',
+                'CUST_KEY_OUT',
+                'CUST_MBR_ID_NUM_OUT',
+                'CUST_MBR_ID_TYPE_CODE_OUT',
+                'CUST_APLY_MBR_STS_CODE_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'CUST_MBR_AST_AMT_OUT',
+                'CUST_MBR_CC_CODE_1_OUT',
+                'CUST_MBR_CC_CODE_2_OUT',
+                'CUST_MBR_CC_CODE_3_OUT',
+                'CUST_MBR_CC_CODE_4_OUT',
+                'CUST_MBR_CC_CODE_5_OUT',
+                'CUST_MBR_CC_CODE_6_OUT',
+                'CUST_MBR_CHI_ENTRY_DATE_OUT',
+                'CUST_MBR_CHI_NAME_OUT',
+                'CUST_MBR_CNTC_CODE1',
+                'CUST_MBR_CRSP_CHI_ADDR_1_OUT',
+                'CUST_MBR_CRSP_CHI_ADDR_2_OUT',
+                'CUST_MBR_CRSP_CHI_ADDR_3_OUT',
+                'CUST_MBR_CRSP_CHI_ADDR_4_OUT',
+                'CUST_MBR_CRSP_CHI_ADDR_5_OUT',
+                'CUST_MBR_CRSP_CODE_ADDR_OUT',
+                'CUST_MBR_CRSP_ENG_ADDR_1_OUT',
+                'CUST_MBR_CRSP_ENG_ADDR_2_OUT',
+                'CUST_MBR_CRSP_ENG_ADDR_3_OUT',
+                'CUST_MBR_CRSP_ENG_ADDR_4_OUT',
+                'CUST_MBR_CRSP_ENG_ADDR_5_OUT',
+                'CUST_MBR_DOB_DATE_OUT',
+                'CUST_MBR_DOB_IND_OUT',
+                'CUST_MBR_DVRC_BFR_IND_OUT',
+                'CUST_MBR_ELDR_IND_OUT',
+                'CUST_MBR_EMAIL_ADDR_OUT',
+                'CUST_MBR_ENG_NAME_OUT',
+                'CUST_MBR_GNDR_CODE_OUT',
+                'CUST_MBR_HOME_CHI_ADDR_1_OUT',
+                'CUST_MBR_HOME_CHI_ADDR_2_OUT',
+                'CUST_MBR_HOME_CHI_ADDR_3_OUT',
+                'CUST_MBR_HOME_CHI_ADDR_4_OUT',
+                'CUST_MBR_HOME_CHI_ADDR_5_OUT',
+                'CUST_MBR_HOME_CODE_ADDR_OUT',
+                'CUST_MBR_HOME_ENG_ADDR_1_OUT',
+                'CUST_MBR_HOME_ENG_ADDR_2_OUT',
+                'CUST_MBR_HOME_ENG_ADDR_3_OUT',
+                'CUST_MBR_HOME_ENG_ADDR_4_OUT',
+                'CUST_MBR_HOME_ENG_ADDR_5_OUT',
+                'CUST_MBR_HOME_PHONE_NUM_OUT',
+                'CUST_MBR_HSHLD_HEAD_CODE_OUT',
+                'CUST_MBR_ID_CERT_NUM_OUT',
+                'CUST_MBR_ID_ISS_DATE_OUT',
+                'CUST_MBR_INCM_AMT_OUT',
+                'CUST_MBR_MBL_PHONE_NUM_OUT',
+                'CUST_MBR_MRTL_STS_CODE_OUT',
+                'CUST_MBR_OCPY_STS_CODE_OUT',
+                'CUST_MBR_OFFC_PHONE_NUM_OUT',
+                'CUST_MBR_OWNR_CODE_OUT',
+                'CUST_MBR_RLNQ_DATE_OUT',
+                'CUST_MBR_RLTN_CODE_OUT',
+                'CUST_MBR_RR_IND_OUT',
+                'CUST_MBR_STS_UPD_DATE_OUT',
+                'CUST_MBR_TEMP_STAY_BGN_DATE_OUT',
+                'CUST_MBR_TEMP_STAY_END_DATE_OUT',
+                'CUST_MBR_UP_IND_OUT',
+                'DSBL_CATG_CODE_1_OUT',
+                'DSBL_CATG_CODE_2_OUT',
+                'DSBL_CATG_CODE_3_OUT',
+                'HSE_SRVC_APLY_TYPE_CODE_OUT',
+                'OWN_SRDR_RSN_CODE_OUT',
+                'RLT_MBR_ID_NUM_OUT',
+                'RLT_MBR_ID_TYPE_CODE_OUT',
+                'DUMMY',
+            ],
+            target_columns=[
+                'HSE_SRVC_APLY_KEY',
+                'CUST_KEY',
+                'CUST_MBR_ID_NUM',
+                'CUST_MBR_ID_TYPE_CODE',
+                'CUST_APLY_MBR_STS_CODE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'CUST_MBR_AST_AMT',
+                'CUST_MBR_CC_CODE_1',
+                'CUST_MBR_CC_CODE_2',
+                'CUST_MBR_CC_CODE_3',
+                'CUST_MBR_CC_CODE_4',
+                'CUST_MBR_CC_CODE_5',
+                'CUST_MBR_CC_CODE_6',
+                'CUST_MBR_CHI_ENTRY_DATE',
+                'CUST_MBR_CHI_NAME',
+                'CUST_MBR_CNTC_CODE',
+                'CUST_MBR_CRSP_CHI_ADDR_1',
+                'CUST_MBR_CRSP_CHI_ADDR_2',
+                'CUST_MBR_CRSP_CHI_ADDR_3',
+                'CUST_MBR_CRSP_CHI_ADDR_4',
+                'CUST_MBR_CRSP_CHI_ADDR_5',
+                'CUST_MBR_CRSP_CODE_ADDR',
+                'CUST_MBR_CRSP_ENG_ADDR_1',
+                'CUST_MBR_CRSP_ENG_ADDR_2',
+                'CUST_MBR_CRSP_ENG_ADDR_3',
+                'CUST_MBR_CRSP_ENG_ADDR_4',
+                'CUST_MBR_CRSP_ENG_ADDR_5',
+                'CUST_MBR_DOB_DATE',
+                'CUST_MBR_DOB_IND',
+                'CUST_MBR_DVRC_BFR_IND',
+                'CUST_MBR_ELDR_IND',
+                'CUST_MBR_EMAIL_ADDR',
+                'CUST_MBR_ENG_NAME',
+                'CUST_MBR_GNDR_CODE',
+                'CUST_MBR_HOME_CHI_ADDR_1',
+                'CUST_MBR_HOME_CHI_ADDR_2',
+                'CUST_MBR_HOME_CHI_ADDR_3',
+                'CUST_MBR_HOME_CHI_ADDR_4',
+                'CUST_MBR_HOME_CHI_ADDR_5',
+                'CUST_MBR_HOME_CODE_ADDR',
+                'CUST_MBR_HOME_ENG_ADDR_1',
+                'CUST_MBR_HOME_ENG_ADDR_2',
+                'CUST_MBR_HOME_ENG_ADDR_3',
+                'CUST_MBR_HOME_ENG_ADDR_4',
+                'CUST_MBR_HOME_ENG_ADDR_5',
+                'CUST_MBR_HOME_PHONE_NUM',
+                'CUST_MBR_HSHLD_HEAD_CODE',
+                'CUST_MBR_ID_CERT_NUM',
+                'CUST_MBR_ID_ISS_DATE',
+                'CUST_MBR_INCM_AMT',
+                'CUST_MBR_MBL_PHONE_NUM',
+                'CUST_MBR_MRTL_STS_CODE',
+                'CUST_MBR_OCPY_STS_CODE',
+                'CUST_MBR_OFFC_PHONE_NUM',
+                'CUST_MBR_OWNR_CODE',
+                'CUST_MBR_RLNQ_DATE',
+                'CUST_MBR_RLTN_CODE',
+                'CUST_MBR_RR_IND',
+                'CUST_MBR_STS_UPD_DATE',
+                'CUST_MBR_TEMP_STAY_BGN_DATE',
+                'CUST_MBR_TEMP_STAY_END_DATE',
+                'CUST_MBR_UP_IND',
+                'DSBL_CATG_CODE_1',
+                'DSBL_CATG_CODE_2',
+                'DSBL_CATG_CODE_3',
+                'HSE_SRVC_APLY_TYPE_CODE',
+                'OWN_SRDR_RSN_CODE',
+                'RLT_MBR_ID_NUM',
+                'RLT_MBR_ID_TYPE_CODE',
+                'DUMMY',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_CPM_CUST_APLY_MBR1 write completed")
         logger.info("Step: write_EMS_CPM_CUST_APLY_MBR")
         # Write to Target: write_EMS_CPM_CUST_APLY_MBR
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"ACTL_CUST_MBR_AST_AMT": "ACTL_CUST_MBR_AST_AMT", "ACTL_CUST_MBR_INCM_AMT": "ACTL_CUST_MBR_INCM_AMT", "CUR_TNT_IND": "CUR_TNT_IND", "CUST_APLY_MBR_STS_CODE": "CUST_APLY_MBR_STS_CODE_OUT", "CUST_KEY": "CUST_KEY_OUT", "CUST_MBR_AST_AMT": "CUST_MBR_AST_AMT_OUT", "CUST_MBR_CC_CODE_1": "CUST_MBR_CC_CODE_1_OUT", "CUST_MBR_CC_CODE_2": "CUST_MBR_CC_CODE_2_OUT", "CUST_MBR_CC_CODE_3": "CUST_MBR_CC_CODE_3_OUT", "CUST_MBR_CC_CODE_4": "CUST_MBR_CC_CODE_4_OUT", "CUST_MBR_CC_CODE_5": "CUST_MBR_CC_CODE_5_OUT", "CUST_MBR_CC_CODE_6": "CUST_MBR_CC_CODE_6_OUT", "CUST_MBR_CHI_ENTRY_DATE": "CUST_MBR_CHI_ENTRY_DATE_OUT", "CUST_MBR_CHI_NAME": "CUST_MBR_CHI_NAME_OUT", "CUST_MBR_CNTC_CODE": "CUST_MBR_CNTC_CODE1", "CUST_MBR_CRSP_CHI_ADDR_1": "CUST_MBR_CRSP_CHI_ADDR_1_OUT", "CUST_MBR_CRSP_CHI_ADDR_2": "CUST_MBR_CRSP_CHI_ADDR_2_OUT", "CUST_MBR_CRSP_CHI_ADDR_3": "CUST_MBR_CRSP_CHI_ADDR_3_OUT", "CUST_MBR_CRSP_CHI_ADDR_4": "CUST_MBR_CRSP_CHI_ADDR_4_OUT", "CUST_MBR_CRSP_CHI_ADDR_5": "CUST_MBR_CRSP_CHI_ADDR_5_OUT", "CUST_MBR_CRSP_CODE_ADDR": "CUST_MBR_CRSP_CODE_ADDR_OUT", "CUST_MBR_CRSP_ENG_ADDR_1": "CUST_MBR_CRSP_ENG_ADDR_1_OUT", "CUST_MBR_CRSP_ENG_ADDR_2": "CUST_MBR_CRSP_ENG_ADDR_2_OUT", "CUST_MBR_CRSP_ENG_ADDR_3": "CUST_MBR_CRSP_ENG_ADDR_3_OUT", "CUST_MBR_CRSP_ENG_ADDR_4": "CUST_MBR_CRSP_ENG_ADDR_4_OUT", "CUST_MBR_CRSP_ENG_ADDR_5": "CUST_MBR_CRSP_ENG_ADDR_5_OUT", "CUST_MBR_CSSA_IND": "CUST_MBR_CSSA_IND", "CUST_MBR_DOB_DATE": "CUST_MBR_DOB_DATE_OUT", "CUST_MBR_DOB_IND": "CUST_MBR_DOB_IND_OUT", "CUST_MBR_DSBL_ALWN_RCPT_IND": "CUST_MBR_DSBL_ALWN_RCPT_IND", "CUST_MBR_DVRC_BFR_IND": "CUST_MBR_DVRC_BFR_IND_OUT", "CUST_MBR_ELDR_IND": "CUST_MBR_ELDR_IND_OUT", "CUST_MBR_EMAIL_ADDR": "CUST_MBR_EMAIL_ADDR_OUT", "CUST_MBR_ENG_NAME": "CUST_MBR_ENG_NAME_OUT", "CUST_MBR_ENTRY_DATE_CNFR_IND": "CUST_MBR_ENTRY_DATE_CNFR_IND", "CUST_MBR_EXPCT_CHILD_NUM": "CUST_MBR_EXPCT_CHILD_NUM", "CUST_MBR_EXPCT_DLVR_DATE": "CUST_MBR_EXPCT_DLVR_DATE", "CUST_MBR_GNDR_CODE": "CUST_MBR_GNDR_CODE_OUT", "CUST_MBR_GUDN_IND": "CUST_MBR_GUDN_IND", "CUST_MBR_HK_LAND_RGHT_IND": "CUST_MBR_HK_LAND_RGHT_IND", "CUST_MBR_HOME_CHI_ADDR_1": "CUST_MBR_HOME_CHI_ADDR_1_OUT", "CUST_MBR_HOME_CHI_ADDR_2": "CUST_MBR_HOME_CHI_ADDR_2_OUT", "CUST_MBR_HOME_CHI_ADDR_3": "CUST_MBR_HOME_CHI_ADDR_3_OUT", "CUST_MBR_HOME_CHI_ADDR_4": "CUST_MBR_HOME_CHI_ADDR_4_OUT", "CUST_MBR_HOME_CHI_ADDR_5": "CUST_MBR_HOME_CHI_ADDR_5_OUT", "CUST_MBR_HOME_CODE_ADDR": "CUST_MBR_HOME_CODE_ADDR_OUT", "CUST_MBR_HOME_ENG_ADDR_1": "CUST_MBR_HOME_ENG_ADDR_1_OUT", "CUST_MBR_HOME_ENG_ADDR_2": "CUST_MBR_HOME_ENG_ADDR_2_OUT", "CUST_MBR_HOME_ENG_ADDR_3": "CUST_MBR_HOME_ENG_ADDR_3_OUT", "CUST_MBR_HOME_ENG_ADDR_4": "CUST_MBR_HOME_ENG_ADDR_4_OUT", "CUST_MBR_HOME_ENG_ADDR_5": "CUST_MBR_HOME_ENG_ADDR_5_OUT", "CUST_MBR_HOME_PHONE_NUM": "CUST_MBR_HOME_PHONE_NUM_OUT", "CUST_MBR_HSHLD_HEAD_CODE": "CUST_MBR_HSHLD_HEAD_CODE_OUT", "CUST_MBR_HSTL_TYPE_CODE": "CUST_MBR_HSTL_TYPE_CODE", "CUST_MBR_ID_CERT_NUM": "CUST_MBR_ID_CERT_NUM_OUT", "CUST_MBR_ID_ISS_DATE": "CUST_MBR_ID_ISS_DATE_OUT", "CUST_MBR_ID_NUM": "CUST_MBR_ID_NUM_OUT", "CUST_MBR_ID_TYPE_CODE": "CUST_MBR_ID_TYPE_CODE_OUT", "CUST_MBR_INCM_AMT": "CUST_MBR_INCM_AMT_OUT", "CUST_MBR_JNT_CSTDY_IND": "CUST_MBR_JNT_CSTDY_IND", "CUST_MBR_MBL_PHONE_NUM": "CUST_MBR_MBL_PHONE_NUM_OUT", "CUST_MBR_MRTL_STS_CODE": "CUST_MBR_MRTL_STS_CODE_OUT", "CUST_MBR_OCPY_STS_CODE": "CUST_MBR_OCPY_STS_CODE_OUT", "CUST_MBR_OFFC_PHONE_NUM": "CUST_MBR_OFFC_PHONE_NUM_OUT", "CUST_MBR_OWNR_CODE": "CUST_MBR_OWNR_CODE_OUT", "CUST_MBR_PRGNT_IND": "CUST_MBR_PRGNT_IND", "CUST_MBR_RLNQ_DATE": "CUST_MBR_RLNQ_DATE_OUT", "CUST_MBR_RLTN_CODE": "CUST_MBR_RLTN_CODE_OUT", "CUST_MBR_RR_IND": "CUST_MBR_RR_IND_OUT", "CUST_MBR_SEQ_NUM": "CUST_MBR_SEQ_NUM", "CUST_MBR_SIGN_IND": "CUST_MBR_SIGN_IND", "CUST_MBR_STS_UPD_DATE": "CUST_MBR_STS_UPD_DATE_OUT", "CUST_MBR_TEMP_STAY_BGN_DATE": "CUST_MBR_TEMP_STAY_BGN_DATE_OUT", "CUST_MBR_TEMP_STAY_END_DATE": "CUST_MBR_TEMP_STAY_END_DATE_OUT", "CUST_MBR_UP_IND": "CUST_MBR_UP_IND_OUT", "DOC_CHK_IND": "DOC_CHK_IND", "DSBL_CATG_CODE_1": "DSBL_CATG_CODE_1_OUT", "DSBL_CATG_CODE_2": "DSBL_CATG_CODE_2_OUT", "DSBL_CATG_CODE_3": "DSBL_CATG_CODE_3_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "HSE_SRVC_APLY_TYPE_CODE": "HSE_SRVC_APLY_TYPE_CODE_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_MBR_CODE": "LAST_REC_TXN_MBR_CODE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "OWN_SRDR_RSN_CODE": "OWN_SRDR_RSN_CODE_OUT", "PREV_CUST_MBR_CHI_NAME": "PREV_CUST_MBR_CHI_NAME", "PREV_CUST_MBR_CSSA_IND": "PREV_CUST_MBR_CSSA_IND", "PREV_CUST_MBR_ENG_NAME": "PREV_CUST_MBR_ENG_NAME", "RLT_MBR_ID_NUM": "RLT_MBR_ID_NUM_OUT", "RLT_MBR_ID_TYPE_CODE": "RLT_MBR_ID_TYPE_CODE_OUT", "SRC_SYS_CODE": "SRC_SYS_CODE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HSE_SRVC_APLY_KEY', 'CUST_KEY', 'CUST_MBR_ID_NUM', 'CUST_MBR_ID_TYPE_CODE', 'CUST_APLY_MBR_STS_CODE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'CUST_MBR_AST_AMT', 'CUST_MBR_CC_CODE_1', 'CUST_MBR_CC_CODE_2', 'CUST_MBR_CC_CODE_3', 'CUST_MBR_CC_CODE_4', 'CUST_MBR_CC_CODE_5', 'CUST_MBR_CC_CODE_6', 'CUST_MBR_CHI_ENTRY_DATE', 'CUST_MBR_CHI_NAME', 'CUST_MBR_CNTC_CODE', 'CUST_MBR_CRSP_CHI_ADDR_1', 'CUST_MBR_CRSP_CHI_ADDR_2', 'CUST_MBR_CRSP_CHI_ADDR_3', 'CUST_MBR_CRSP_CHI_ADDR_4', 'CUST_MBR_CRSP_CHI_ADDR_5', 'CUST_MBR_CRSP_CODE_ADDR', 'CUST_MBR_CRSP_ENG_ADDR_1', 'CUST_MBR_CRSP_ENG_ADDR_2', 'CUST_MBR_CRSP_ENG_ADDR_3', 'CUST_MBR_CRSP_ENG_ADDR_4', 'CUST_MBR_CRSP_ENG_ADDR_5', 'CUST_MBR_DOB_DATE', 'CUST_MBR_DOB_IND', 'CUST_MBR_DVRC_BFR_IND', 'CUST_MBR_ELDR_IND', 'CUST_MBR_EMAIL_ADDR', 'CUST_MBR_ENG_NAME', 'CUST_MBR_GNDR_CODE', 'CUST_MBR_HOME_CHI_ADDR_1', 'CUST_MBR_HOME_CHI_ADDR_2', 'CUST_MBR_HOME_CHI_ADDR_3', 'CUST_MBR_HOME_CHI_ADDR_4', 'CUST_MBR_HOME_CHI_ADDR_5', 'CUST_MBR_HOME_CODE_ADDR', 'CUST_MBR_HOME_ENG_ADDR_1', 'CUST_MBR_HOME_ENG_ADDR_2', 'CUST_MBR_HOME_ENG_ADDR_3', 'CUST_MBR_HOME_ENG_ADDR_4', 'CUST_MBR_HOME_ENG_ADDR_5', 'CUST_MBR_HOME_PHONE_NUM', 'CUST_MBR_HSHLD_HEAD_CODE', 'CUST_MBR_ID_CERT_NUM', 'CUST_MBR_ID_ISS_DATE', 'CUST_MBR_INCM_AMT', 'CUST_MBR_MBL_PHONE_NUM', 'CUST_MBR_MRTL_STS_CODE', 'CUST_MBR_OCPY_STS_CODE', 'CUST_MBR_OFFC_PHONE_NUM', 'CUST_MBR_OWNR_CODE', 'CUST_MBR_RLNQ_DATE', 'CUST_MBR_RLTN_CODE', 'CUST_MBR_RR_IND', 'CUST_MBR_STS_UPD_DATE', 'CUST_MBR_TEMP_STAY_BGN_DATE', 'CUST_MBR_TEMP_STAY_END_DATE', 'CUST_MBR_UP_IND', 'DSBL_CATG_CODE_1', 'DSBL_CATG_CODE_2', 'DSBL_CATG_CODE_3', 'HSE_SRVC_APLY_TYPE_CODE', 'OWN_SRDR_RSN_CODE', 'RLT_MBR_ID_NUM', 'RLT_MBR_ID_TYPE_CODE', 'PREV_CUST_MBR_ENG_NAME', 'PREV_CUST_MBR_CHI_NAME', 'CUST_MBR_HK_LAND_RGHT_IND', 'CUST_MBR_GUDN_IND', 'CUST_MBR_JNT_CSTDY_IND', 'CUST_MBR_ENTRY_DATE_CNFR_IND', 'CUST_MBR_HSTL_TYPE_CODE', 'CUST_MBR_CSSA_IND', 'PREV_CUST_MBR_CSSA_IND', 'CUST_MBR_PRGNT_IND', 'CUST_MBR_EXPCT_CHILD_NUM', 'CUST_MBR_EXPCT_DLVR_DATE', 'CUST_MBR_SIGN_IND', 'CUST_MBR_SEQ_NUM', 'DOC_CHK_IND', 'SRC_SYS_CODE', 'CUR_TNT_IND', 'ACTL_CUST_MBR_INCM_AMT', 'ACTL_CUST_MBR_AST_AMT', 'LAST_REC_TXN_MBR_CODE', 'CUST_MBR_DSBL_ALWN_RCPT_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_CPM_CUST_APLY_MBR", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_CPM_CUST_APLY_MBR',
+            mode='append',
+            source_columns=[
+                'HSE_SRVC_APLY_KEY_OUT',
+                'CUST_KEY_OUT',
+                'CUST_MBR_ID_NUM_OUT',
+                'CUST_MBR_ID_TYPE_CODE_OUT',
+                'CUST_APLY_MBR_STS_CODE_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'CUST_MBR_AST_AMT_OUT',
+                'CUST_MBR_CC_CODE_1_OUT',
+                'CUST_MBR_CC_CODE_2_OUT',
+                'CUST_MBR_CC_CODE_3_OUT',
+                'CUST_MBR_CC_CODE_4_OUT',
+                'CUST_MBR_CC_CODE_5_OUT',
+                'CUST_MBR_CC_CODE_6_OUT',
+                'CUST_MBR_CHI_ENTRY_DATE_OUT',
+                'CUST_MBR_CHI_NAME_OUT',
+                'CUST_MBR_CNTC_CODE1',
+                'CUST_MBR_CRSP_CHI_ADDR_1_OUT',
+                'CUST_MBR_CRSP_CHI_ADDR_2_OUT',
+                'CUST_MBR_CRSP_CHI_ADDR_3_OUT',
+                'CUST_MBR_CRSP_CHI_ADDR_4_OUT',
+                'CUST_MBR_CRSP_CHI_ADDR_5_OUT',
+                'CUST_MBR_CRSP_CODE_ADDR_OUT',
+                'CUST_MBR_CRSP_ENG_ADDR_1_OUT',
+                'CUST_MBR_CRSP_ENG_ADDR_2_OUT',
+                'CUST_MBR_CRSP_ENG_ADDR_3_OUT',
+                'CUST_MBR_CRSP_ENG_ADDR_4_OUT',
+                'CUST_MBR_CRSP_ENG_ADDR_5_OUT',
+                'CUST_MBR_DOB_DATE_OUT',
+                'CUST_MBR_DOB_IND_OUT',
+                'CUST_MBR_DVRC_BFR_IND_OUT',
+                'CUST_MBR_ELDR_IND_OUT',
+                'CUST_MBR_EMAIL_ADDR_OUT',
+                'CUST_MBR_ENG_NAME_OUT',
+                'CUST_MBR_GNDR_CODE_OUT',
+                'CUST_MBR_HOME_CHI_ADDR_1_OUT',
+                'CUST_MBR_HOME_CHI_ADDR_2_OUT',
+                'CUST_MBR_HOME_CHI_ADDR_3_OUT',
+                'CUST_MBR_HOME_CHI_ADDR_4_OUT',
+                'CUST_MBR_HOME_CHI_ADDR_5_OUT',
+                'CUST_MBR_HOME_CODE_ADDR_OUT',
+                'CUST_MBR_HOME_ENG_ADDR_1_OUT',
+                'CUST_MBR_HOME_ENG_ADDR_2_OUT',
+                'CUST_MBR_HOME_ENG_ADDR_3_OUT',
+                'CUST_MBR_HOME_ENG_ADDR_4_OUT',
+                'CUST_MBR_HOME_ENG_ADDR_5_OUT',
+                'CUST_MBR_HOME_PHONE_NUM_OUT',
+                'CUST_MBR_HSHLD_HEAD_CODE_OUT',
+                'CUST_MBR_ID_CERT_NUM_OUT',
+                'CUST_MBR_ID_ISS_DATE_OUT',
+                'CUST_MBR_INCM_AMT_OUT',
+                'CUST_MBR_MBL_PHONE_NUM_OUT',
+                'CUST_MBR_MRTL_STS_CODE_OUT',
+                'CUST_MBR_OCPY_STS_CODE_OUT',
+                'CUST_MBR_OFFC_PHONE_NUM_OUT',
+                'CUST_MBR_OWNR_CODE_OUT',
+                'CUST_MBR_RLNQ_DATE_OUT',
+                'CUST_MBR_RLTN_CODE_OUT',
+                'CUST_MBR_RR_IND_OUT',
+                'CUST_MBR_STS_UPD_DATE_OUT',
+                'CUST_MBR_TEMP_STAY_BGN_DATE_OUT',
+                'CUST_MBR_TEMP_STAY_END_DATE_OUT',
+                'CUST_MBR_UP_IND_OUT',
+                'DSBL_CATG_CODE_1_OUT',
+                'DSBL_CATG_CODE_2_OUT',
+                'DSBL_CATG_CODE_3_OUT',
+                'HSE_SRVC_APLY_TYPE_CODE_OUT',
+                'OWN_SRDR_RSN_CODE_OUT',
+                'RLT_MBR_ID_NUM_OUT',
+                'RLT_MBR_ID_TYPE_CODE_OUT',
+                'PREV_CUST_MBR_ENG_NAME',
+                'PREV_CUST_MBR_CHI_NAME',
+                'CUST_MBR_HK_LAND_RGHT_IND',
+                'CUST_MBR_GUDN_IND',
+                'CUST_MBR_JNT_CSTDY_IND',
+                'CUST_MBR_ENTRY_DATE_CNFR_IND',
+                'CUST_MBR_HSTL_TYPE_CODE',
+                'CUST_MBR_CSSA_IND',
+                'PREV_CUST_MBR_CSSA_IND',
+                'CUST_MBR_PRGNT_IND',
+                'CUST_MBR_EXPCT_CHILD_NUM',
+                'CUST_MBR_EXPCT_DLVR_DATE',
+                'CUST_MBR_SIGN_IND',
+                'CUST_MBR_SEQ_NUM',
+                'DOC_CHK_IND',
+                'SRC_SYS_CODE',
+                'CUR_TNT_IND',
+                'ACTL_CUST_MBR_INCM_AMT',
+                'ACTL_CUST_MBR_AST_AMT',
+                'LAST_REC_TXN_MBR_CODE',
+                'CUST_MBR_DSBL_ALWN_RCPT_IND',
+            ],
+            target_columns=[
+                'HSE_SRVC_APLY_KEY',
+                'CUST_KEY',
+                'CUST_MBR_ID_NUM',
+                'CUST_MBR_ID_TYPE_CODE',
+                'CUST_APLY_MBR_STS_CODE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'CUST_MBR_AST_AMT',
+                'CUST_MBR_CC_CODE_1',
+                'CUST_MBR_CC_CODE_2',
+                'CUST_MBR_CC_CODE_3',
+                'CUST_MBR_CC_CODE_4',
+                'CUST_MBR_CC_CODE_5',
+                'CUST_MBR_CC_CODE_6',
+                'CUST_MBR_CHI_ENTRY_DATE',
+                'CUST_MBR_CHI_NAME',
+                'CUST_MBR_CNTC_CODE',
+                'CUST_MBR_CRSP_CHI_ADDR_1',
+                'CUST_MBR_CRSP_CHI_ADDR_2',
+                'CUST_MBR_CRSP_CHI_ADDR_3',
+                'CUST_MBR_CRSP_CHI_ADDR_4',
+                'CUST_MBR_CRSP_CHI_ADDR_5',
+                'CUST_MBR_CRSP_CODE_ADDR',
+                'CUST_MBR_CRSP_ENG_ADDR_1',
+                'CUST_MBR_CRSP_ENG_ADDR_2',
+                'CUST_MBR_CRSP_ENG_ADDR_3',
+                'CUST_MBR_CRSP_ENG_ADDR_4',
+                'CUST_MBR_CRSP_ENG_ADDR_5',
+                'CUST_MBR_DOB_DATE',
+                'CUST_MBR_DOB_IND',
+                'CUST_MBR_DVRC_BFR_IND',
+                'CUST_MBR_ELDR_IND',
+                'CUST_MBR_EMAIL_ADDR',
+                'CUST_MBR_ENG_NAME',
+                'CUST_MBR_GNDR_CODE',
+                'CUST_MBR_HOME_CHI_ADDR_1',
+                'CUST_MBR_HOME_CHI_ADDR_2',
+                'CUST_MBR_HOME_CHI_ADDR_3',
+                'CUST_MBR_HOME_CHI_ADDR_4',
+                'CUST_MBR_HOME_CHI_ADDR_5',
+                'CUST_MBR_HOME_CODE_ADDR',
+                'CUST_MBR_HOME_ENG_ADDR_1',
+                'CUST_MBR_HOME_ENG_ADDR_2',
+                'CUST_MBR_HOME_ENG_ADDR_3',
+                'CUST_MBR_HOME_ENG_ADDR_4',
+                'CUST_MBR_HOME_ENG_ADDR_5',
+                'CUST_MBR_HOME_PHONE_NUM',
+                'CUST_MBR_HSHLD_HEAD_CODE',
+                'CUST_MBR_ID_CERT_NUM',
+                'CUST_MBR_ID_ISS_DATE',
+                'CUST_MBR_INCM_AMT',
+                'CUST_MBR_MBL_PHONE_NUM',
+                'CUST_MBR_MRTL_STS_CODE',
+                'CUST_MBR_OCPY_STS_CODE',
+                'CUST_MBR_OFFC_PHONE_NUM',
+                'CUST_MBR_OWNR_CODE',
+                'CUST_MBR_RLNQ_DATE',
+                'CUST_MBR_RLTN_CODE',
+                'CUST_MBR_RR_IND',
+                'CUST_MBR_STS_UPD_DATE',
+                'CUST_MBR_TEMP_STAY_BGN_DATE',
+                'CUST_MBR_TEMP_STAY_END_DATE',
+                'CUST_MBR_UP_IND',
+                'DSBL_CATG_CODE_1',
+                'DSBL_CATG_CODE_2',
+                'DSBL_CATG_CODE_3',
+                'HSE_SRVC_APLY_TYPE_CODE',
+                'OWN_SRDR_RSN_CODE',
+                'RLT_MBR_ID_NUM',
+                'RLT_MBR_ID_TYPE_CODE',
+                'PREV_CUST_MBR_ENG_NAME',
+                'PREV_CUST_MBR_CHI_NAME',
+                'CUST_MBR_HK_LAND_RGHT_IND',
+                'CUST_MBR_GUDN_IND',
+                'CUST_MBR_JNT_CSTDY_IND',
+                'CUST_MBR_ENTRY_DATE_CNFR_IND',
+                'CUST_MBR_HSTL_TYPE_CODE',
+                'CUST_MBR_CSSA_IND',
+                'PREV_CUST_MBR_CSSA_IND',
+                'CUST_MBR_PRGNT_IND',
+                'CUST_MBR_EXPCT_CHILD_NUM',
+                'CUST_MBR_EXPCT_DLVR_DATE',
+                'CUST_MBR_SIGN_IND',
+                'CUST_MBR_SEQ_NUM',
+                'DOC_CHK_IND',
+                'SRC_SYS_CODE',
+                'CUR_TNT_IND',
+                'ACTL_CUST_MBR_INCM_AMT',
+                'ACTL_CUST_MBR_AST_AMT',
+                'LAST_REC_TXN_MBR_CODE',
+                'CUST_MBR_DSBL_ALWN_RCPT_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_CPM_CUST_APLY_MBR write completed")
         

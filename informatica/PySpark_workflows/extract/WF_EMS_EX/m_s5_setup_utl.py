@@ -51,29 +51,12 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
     v_load_start_ds = ""
     v_load_end_ds = ""
     v_snsh_date = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_ems_archive_path",  "$$v_load_start_ds",  "$$v_load_end_ds",  "$$v_snsh_date", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_ems_archive_path":
-                            v_ems_archive_path = _val
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        if _clean == "v_snsh_date":
-                            v_snsh_date = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_ems_archive_path",  "$$v_load_start_ds",  "$$v_load_end_ds",  "$$v_snsh_date", ], logger)
+    v_ems_archive_path = _vars.get("v_ems_archive_path", v_ems_archive_path)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
+    v_snsh_date = _vars.get("v_snsh_date", v_snsh_date)
     
     try:
         logger.info("Step: read_SOR_SYS_PRPTY")
@@ -131,102 +114,98 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SOR_SYS_PRPTY")
         # Source Qualifier: apply_SQ_SOR_SYS_PRPTY
         df_SQ_SOR_SYS_PRPTY = df_SOR_SYS_PRPTY
-        df_SQ_SOR_SYS_PRPTY = df_SQ_SOR_SYS_PRPTY.filter(expr("PRPTY = 'EMS_EXTRACT_END_TIME'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["PRPTY", "VAL", "PRPTY_DESP"]
-        df_SQ_SOR_SYS_PRPTY = df_SQ_SOR_SYS_PRPTY.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_SYS_PRPTY.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SOR_SYS_PRPTY = lib.sq_output(
+            input_df=df_SQ_SOR_SYS_PRPTY,
+            port_cols={
+                'PRPTY': 'string',
+                'VAL': 'string',
+                'PRPTY_DESP': 'string',
+            },
+            filter_condition="PRPTY = 'EMS_EXTRACT_END_TIME'",
+        )
         ctx.register_df("df_SQ_SOR_SYS_PRPTY", df_SQ_SOR_SYS_PRPTY)
         
         logger.info("Step: apply_SQ_UTL_SSA_TBL_LIST")
         # Source Qualifier: apply_SQ_UTL_SSA_TBL_LIST
         df_SQ_UTL_SSA_TBL_LIST = df_UTL_SSA_TBL_LIST
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["TABLE"]
-        df_SQ_UTL_SSA_TBL_LIST = df_SQ_UTL_SSA_TBL_LIST.select([col(c) if c.lower() in [x.lower() for x in df_SQ_UTL_SSA_TBL_LIST.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_UTL_SSA_TBL_LIST = lib.sq_output(
+            input_df=df_SQ_UTL_SSA_TBL_LIST,
+            port_cols={
+                'TABLE': 'string',
+            },
+        )
         ctx.register_df("df_SQ_UTL_SSA_TBL_LIST", df_SQ_UTL_SSA_TBL_LIST)
         
         logger.info("Step: apply_SQ_DUAL")
         # Source Qualifier: apply_SQ_DUAL
         df_SQ_DUAL = df_DUAL
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["DUMMY"]
-        df_SQ_DUAL = df_SQ_DUAL.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DUAL.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DUAL = lib.sq_output(
+            input_df=df_SQ_DUAL,
+            port_cols={
+                'DUMMY': 'string',
+            },
+        )
         ctx.register_df("df_SQ_DUAL", df_SQ_DUAL)
         
         logger.info("Step: apply_EXP_DATE")
         # Expression: apply_EXP_DATE
-        df_EXP_DATE = df_SQ_SOR_SYS_PRPTY
-        df_EXP_DATE = df_EXP_DATE.withColumn("SNSH_DATE", expr("'EMS_SNAPSHOT_DATE'"))
-        _expr = """CASE WHEN '$$v_snsh_date' = '' THEN date_format(date_add(current_timestamp(), CAST(-1 AS INT)), 'yyyyMMdd') ELSE translate('$$v_snsh_date', '-', '') END"""
-        _expr = _expr.replace("$$v_ems_archive_path", str(v_ems_archive_path))
-        _expr = _expr.replace("$$v_load_start_ds", str(v_load_start_ds))
-        _expr = _expr.replace("$$v_load_end_ds", str(v_load_end_ds))
-        _expr = _expr.replace("$$v_snsh_date", str(v_snsh_date))
-        df_EXP_DATE = df_EXP_DATE.withColumn("SNSH_DATE_VAL", expr(_expr))
-        df_EXP_DATE = df_EXP_DATE.withColumn("BGN_TIME", expr("'EMS_EXTRACT_BGN_TIME'"))
-        df_EXP_DATE = df_EXP_DATE.withColumn("END_TIME", expr("'EMS_EXTRACT_END_TIME'"))
-        _expr = """CASE WHEN '$$v_load_end_ds' = '' THEN date_format(current_timestamp(), 'yyyy-MM-dd HH:mm:ss') ELSE '$$v_load_end_ds' END"""
-        _expr = _expr.replace("$$v_ems_archive_path", str(v_ems_archive_path))
-        _expr = _expr.replace("$$v_load_start_ds", str(v_load_start_ds))
-        _expr = _expr.replace("$$v_load_end_ds", str(v_load_end_ds))
-        _expr = _expr.replace("$$v_snsh_date", str(v_snsh_date))
-        df_EXP_DATE = df_EXP_DATE.withColumn("END_TIME_VAL", expr(_expr))
-        _expr = """CASE WHEN '$$v_ems_archive_path' = '' THEN null WHEN '$$v_ems_archive_path' = null THEN null ELSE 'EMS_ARCHIVE_PATH' END"""
-        _expr = _expr.replace("$$v_ems_archive_path", str(v_ems_archive_path))
-        _expr = _expr.replace("$$v_load_start_ds", str(v_load_start_ds))
-        _expr = _expr.replace("$$v_load_end_ds", str(v_load_end_ds))
-        _expr = _expr.replace("$$v_snsh_date", str(v_snsh_date))
-        df_EXP_DATE = df_EXP_DATE.withColumn("EMS_ARCHIVE_PATH", expr(_expr))
-        _expr = """'$$v_ems_archive_path'"""
-        _expr = _expr.replace("$$v_ems_archive_path", str(v_ems_archive_path))
-        _expr = _expr.replace("$$v_load_start_ds", str(v_load_start_ds))
-        _expr = _expr.replace("$$v_load_end_ds", str(v_load_end_ds))
-        _expr = _expr.replace("$$v_snsh_date", str(v_snsh_date))
-        df_EXP_DATE = df_EXP_DATE.withColumn("EMS_ARCHIVE_PATH_VAL", expr(_expr))
-        _expr = """CASE WHEN '$$v_load_start_ds' = '' THEN VAL ELSE '$$v_load_start_ds' END"""
-        _expr = _expr.replace("$$v_ems_archive_path", str(v_ems_archive_path))
-        _expr = _expr.replace("$$v_load_start_ds", str(v_load_start_ds))
-        _expr = _expr.replace("$$v_load_end_ds", str(v_load_end_ds))
-        _expr = _expr.replace("$$v_snsh_date", str(v_snsh_date))
-        df_EXP_DATE = df_EXP_DATE.withColumn("BGN_TIME_VAL", expr(_expr))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["VAL"]:
-            if _col.lower() not in [x.lower() for x in df_EXP_DATE.columns]:
-                df_EXP_DATE = df_EXP_DATE.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_DATE = lib.expression(
+            input_df=df_SQ_SOR_SYS_PRPTY,
+            computed_columns=[
+                {'name': 'SNSH_DATE', 'expr': "'EMS_SNAPSHOT_DATE'"},
+                {'name': 'SNSH_DATE_VAL', 'expr': "CASE WHEN '$$v_snsh_date' = '' THEN date_format(date_add(current_timestamp(), CAST(-1 AS INT)), 'yyyyMMdd') ELSE translate('$$v_snsh_date', '-', '') END"},
+                {'name': 'BGN_TIME', 'expr': "'EMS_EXTRACT_BGN_TIME'"},
+                {'name': 'END_TIME', 'expr': "'EMS_EXTRACT_END_TIME'"},
+                {'name': 'END_TIME_VAL', 'expr': "CASE WHEN '$$v_load_end_ds' = '' THEN date_format(current_timestamp(), 'yyyy-MM-dd HH:mm:ss') ELSE '$$v_load_end_ds' END"},
+                {'name': 'EMS_ARCHIVE_PATH', 'expr': "CASE WHEN '$$v_ems_archive_path' = '' THEN null WHEN '$$v_ems_archive_path' IS NULL THEN null ELSE 'EMS_ARCHIVE_PATH' END"},
+                {'name': 'EMS_ARCHIVE_PATH_VAL', 'expr': "'$$v_ems_archive_path'"},
+                {'name': 'BGN_TIME_VAL', 'expr': "CASE WHEN '$$v_load_start_ds' = '' THEN VAL ELSE '$$v_load_start_ds' END"}
+            ],
+            substitutions={'$$v_ems_archive_path': v_ems_archive_path, '$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds, '$$v_snsh_date': v_snsh_date},
+        )
         ctx.register_df("df_EXP_DATE", df_EXP_DATE)
         
         logger.info("Step: apply_EXP_TBL")
         # Expression: apply_EXP_TBL
-        df_EXP_TBL = df_SQ_UTL_SSA_TBL_LIST
-        df_EXP_TBL = df_EXP_TBL.withColumn("TABLE_OUT", expr("ltrim(rtrim(TABLE))"))
-        df_EXP_TBL = df_EXP_TBL.withColumn("ARCHIVE_PATH", expr("'EMS_ARCHIVE_PATH'"))
-        df_EXP_TBL = df_EXP_TBL.withColumn("SNAPSHOT_DATE", expr("'EMS_SNAPSHOT_DATE'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_TBL = lib.expression(
+            input_df=df_SQ_UTL_SSA_TBL_LIST,
+            computed_columns=[
+                {'name': 'TABLE_OUT', 'expr': 'ltrim(rtrim(TABLE))'},
+                {'name': 'ARCHIVE_PATH', 'expr': "'EMS_ARCHIVE_PATH'"},
+                {'name': 'SNAPSHOT_DATE', 'expr': "'EMS_SNAPSHOT_DATE'"}
+            ],
+        )
         ctx.register_df("df_EXP_TBL", df_EXP_TBL)
         
         logger.info("Step: apply_EXP_TBL1")
         # Expression: apply_EXP_TBL1
-        df_EXP_TBL1 = df_SQ_DUAL
-        df_EXP_TBL1 = df_EXP_TBL1.withColumn("ARCHIVE_PATH", expr("'EMS_ARCHIVE_PATH'"))
-        df_EXP_TBL1 = df_EXP_TBL1.withColumn("SNAPSHOT_DATE", expr("'EMS_SNAPSHOT_DATE'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_TBL1 = lib.expression(
+            input_df=df_SQ_DUAL,
+            computed_columns=[
+                {'name': 'ARCHIVE_PATH', 'expr': "'EMS_ARCHIVE_PATH'"},
+                {'name': 'SNAPSHOT_DATE', 'expr': "'EMS_SNAPSHOT_DATE'"}
+            ],
+        )
         ctx.register_df("df_EXP_TBL1", df_EXP_TBL1)
         
         logger.info("Step: apply_FILTRANS")
         # Filter: apply_FILTRANS
-        __fil_input = df_EXP_DATE
-        __fil_input = __fil_input.drop("PRPTY").withColumnRenamed("EMS_ARCHIVE_PATH", "PRPTY")
-        __fil_input = __fil_input.drop("VAL").withColumnRenamed("EMS_ARCHIVE_PATH_VAL", "VAL")
-        df_FILTRANS = __fil_input.filter(expr("CASE WHEN PRPTY = null THEN false WHEN PRPTY = '' THEN false ELSE true END"))
+        df_FILTRANS = lib.filter(
+            input_df=df_EXP_DATE,
+            rename_columns=[
+                ('EMS_ARCHIVE_PATH', 'PRPTY'),
+                ('EMS_ARCHIVE_PATH_VAL', 'VAL')
+            ],
+            condition="CASE WHEN PRPTY IS NULL THEN false WHEN PRPTY = '' THEN false ELSE true END",
+        )
         ctx.register_df("df_FILTRANS", df_FILTRANS)
 
         logger.info("Step: apply_FIL_VAL")
         # Filter: apply_FIL_VAL
-        __fil_input = df_EXP_TBL
-        df_FIL_VAL = __fil_input.filter(expr("CASE WHEN TABLE_OUT = '' THEN false WHEN TABLE_OUT = null THEN false ELSE true END"))
+        df_FIL_VAL = lib.filter(
+            input_df=df_EXP_TBL,
+            condition="CASE WHEN TABLE_OUT = '' THEN false WHEN TABLE_OUT IS NULL THEN false ELSE true END",
+        )
         ctx.register_df("df_FIL_VAL", df_FIL_VAL)
 
         logger.info("Step: read_LKP_SYS_PRPTY3")
@@ -251,7 +230,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _lkp_input = _lkp_input.withColumn("PROPERTY", col("SNAPSHOT_DATE"))
         # Join condition: PROPERTY=PRPTY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXP_TBL1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_SYS_PRPTY3).alias("_lkp"),
             (col("_main.PROPERTY") == col("_lkp.PRPTY")),
             "left"
@@ -259,7 +238,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_SYS_PRPTY3[c] for c in df_LKP_SYS_PRPTY3.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_1", df_lkp_merge_1)        
+        ctx.register_df("df_lkp_merge_EXP_TBL1", df_lkp_merge_EXP_TBL1)        
         logger.info("Step: read_LKP_SYS_PRPTY2")
         # Reading Data From Source - read_LKP_SYS_PRPTY2
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -278,11 +257,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_SYS_PRPTY2 = df_LKP_SYS_PRPTY2.dropDuplicates(subset=["PRPTY"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_1
+        _lkp_input = df_lkp_merge_EXP_TBL1
         _lkp_input = _lkp_input.withColumn("PROPERTY", col("ARCHIVE_PATH"))
         # Join condition: PROPERTY=PRPTY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_1 = _lkp_input.alias("_main").join(
+        df_lkp_merge_EXP_TBL1 = _lkp_input.alias("_main").join(
             broadcast(df_LKP_SYS_PRPTY2).alias("_lkp"),
             (col("_main.PROPERTY") == col("_lkp.PRPTY")),
             "left"
@@ -293,28 +272,28 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         
         logger.info("Step: apply_UNI_PRPTY")
         # Union: apply_UNI_PRPTY
-        # Select + rename upstream columns per input, then union
-        df_UNI_PRPTY_snsh_date = df_EXP_DATE.select(
-            col("SNSH_DATE").alias("PRPTY"),
-            col("SNSH_DATE_VAL").alias("VAL")        )
-        df_UNI_PRPTY_bgn_time = df_EXP_DATE.select(
-            col("BGN_TIME").alias("PRPTY"),
-            col("BGN_TIME_VAL").alias("VAL")        )
-        df_UNI_PRPTY_end_time = df_EXP_DATE.select(
-            col("END_TIME").alias("PRPTY"),
-            col("END_TIME_VAL").alias("VAL")        )
-        df_UNI_PRPTY_ems_archive_path = df_FILTRANS.select(
-            col("PRPTY").alias("PRPTY"),
-            col("VAL").alias("VAL")        )
-        df_UNI_PRPTY = df_UNI_PRPTY_snsh_date
-        df_UNI_PRPTY = df_UNI_PRPTY.unionByName(df_UNI_PRPTY_bgn_time, allowMissingColumns=True)
-        df_UNI_PRPTY = df_UNI_PRPTY.unionByName(df_UNI_PRPTY_end_time, allowMissingColumns=True)
-        df_UNI_PRPTY = df_UNI_PRPTY.unionByName(df_UNI_PRPTY_ems_archive_path, allowMissingColumns=True)
-        # Select only union output columns (add lit(None) for any missing)
-        for _col in ["PRPTY", "VAL"]:
-            if _col.lower() not in [x.lower() for x in df_UNI_PRPTY.columns]:
-                df_UNI_PRPTY = df_UNI_PRPTY.withColumn(_col, lit(None))
-        df_UNI_PRPTY = df_UNI_PRPTY.select("PRPTY", "VAL")
+        df_UNI_PRPTY = lib.union(
+            input_df=df_EXP_DATE,
+            union_selects=[
+                {'df_input': df_EXP_DATE, 'selects': [
+                    'SNSH_DATE',
+                    'SNSH_DATE_VAL'
+                ]},
+                {'df_input': df_EXP_DATE, 'selects': [
+                    'BGN_TIME',
+                    'BGN_TIME_VAL'
+                ]},
+                {'df_input': df_EXP_DATE, 'selects': [
+                    'END_TIME',
+                    'END_TIME_VAL'
+                ]},
+                {'df_input': df_FILTRANS, 'selects': [
+                    'PRPTY',
+                    'VAL'
+                ]},
+            ],
+            output_columns=['PRPTY', 'VAL'],
+        )
         ctx.register_df("df_UNI_PRPTY", df_UNI_PRPTY)
         
         logger.info("Step: read_LKP_SYS_PRPTY1")
@@ -339,7 +318,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         _lkp_input = _lkp_input.withColumn("PROPERTY", col("SNAPSHOT_DATE"))
         # Join condition: PROPERTY=PRPTY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_2 = _lkp_input.alias("_main").join(
+        df_lkp_merge_FIL_VAL = _lkp_input.alias("_main").join(
             broadcast(df_LKP_SYS_PRPTY1).alias("_lkp"),
             (col("_main.PROPERTY") == col("_lkp.PRPTY")),
             "left"
@@ -347,7 +326,7 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
             *[_lkp_input[c] for c in _lkp_input.columns],
             *[df_LKP_SYS_PRPTY1[c] for c in df_LKP_SYS_PRPTY1.columns if c.lower() not in [x.lower() for x in _lkp_input.columns]]
         )
-        ctx.register_df("df_lkp_merge_2", df_lkp_merge_2)        
+        ctx.register_df("df_lkp_merge_FIL_VAL", df_lkp_merge_FIL_VAL)        
         logger.info("Step: read_LKP_SYS_PRPTY")
         # Reading Data From Source - read_LKP_SYS_PRPTY
         # Resolve connection by alias (supports lookup/source connections dynamically)
@@ -366,11 +345,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         # Use First Value / Use Any Value: dedup by join keys
         df_LKP_SYS_PRPTY = df_LKP_SYS_PRPTY.dropDuplicates(subset=["PRPTY"])
         # Rename upstream columns to match lookup input port names before join
-        _lkp_input = df_lkp_merge_2
+        _lkp_input = df_lkp_merge_FIL_VAL
         _lkp_input = _lkp_input.withColumn("PROPERTY", col("ARCHIVE_PATH"))
         # Join condition: PROPERTY=PRPTY
         # Alias-based join: _main.<source_col> == _lkp.<lookup_col>
-        df_lkp_merge_2 = _lkp_input.alias("_main").join(
+        df_lkp_merge_FIL_VAL = _lkp_input.alias("_main").join(
             broadcast(df_LKP_SYS_PRPTY).alias("_lkp"),
             (col("_main.PROPERTY") == col("_lkp.PRPTY")),
             "left"
@@ -381,106 +360,98 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         
         logger.info("Step: apply_EXP_CMD1")
         # Expression: apply_EXP_CMD1
-        df_EXP_CMD1 = df_lkp_merge_1
-        df_EXP_CMD1 = df_EXP_CMD1.withColumn("v_SNAPSHOT_VAL", expr("translate(VAL, '-', '')"))
-        df_EXP_CMD1 = df_EXP_CMD1.withColumn("CMD_SEQ", expr("1"))
-        df_EXP_CMD1 = df_EXP_CMD1.withColumn("v_CHECK_NULL_PATH", expr("CASE WHEN (VAL IS NULL) OR (v_SNAPSHOT_VAL IS NULL) THEN '' ELSE 'rm -f ' || VAL || '/' || v_SNAPSHOT_VAL || '/*; mkdir ' || VAL || '/' || v_SNAPSHOT_VAL || '; chmod 777 ' || VAL || '/' || v_SNAPSHOT_VAL || '; cd ' || VAL END"))
-        df_EXP_CMD1 = df_EXP_CMD1.withColumn("CMD_LINE_FOLDER", expr("v_CHECK_NULL_PATH"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_CMD1 = lib.expression(
+            input_df=df_lkp_merge_EXP_TBL1,
+            computed_columns=[
+                {'name': 'v_SNAPSHOT_VAL', 'expr': "translate(VAL, '-', '')"},
+                {'name': 'CMD_SEQ', 'expr': '1'},
+                {'name': 'v_CHECK_NULL_PATH', 'expr': "CASE WHEN (VAL IS NULL) OR (v_SNAPSHOT_VAL IS NULL) THEN '' ELSE 'rm -f ' || VAL || '/' || v_SNAPSHOT_VAL || '/*; mkdir ' || VAL || '/' || v_SNAPSHOT_VAL || '; chmod 777 ' || VAL || '/' || v_SNAPSHOT_VAL || '; cd ' || VAL END"},
+                {'name': 'CMD_LINE_FOLDER', 'expr': 'v_CHECK_NULL_PATH'}
+            ],
+        )
         ctx.register_df("df_EXP_CMD1", df_EXP_CMD1)
         
         logger.info("Step: write_SOR_SYS_PRPTY1")
         # Write to Target: write_SOR_SYS_PRPTY1
-        df_write = df_UNI_PRPTY
-        # Cast NullType columns to StringType
-        for _c in df_write.columns:
-            if isinstance(df_write.schema[_c].dataType, NullType):
-                df_write = df_write.withColumn(_c, col(_c).cast(StringType()))
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"PRPTY": "PRPTY", "VAL": "VAL"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("PRPTY_DESP", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['PRPTY', 'VAL', 'PRPTY_DESP']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_SYS_PRPTY", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_UNI_PRPTY,
+            conn=conn_target,
+            table='SOR_SYS_PRPTY',
+            mode='append',
+            source_columns=[
+                'PRPTY',
+                'VAL',
+                None,
+            ],
+            target_columns=[
+                'PRPTY',
+                'VAL',
+                'PRPTY_DESP',
+            ],
+            cast_nulltype=True,
+            config=config,
+        )
 
         logger.info("write_SOR_SYS_PRPTY1 write completed")
         logger.info("Step: apply_EXP_CMD")
         # Expression: apply_EXP_CMD
-        df_EXP_CMD = df_lkp_merge_2
-        df_EXP_CMD = df_EXP_CMD.withColumn("v_SNAPSHOT_VAL", expr("translate(VAL, '-', '')"))
-        df_EXP_CMD = df_EXP_CMD.withColumn("CMD_SEQ", expr("2"))
-        df_EXP_CMD = df_EXP_CMD.withColumn("v_CMD_LINE_LN", expr("CASE WHEN (VAL IS NULL) OR (v_SNAPSHOT_VAL IS NULL) THEN '' ELSE 'ln -sf ' || v_SNAPSHOT_VAL || '/' || TABLE_OUT || '.dat ' || VAL || '/' || TABLE_OUT || '.dat' END"))
-        df_EXP_CMD = df_EXP_CMD.withColumn("CMD_LINE_LN", expr("v_CMD_LINE_LN"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_CMD = lib.expression(
+            input_df=df_lkp_merge_FIL_VAL,
+            computed_columns=[
+                {'name': 'v_SNAPSHOT_VAL', 'expr': "translate(VAL, '-', '')"},
+                {'name': 'CMD_SEQ', 'expr': '2'},
+                {'name': 'v_CMD_LINE_LN', 'expr': "CASE WHEN (VAL IS NULL) OR (v_SNAPSHOT_VAL IS NULL) THEN '' ELSE 'ln -sf ' || v_SNAPSHOT_VAL || '/' || TABLE_OUT || '.dat ' || VAL || '/' || TABLE_OUT || '.dat' END"},
+                {'name': 'CMD_LINE_LN', 'expr': 'v_CMD_LINE_LN'}
+            ],
+        )
         ctx.register_df("df_EXP_CMD", df_EXP_CMD)
         
         logger.info("Step: apply_Union_Transformation")
         # Union: apply_Union_Transformation
-        # Select + rename upstream columns per input, then union
-        df_Union_Transformation_folder = df_EXP_CMD1.select(
-            col("CMD_SEQ").alias("CMD_SEQ"),
-            col("CMD_LINE_FOLDER").alias("LINE")        )
-        df_Union_Transformation_link = df_EXP_CMD.select(
-            col("CMD_SEQ").alias("CMD_SEQ"),
-            col("CMD_LINE_LN").alias("LINE")        )
-        df_Union_Transformation = df_Union_Transformation_folder
-        df_Union_Transformation = df_Union_Transformation.unionByName(df_Union_Transformation_link, allowMissingColumns=True)
-        # Select only union output columns (add lit(None) for any missing)
-        for _col in ["CMD_SEQ", "LINE"]:
-            if _col.lower() not in [x.lower() for x in df_Union_Transformation.columns]:
-                df_Union_Transformation = df_Union_Transformation.withColumn(_col, lit(None))
-        df_Union_Transformation = df_Union_Transformation.select("CMD_SEQ", "LINE")
+        df_Union_Transformation = lib.union(
+            input_df=df_EXP_CMD,
+            union_selects=[
+                {'df_input': df_EXP_CMD1, 'selects': [
+                    'CMD_SEQ',
+                    'CMD_LINE_FOLDER'
+                ]},
+                {'df_input': df_EXP_CMD, 'selects': [
+                    'CMD_SEQ',
+                    'CMD_LINE_LN'
+                ]},
+            ],
+            output_columns=['CMD_SEQ', 'LINE'],
+        )
         ctx.register_df("df_Union_Transformation", df_Union_Transformation)
         
         logger.info("Step: apply_SRT_CMD")
         # Sorter: apply_SRT_CMD
-        __srt_input = df_Union_Transformation
-        df_SRT_CMD = __srt_input.orderBy(
-            asc("CMD_SEQ")
+        df_SRT_CMD = lib.sorter(
+            input_df=df_Union_Transformation,
+            sort_columns=[
+                {'column': 'CMD_SEQ', 'direction': 'ASC'}
+            ],
         )
         ctx.register_df("df_SRT_CMD", df_SRT_CMD)
         
         logger.info("Step: write_UTL_SYMBOLIC_LINK_LIST")
         # Write to Target: write_UTL_SYMBOLIC_LINK_LIST
-        df_write = df_SRT_CMD
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"LINE": "LINE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['LINE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to flat file — prefer config.yml objects metadata, then derived default path
-        _write_obj = objects.get("UTL_SYMBOLIC_LINK_LIST")
-        if _write_obj and isinstance(_write_obj, dict):
-            _write_path = _write_obj.get('path', '/tmp/UTL_SYMBOLIC_LINK_LIST')
-            _write_fmt = _write_obj.get('format', 'csv')
-        # Runtime fallback: skip write if path resolves to /dev/null
-        if _write_path and _write_path.strip() in ("/dev/null", "NUL"):
-            logger.info("Target %s resolved to /dev/null, skipping write", "write_UTL_SYMBOLIC_LINK_LIST")
-        else:
-            lib.write_file(df_write, _write_path, format=_write_fmt, mode="overwrite")
+        lib.write_target(
+            spark=spark,
+            df=df_SRT_CMD,
+            conn=conn_target,
+            table='UTL_SYMBOLIC_LINK_LIST',
+            mode='append',
+            sink_type='csv',
+            source_columns=[
+                'LINE',
+            ],
+            target_columns=[
+                'LINE',
+            ],
+            config=config,
+        )
 
         logger.info("write_UTL_SYMBOLIC_LINK_LIST write completed")
         

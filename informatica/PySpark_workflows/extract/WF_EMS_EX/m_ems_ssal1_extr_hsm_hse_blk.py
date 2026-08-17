@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_HSM_HSE_BLK")
@@ -79,88 +64,205 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_HSM_HSE_BLK")
         # Source Qualifier: apply_SQ_HSM_HSE_BLK
         df_SQ_HSM_HSE_BLK = df_HSM_HSE_BLK
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_HSM_HSE_BLK = df_SQ_HSM_HSE_BLK.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HSE_BLK_KEY", "HSE_EST_KEY", "HSE_EST_LOT_CODE", "HSE_BLK_CODE", "HSE_BLK_ENG_NAME", "HSE_BLK_CHI_NAME", "HSE_BLK_CMPLT_DATE", "HSE_BLK_ACCS_TYPE_CODE", "TOT_HSE_BLK_STRY_NUM", "TOT_HSE_BLK_DOM_STRY_NUM", "HSE_BLK_BGN_DATE", "HSE_BLK_END_DATE", "HSE_BLK_SELF_CNTA_IND", "HSE_BLK_TNTV_CMPLT_DATE", "HSE_BLK_HOVER_DATE", "HSE_BLK_TYPE_CODE", "HSE_BLK_MARK_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "HSE_BLK_ENG_NCKNM_NAME", "HSE_BLK_CHI_NCKNM_NAME", "TOT_HSE_BLK_IFA_AREA", "TOT_HSE_BLK_RATE_AMT", "CRP_IND"]
-        df_SQ_HSM_HSE_BLK = df_SQ_HSM_HSE_BLK.select([col(c) if c.lower() in [x.lower() for x in df_SQ_HSM_HSE_BLK.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_HSM_HSE_BLK = lib.sq_output(
+            input_df=df_SQ_HSM_HSE_BLK,
+            port_cols={
+                'HSE_BLK_KEY': 'string',
+                'HSE_EST_KEY': 'string',
+                'HSE_EST_LOT_CODE': 'string',
+                'HSE_BLK_CODE': 'string',
+                'HSE_BLK_ENG_NAME': 'string',
+                'HSE_BLK_CHI_NAME': 'string',
+                'HSE_BLK_CMPLT_DATE': 'date/time',
+                'HSE_BLK_ACCS_TYPE_CODE': 'string',
+                'TOT_HSE_BLK_STRY_NUM': 'decimal',
+                'TOT_HSE_BLK_DOM_STRY_NUM': 'decimal',
+                'HSE_BLK_BGN_DATE': 'date/time',
+                'HSE_BLK_END_DATE': 'date/time',
+                'HSE_BLK_SELF_CNTA_IND': 'string',
+                'HSE_BLK_TNTV_CMPLT_DATE': 'date/time',
+                'HSE_BLK_HOVER_DATE': 'date/time',
+                'HSE_BLK_TYPE_CODE': 'string',
+                'HSE_BLK_MARK_TYPE_CODE': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'string',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'HSE_BLK_ENG_NCKNM_NAME': 'string',
+                'HSE_BLK_CHI_NCKNM_NAME': 'string',
+                'TOT_HSE_BLK_IFA_AREA': 'decimal',
+                'TOT_HSE_BLK_RATE_AMT': 'decimal',
+                'CRP_IND': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_HSM_HSE_BLK", df_SQ_HSM_HSE_BLK)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_HSM_HSE_BLK
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_BLK_KEY_OUT", expr("ltrim(rtrim(HSE_BLK_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_EST_KEY_OUT", expr("ltrim(rtrim(HSE_EST_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_EST_LOT_CODE_OUT", expr("ltrim(rtrim(HSE_EST_LOT_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_BLK_CODE_OUT", expr("ltrim(rtrim(HSE_BLK_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_BLK_ENG_NAME_OUT", expr("ltrim(rtrim(HSE_BLK_ENG_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_BLK_CHI_NAME_OUT", expr("ltrim(rtrim(HSE_BLK_CHI_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_BLK_CMPLT_DATE_OUT", expr("HSE_BLK_CMPLT_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_BLK_ACCS_TYPE_CODE_OUT", expr("ltrim(rtrim(HSE_BLK_ACCS_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TOT_HSE_BLK_STRY_NUM_OUT", expr("TOT_HSE_BLK_STRY_NUM"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TOT_HSE_BLK_DOM_STRY_NUM_OUT", expr("TOT_HSE_BLK_DOM_STRY_NUM"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_BLK_BGN_DATE_OUT", expr("HSE_BLK_BGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_BLK_END_DATE_OUT", expr("HSE_BLK_END_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_BLK_SELF_CNTA_IND_OUT", expr("ltrim(rtrim(HSE_BLK_SELF_CNTA_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_BLK_TNTV_CMPLT_DATE_OUT", expr("HSE_BLK_TNTV_CMPLT_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_BLK_HOVER_DATE_OUT", expr("HSE_BLK_HOVER_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_BLK_TYPE_CODE_OUT", expr("ltrim(rtrim(HSE_BLK_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_BLK_MARK_TYPE_CODE_OUT", expr("ltrim(rtrim(HSE_BLK_MARK_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_DATE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_BLK_ENG_NCKNM_NAME_OUT", expr("ltrim(rtrim(HSE_BLK_ENG_NCKNM_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_BLK_CHI_NCKNM_NAME_OUT", expr("ltrim(rtrim(HSE_BLK_CHI_NCKNM_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TOT_HSE_BLK_IFA_AREA_OUT", expr("TOT_HSE_BLK_IFA_AREA"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TOT_HSE_BLK_RATE_AMT_OUT", expr("TOT_HSE_BLK_RATE_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_IND_OUT", expr("ltrim(rtrim(CRP_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("'|'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_HSM_HSE_BLK,
+            computed_columns=[
+                {'name': 'HSE_BLK_KEY_OUT', 'expr': 'ltrim(rtrim(HSE_BLK_KEY))'},
+                {'name': 'HSE_EST_KEY_OUT', 'expr': 'ltrim(rtrim(HSE_EST_KEY))'},
+                {'name': 'HSE_EST_LOT_CODE_OUT', 'expr': 'ltrim(rtrim(HSE_EST_LOT_CODE))'},
+                {'name': 'HSE_BLK_CODE_OUT', 'expr': 'ltrim(rtrim(HSE_BLK_CODE))'},
+                {'name': 'HSE_BLK_ENG_NAME_OUT', 'expr': 'ltrim(rtrim(HSE_BLK_ENG_NAME))'},
+                {'name': 'HSE_BLK_CHI_NAME_OUT', 'expr': 'ltrim(rtrim(HSE_BLK_CHI_NAME))'},
+                {'name': 'HSE_BLK_CMPLT_DATE_OUT', 'expr': 'HSE_BLK_CMPLT_DATE'},
+                {'name': 'HSE_BLK_ACCS_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(HSE_BLK_ACCS_TYPE_CODE))'},
+                {'name': 'TOT_HSE_BLK_STRY_NUM_OUT', 'expr': 'TOT_HSE_BLK_STRY_NUM'},
+                {'name': 'TOT_HSE_BLK_DOM_STRY_NUM_OUT', 'expr': 'TOT_HSE_BLK_DOM_STRY_NUM'},
+                {'name': 'HSE_BLK_BGN_DATE_OUT', 'expr': 'HSE_BLK_BGN_DATE'},
+                {'name': 'HSE_BLK_END_DATE_OUT', 'expr': 'HSE_BLK_END_DATE'},
+                {'name': 'HSE_BLK_SELF_CNTA_IND_OUT', 'expr': 'ltrim(rtrim(HSE_BLK_SELF_CNTA_IND))'},
+                {'name': 'HSE_BLK_TNTV_CMPLT_DATE_OUT', 'expr': 'HSE_BLK_TNTV_CMPLT_DATE'},
+                {'name': 'HSE_BLK_HOVER_DATE_OUT', 'expr': 'HSE_BLK_HOVER_DATE'},
+                {'name': 'HSE_BLK_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(HSE_BLK_TYPE_CODE))'},
+                {'name': 'HSE_BLK_MARK_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(HSE_BLK_MARK_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_DATE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_DATE))'},
+                {'name': 'LAST_REC_TXN_USER_ID_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID))'},
+                {'name': 'HSE_BLK_ENG_NCKNM_NAME_OUT', 'expr': 'ltrim(rtrim(HSE_BLK_ENG_NCKNM_NAME))'},
+                {'name': 'HSE_BLK_CHI_NCKNM_NAME_OUT', 'expr': 'ltrim(rtrim(HSE_BLK_CHI_NCKNM_NAME))'},
+                {'name': 'TOT_HSE_BLK_IFA_AREA_OUT', 'expr': 'TOT_HSE_BLK_IFA_AREA'},
+                {'name': 'TOT_HSE_BLK_RATE_AMT_OUT', 'expr': 'TOT_HSE_BLK_RATE_AMT'},
+                {'name': 'CRP_IND_OUT', 'expr': 'ltrim(rtrim(CRP_IND))'},
+                {'name': 'DUMMY', 'expr': "'|'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EMS_HSM_BLK")
         # Write to Target: write_EMS_HSM_BLK
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"CRP_IND": "CRP_IND_OUT", "HSE_BLK_ACCS_TYPE_CODE": "HSE_BLK_ACCS_TYPE_CODE_OUT", "HSE_BLK_BGN_DATE": "HSE_BLK_BGN_DATE_OUT", "HSE_BLK_CHI_NAME": "HSE_BLK_CHI_NAME_OUT", "HSE_BLK_CHI_NCKNM_NAME": "HSE_BLK_CHI_NCKNM_NAME_OUT", "HSE_BLK_CMPLT_DATE": "HSE_BLK_CMPLT_DATE_OUT", "HSE_BLK_CODE": "HSE_BLK_CODE_OUT", "HSE_BLK_END_DATE": "HSE_BLK_END_DATE_OUT", "HSE_BLK_ENG_NAME": "HSE_BLK_ENG_NAME_OUT", "HSE_BLK_ENG_NCKNM_NAME": "HSE_BLK_ENG_NCKNM_NAME_OUT", "HSE_BLK_HOVER_DATE": "HSE_BLK_HOVER_DATE_OUT", "HSE_BLK_KEY": "HSE_BLK_KEY_OUT", "HSE_BLK_MARK_TYPE_CODE": "HSE_BLK_MARK_TYPE_CODE_OUT", "HSE_BLK_SELF_CNTA_IND": "HSE_BLK_SELF_CNTA_IND_OUT", "HSE_BLK_TNTV_CMPLT_DATE": "HSE_BLK_TNTV_CMPLT_DATE_OUT", "HSE_BLK_TYPE_CODE": "HSE_BLK_TYPE_CODE_OUT", "HSE_EST_KEY": "HSE_EST_KEY_OUT", "HSE_EST_LOT_CODE": "HSE_EST_LOT_CODE_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "TOT_HSE_BLK_DOM_STRY_NUM": "TOT_HSE_BLK_DOM_STRY_NUM_OUT", "TOT_HSE_BLK_IFA_AREA": "TOT_HSE_BLK_IFA_AREA_OUT", "TOT_HSE_BLK_RATE_AMT": "TOT_HSE_BLK_RATE_AMT_OUT", "TOT_HSE_BLK_STRY_NUM": "TOT_HSE_BLK_STRY_NUM_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HSE_BLK_KEY', 'HSE_EST_KEY', 'HSE_EST_LOT_CODE', 'HSE_BLK_CODE', 'HSE_BLK_ENG_NAME', 'HSE_BLK_CHI_NAME', 'HSE_BLK_CMPLT_DATE', 'HSE_BLK_ACCS_TYPE_CODE', 'TOT_HSE_BLK_STRY_NUM', 'TOT_HSE_BLK_DOM_STRY_NUM', 'HSE_BLK_BGN_DATE', 'HSE_BLK_END_DATE', 'HSE_BLK_SELF_CNTA_IND', 'HSE_BLK_TNTV_CMPLT_DATE', 'HSE_BLK_HOVER_DATE', 'HSE_BLK_TYPE_CODE', 'HSE_BLK_MARK_TYPE_CODE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'HSE_BLK_ENG_NCKNM_NAME', 'HSE_BLK_CHI_NCKNM_NAME', 'TOT_HSE_BLK_IFA_AREA', 'TOT_HSE_BLK_RATE_AMT', 'CRP_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_HSM_BLK", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_HSM_BLK',
+            mode='append',
+            source_columns=[
+                'HSE_BLK_KEY_OUT',
+                'HSE_EST_KEY_OUT',
+                'HSE_EST_LOT_CODE_OUT',
+                'HSE_BLK_CODE_OUT',
+                'HSE_BLK_ENG_NAME_OUT',
+                'HSE_BLK_CHI_NAME_OUT',
+                'HSE_BLK_CMPLT_DATE_OUT',
+                'HSE_BLK_ACCS_TYPE_CODE_OUT',
+                'TOT_HSE_BLK_STRY_NUM_OUT',
+                'TOT_HSE_BLK_DOM_STRY_NUM_OUT',
+                'HSE_BLK_BGN_DATE_OUT',
+                'HSE_BLK_END_DATE_OUT',
+                'HSE_BLK_SELF_CNTA_IND_OUT',
+                'HSE_BLK_TNTV_CMPLT_DATE_OUT',
+                'HSE_BLK_HOVER_DATE_OUT',
+                'HSE_BLK_TYPE_CODE_OUT',
+                'HSE_BLK_MARK_TYPE_CODE_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'HSE_BLK_ENG_NCKNM_NAME_OUT',
+                'HSE_BLK_CHI_NCKNM_NAME_OUT',
+                'TOT_HSE_BLK_IFA_AREA_OUT',
+                'TOT_HSE_BLK_RATE_AMT_OUT',
+                'CRP_IND_OUT',
+            ],
+            target_columns=[
+                'HSE_BLK_KEY',
+                'HSE_EST_KEY',
+                'HSE_EST_LOT_CODE',
+                'HSE_BLK_CODE',
+                'HSE_BLK_ENG_NAME',
+                'HSE_BLK_CHI_NAME',
+                'HSE_BLK_CMPLT_DATE',
+                'HSE_BLK_ACCS_TYPE_CODE',
+                'TOT_HSE_BLK_STRY_NUM',
+                'TOT_HSE_BLK_DOM_STRY_NUM',
+                'HSE_BLK_BGN_DATE',
+                'HSE_BLK_END_DATE',
+                'HSE_BLK_SELF_CNTA_IND',
+                'HSE_BLK_TNTV_CMPLT_DATE',
+                'HSE_BLK_HOVER_DATE',
+                'HSE_BLK_TYPE_CODE',
+                'HSE_BLK_MARK_TYPE_CODE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'HSE_BLK_ENG_NCKNM_NAME',
+                'HSE_BLK_CHI_NCKNM_NAME',
+                'TOT_HSE_BLK_IFA_AREA',
+                'TOT_HSE_BLK_RATE_AMT',
+                'CRP_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_HSM_BLK write completed")
         logger.info("Step: write_EMS_HSM_BLK1")
         # Write to Target: write_EMS_HSM_BLK1
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"CRP_IND": "CRP_IND_OUT", "DUMMY": "DUMMY", "HSE_BLK_ACCS_TYPE_CODE": "HSE_BLK_ACCS_TYPE_CODE_OUT", "HSE_BLK_BGN_DATE": "HSE_BLK_BGN_DATE_OUT", "HSE_BLK_CHI_NAME": "HSE_BLK_CHI_NAME_OUT", "HSE_BLK_CHI_NCKNM_NAME": "HSE_BLK_CHI_NCKNM_NAME_OUT", "HSE_BLK_CMPLT_DATE": "HSE_BLK_CMPLT_DATE_OUT", "HSE_BLK_CODE": "HSE_BLK_CODE_OUT", "HSE_BLK_END_DATE": "HSE_BLK_END_DATE_OUT", "HSE_BLK_ENG_NAME": "HSE_BLK_ENG_NAME_OUT", "HSE_BLK_ENG_NCKNM_NAME": "HSE_BLK_ENG_NCKNM_NAME_OUT", "HSE_BLK_HOVER_DATE": "HSE_BLK_HOVER_DATE_OUT", "HSE_BLK_KEY": "HSE_BLK_KEY_OUT", "HSE_BLK_MARK_TYPE_CODE": "HSE_BLK_MARK_TYPE_CODE_OUT", "HSE_BLK_SELF_CNTA_IND": "HSE_BLK_SELF_CNTA_IND_OUT", "HSE_BLK_TNTV_CMPLT_DATE": "HSE_BLK_TNTV_CMPLT_DATE_OUT", "HSE_BLK_TYPE_CODE": "HSE_BLK_TYPE_CODE_OUT", "HSE_EST_KEY": "HSE_EST_KEY_OUT", "HSE_EST_LOT_CODE": "HSE_EST_LOT_CODE_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "TOT_HSE_BLK_DOM_STRY_NUM": "TOT_HSE_BLK_DOM_STRY_NUM_OUT", "TOT_HSE_BLK_IFA_AREA": "TOT_HSE_BLK_IFA_AREA_OUT", "TOT_HSE_BLK_RATE_AMT": "TOT_HSE_BLK_RATE_AMT_OUT", "TOT_HSE_BLK_STRY_NUM": "TOT_HSE_BLK_STRY_NUM_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HSE_BLK_KEY', 'HSE_EST_KEY', 'HSE_EST_LOT_CODE', 'HSE_BLK_CODE', 'HSE_BLK_ENG_NAME', 'HSE_BLK_CHI_NAME', 'HSE_BLK_CMPLT_DATE', 'HSE_BLK_ACCS_TYPE_CODE', 'TOT_HSE_BLK_STRY_NUM', 'TOT_HSE_BLK_DOM_STRY_NUM', 'HSE_BLK_BGN_DATE', 'HSE_BLK_END_DATE', 'HSE_BLK_SELF_CNTA_IND', 'HSE_BLK_TNTV_CMPLT_DATE', 'HSE_BLK_HOVER_DATE', 'HSE_BLK_TYPE_CODE', 'HSE_BLK_MARK_TYPE_CODE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'HSE_BLK_ENG_NCKNM_NAME', 'HSE_BLK_CHI_NCKNM_NAME', 'TOT_HSE_BLK_IFA_AREA', 'TOT_HSE_BLK_RATE_AMT', 'CRP_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_HSM_BLK", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_HSM_BLK',
+            mode='append',
+            source_columns=[
+                'HSE_BLK_KEY_OUT',
+                'HSE_EST_KEY_OUT',
+                'HSE_EST_LOT_CODE_OUT',
+                'HSE_BLK_CODE_OUT',
+                'HSE_BLK_ENG_NAME_OUT',
+                'HSE_BLK_CHI_NAME_OUT',
+                'HSE_BLK_CMPLT_DATE_OUT',
+                'HSE_BLK_ACCS_TYPE_CODE_OUT',
+                'TOT_HSE_BLK_STRY_NUM_OUT',
+                'TOT_HSE_BLK_DOM_STRY_NUM_OUT',
+                'HSE_BLK_BGN_DATE_OUT',
+                'HSE_BLK_END_DATE_OUT',
+                'HSE_BLK_SELF_CNTA_IND_OUT',
+                'HSE_BLK_TNTV_CMPLT_DATE_OUT',
+                'HSE_BLK_HOVER_DATE_OUT',
+                'HSE_BLK_TYPE_CODE_OUT',
+                'HSE_BLK_MARK_TYPE_CODE_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'HSE_BLK_ENG_NCKNM_NAME_OUT',
+                'HSE_BLK_CHI_NCKNM_NAME_OUT',
+                'TOT_HSE_BLK_IFA_AREA_OUT',
+                'TOT_HSE_BLK_RATE_AMT_OUT',
+                'CRP_IND_OUT',
+            ],
+            target_columns=[
+                'HSE_BLK_KEY',
+                'HSE_EST_KEY',
+                'HSE_EST_LOT_CODE',
+                'HSE_BLK_CODE',
+                'HSE_BLK_ENG_NAME',
+                'HSE_BLK_CHI_NAME',
+                'HSE_BLK_CMPLT_DATE',
+                'HSE_BLK_ACCS_TYPE_CODE',
+                'TOT_HSE_BLK_STRY_NUM',
+                'TOT_HSE_BLK_DOM_STRY_NUM',
+                'HSE_BLK_BGN_DATE',
+                'HSE_BLK_END_DATE',
+                'HSE_BLK_SELF_CNTA_IND',
+                'HSE_BLK_TNTV_CMPLT_DATE',
+                'HSE_BLK_HOVER_DATE',
+                'HSE_BLK_TYPE_CODE',
+                'HSE_BLK_MARK_TYPE_CODE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'HSE_BLK_ENG_NCKNM_NAME',
+                'HSE_BLK_CHI_NCKNM_NAME',
+                'TOT_HSE_BLK_IFA_AREA',
+                'TOT_HSE_BLK_RATE_AMT',
+                'CRP_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_HSM_BLK1 write completed")
         

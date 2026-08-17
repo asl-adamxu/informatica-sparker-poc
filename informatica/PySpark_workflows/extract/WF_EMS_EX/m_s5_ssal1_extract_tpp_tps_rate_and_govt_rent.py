@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_TPP_TPS_RATE_AND_GOVT_RENT")
@@ -79,77 +64,139 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_TPP_TPS_RATE_AND_GOVT_RENT")
         # Source Qualifier: apply_SQ_TPP_TPS_RATE_AND_GOVT_RENT
         df_SQ_TPP_TPS_RATE_AND_GOVT_RENT = df_TPP_TPS_RATE_AND_GOVT_RENT
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_TPP_TPS_RATE_AND_GOVT_RENT = df_SQ_TPP_TPS_RATE_AND_GOVT_RENT.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["SHR_UNIT_IND", "RATE_BGN_DATE", "RATE_AMT", "GOVT_RENT_AMT", "RATE_END_DATE", "HSE_EST_CODE", "HSE_BLK_CODE", "HSE_EST_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "LAST_REC_TXN_USER_ID_TYPE_CODE", "HSE_UNIT_FLAT_NUM", "UNIT_CNV_REF_CODE"]
-        df_SQ_TPP_TPS_RATE_AND_GOVT_RENT = df_SQ_TPP_TPS_RATE_AND_GOVT_RENT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_TPP_TPS_RATE_AND_GOVT_RENT.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_TPP_TPS_RATE_AND_GOVT_RENT = lib.sq_output(
+            input_df=df_SQ_TPP_TPS_RATE_AND_GOVT_RENT,
+            port_cols={
+                'SHR_UNIT_IND': 'string',
+                'RATE_BGN_DATE': 'date/time',
+                'RATE_AMT': 'decimal',
+                'GOVT_RENT_AMT': 'decimal',
+                'RATE_END_DATE': 'date/time',
+                'HSE_EST_CODE': 'string',
+                'HSE_BLK_CODE': 'string',
+                'HSE_EST_TYPE_CODE': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'string',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE': 'string',
+                'HSE_UNIT_FLAT_NUM': 'string',
+                'UNIT_CNV_REF_CODE': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_TPP_TPS_RATE_AND_GOVT_RENT", df_SQ_TPP_TPS_RATE_AND_GOVT_RENT)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_TPP_TPS_RATE_AND_GOVT_RENT
-        df_EXPTRANS = df_EXPTRANS.withColumn("SHR_UNIT_IND_OUT", expr("ltrim(rtrim(SHR_UNIT_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RATE_BGN_DATE_OUT", expr("RATE_BGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RATE_AMT_OUT", expr("RATE_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("GOVT_RENT_AMT_OUT", expr("GOVT_RENT_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RATE_END_DATE_OUT", expr("RATE_END_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_EST_CODE_OUT", expr("ltrim(rtrim(HSE_EST_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_BLK_CODE_OUT", expr("ltrim(rtrim(HSE_BLK_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_EST_TYPE_CODE_OUT", expr("ltrim(rtrim(HSE_EST_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE_OUT", expr("LAST_REC_TXN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_UNIT_FLAT_NUM_OUT", expr("ltrim(rtrim(HSE_UNIT_FLAT_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("UNIT_CNV_REF_CODE_OUT", expr("ltrim(rtrim(UNIT_CNV_REF_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("'|'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_TPP_TPS_RATE_AND_GOVT_RENT,
+            computed_columns=[
+                {'name': 'SHR_UNIT_IND_OUT', 'expr': 'ltrim(rtrim(SHR_UNIT_IND))'},
+                {'name': 'RATE_BGN_DATE_OUT', 'expr': 'RATE_BGN_DATE'},
+                {'name': 'RATE_AMT_OUT', 'expr': 'RATE_AMT'},
+                {'name': 'GOVT_RENT_AMT_OUT', 'expr': 'GOVT_RENT_AMT'},
+                {'name': 'RATE_END_DATE_OUT', 'expr': 'RATE_END_DATE'},
+                {'name': 'HSE_EST_CODE_OUT', 'expr': 'ltrim(rtrim(HSE_EST_CODE))'},
+                {'name': 'HSE_BLK_CODE_OUT', 'expr': 'ltrim(rtrim(HSE_BLK_CODE))'},
+                {'name': 'HSE_EST_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(HSE_EST_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_DATE_OUT', 'expr': 'LAST_REC_TXN_DATE'},
+                {'name': 'LAST_REC_TXN_USER_ID_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID))'},
+                {'name': 'LAST_REC_TXN_USER_ID_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID_TYPE_CODE))'},
+                {'name': 'HSE_UNIT_FLAT_NUM_OUT', 'expr': 'ltrim(rtrim(HSE_UNIT_FLAT_NUM))'},
+                {'name': 'UNIT_CNV_REF_CODE_OUT', 'expr': 'ltrim(rtrim(UNIT_CNV_REF_CODE))'},
+                {'name': 'DUMMY', 'expr': "'|'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EMS_TPP_TPS_RATE_AND_GOVT_RENT1")
         # Write to Target: write_EMS_TPP_TPS_RATE_AND_GOVT_RENT1
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"DUMMY": "DUMMY", "GOVT_RENT_AMT": "GOVT_RENT_AMT_OUT", "HSE_BLK_CODE": "HSE_BLK_CODE_OUT", "HSE_EST_CODE": "HSE_EST_CODE_OUT", "HSE_EST_TYPE_CODE": "HSE_EST_TYPE_CODE_OUT", "HSE_UNIT_FLAT_NUM": "HSE_UNIT_FLAT_NUM_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "LAST_REC_TXN_USER_ID_TYPE_CODE": "LAST_REC_TXN_USER_ID_TYPE_CODE_OUT", "RATE_AMT": "RATE_AMT_OUT", "RATE_BGN_DATE": "RATE_BGN_DATE_OUT", "RATE_END_DATE": "RATE_END_DATE_OUT", "SHR_UNIT_IND": "SHR_UNIT_IND_OUT", "UNIT_CNV_REF_CODE": "UNIT_CNV_REF_CODE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['SHR_UNIT_IND', 'RATE_BGN_DATE', 'RATE_AMT', 'GOVT_RENT_AMT', 'RATE_END_DATE', 'HSE_EST_CODE', 'HSE_BLK_CODE', 'HSE_EST_TYPE_CODE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'LAST_REC_TXN_USER_ID_TYPE_CODE', 'HSE_UNIT_FLAT_NUM', 'UNIT_CNV_REF_CODE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_TPP_TPS_RATE_AND_GOVT_RENT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_TPP_TPS_RATE_AND_GOVT_RENT',
+            mode='append',
+            source_columns=[
+                'SHR_UNIT_IND_OUT',
+                'RATE_BGN_DATE_OUT',
+                'RATE_AMT_OUT',
+                'GOVT_RENT_AMT_OUT',
+                'RATE_END_DATE_OUT',
+                'HSE_EST_CODE_OUT',
+                'HSE_BLK_CODE_OUT',
+                'HSE_EST_TYPE_CODE_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE_OUT',
+                'HSE_UNIT_FLAT_NUM_OUT',
+                'UNIT_CNV_REF_CODE_OUT',
+            ],
+            target_columns=[
+                'SHR_UNIT_IND',
+                'RATE_BGN_DATE',
+                'RATE_AMT',
+                'GOVT_RENT_AMT',
+                'RATE_END_DATE',
+                'HSE_EST_CODE',
+                'HSE_BLK_CODE',
+                'HSE_EST_TYPE_CODE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE',
+                'HSE_UNIT_FLAT_NUM',
+                'UNIT_CNV_REF_CODE',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_TPP_TPS_RATE_AND_GOVT_RENT1 write completed")
         logger.info("Step: write_EMS_TPP_TPS_RATE_AND_GOVT_RENT")
         # Write to Target: write_EMS_TPP_TPS_RATE_AND_GOVT_RENT
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"GOVT_RENT_AMT": "GOVT_RENT_AMT_OUT", "HSE_BLK_CODE": "HSE_BLK_CODE_OUT", "HSE_EST_CODE": "HSE_EST_CODE_OUT", "HSE_EST_TYPE_CODE": "HSE_EST_TYPE_CODE_OUT", "HSE_UNIT_FLAT_NUM": "HSE_UNIT_FLAT_NUM_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "LAST_REC_TXN_USER_ID_TYPE_CODE": "LAST_REC_TXN_USER_ID_TYPE_CODE_OUT", "RATE_AMT": "RATE_AMT_OUT", "RATE_BGN_DATE": "RATE_BGN_DATE_OUT", "RATE_END_DATE": "RATE_END_DATE_OUT", "SHR_UNIT_IND": "SHR_UNIT_IND_OUT", "UNIT_CNV_REF_CODE": "UNIT_CNV_REF_CODE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['SHR_UNIT_IND', 'RATE_BGN_DATE', 'RATE_AMT', 'GOVT_RENT_AMT', 'RATE_END_DATE', 'HSE_EST_CODE', 'HSE_BLK_CODE', 'HSE_EST_TYPE_CODE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'LAST_REC_TXN_USER_ID_TYPE_CODE', 'HSE_UNIT_FLAT_NUM', 'UNIT_CNV_REF_CODE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_TPP_TPS_RATE_AND_GOVT_RENT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_TPP_TPS_RATE_AND_GOVT_RENT',
+            mode='append',
+            source_columns=[
+                'SHR_UNIT_IND_OUT',
+                'RATE_BGN_DATE_OUT',
+                'RATE_AMT_OUT',
+                'GOVT_RENT_AMT_OUT',
+                'RATE_END_DATE_OUT',
+                'HSE_EST_CODE_OUT',
+                'HSE_BLK_CODE_OUT',
+                'HSE_EST_TYPE_CODE_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE_OUT',
+                'HSE_UNIT_FLAT_NUM_OUT',
+                'UNIT_CNV_REF_CODE_OUT',
+            ],
+            target_columns=[
+                'SHR_UNIT_IND',
+                'RATE_BGN_DATE',
+                'RATE_AMT',
+                'GOVT_RENT_AMT',
+                'RATE_END_DATE',
+                'HSE_EST_CODE',
+                'HSE_BLK_CODE',
+                'HSE_EST_TYPE_CODE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE',
+                'HSE_UNIT_FLAT_NUM',
+                'UNIT_CNV_REF_CODE',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_TPP_TPS_RATE_AND_GOVT_RENT write completed")
         

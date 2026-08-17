@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_PHA_PRH_APLY_DSTR_SBDSTR")
@@ -79,95 +64,127 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_PHA_PRH_APLY_DSTR_SBDSTR")
         # Source Qualifier: apply_SQ_PHA_PRH_APLY_DSTR_SBDSTR
         df_SQ_PHA_PRH_APLY_DSTR_SBDSTR = df_PHA_PRH_APLY_DSTR_SBDSTR
-        _filter_text = """LAST_REC_TXN_DATE> to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE<= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_PHA_PRH_APLY_DSTR_SBDSTR = df_SQ_PHA_PRH_APLY_DSTR_SBDSTR.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HSE_DSTR_KEY", "HSE_SBDSTR_KEY", "PRH_APLY_DSTR_SBDSTR_BGN_DATE", "PRH_APLY_DSTR_SBDSTR_END_DATE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID"]
-        df_SQ_PHA_PRH_APLY_DSTR_SBDSTR = df_SQ_PHA_PRH_APLY_DSTR_SBDSTR.select([col(c) if c.lower() in [x.lower() for x in df_SQ_PHA_PRH_APLY_DSTR_SBDSTR.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_PHA_PRH_APLY_DSTR_SBDSTR = lib.sq_output(
+            input_df=df_SQ_PHA_PRH_APLY_DSTR_SBDSTR,
+            port_cols={
+                'HSE_DSTR_KEY': 'string',
+                'HSE_SBDSTR_KEY': 'string',
+                'PRH_APLY_DSTR_SBDSTR_BGN_DATE': 'date/time',
+                'PRH_APLY_DSTR_SBDSTR_END_DATE': 'date/time',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_USER_ID': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE> to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE<= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_PHA_PRH_APLY_DSTR_SBDSTR", df_SQ_PHA_PRH_APLY_DSTR_SBDSTR)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_PHA_PRH_APLY_DSTR_SBDSTR
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("'|'"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_DSTR_KEY1", expr("ltrim(rtrim(HSE_DSTR_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_SBDSTR_KEY1", expr("ltrim(rtrim(HSE_SBDSTR_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PRH_APLY_DSTR_SBDSTR_BGN_DATE1", expr("PRH_APLY_DSTR_SBDSTR_BGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PRH_APLY_DSTR_SBDSTR_END_DATE1", expr("PRH_APLY_DSTR_SBDSTR_END_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE1", expr("LAST_REC_TXN_TYPE_CODE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE1", expr("LAST_REC_TXN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID1", expr("LAST_REC_TXN_USER_ID"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_PHA_PRH_APLY_DSTR_SBDSTR,
+            computed_columns=[
+                {'name': 'DUMMY', 'expr': "'|'"},
+                {'name': 'HSE_DSTR_KEY1', 'expr': 'ltrim(rtrim(HSE_DSTR_KEY))'},
+                {'name': 'HSE_SBDSTR_KEY1', 'expr': 'ltrim(rtrim(HSE_SBDSTR_KEY))'},
+                {'name': 'PRH_APLY_DSTR_SBDSTR_BGN_DATE1', 'expr': 'PRH_APLY_DSTR_SBDSTR_BGN_DATE'},
+                {'name': 'PRH_APLY_DSTR_SBDSTR_END_DATE1', 'expr': 'PRH_APLY_DSTR_SBDSTR_END_DATE'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE1', 'expr': 'LAST_REC_TXN_TYPE_CODE'},
+                {'name': 'LAST_REC_TXN_DATE1', 'expr': 'LAST_REC_TXN_DATE'},
+                {'name': 'LAST_REC_TXN_USER_ID1', 'expr': 'LAST_REC_TXN_USER_ID'}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EMS_PHA_DSTR_SBDSTR1")
         # Write to Target: write_EMS_PHA_DSTR_SBDSTR1
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"DUMMY": "DUMMY", "HSE_DSTR_KEY": "HSE_DSTR_KEY1", "HSE_SBDSTR_KEY": "HSE_SBDSTR_KEY1", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE1", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE1", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID1", "PRH_APLY_DSTR_SBDSTR_BGN_DATE": "PRH_APLY_DSTR_SBDSTR_BGN_DATE1", "PRH_APLY_DSTR_SBDSTR_END_DATE": "PRH_APLY_DSTR_SBDSTR_END_DATE1"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HSE_DSTR_KEY', 'HSE_SBDSTR_KEY', 'PRH_APLY_DSTR_SBDSTR_BGN_DATE', 'PRH_APLY_DSTR_SBDSTR_END_DATE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'DUMMY']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_PHA_DSTR_SBDSTR1", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_PHA_DSTR_SBDSTR1',
+            mode='append',
+            source_columns=[
+                'HSE_DSTR_KEY1',
+                'HSE_SBDSTR_KEY1',
+                'PRH_APLY_DSTR_SBDSTR_BGN_DATE1',
+                'PRH_APLY_DSTR_SBDSTR_END_DATE1',
+                'LAST_REC_TXN_TYPE_CODE1',
+                'LAST_REC_TXN_DATE1',
+                'LAST_REC_TXN_USER_ID1',
+                'DUMMY',
+            ],
+            target_columns=[
+                'HSE_DSTR_KEY',
+                'HSE_SBDSTR_KEY',
+                'PRH_APLY_DSTR_SBDSTR_BGN_DATE',
+                'PRH_APLY_DSTR_SBDSTR_END_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'DUMMY',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_PHA_DSTR_SBDSTR1 write completed")
         logger.info("Step: input_MPLT_TRANS_TIME_STAMP")
         # Expression: input_MPLT_TRANS_TIME_STAMP
-        df_MPLT_TRANS_TIME_STAMP_input_1 = df_EXPTRANS
-        df_MPLT_TRANS_TIME_STAMP_input_1 = df_MPLT_TRANS_TIME_STAMP_input_1.withColumn("LAST_REC_TXN_DATE", expr("LAST_REC_TXN_DATE1"))
-        ctx.register_df("df_MPLT_TRANS_TIME_STAMP_input_1", df_MPLT_TRANS_TIME_STAMP_input_1)
-        
-        logger.info("Step: rename_EXPTRANS3")
-        # Expression: rename_EXPTRANS3
-        df_MPLT_TRANS_TIME_STAMP_rename_2 = df_MPLT_TRANS_TIME_STAMP_input_1
-        df_MPLT_TRANS_TIME_STAMP_rename_2 = df_MPLT_TRANS_TIME_STAMP_rename_2.drop("LAST_REC_TXN_DATE").withColumnRenamed("LAST_REC_TXN_DATE1", "LAST_REC_TXN_DATE")
-        ctx.register_df("df_MPLT_TRANS_TIME_STAMP_rename_2", df_MPLT_TRANS_TIME_STAMP_rename_2)
+        df_MPLT_TRANS_TIME_STAMP_input = lib.expression(
+            input_df=df_EXPTRANS,
+            computed_columns=[
+                {'name': 'LAST_REC_TXN_DATE', 'expr': 'LAST_REC_TXN_DATE1'}
+            ],
+        )
+        ctx.register_df("df_MPLT_TRANS_TIME_STAMP_input", df_MPLT_TRANS_TIME_STAMP_input)
         
         logger.info("Step: apply_MPLT_TRANS_TIME_STAMP_EXPTRANS3")
         # Expression: apply_MPLT_TRANS_TIME_STAMP_EXPTRANS3
-        df_MPLT_TRANS_TIME_STAMP_EXPTRANS3 = df_MPLT_TRANS_TIME_STAMP_rename_2
-        df_MPLT_TRANS_TIME_STAMP_EXPTRANS3 = df_MPLT_TRANS_TIME_STAMP_EXPTRANS3.withColumn("LAST_REC_TXN_DATE1", expr("CASE WHEN NOT (LAST_REC_TXN_DATE IS NULL) THEN date_format(LAST_REC_TXN_DATE, 'dd-MMM-yy hh.mm.ss') || '.000000 ' || date_format(LAST_REC_TXN_DATE, 'a') ELSE null END"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_MPLT_TRANS_TIME_STAMP_EXPTRANS3 = lib.expression(
+            input_df=df_MPLT_TRANS_TIME_STAMP_input,
+            computed_columns=[
+                {'name': 'LAST_REC_TXN_DATE1', 'expr': "CASE WHEN NOT (LAST_REC_TXN_DATE IS NULL) THEN date_format(LAST_REC_TXN_DATE, 'dd-MMM-yy hh.mm.ss') || '.000000 ' || date_format(LAST_REC_TXN_DATE, 'a') ELSE null END"}
+            ],
+        )
         ctx.register_df("df_MPLT_TRANS_TIME_STAMP_EXPTRANS3", df_MPLT_TRANS_TIME_STAMP_EXPTRANS3)
         
         logger.info("Step: apply_MPLT_TRANS_TIME_STAMP")
         # Expression: apply_MPLT_TRANS_TIME_STAMP
-        df_MPLT_TRANS_TIME_STAMP = df_MPLT_TRANS_TIME_STAMP_EXPTRANS3
+        df_MPLT_TRANS_TIME_STAMP = lib.expression(
+            input_df=df_MPLT_TRANS_TIME_STAMP_EXPTRANS3,
+            pass_through_cols=['LAST_REC_TXN_DATE1'],
+        )
         ctx.register_df("df_MPLT_TRANS_TIME_STAMP", df_MPLT_TRANS_TIME_STAMP)
         
         logger.info("Step: write_EMS_PHA_DSTR_SBDSTR")
         # Write to Target: write_EMS_PHA_DSTR_SBDSTR
-        df_write = df_MPLT_TRANS_TIME_STAMP
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"HSE_DSTR_KEY": "HSE_DSTR_KEY1", "HSE_SBDSTR_KEY": "HSE_SBDSTR_KEY1", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE1", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE1", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID1", "PRH_APLY_DSTR_SBDSTR_BGN_DATE": "PRH_APLY_DSTR_SBDSTR_BGN_DATE1", "PRH_APLY_DSTR_SBDSTR_END_DATE": "PRH_APLY_DSTR_SBDSTR_END_DATE1"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HSE_DSTR_KEY', 'HSE_SBDSTR_KEY', 'PRH_APLY_DSTR_SBDSTR_BGN_DATE', 'PRH_APLY_DSTR_SBDSTR_END_DATE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_PHA_DSTR_SBDSTR", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_MPLT_TRANS_TIME_STAMP,
+            conn=conn_target,
+            table='EMS_PHA_DSTR_SBDSTR',
+            mode='append',
+            source_columns=[
+                'HSE_DSTR_KEY1',
+                'HSE_SBDSTR_KEY1',
+                'PRH_APLY_DSTR_SBDSTR_BGN_DATE1',
+                'PRH_APLY_DSTR_SBDSTR_END_DATE1',
+                'LAST_REC_TXN_TYPE_CODE1',
+                'LAST_REC_TXN_DATE1',
+                'LAST_REC_TXN_USER_ID1',
+            ],
+            target_columns=[
+                'HSE_DSTR_KEY',
+                'HSE_SBDSTR_KEY',
+                'PRH_APLY_DSTR_SBDSTR_BGN_DATE',
+                'PRH_APLY_DSTR_SBDSTR_END_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_PHA_DSTR_SBDSTR write completed")
         

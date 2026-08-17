@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_HSM_TPV_UNIT")
@@ -79,74 +64,121 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_HSM_TPV_UNIT")
         # Source Qualifier: apply_SQ_HSM_TPV_UNIT
         df_SQ_HSM_TPV_UNIT = df_HSM_TPV_UNIT
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_HSM_TPV_UNIT = df_SQ_HSM_TPV_UNIT.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["TPV_HSE_UNIT_KEY", "TPV_UNIT_ORIG_SALE_PRC_AMT", "TPV_UNIT_STS_CODE", "TPV_UNIT_LAST_SALE_PRC_AMT", "LAST_SALE_TPV_PHASE_CODE", "TPV_UNIT_FMVIF_CUR_YEAR_MTH", "TPV_UNIT_FMVIF_CUR_RATE", "TPV_UNIT_FMVIF_NEXT_RATE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID"]
-        df_SQ_HSM_TPV_UNIT = df_SQ_HSM_TPV_UNIT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_HSM_TPV_UNIT.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_HSM_TPV_UNIT = lib.sq_output(
+            input_df=df_SQ_HSM_TPV_UNIT,
+            port_cols={
+                'TPV_HSE_UNIT_KEY': 'string',
+                'TPV_UNIT_ORIG_SALE_PRC_AMT': 'decimal',
+                'TPV_UNIT_STS_CODE': 'string',
+                'TPV_UNIT_LAST_SALE_PRC_AMT': 'decimal',
+                'LAST_SALE_TPV_PHASE_CODE': 'string',
+                'TPV_UNIT_FMVIF_CUR_YEAR_MTH': 'date/time',
+                'TPV_UNIT_FMVIF_CUR_RATE': 'decimal',
+                'TPV_UNIT_FMVIF_NEXT_RATE': 'decimal',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'string',
+                'LAST_REC_TXN_USER_ID': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_HSM_TPV_UNIT", df_SQ_HSM_TPV_UNIT)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_HSM_TPV_UNIT
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPV_HSE_UNIT_KEY_OUT", expr("ltrim(rtrim(TPV_HSE_UNIT_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPV_UNIT_ORIG_SALE_PRC_AMT_OUT", expr("TPV_UNIT_ORIG_SALE_PRC_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPV_UNIT_STS_CODE_OUT", expr("ltrim(rtrim(TPV_UNIT_STS_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPV_UNIT_LAST_SALE_PRC_AMT_OUT", expr("TPV_UNIT_LAST_SALE_PRC_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_SALE_TPV_PHASE_CODE_OUT", expr("ltrim(rtrim(LAST_SALE_TPV_PHASE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPV_UNIT_FMVIF_CUR_YEAR_MTH_OUT", expr("TPV_UNIT_FMVIF_CUR_YEAR_MTH"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPV_UNIT_FMVIF_CUR_RATE_OUT", expr("TPV_UNIT_FMVIF_CUR_RATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPV_UNIT_FMVIF_NEXT_RATE_OUT", expr("TPV_UNIT_FMVIF_NEXT_RATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_DATE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("'|'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_HSM_TPV_UNIT,
+            computed_columns=[
+                {'name': 'TPV_HSE_UNIT_KEY_OUT', 'expr': 'ltrim(rtrim(TPV_HSE_UNIT_KEY))'},
+                {'name': 'TPV_UNIT_ORIG_SALE_PRC_AMT_OUT', 'expr': 'TPV_UNIT_ORIG_SALE_PRC_AMT'},
+                {'name': 'TPV_UNIT_STS_CODE_OUT', 'expr': 'ltrim(rtrim(TPV_UNIT_STS_CODE))'},
+                {'name': 'TPV_UNIT_LAST_SALE_PRC_AMT_OUT', 'expr': 'TPV_UNIT_LAST_SALE_PRC_AMT'},
+                {'name': 'LAST_SALE_TPV_PHASE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_SALE_TPV_PHASE_CODE))'},
+                {'name': 'TPV_UNIT_FMVIF_CUR_YEAR_MTH_OUT', 'expr': 'TPV_UNIT_FMVIF_CUR_YEAR_MTH'},
+                {'name': 'TPV_UNIT_FMVIF_CUR_RATE_OUT', 'expr': 'TPV_UNIT_FMVIF_CUR_RATE'},
+                {'name': 'TPV_UNIT_FMVIF_NEXT_RATE_OUT', 'expr': 'TPV_UNIT_FMVIF_NEXT_RATE'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_DATE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_DATE))'},
+                {'name': 'LAST_REC_TXN_USER_ID_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID))'},
+                {'name': 'DUMMY', 'expr': "'|'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EMS_HSM_TPV_UNIT")
         # Write to Target: write_EMS_HSM_TPV_UNIT
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "LAST_SALE_TPV_PHASE_CODE": "LAST_SALE_TPV_PHASE_CODE_OUT", "TPV_HSE_UNIT_KEY": "TPV_HSE_UNIT_KEY_OUT", "TPV_UNIT_FMVIF_CUR_RATE": "TPV_UNIT_FMVIF_CUR_RATE_OUT", "TPV_UNIT_FMVIF_CUR_YEAR_MTH": "TPV_UNIT_FMVIF_CUR_YEAR_MTH_OUT", "TPV_UNIT_FMVIF_NEXT_RATE": "TPV_UNIT_FMVIF_NEXT_RATE_OUT", "TPV_UNIT_LAST_SALE_PRC_AMT": "TPV_UNIT_LAST_SALE_PRC_AMT_OUT", "TPV_UNIT_ORIG_SALE_PRC_AMT": "TPV_UNIT_ORIG_SALE_PRC_AMT_OUT", "TPV_UNIT_STS_CODE": "TPV_UNIT_STS_CODE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['TPV_HSE_UNIT_KEY', 'TPV_UNIT_ORIG_SALE_PRC_AMT', 'TPV_UNIT_STS_CODE', 'TPV_UNIT_LAST_SALE_PRC_AMT', 'LAST_SALE_TPV_PHASE_CODE', 'TPV_UNIT_FMVIF_CUR_YEAR_MTH', 'TPV_UNIT_FMVIF_CUR_RATE', 'TPV_UNIT_FMVIF_NEXT_RATE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_HSM_TPV_UNIT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_HSM_TPV_UNIT',
+            mode='append',
+            source_columns=[
+                'TPV_HSE_UNIT_KEY_OUT',
+                'TPV_UNIT_ORIG_SALE_PRC_AMT_OUT',
+                'TPV_UNIT_STS_CODE_OUT',
+                'TPV_UNIT_LAST_SALE_PRC_AMT_OUT',
+                'LAST_SALE_TPV_PHASE_CODE_OUT',
+                'TPV_UNIT_FMVIF_CUR_YEAR_MTH_OUT',
+                'TPV_UNIT_FMVIF_CUR_RATE_OUT',
+                'TPV_UNIT_FMVIF_NEXT_RATE_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+            ],
+            target_columns=[
+                'TPV_HSE_UNIT_KEY',
+                'TPV_UNIT_ORIG_SALE_PRC_AMT',
+                'TPV_UNIT_STS_CODE',
+                'TPV_UNIT_LAST_SALE_PRC_AMT',
+                'LAST_SALE_TPV_PHASE_CODE',
+                'TPV_UNIT_FMVIF_CUR_YEAR_MTH',
+                'TPV_UNIT_FMVIF_CUR_RATE',
+                'TPV_UNIT_FMVIF_NEXT_RATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_HSM_TPV_UNIT write completed")
         logger.info("Step: write_EMS_HSM_TPV_UNIT1")
         # Write to Target: write_EMS_HSM_TPV_UNIT1
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"DUMMY": "DUMMY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "LAST_SALE_TPV_PHASE_CODE": "LAST_SALE_TPV_PHASE_CODE_OUT", "TPV_HSE_UNIT_KEY": "TPV_HSE_UNIT_KEY_OUT", "TPV_UNIT_FMVIF_CUR_RATE": "TPV_UNIT_FMVIF_CUR_RATE_OUT", "TPV_UNIT_FMVIF_CUR_YEAR_MTH": "TPV_UNIT_FMVIF_CUR_YEAR_MTH_OUT", "TPV_UNIT_FMVIF_NEXT_RATE": "TPV_UNIT_FMVIF_NEXT_RATE_OUT", "TPV_UNIT_LAST_SALE_PRC_AMT": "TPV_UNIT_LAST_SALE_PRC_AMT_OUT", "TPV_UNIT_ORIG_SALE_PRC_AMT": "TPV_UNIT_ORIG_SALE_PRC_AMT_OUT", "TPV_UNIT_STS_CODE": "TPV_UNIT_STS_CODE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['TPV_HSE_UNIT_KEY', 'TPV_UNIT_ORIG_SALE_PRC_AMT', 'TPV_UNIT_STS_CODE', 'TPV_UNIT_LAST_SALE_PRC_AMT', 'LAST_SALE_TPV_PHASE_CODE', 'TPV_UNIT_FMVIF_CUR_YEAR_MTH', 'TPV_UNIT_FMVIF_CUR_RATE', 'TPV_UNIT_FMVIF_NEXT_RATE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_HSM_TPV_UNIT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_HSM_TPV_UNIT',
+            mode='append',
+            source_columns=[
+                'TPV_HSE_UNIT_KEY_OUT',
+                'TPV_UNIT_ORIG_SALE_PRC_AMT_OUT',
+                'TPV_UNIT_STS_CODE_OUT',
+                'TPV_UNIT_LAST_SALE_PRC_AMT_OUT',
+                'LAST_SALE_TPV_PHASE_CODE_OUT',
+                'TPV_UNIT_FMVIF_CUR_YEAR_MTH_OUT',
+                'TPV_UNIT_FMVIF_CUR_RATE_OUT',
+                'TPV_UNIT_FMVIF_NEXT_RATE_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+            ],
+            target_columns=[
+                'TPV_HSE_UNIT_KEY',
+                'TPV_UNIT_ORIG_SALE_PRC_AMT',
+                'TPV_UNIT_STS_CODE',
+                'TPV_UNIT_LAST_SALE_PRC_AMT',
+                'LAST_SALE_TPV_PHASE_CODE',
+                'TPV_UNIT_FMVIF_CUR_YEAR_MTH',
+                'TPV_UNIT_FMVIF_CUR_RATE',
+                'TPV_UNIT_FMVIF_NEXT_RATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_HSM_TPV_UNIT1 write completed")
         

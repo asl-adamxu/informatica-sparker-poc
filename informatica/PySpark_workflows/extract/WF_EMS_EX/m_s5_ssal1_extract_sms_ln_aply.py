@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_SMS_LN_APLY_V")
@@ -79,94 +64,240 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SMS_LN_APLY_V")
         # Source Qualifier: apply_SQ_SMS_LN_APLY_V
         df_SQ_SMS_LN_APLY_V = df_SMS_LN_APLY_V
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_SMS_LN_APLY_V = df_SQ_SMS_LN_APLY_V.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["LN_APLY_NUM", "CEP_CERT_NUM", "CAS_CERT_NUM", "PCHS_PRC_AMT", "SALE_TXN_TYPE_CODE", "SALE_PCHS_DATE", "ASGN_DATE", "LN_APLY_DATE", "CHQ_NUM", "LN_PRN_IND", "LN_APLY_STS_CODE", "LAST_STS_CHNG_DATE", "RCPT_DATE", "RCPT_AMT", "PASP_DATE", "BANK_CODE", "DCLR_DATE", "TNTV_ASGN_DATE", "TNTV_SALE_PCHS_DATE", "LN_APLY_SBMT_DATE", "SCHM_CODE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "LN_APLY_CNCL_RSN_CODE", "LN_APLY_REJ_RSN_CODE", "LN_APLY_RINSTA_RSN_CODE", "LAST_REC_TXN_USER_ID_TYPE_CODE"]
-        df_SQ_SMS_LN_APLY_V = df_SQ_SMS_LN_APLY_V.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SMS_LN_APLY_V.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SMS_LN_APLY_V = lib.sq_output(
+            input_df=df_SQ_SMS_LN_APLY_V,
+            port_cols={
+                'LN_APLY_NUM': 'string',
+                'CEP_CERT_NUM': 'string',
+                'CAS_CERT_NUM': 'string',
+                'PCHS_PRC_AMT': 'decimal',
+                'SALE_TXN_TYPE_CODE': 'string',
+                'SALE_PCHS_DATE': 'date/time',
+                'ASGN_DATE': 'date/time',
+                'LN_APLY_DATE': 'date/time',
+                'CHQ_NUM': 'decimal',
+                'LN_PRN_IND': 'string',
+                'LN_APLY_STS_CODE': 'string',
+                'LAST_STS_CHNG_DATE': 'date/time',
+                'RCPT_DATE': 'date/time',
+                'RCPT_AMT': 'decimal',
+                'PASP_DATE': 'date/time',
+                'BANK_CODE': 'string',
+                'DCLR_DATE': 'date/time',
+                'TNTV_ASGN_DATE': 'date/time',
+                'TNTV_SALE_PCHS_DATE': 'date/time',
+                'LN_APLY_SBMT_DATE': 'date/time',
+                'SCHM_CODE': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'string',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'LN_APLY_CNCL_RSN_CODE': 'decimal',
+                'LN_APLY_REJ_RSN_CODE': 'decimal',
+                'LN_APLY_RINSTA_RSN_CODE': 'decimal',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_SMS_LN_APLY_V", df_SQ_SMS_LN_APLY_V)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_SMS_LN_APLY_V
-        df_EXPTRANS = df_EXPTRANS.withColumn("LN_APLY_NUM_OUT", expr("ltrim(rtrim(LN_APLY_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CEP_CERT_NUM_OUT", expr("ltrim(rtrim(CEP_CERT_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CAS_CERT_NUM_OUT", expr("ltrim(rtrim(CAS_CERT_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PCHS_PRC_AMT_OUT", expr("PCHS_PRC_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("SALE_TXN_TYPE_CODE_OUT", expr("ltrim(rtrim(SALE_TXN_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PCHSR_HKIC_NUM_1_OUT", expr("NULL"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PCHSR_HKIC_NUM_2_OUT", expr("NULL"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("SALE_PCHS_DATE_OUT", expr("SALE_PCHS_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ASGN_DATE_OUT", expr("ASGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LN_APLY_DATE_OUT", expr("LN_APLY_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CHQ_NUM_OUT", expr("CHQ_NUM"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LN_PRN_IND_OUT", expr("ltrim(rtrim(LN_PRN_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LN_APLY_STS_CODE_OUT", expr("ltrim(rtrim(LN_APLY_STS_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_STS_CHNG_DAT_OUT", expr("LAST_STS_CHNG_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RCPT_DATE_OUT", expr("RCPT_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RCPT_AMT_OUT", expr("RCPT_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PASP_DATE_OUT", expr("PASP_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("BANK_CODE_OUT", expr("ltrim(rtrim(BANK_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DCLR_DATE_OUT", expr("DCLR_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNTV_ASGN_DATE_OUT", expr("TNTV_ASGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNTV_SALE_PCHS_DATE_OUT", expr("TNTV_SALE_PCHS_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PCHSR_HKIC_NUM_3_OUT", expr("NULL"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LN_APLY_SBMT_DATE_OUT", expr("LN_APLY_SBMT_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("SCHM_CODE_OUT", expr("ltrim(rtrim(SCHM_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE_OUT", expr("LAST_REC_TXN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LN_APLY_CNCL_RSN_CODE_OUT", expr("LN_APLY_CNCL_RSN_CODE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LN_APLY_REJ_RSN_CODE_OUT", expr("LN_APLY_REJ_RSN_CODE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LN_APLY_RINSTA_RSN_CODE_OUT", expr("LN_APLY_RINSTA_RSN_CODE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_TYPE_CODE1", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("'|'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_SMS_LN_APLY_V,
+            computed_columns=[
+                {'name': 'LN_APLY_NUM_OUT', 'expr': 'ltrim(rtrim(LN_APLY_NUM))'},
+                {'name': 'CEP_CERT_NUM_OUT', 'expr': 'ltrim(rtrim(CEP_CERT_NUM))'},
+                {'name': 'CAS_CERT_NUM_OUT', 'expr': 'ltrim(rtrim(CAS_CERT_NUM))'},
+                {'name': 'PCHS_PRC_AMT_OUT', 'expr': 'PCHS_PRC_AMT'},
+                {'name': 'SALE_TXN_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(SALE_TXN_TYPE_CODE))'},
+                {'name': 'PCHSR_HKIC_NUM_1_OUT', 'expr': 'NULL'},
+                {'name': 'PCHSR_HKIC_NUM_2_OUT', 'expr': 'NULL'},
+                {'name': 'SALE_PCHS_DATE_OUT', 'expr': 'SALE_PCHS_DATE'},
+                {'name': 'ASGN_DATE_OUT', 'expr': 'ASGN_DATE'},
+                {'name': 'LN_APLY_DATE_OUT', 'expr': 'LN_APLY_DATE'},
+                {'name': 'CHQ_NUM_OUT', 'expr': 'CHQ_NUM'},
+                {'name': 'LN_PRN_IND_OUT', 'expr': 'ltrim(rtrim(LN_PRN_IND))'},
+                {'name': 'LN_APLY_STS_CODE_OUT', 'expr': 'ltrim(rtrim(LN_APLY_STS_CODE))'},
+                {'name': 'LAST_STS_CHNG_DAT_OUT', 'expr': 'LAST_STS_CHNG_DATE'},
+                {'name': 'RCPT_DATE_OUT', 'expr': 'RCPT_DATE'},
+                {'name': 'RCPT_AMT_OUT', 'expr': 'RCPT_AMT'},
+                {'name': 'PASP_DATE_OUT', 'expr': 'PASP_DATE'},
+                {'name': 'BANK_CODE_OUT', 'expr': 'ltrim(rtrim(BANK_CODE))'},
+                {'name': 'DCLR_DATE_OUT', 'expr': 'DCLR_DATE'},
+                {'name': 'TNTV_ASGN_DATE_OUT', 'expr': 'TNTV_ASGN_DATE'},
+                {'name': 'TNTV_SALE_PCHS_DATE_OUT', 'expr': 'TNTV_SALE_PCHS_DATE'},
+                {'name': 'PCHSR_HKIC_NUM_3_OUT', 'expr': 'NULL'},
+                {'name': 'LN_APLY_SBMT_DATE_OUT', 'expr': 'LN_APLY_SBMT_DATE'},
+                {'name': 'SCHM_CODE_OUT', 'expr': 'ltrim(rtrim(SCHM_CODE))'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_DATE_OUT', 'expr': 'LAST_REC_TXN_DATE'},
+                {'name': 'LAST_REC_TXN_USER_ID_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID))'},
+                {'name': 'LN_APLY_CNCL_RSN_CODE_OUT', 'expr': 'LN_APLY_CNCL_RSN_CODE'},
+                {'name': 'LN_APLY_REJ_RSN_CODE_OUT', 'expr': 'LN_APLY_REJ_RSN_CODE'},
+                {'name': 'LN_APLY_RINSTA_RSN_CODE_OUT', 'expr': 'LN_APLY_RINSTA_RSN_CODE'},
+                {'name': 'LAST_REC_TXN_USER_ID_TYPE_CODE1', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID_TYPE_CODE))'},
+                {'name': 'DUMMY', 'expr': "'|'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EMS_SMS_LN_APLY1")
         # Write to Target: write_EMS_SMS_LN_APLY1
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"ASGN_DATE": "ASGN_DATE_OUT", "BANK_CODE": "BANK_CODE_OUT", "CAS_CERT_NUM": "CAS_CERT_NUM_OUT", "CEP_CERT_NUM": "CEP_CERT_NUM_OUT", "CHQ_NUM": "CHQ_NUM_OUT", "DCLR_DATE": "DCLR_DATE_OUT", "DUMMY": "DUMMY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "LAST_REC_TXN_USER_ID_TYPE_CODE": "LAST_REC_TXN_USER_ID_TYPE_CODE1", "LAST_STS_CHNG_DATE": "LAST_STS_CHNG_DAT_OUT", "LN_APLY_CNCL_RSN_CODE": "LN_APLY_CNCL_RSN_CODE_OUT", "LN_APLY_DATE": "LN_APLY_DATE_OUT", "LN_APLY_NUM": "LN_APLY_NUM_OUT", "LN_APLY_REJ_RSN_CODE": "LN_APLY_REJ_RSN_CODE_OUT", "LN_APLY_RINSTA_RSN_CODE": "LN_APLY_RINSTA_RSN_CODE_OUT", "LN_APLY_SBMT_DATE": "LN_APLY_SBMT_DATE_OUT", "LN_APLY_STS_CODE": "LN_APLY_STS_CODE_OUT", "LN_PRN_IND": "LN_PRN_IND_OUT", "PASP_DATE": "PASP_DATE_OUT", "PCHSR_HKIC_NUM_1": "PCHSR_HKIC_NUM_1_OUT", "PCHSR_HKIC_NUM_2": "PCHSR_HKIC_NUM_2_OUT", "PCHSR_HKIC_NUM_3": "PCHSR_HKIC_NUM_3_OUT", "PCHS_PRC_AMT": "PCHS_PRC_AMT_OUT", "RCPT_AMT": "RCPT_AMT_OUT", "RCPT_DATE": "RCPT_DATE_OUT", "SALE_PCHS_DATE": "SALE_PCHS_DATE_OUT", "SALE_TXN_TYPE_CODE": "SALE_TXN_TYPE_CODE_OUT", "SCHM_CODE": "SCHM_CODE_OUT", "TNTV_ASGN_DATE": "TNTV_ASGN_DATE_OUT", "TNTV_SALE_PCHS_DATE": "TNTV_SALE_PCHS_DATE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['LN_APLY_NUM', 'CEP_CERT_NUM', 'CAS_CERT_NUM', 'PCHS_PRC_AMT', 'SALE_TXN_TYPE_CODE', 'PCHSR_HKIC_NUM_1', 'PCHSR_HKIC_NUM_2', 'SALE_PCHS_DATE', 'ASGN_DATE', 'LN_APLY_DATE', 'CHQ_NUM', 'LN_PRN_IND', 'LN_APLY_STS_CODE', 'LAST_STS_CHNG_DATE', 'RCPT_DATE', 'RCPT_AMT', 'PASP_DATE', 'BANK_CODE', 'DCLR_DATE', 'TNTV_ASGN_DATE', 'TNTV_SALE_PCHS_DATE', 'PCHSR_HKIC_NUM_3', 'LN_APLY_SBMT_DATE', 'SCHM_CODE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'LN_APLY_CNCL_RSN_CODE', 'LN_APLY_REJ_RSN_CODE', 'LN_APLY_RINSTA_RSN_CODE', 'LAST_REC_TXN_USER_ID_TYPE_CODE', 'DUMMY']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_SMS_LN_APLY1", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_SMS_LN_APLY1',
+            mode='append',
+            source_columns=[
+                'LN_APLY_NUM_OUT',
+                'CEP_CERT_NUM_OUT',
+                'CAS_CERT_NUM_OUT',
+                'PCHS_PRC_AMT_OUT',
+                'SALE_TXN_TYPE_CODE_OUT',
+                'PCHSR_HKIC_NUM_1_OUT',
+                'PCHSR_HKIC_NUM_2_OUT',
+                'SALE_PCHS_DATE_OUT',
+                'ASGN_DATE_OUT',
+                'LN_APLY_DATE_OUT',
+                'CHQ_NUM_OUT',
+                'LN_PRN_IND_OUT',
+                'LN_APLY_STS_CODE_OUT',
+                'LAST_STS_CHNG_DAT_OUT',
+                'RCPT_DATE_OUT',
+                'RCPT_AMT_OUT',
+                'PASP_DATE_OUT',
+                'BANK_CODE_OUT',
+                'DCLR_DATE_OUT',
+                'TNTV_ASGN_DATE_OUT',
+                'TNTV_SALE_PCHS_DATE_OUT',
+                'PCHSR_HKIC_NUM_3_OUT',
+                'LN_APLY_SBMT_DATE_OUT',
+                'SCHM_CODE_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'LN_APLY_CNCL_RSN_CODE_OUT',
+                'LN_APLY_REJ_RSN_CODE_OUT',
+                'LN_APLY_RINSTA_RSN_CODE_OUT',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE1',
+                'DUMMY',
+            ],
+            target_columns=[
+                'LN_APLY_NUM',
+                'CEP_CERT_NUM',
+                'CAS_CERT_NUM',
+                'PCHS_PRC_AMT',
+                'SALE_TXN_TYPE_CODE',
+                'PCHSR_HKIC_NUM_1',
+                'PCHSR_HKIC_NUM_2',
+                'SALE_PCHS_DATE',
+                'ASGN_DATE',
+                'LN_APLY_DATE',
+                'CHQ_NUM',
+                'LN_PRN_IND',
+                'LN_APLY_STS_CODE',
+                'LAST_STS_CHNG_DATE',
+                'RCPT_DATE',
+                'RCPT_AMT',
+                'PASP_DATE',
+                'BANK_CODE',
+                'DCLR_DATE',
+                'TNTV_ASGN_DATE',
+                'TNTV_SALE_PCHS_DATE',
+                'PCHSR_HKIC_NUM_3',
+                'LN_APLY_SBMT_DATE',
+                'SCHM_CODE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'LN_APLY_CNCL_RSN_CODE',
+                'LN_APLY_REJ_RSN_CODE',
+                'LN_APLY_RINSTA_RSN_CODE',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE',
+                'DUMMY',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_SMS_LN_APLY1 write completed")
         logger.info("Step: write_EMS_SMS_LN_APLY")
         # Write to Target: write_EMS_SMS_LN_APLY
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"ASGN_DATE": "ASGN_DATE_OUT", "BANK_CODE": "BANK_CODE_OUT", "CAS_CERT_NUM": "CAS_CERT_NUM_OUT", "CEP_CERT_NUM": "CEP_CERT_NUM_OUT", "CHQ_NUM": "CHQ_NUM_OUT", "DCLR_DATE": "DCLR_DATE_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "LAST_REC_TXN_USER_ID_TYPE_CODE": "LAST_REC_TXN_USER_ID_TYPE_CODE1", "LAST_STS_CHNG_DATE": "LAST_STS_CHNG_DAT_OUT", "LN_APLY_CNCL_RSN_CODE": "LN_APLY_CNCL_RSN_CODE_OUT", "LN_APLY_DATE": "LN_APLY_DATE_OUT", "LN_APLY_NUM": "LN_APLY_NUM_OUT", "LN_APLY_REJ_RSN_CODE": "LN_APLY_REJ_RSN_CODE_OUT", "LN_APLY_RINSTA_RSN_CODE": "LN_APLY_RINSTA_RSN_CODE_OUT", "LN_APLY_SBMT_DATE": "LN_APLY_SBMT_DATE_OUT", "LN_APLY_STS_CODE": "LN_APLY_STS_CODE_OUT", "LN_PRN_IND": "LN_PRN_IND_OUT", "PASP_DATE": "PASP_DATE_OUT", "PCHSR_HKIC_NUM_1": "PCHSR_HKIC_NUM_1_OUT", "PCHSR_HKIC_NUM_2": "PCHSR_HKIC_NUM_2_OUT", "PCHSR_HKIC_NUM_3": "PCHSR_HKIC_NUM_3_OUT", "PCHS_PRC_AMT": "PCHS_PRC_AMT_OUT", "RCPT_AMT": "RCPT_AMT_OUT", "RCPT_DATE": "RCPT_DATE_OUT", "SALE_PCHS_DATE": "SALE_PCHS_DATE_OUT", "SALE_TXN_TYPE_CODE": "SALE_TXN_TYPE_CODE_OUT", "SCHM_CODE": "SCHM_CODE_OUT", "TNTV_ASGN_DATE": "TNTV_ASGN_DATE_OUT", "TNTV_SALE_PCHS_DATE": "TNTV_SALE_PCHS_DATE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['LN_APLY_NUM', 'CEP_CERT_NUM', 'CAS_CERT_NUM', 'PCHS_PRC_AMT', 'SALE_TXN_TYPE_CODE', 'PCHSR_HKIC_NUM_1', 'PCHSR_HKIC_NUM_2', 'SALE_PCHS_DATE', 'ASGN_DATE', 'LN_APLY_DATE', 'CHQ_NUM', 'LN_PRN_IND', 'LN_APLY_STS_CODE', 'LAST_STS_CHNG_DATE', 'RCPT_DATE', 'RCPT_AMT', 'PASP_DATE', 'BANK_CODE', 'DCLR_DATE', 'TNTV_ASGN_DATE', 'TNTV_SALE_PCHS_DATE', 'PCHSR_HKIC_NUM_3', 'LN_APLY_SBMT_DATE', 'SCHM_CODE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'LN_APLY_CNCL_RSN_CODE', 'LN_APLY_REJ_RSN_CODE', 'LN_APLY_RINSTA_RSN_CODE', 'LAST_REC_TXN_USER_ID_TYPE_CODE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_SMS_LN_APLY", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_SMS_LN_APLY',
+            mode='append',
+            source_columns=[
+                'LN_APLY_NUM_OUT',
+                'CEP_CERT_NUM_OUT',
+                'CAS_CERT_NUM_OUT',
+                'PCHS_PRC_AMT_OUT',
+                'SALE_TXN_TYPE_CODE_OUT',
+                'PCHSR_HKIC_NUM_1_OUT',
+                'PCHSR_HKIC_NUM_2_OUT',
+                'SALE_PCHS_DATE_OUT',
+                'ASGN_DATE_OUT',
+                'LN_APLY_DATE_OUT',
+                'CHQ_NUM_OUT',
+                'LN_PRN_IND_OUT',
+                'LN_APLY_STS_CODE_OUT',
+                'LAST_STS_CHNG_DAT_OUT',
+                'RCPT_DATE_OUT',
+                'RCPT_AMT_OUT',
+                'PASP_DATE_OUT',
+                'BANK_CODE_OUT',
+                'DCLR_DATE_OUT',
+                'TNTV_ASGN_DATE_OUT',
+                'TNTV_SALE_PCHS_DATE_OUT',
+                'PCHSR_HKIC_NUM_3_OUT',
+                'LN_APLY_SBMT_DATE_OUT',
+                'SCHM_CODE_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'LN_APLY_CNCL_RSN_CODE_OUT',
+                'LN_APLY_REJ_RSN_CODE_OUT',
+                'LN_APLY_RINSTA_RSN_CODE_OUT',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE1',
+            ],
+            target_columns=[
+                'LN_APLY_NUM',
+                'CEP_CERT_NUM',
+                'CAS_CERT_NUM',
+                'PCHS_PRC_AMT',
+                'SALE_TXN_TYPE_CODE',
+                'PCHSR_HKIC_NUM_1',
+                'PCHSR_HKIC_NUM_2',
+                'SALE_PCHS_DATE',
+                'ASGN_DATE',
+                'LN_APLY_DATE',
+                'CHQ_NUM',
+                'LN_PRN_IND',
+                'LN_APLY_STS_CODE',
+                'LAST_STS_CHNG_DATE',
+                'RCPT_DATE',
+                'RCPT_AMT',
+                'PASP_DATE',
+                'BANK_CODE',
+                'DCLR_DATE',
+                'TNTV_ASGN_DATE',
+                'TNTV_SALE_PCHS_DATE',
+                'PCHSR_HKIC_NUM_3',
+                'LN_APLY_SBMT_DATE',
+                'SCHM_CODE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'LN_APLY_CNCL_RSN_CODE',
+                'LN_APLY_REJ_RSN_CODE',
+                'LN_APLY_RINSTA_RSN_CODE',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_SMS_LN_APLY write completed")
         

@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_TAM_RAS_HIST")
@@ -79,82 +64,171 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_TAM_RAS_HIST")
         # Source Qualifier: apply_SQ_TAM_RAS_HIST
         df_SQ_TAM_RAS_HIST = df_TAM_RAS_HIST
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_TAM_RAS_HIST = df_SQ_TAM_RAS_HIST.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["RAS_HIST_REC_KEY", "CUST_KEY", "HSE_SRVC_APLY_KEY", "HSE_UNIT_CODE_ADDR", "RAS_RENT_FCTR_CODE", "ORIG_RAS_RENT_FCTR_CODE", "RAS_CNFRM_DATE", "RAS_RENT_BGN_DATE", "RAS_RENT_END_DATE", "RAS_TNCY_TYPE_CODE", "RAS_CNCL_IND", "RAS_CNCL_DATE", "RAS_CNCL_USER_ID", "RAS_UPD_CNT", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "RAS_RENT_BGN_DATE_IND", "RAS_RENT_PRCS_IND"]
-        df_SQ_TAM_RAS_HIST = df_SQ_TAM_RAS_HIST.select([col(c) if c.lower() in [x.lower() for x in df_SQ_TAM_RAS_HIST.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_TAM_RAS_HIST = lib.sq_output(
+            input_df=df_SQ_TAM_RAS_HIST,
+            port_cols={
+                'RAS_HIST_REC_KEY': 'decimal',
+                'CUST_KEY': 'string',
+                'HSE_SRVC_APLY_KEY': 'string',
+                'HSE_UNIT_CODE_ADDR': 'string',
+                'RAS_RENT_FCTR_CODE': 'decimal',
+                'ORIG_RAS_RENT_FCTR_CODE': 'decimal',
+                'RAS_CNFRM_DATE': 'date/time',
+                'RAS_RENT_BGN_DATE': 'date/time',
+                'RAS_RENT_END_DATE': 'date/time',
+                'RAS_TNCY_TYPE_CODE': 'string',
+                'RAS_CNCL_IND': 'string',
+                'RAS_CNCL_DATE': 'date/time',
+                'RAS_CNCL_USER_ID': 'string',
+                'RAS_UPD_CNT': 'decimal',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'string',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'RAS_RENT_BGN_DATE_IND': 'string',
+                'RAS_RENT_PRCS_IND': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_TAM_RAS_HIST", df_SQ_TAM_RAS_HIST)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_TAM_RAS_HIST
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAS_HIST_REC_KEY1", expr("RAS_HIST_REC_KEY"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_KEY1", expr("ltrim(rtrim(CUST_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_SRVC_APLY_KEY1", expr("ltrim(rtrim(HSE_SRVC_APLY_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_UNIT_CODE_ADDR1", expr("ltrim(rtrim(HSE_UNIT_CODE_ADDR))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAS_RENT_FCTR_CODE1", expr("RAS_RENT_FCTR_CODE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ORIG_RAS_RENT_FCTR_CODE1", expr("ORIG_RAS_RENT_FCTR_CODE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAS_CNFRM_DATE1", expr("RAS_CNFRM_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAS_RENT_BGN_DATE1", expr("RAS_RENT_BGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAS_RENT_END_DATE1", expr("RAS_RENT_END_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAS_TNCY_TYPE_CODE1", expr("ltrim(rtrim(RAS_TNCY_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAS_CNCL_IND1", expr("ltrim(rtrim(RAS_CNCL_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAS_CNCL_DATE1", expr("RAS_CNCL_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAS_CNCL_USER_ID1", expr("ltrim(rtrim(RAS_CNCL_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAS_UPD_CNT1", expr("RAS_UPD_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE1", expr("ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE1", expr("LAST_REC_TXN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID1", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAS_RENT_BGN_DATE_IND1", expr("ltrim(rtrim(RAS_RENT_BGN_DATE_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAS_RENT_PRCS_IND1", expr("ltrim(rtrim(RAS_RENT_PRCS_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("'|'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_TAM_RAS_HIST,
+            computed_columns=[
+                {'name': 'RAS_HIST_REC_KEY1', 'expr': 'RAS_HIST_REC_KEY'},
+                {'name': 'CUST_KEY1', 'expr': 'ltrim(rtrim(CUST_KEY))'},
+                {'name': 'HSE_SRVC_APLY_KEY1', 'expr': 'ltrim(rtrim(HSE_SRVC_APLY_KEY))'},
+                {'name': 'HSE_UNIT_CODE_ADDR1', 'expr': 'ltrim(rtrim(HSE_UNIT_CODE_ADDR))'},
+                {'name': 'RAS_RENT_FCTR_CODE1', 'expr': 'RAS_RENT_FCTR_CODE'},
+                {'name': 'ORIG_RAS_RENT_FCTR_CODE1', 'expr': 'ORIG_RAS_RENT_FCTR_CODE'},
+                {'name': 'RAS_CNFRM_DATE1', 'expr': 'RAS_CNFRM_DATE'},
+                {'name': 'RAS_RENT_BGN_DATE1', 'expr': 'RAS_RENT_BGN_DATE'},
+                {'name': 'RAS_RENT_END_DATE1', 'expr': 'RAS_RENT_END_DATE'},
+                {'name': 'RAS_TNCY_TYPE_CODE1', 'expr': 'ltrim(rtrim(RAS_TNCY_TYPE_CODE))'},
+                {'name': 'RAS_CNCL_IND1', 'expr': 'ltrim(rtrim(RAS_CNCL_IND))'},
+                {'name': 'RAS_CNCL_DATE1', 'expr': 'RAS_CNCL_DATE'},
+                {'name': 'RAS_CNCL_USER_ID1', 'expr': 'ltrim(rtrim(RAS_CNCL_USER_ID))'},
+                {'name': 'RAS_UPD_CNT1', 'expr': 'RAS_UPD_CNT'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE1', 'expr': 'ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_DATE1', 'expr': 'LAST_REC_TXN_DATE'},
+                {'name': 'LAST_REC_TXN_USER_ID1', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID))'},
+                {'name': 'RAS_RENT_BGN_DATE_IND1', 'expr': 'ltrim(rtrim(RAS_RENT_BGN_DATE_IND))'},
+                {'name': 'RAS_RENT_PRCS_IND1', 'expr': 'ltrim(rtrim(RAS_RENT_PRCS_IND))'},
+                {'name': 'DUMMY', 'expr': "'|'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EMS_TAM_RAS_HIST1")
         # Write to Target: write_EMS_TAM_RAS_HIST1
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"CUST_KEY": "CUST_KEY1", "DUMMY": "DUMMY", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY1", "HSE_UNIT_CODE_ADDR": "HSE_UNIT_CODE_ADDR1", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE1", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE1", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID1", "ORIG_RAS_RENT_FCTR_CODE": "ORIG_RAS_RENT_FCTR_CODE1", "RAS_CNCL_DATE": "RAS_CNCL_DATE1", "RAS_CNCL_IND": "RAS_CNCL_IND1", "RAS_CNCL_USER_ID": "RAS_CNCL_USER_ID1", "RAS_CNFRM_DATE": "RAS_CNFRM_DATE1", "RAS_HIST_REC_KEY": "RAS_HIST_REC_KEY1", "RAS_RENT_BGN_DATE": "RAS_RENT_BGN_DATE1", "RAS_RENT_BGN_DATE_IND": "RAS_RENT_BGN_DATE_IND1", "RAS_RENT_END_DATE": "RAS_RENT_END_DATE1", "RAS_RENT_FCTR_CODE": "RAS_RENT_FCTR_CODE1", "RAS_RENT_PRCS_IND": "RAS_RENT_PRCS_IND1", "RAS_TNCY_TYPE_CODE": "RAS_TNCY_TYPE_CODE1", "RAS_UPD_CNT": "RAS_UPD_CNT1"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['RAS_HIST_REC_KEY', 'CUST_KEY', 'HSE_SRVC_APLY_KEY', 'HSE_UNIT_CODE_ADDR', 'RAS_RENT_FCTR_CODE', 'ORIG_RAS_RENT_FCTR_CODE', 'RAS_CNFRM_DATE', 'RAS_RENT_BGN_DATE', 'RAS_RENT_END_DATE', 'RAS_TNCY_TYPE_CODE', 'RAS_CNCL_IND', 'RAS_CNCL_DATE', 'RAS_CNCL_USER_ID', 'RAS_UPD_CNT', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'RAS_RENT_BGN_DATE_IND', 'RAS_RENT_PRCS_IND', 'DUMMY']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_TAM_RAS_HIST1", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_TAM_RAS_HIST1',
+            mode='append',
+            source_columns=[
+                'RAS_HIST_REC_KEY1',
+                'CUST_KEY1',
+                'HSE_SRVC_APLY_KEY1',
+                'HSE_UNIT_CODE_ADDR1',
+                'RAS_RENT_FCTR_CODE1',
+                'ORIG_RAS_RENT_FCTR_CODE1',
+                'RAS_CNFRM_DATE1',
+                'RAS_RENT_BGN_DATE1',
+                'RAS_RENT_END_DATE1',
+                'RAS_TNCY_TYPE_CODE1',
+                'RAS_CNCL_IND1',
+                'RAS_CNCL_DATE1',
+                'RAS_CNCL_USER_ID1',
+                'RAS_UPD_CNT1',
+                'LAST_REC_TXN_TYPE_CODE1',
+                'LAST_REC_TXN_DATE1',
+                'LAST_REC_TXN_USER_ID1',
+                'RAS_RENT_BGN_DATE_IND1',
+                'RAS_RENT_PRCS_IND1',
+                'DUMMY',
+            ],
+            target_columns=[
+                'RAS_HIST_REC_KEY',
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'HSE_UNIT_CODE_ADDR',
+                'RAS_RENT_FCTR_CODE',
+                'ORIG_RAS_RENT_FCTR_CODE',
+                'RAS_CNFRM_DATE',
+                'RAS_RENT_BGN_DATE',
+                'RAS_RENT_END_DATE',
+                'RAS_TNCY_TYPE_CODE',
+                'RAS_CNCL_IND',
+                'RAS_CNCL_DATE',
+                'RAS_CNCL_USER_ID',
+                'RAS_UPD_CNT',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'RAS_RENT_BGN_DATE_IND',
+                'RAS_RENT_PRCS_IND',
+                'DUMMY',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_TAM_RAS_HIST1 write completed")
         logger.info("Step: write_EMS_TAM_RAS_HIST")
         # Write to Target: write_EMS_TAM_RAS_HIST
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"CUST_KEY": "CUST_KEY1", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY1", "HSE_UNIT_CODE_ADDR": "HSE_UNIT_CODE_ADDR1", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE1", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE1", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID1", "ORIG_RAS_RENT_FCTR_CODE": "ORIG_RAS_RENT_FCTR_CODE1", "RAS_CNCL_DATE": "RAS_CNCL_DATE1", "RAS_CNCL_IND": "RAS_CNCL_IND1", "RAS_CNCL_USER_ID": "RAS_CNCL_USER_ID1", "RAS_CNFRM_DATE": "RAS_CNFRM_DATE1", "RAS_HIST_REC_KEY": "RAS_HIST_REC_KEY1", "RAS_RENT_BGN_DATE": "RAS_RENT_BGN_DATE1", "RAS_RENT_BGN_DATE_IND": "RAS_RENT_BGN_DATE_IND1", "RAS_RENT_END_DATE": "RAS_RENT_END_DATE1", "RAS_RENT_FCTR_CODE": "RAS_RENT_FCTR_CODE1", "RAS_RENT_PRCS_IND": "RAS_RENT_PRCS_IND1", "RAS_TNCY_TYPE_CODE": "RAS_TNCY_TYPE_CODE1", "RAS_UPD_CNT": "RAS_UPD_CNT1"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['RAS_HIST_REC_KEY', 'CUST_KEY', 'HSE_SRVC_APLY_KEY', 'HSE_UNIT_CODE_ADDR', 'RAS_RENT_FCTR_CODE', 'ORIG_RAS_RENT_FCTR_CODE', 'RAS_CNFRM_DATE', 'RAS_RENT_BGN_DATE', 'RAS_RENT_END_DATE', 'RAS_TNCY_TYPE_CODE', 'RAS_CNCL_IND', 'RAS_CNCL_DATE', 'RAS_CNCL_USER_ID', 'RAS_UPD_CNT', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'RAS_RENT_BGN_DATE_IND', 'RAS_RENT_PRCS_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_TAM_RAS_HIST", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_TAM_RAS_HIST',
+            mode='append',
+            source_columns=[
+                'RAS_HIST_REC_KEY1',
+                'CUST_KEY1',
+                'HSE_SRVC_APLY_KEY1',
+                'HSE_UNIT_CODE_ADDR1',
+                'RAS_RENT_FCTR_CODE1',
+                'ORIG_RAS_RENT_FCTR_CODE1',
+                'RAS_CNFRM_DATE1',
+                'RAS_RENT_BGN_DATE1',
+                'RAS_RENT_END_DATE1',
+                'RAS_TNCY_TYPE_CODE1',
+                'RAS_CNCL_IND1',
+                'RAS_CNCL_DATE1',
+                'RAS_CNCL_USER_ID1',
+                'RAS_UPD_CNT1',
+                'LAST_REC_TXN_TYPE_CODE1',
+                'LAST_REC_TXN_DATE1',
+                'LAST_REC_TXN_USER_ID1',
+                'RAS_RENT_BGN_DATE_IND1',
+                'RAS_RENT_PRCS_IND1',
+            ],
+            target_columns=[
+                'RAS_HIST_REC_KEY',
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'HSE_UNIT_CODE_ADDR',
+                'RAS_RENT_FCTR_CODE',
+                'ORIG_RAS_RENT_FCTR_CODE',
+                'RAS_CNFRM_DATE',
+                'RAS_RENT_BGN_DATE',
+                'RAS_RENT_END_DATE',
+                'RAS_TNCY_TYPE_CODE',
+                'RAS_CNCL_IND',
+                'RAS_CNCL_DATE',
+                'RAS_CNCL_USER_ID',
+                'RAS_UPD_CNT',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'RAS_RENT_BGN_DATE_IND',
+                'RAS_RENT_PRCS_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_TAM_RAS_HIST write completed")
         

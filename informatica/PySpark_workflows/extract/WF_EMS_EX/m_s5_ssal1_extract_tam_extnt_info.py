@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_TAM_EXTNT_INFO")
@@ -79,96 +64,240 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_TAM_EXTNT_INFO")
         # Source Qualifier: apply_SQ_TAM_EXTNT_INFO
         df_SQ_TAM_EXTNT_INFO = df_TAM_EXTNT_INFO
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_TAM_EXTNT_INFO = df_SQ_TAM_EXTNT_INFO.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HSE_UNIT_KEY", "EXTNT_REC_CRE_DATE", "HSE_UNIT_HIST_KEY", "HSE_UNIT_CRE_DATE", "HSE_UNIT_DMLH_DATE", "HSE_UNIT_DMLH_RSN_TEXT", "EXTNT_PRPL_ENG_NAME", "EXTNT_PRPL_CHI_NAME", "EXTNT_PRPL_ID_TYPE_CODE", "EXTNT_PRPL_ID_NUM", "TNCY_AGRMT_CMNC_DATE", "ORIG_TNCY_AGRMT_TRMT_DATE", "AMND_TNCY_AGRMT_TRMT_DATE", "TNCY_CNCL_CODE", "TNCY_CNCL_RMK_TEXT", "MAIN_ROOM_HSE_UNIT_KEY", "ORIG_FLAT_RCVR_DATE", "AMND_FLAT_RCVR_DATE", "HSHLD_SCORE_NUM", "FMLY_SIZE_NUM", "RENT_FCTR_CODE", "ORIG_FWD_ADDR", "AMND_FWD_ADDR", "EXTNT_REC_RMK_TEXT", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "EXTNT_REC_PRN_IND", "CUST_KEY", "HSE_SRVC_APLY_KEY", "WARN_ACTV_IND"]
-        df_SQ_TAM_EXTNT_INFO = df_SQ_TAM_EXTNT_INFO.select([col(c) if c.lower() in [x.lower() for x in df_SQ_TAM_EXTNT_INFO.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_TAM_EXTNT_INFO = lib.sq_output(
+            input_df=df_SQ_TAM_EXTNT_INFO,
+            port_cols={
+                'HSE_UNIT_KEY': 'string',
+                'EXTNT_REC_CRE_DATE': 'date/time',
+                'HSE_UNIT_HIST_KEY': 'decimal',
+                'HSE_UNIT_CRE_DATE': 'date/time',
+                'HSE_UNIT_DMLH_DATE': 'date/time',
+                'HSE_UNIT_DMLH_RSN_TEXT': 'string',
+                'EXTNT_PRPL_ENG_NAME': 'string',
+                'EXTNT_PRPL_CHI_NAME': 'string',
+                'EXTNT_PRPL_ID_TYPE_CODE': 'string',
+                'EXTNT_PRPL_ID_NUM': 'string',
+                'TNCY_AGRMT_CMNC_DATE': 'date/time',
+                'ORIG_TNCY_AGRMT_TRMT_DATE': 'date/time',
+                'AMND_TNCY_AGRMT_TRMT_DATE': 'date/time',
+                'TNCY_CNCL_CODE': 'string',
+                'TNCY_CNCL_RMK_TEXT': 'string',
+                'MAIN_ROOM_HSE_UNIT_KEY': 'string',
+                'ORIG_FLAT_RCVR_DATE': 'date/time',
+                'AMND_FLAT_RCVR_DATE': 'date/time',
+                'HSHLD_SCORE_NUM': 'decimal',
+                'FMLY_SIZE_NUM': 'decimal',
+                'RENT_FCTR_CODE': 'decimal',
+                'ORIG_FWD_ADDR': 'string',
+                'AMND_FWD_ADDR': 'string',
+                'EXTNT_REC_RMK_TEXT': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'string',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'EXTNT_REC_PRN_IND': 'string',
+                'CUST_KEY': 'string',
+                'HSE_SRVC_APLY_KEY': 'string',
+                'WARN_ACTV_IND': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_TAM_EXTNT_INFO", df_SQ_TAM_EXTNT_INFO)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_TAM_EXTNT_INFO
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_UNIT_KEY_OUT", expr("ltrim(rtrim(HSE_UNIT_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("EXTNT_REC_CRE_DATE_OUT", expr("EXTNT_REC_CRE_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_UNIT_HIST_KEY_OUT", expr("HSE_UNIT_HIST_KEY"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_UNIT_CRE_DATE_OUT", expr("HSE_UNIT_CRE_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_UNIT_DMLH_DATE_OUT", expr("HSE_UNIT_DMLH_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_UNIT_DMLH_RSN_TEXT_OUT", expr("ltrim(rtrim(HSE_UNIT_DMLH_RSN_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("EXTNT_PRPL_ENG_NAME_OUT", expr("ltrim(rtrim(EXTNT_PRPL_ENG_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("EXTNT_PRPL_CHI_NAME_OUT", expr("ltrim(rtrim(EXTNT_PRPL_CHI_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("EXTNT_PRPL_ID_TYPE_CODE_OUT", expr("ltrim(rtrim(EXTNT_PRPL_ID_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("EXTNT_PRPL_ID_NUM_OUT", expr("ltrim(rtrim(EXTNT_PRPL_ID_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNCY_AGRMT_CMNC_DATE_OUT", expr("TNCY_AGRMT_CMNC_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ORIG_TNCY_AGRMT_TRMT_DATE_OUT", expr("ORIG_TNCY_AGRMT_TRMT_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("AMND_TNCY_AGRMT_TRMT_DATE_OUT", expr("AMND_TNCY_AGRMT_TRMT_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNCY_CNCL_CODE_OUT", expr("ltrim(rtrim(TNCY_CNCL_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNCY_CNCL_RMK_TEXT_OUT", expr("ltrim(rtrim(TNCY_CNCL_RMK_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("MAIN_ROOM_HSE_UNIT_KEY_OUT", expr("ltrim(rtrim(MAIN_ROOM_HSE_UNIT_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ORIG_FLAT_RCVR_DATE_OUT", expr("ORIG_FLAT_RCVR_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("AMND_FLAT_RCVR_DATE_OUT", expr("AMND_FLAT_RCVR_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSHLD_SCORE_NUM_OUT", expr("HSHLD_SCORE_NUM"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("FMLY_SIZE_NUM_OUT", expr("FMLY_SIZE_NUM"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RENT_FCTR_CODE_OUT", expr("RENT_FCTR_CODE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ORIG_FWD_ADDR_OUT", expr("ltrim(rtrim(ORIG_FWD_ADDR))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("AMND_FWD_ADDR_OUT", expr("ltrim(rtrim(AMND_FWD_ADDR))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("EXTNT_REC_RMK_TEXT_OUT", expr("ltrim(rtrim(EXTNT_REC_RMK_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE_OUT", expr("LAST_REC_TXN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("EXTNT_REC_PRN_IND_OUT", expr("ltrim(rtrim(EXTNT_REC_PRN_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_KEY_OUT", expr("ltrim(rtrim(CUST_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_SRVC_APLY_KEY_OUT", expr("ltrim(rtrim(HSE_SRVC_APLY_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("'|'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["WARN_ACTV_IND"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_TAM_EXTNT_INFO,
+            computed_columns=[
+                {'name': 'HSE_UNIT_KEY_OUT', 'expr': 'ltrim(rtrim(HSE_UNIT_KEY))'},
+                {'name': 'EXTNT_REC_CRE_DATE_OUT', 'expr': 'EXTNT_REC_CRE_DATE'},
+                {'name': 'HSE_UNIT_HIST_KEY_OUT', 'expr': 'HSE_UNIT_HIST_KEY'},
+                {'name': 'HSE_UNIT_CRE_DATE_OUT', 'expr': 'HSE_UNIT_CRE_DATE'},
+                {'name': 'HSE_UNIT_DMLH_DATE_OUT', 'expr': 'HSE_UNIT_DMLH_DATE'},
+                {'name': 'HSE_UNIT_DMLH_RSN_TEXT_OUT', 'expr': 'ltrim(rtrim(HSE_UNIT_DMLH_RSN_TEXT))'},
+                {'name': 'EXTNT_PRPL_ENG_NAME_OUT', 'expr': 'ltrim(rtrim(EXTNT_PRPL_ENG_NAME))'},
+                {'name': 'EXTNT_PRPL_CHI_NAME_OUT', 'expr': 'ltrim(rtrim(EXTNT_PRPL_CHI_NAME))'},
+                {'name': 'EXTNT_PRPL_ID_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(EXTNT_PRPL_ID_TYPE_CODE))'},
+                {'name': 'EXTNT_PRPL_ID_NUM_OUT', 'expr': 'ltrim(rtrim(EXTNT_PRPL_ID_NUM))'},
+                {'name': 'TNCY_AGRMT_CMNC_DATE_OUT', 'expr': 'TNCY_AGRMT_CMNC_DATE'},
+                {'name': 'ORIG_TNCY_AGRMT_TRMT_DATE_OUT', 'expr': 'ORIG_TNCY_AGRMT_TRMT_DATE'},
+                {'name': 'AMND_TNCY_AGRMT_TRMT_DATE_OUT', 'expr': 'AMND_TNCY_AGRMT_TRMT_DATE'},
+                {'name': 'TNCY_CNCL_CODE_OUT', 'expr': 'ltrim(rtrim(TNCY_CNCL_CODE))'},
+                {'name': 'TNCY_CNCL_RMK_TEXT_OUT', 'expr': 'ltrim(rtrim(TNCY_CNCL_RMK_TEXT))'},
+                {'name': 'MAIN_ROOM_HSE_UNIT_KEY_OUT', 'expr': 'ltrim(rtrim(MAIN_ROOM_HSE_UNIT_KEY))'},
+                {'name': 'ORIG_FLAT_RCVR_DATE_OUT', 'expr': 'ORIG_FLAT_RCVR_DATE'},
+                {'name': 'AMND_FLAT_RCVR_DATE_OUT', 'expr': 'AMND_FLAT_RCVR_DATE'},
+                {'name': 'HSHLD_SCORE_NUM_OUT', 'expr': 'HSHLD_SCORE_NUM'},
+                {'name': 'FMLY_SIZE_NUM_OUT', 'expr': 'FMLY_SIZE_NUM'},
+                {'name': 'RENT_FCTR_CODE_OUT', 'expr': 'RENT_FCTR_CODE'},
+                {'name': 'ORIG_FWD_ADDR_OUT', 'expr': 'ltrim(rtrim(ORIG_FWD_ADDR))'},
+                {'name': 'AMND_FWD_ADDR_OUT', 'expr': 'ltrim(rtrim(AMND_FWD_ADDR))'},
+                {'name': 'EXTNT_REC_RMK_TEXT_OUT', 'expr': 'ltrim(rtrim(EXTNT_REC_RMK_TEXT))'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_DATE_OUT', 'expr': 'LAST_REC_TXN_DATE'},
+                {'name': 'LAST_REC_TXN_USER_ID_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID))'},
+                {'name': 'EXTNT_REC_PRN_IND_OUT', 'expr': 'ltrim(rtrim(EXTNT_REC_PRN_IND))'},
+                {'name': 'CUST_KEY_OUT', 'expr': 'ltrim(rtrim(CUST_KEY))'},
+                {'name': 'HSE_SRVC_APLY_KEY_OUT', 'expr': 'ltrim(rtrim(HSE_SRVC_APLY_KEY))'},
+                {'name': 'DUMMY', 'expr': "'|'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EMS_TAM_EXTNT_INFO")
         # Write to Target: write_EMS_TAM_EXTNT_INFO
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AMND_FLAT_RCVR_DATE": "AMND_FLAT_RCVR_DATE_OUT", "AMND_FWD_ADDR": "AMND_FWD_ADDR_OUT", "AMND_TNCY_AGRMT_TRMT_DATE": "AMND_TNCY_AGRMT_TRMT_DATE_OUT", "CUST_KEY": "CUST_KEY_OUT", "EXTNT_PRPL_CHI_NAME": "EXTNT_PRPL_CHI_NAME_OUT", "EXTNT_PRPL_ENG_NAME": "EXTNT_PRPL_ENG_NAME_OUT", "EXTNT_PRPL_ID_NUM": "EXTNT_PRPL_ID_NUM_OUT", "EXTNT_PRPL_ID_TYPE_CODE": "EXTNT_PRPL_ID_TYPE_CODE_OUT", "EXTNT_REC_CRE_DATE": "EXTNT_REC_CRE_DATE_OUT", "EXTNT_REC_PRN_IND": "EXTNT_REC_PRN_IND_OUT", "EXTNT_REC_RMK_TEXT": "EXTNT_REC_RMK_TEXT_OUT", "FMLY_SIZE_NUM": "FMLY_SIZE_NUM_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "HSE_UNIT_CRE_DATE": "HSE_UNIT_CRE_DATE_OUT", "HSE_UNIT_DMLH_DATE": "HSE_UNIT_DMLH_DATE_OUT", "HSE_UNIT_DMLH_RSN_TEXT": "HSE_UNIT_DMLH_RSN_TEXT_OUT", "HSE_UNIT_HIST_KEY": "HSE_UNIT_HIST_KEY_OUT", "HSE_UNIT_KEY": "HSE_UNIT_KEY_OUT", "HSHLD_SCORE_NUM": "HSHLD_SCORE_NUM_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "MAIN_ROOM_HSE_UNIT_KEY": "MAIN_ROOM_HSE_UNIT_KEY_OUT", "ORIG_FLAT_RCVR_DATE": "ORIG_FLAT_RCVR_DATE_OUT", "ORIG_FWD_ADDR": "ORIG_FWD_ADDR_OUT", "ORIG_TNCY_AGRMT_TRMT_DATE": "ORIG_TNCY_AGRMT_TRMT_DATE_OUT", "RENT_FCTR_CODE": "RENT_FCTR_CODE_OUT", "TNCY_AGRMT_CMNC_DATE": "TNCY_AGRMT_CMNC_DATE_OUT", "TNCY_CNCL_CODE": "TNCY_CNCL_CODE_OUT", "TNCY_CNCL_RMK_TEXT": "TNCY_CNCL_RMK_TEXT_OUT", "WARN_ACTV_IND": "WARN_ACTV_IND"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HSE_UNIT_KEY', 'EXTNT_REC_CRE_DATE', 'HSE_UNIT_HIST_KEY', 'HSE_UNIT_CRE_DATE', 'HSE_UNIT_DMLH_DATE', 'HSE_UNIT_DMLH_RSN_TEXT', 'EXTNT_PRPL_ENG_NAME', 'EXTNT_PRPL_CHI_NAME', 'EXTNT_PRPL_ID_TYPE_CODE', 'EXTNT_PRPL_ID_NUM', 'TNCY_AGRMT_CMNC_DATE', 'ORIG_TNCY_AGRMT_TRMT_DATE', 'AMND_TNCY_AGRMT_TRMT_DATE', 'TNCY_CNCL_CODE', 'TNCY_CNCL_RMK_TEXT', 'MAIN_ROOM_HSE_UNIT_KEY', 'ORIG_FLAT_RCVR_DATE', 'AMND_FLAT_RCVR_DATE', 'HSHLD_SCORE_NUM', 'FMLY_SIZE_NUM', 'RENT_FCTR_CODE', 'ORIG_FWD_ADDR', 'AMND_FWD_ADDR', 'EXTNT_REC_RMK_TEXT', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'EXTNT_REC_PRN_IND', 'CUST_KEY', 'HSE_SRVC_APLY_KEY', 'WARN_ACTV_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_TAM_EXTNT_INFO", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_TAM_EXTNT_INFO',
+            mode='append',
+            source_columns=[
+                'HSE_UNIT_KEY_OUT',
+                'EXTNT_REC_CRE_DATE_OUT',
+                'HSE_UNIT_HIST_KEY_OUT',
+                'HSE_UNIT_CRE_DATE_OUT',
+                'HSE_UNIT_DMLH_DATE_OUT',
+                'HSE_UNIT_DMLH_RSN_TEXT_OUT',
+                'EXTNT_PRPL_ENG_NAME_OUT',
+                'EXTNT_PRPL_CHI_NAME_OUT',
+                'EXTNT_PRPL_ID_TYPE_CODE_OUT',
+                'EXTNT_PRPL_ID_NUM_OUT',
+                'TNCY_AGRMT_CMNC_DATE_OUT',
+                'ORIG_TNCY_AGRMT_TRMT_DATE_OUT',
+                'AMND_TNCY_AGRMT_TRMT_DATE_OUT',
+                'TNCY_CNCL_CODE_OUT',
+                'TNCY_CNCL_RMK_TEXT_OUT',
+                'MAIN_ROOM_HSE_UNIT_KEY_OUT',
+                'ORIG_FLAT_RCVR_DATE_OUT',
+                'AMND_FLAT_RCVR_DATE_OUT',
+                'HSHLD_SCORE_NUM_OUT',
+                'FMLY_SIZE_NUM_OUT',
+                'RENT_FCTR_CODE_OUT',
+                'ORIG_FWD_ADDR_OUT',
+                'AMND_FWD_ADDR_OUT',
+                'EXTNT_REC_RMK_TEXT_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'EXTNT_REC_PRN_IND_OUT',
+                'CUST_KEY_OUT',
+                'HSE_SRVC_APLY_KEY_OUT',
+                'WARN_ACTV_IND',
+            ],
+            target_columns=[
+                'HSE_UNIT_KEY',
+                'EXTNT_REC_CRE_DATE',
+                'HSE_UNIT_HIST_KEY',
+                'HSE_UNIT_CRE_DATE',
+                'HSE_UNIT_DMLH_DATE',
+                'HSE_UNIT_DMLH_RSN_TEXT',
+                'EXTNT_PRPL_ENG_NAME',
+                'EXTNT_PRPL_CHI_NAME',
+                'EXTNT_PRPL_ID_TYPE_CODE',
+                'EXTNT_PRPL_ID_NUM',
+                'TNCY_AGRMT_CMNC_DATE',
+                'ORIG_TNCY_AGRMT_TRMT_DATE',
+                'AMND_TNCY_AGRMT_TRMT_DATE',
+                'TNCY_CNCL_CODE',
+                'TNCY_CNCL_RMK_TEXT',
+                'MAIN_ROOM_HSE_UNIT_KEY',
+                'ORIG_FLAT_RCVR_DATE',
+                'AMND_FLAT_RCVR_DATE',
+                'HSHLD_SCORE_NUM',
+                'FMLY_SIZE_NUM',
+                'RENT_FCTR_CODE',
+                'ORIG_FWD_ADDR',
+                'AMND_FWD_ADDR',
+                'EXTNT_REC_RMK_TEXT',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'EXTNT_REC_PRN_IND',
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'WARN_ACTV_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_TAM_EXTNT_INFO write completed")
         logger.info("Step: write_EMS_TAM_EXTNT_INFO1")
         # Write to Target: write_EMS_TAM_EXTNT_INFO1
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AMND_FLAT_RCVR_DATE": "AMND_FLAT_RCVR_DATE_OUT", "AMND_FWD_ADDR": "AMND_FWD_ADDR_OUT", "AMND_TNCY_AGRMT_TRMT_DATE": "AMND_TNCY_AGRMT_TRMT_DATE_OUT", "CUST_KEY": "CUST_KEY_OUT", "DUMMY": "DUMMY", "EXTNT_PRPL_CHI_NAME": "EXTNT_PRPL_CHI_NAME_OUT", "EXTNT_PRPL_ENG_NAME": "EXTNT_PRPL_ENG_NAME_OUT", "EXTNT_PRPL_ID_NUM": "EXTNT_PRPL_ID_NUM_OUT", "EXTNT_PRPL_ID_TYPE_CODE": "EXTNT_PRPL_ID_TYPE_CODE_OUT", "EXTNT_REC_CRE_DATE": "EXTNT_REC_CRE_DATE_OUT", "EXTNT_REC_PRN_IND": "EXTNT_REC_PRN_IND_OUT", "EXTNT_REC_RMK_TEXT": "EXTNT_REC_RMK_TEXT_OUT", "FMLY_SIZE_NUM": "FMLY_SIZE_NUM_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "HSE_UNIT_CRE_DATE": "HSE_UNIT_CRE_DATE_OUT", "HSE_UNIT_DMLH_DATE": "HSE_UNIT_DMLH_DATE_OUT", "HSE_UNIT_DMLH_RSN_TEXT": "HSE_UNIT_DMLH_RSN_TEXT_OUT", "HSE_UNIT_HIST_KEY": "HSE_UNIT_HIST_KEY_OUT", "HSE_UNIT_KEY": "HSE_UNIT_KEY_OUT", "HSHLD_SCORE_NUM": "HSHLD_SCORE_NUM_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "MAIN_ROOM_HSE_UNIT_KEY": "MAIN_ROOM_HSE_UNIT_KEY_OUT", "ORIG_FLAT_RCVR_DATE": "ORIG_FLAT_RCVR_DATE_OUT", "ORIG_FWD_ADDR": "ORIG_FWD_ADDR_OUT", "ORIG_TNCY_AGRMT_TRMT_DATE": "ORIG_TNCY_AGRMT_TRMT_DATE_OUT", "RENT_FCTR_CODE": "RENT_FCTR_CODE_OUT", "TNCY_AGRMT_CMNC_DATE": "TNCY_AGRMT_CMNC_DATE_OUT", "TNCY_CNCL_CODE": "TNCY_CNCL_CODE_OUT", "TNCY_CNCL_RMK_TEXT": "TNCY_CNCL_RMK_TEXT_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HSE_UNIT_KEY', 'EXTNT_REC_CRE_DATE', 'HSE_UNIT_HIST_KEY', 'HSE_UNIT_CRE_DATE', 'HSE_UNIT_DMLH_DATE', 'HSE_UNIT_DMLH_RSN_TEXT', 'EXTNT_PRPL_ENG_NAME', 'EXTNT_PRPL_CHI_NAME', 'EXTNT_PRPL_ID_TYPE_CODE', 'EXTNT_PRPL_ID_NUM', 'TNCY_AGRMT_CMNC_DATE', 'ORIG_TNCY_AGRMT_TRMT_DATE', 'AMND_TNCY_AGRMT_TRMT_DATE', 'TNCY_CNCL_CODE', 'TNCY_CNCL_RMK_TEXT', 'MAIN_ROOM_HSE_UNIT_KEY', 'ORIG_FLAT_RCVR_DATE', 'AMND_FLAT_RCVR_DATE', 'HSHLD_SCORE_NUM', 'FMLY_SIZE_NUM', 'RENT_FCTR_CODE', 'ORIG_FWD_ADDR', 'AMND_FWD_ADDR', 'EXTNT_REC_RMK_TEXT', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'EXTNT_REC_PRN_IND', 'CUST_KEY', 'HSE_SRVC_APLY_KEY', 'DUMMY']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_TAM_EXTNT_INFO1", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_TAM_EXTNT_INFO1',
+            mode='append',
+            source_columns=[
+                'HSE_UNIT_KEY_OUT',
+                'EXTNT_REC_CRE_DATE_OUT',
+                'HSE_UNIT_HIST_KEY_OUT',
+                'HSE_UNIT_CRE_DATE_OUT',
+                'HSE_UNIT_DMLH_DATE_OUT',
+                'HSE_UNIT_DMLH_RSN_TEXT_OUT',
+                'EXTNT_PRPL_ENG_NAME_OUT',
+                'EXTNT_PRPL_CHI_NAME_OUT',
+                'EXTNT_PRPL_ID_TYPE_CODE_OUT',
+                'EXTNT_PRPL_ID_NUM_OUT',
+                'TNCY_AGRMT_CMNC_DATE_OUT',
+                'ORIG_TNCY_AGRMT_TRMT_DATE_OUT',
+                'AMND_TNCY_AGRMT_TRMT_DATE_OUT',
+                'TNCY_CNCL_CODE_OUT',
+                'TNCY_CNCL_RMK_TEXT_OUT',
+                'MAIN_ROOM_HSE_UNIT_KEY_OUT',
+                'ORIG_FLAT_RCVR_DATE_OUT',
+                'AMND_FLAT_RCVR_DATE_OUT',
+                'HSHLD_SCORE_NUM_OUT',
+                'FMLY_SIZE_NUM_OUT',
+                'RENT_FCTR_CODE_OUT',
+                'ORIG_FWD_ADDR_OUT',
+                'AMND_FWD_ADDR_OUT',
+                'EXTNT_REC_RMK_TEXT_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'EXTNT_REC_PRN_IND_OUT',
+                'CUST_KEY_OUT',
+                'HSE_SRVC_APLY_KEY_OUT',
+                'DUMMY',
+            ],
+            target_columns=[
+                'HSE_UNIT_KEY',
+                'EXTNT_REC_CRE_DATE',
+                'HSE_UNIT_HIST_KEY',
+                'HSE_UNIT_CRE_DATE',
+                'HSE_UNIT_DMLH_DATE',
+                'HSE_UNIT_DMLH_RSN_TEXT',
+                'EXTNT_PRPL_ENG_NAME',
+                'EXTNT_PRPL_CHI_NAME',
+                'EXTNT_PRPL_ID_TYPE_CODE',
+                'EXTNT_PRPL_ID_NUM',
+                'TNCY_AGRMT_CMNC_DATE',
+                'ORIG_TNCY_AGRMT_TRMT_DATE',
+                'AMND_TNCY_AGRMT_TRMT_DATE',
+                'TNCY_CNCL_CODE',
+                'TNCY_CNCL_RMK_TEXT',
+                'MAIN_ROOM_HSE_UNIT_KEY',
+                'ORIG_FLAT_RCVR_DATE',
+                'AMND_FLAT_RCVR_DATE',
+                'HSHLD_SCORE_NUM',
+                'FMLY_SIZE_NUM',
+                'RENT_FCTR_CODE',
+                'ORIG_FWD_ADDR',
+                'AMND_FWD_ADDR',
+                'EXTNT_REC_RMK_TEXT',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'EXTNT_REC_PRN_IND',
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'DUMMY',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_TAM_EXTNT_INFO1 write completed")
         

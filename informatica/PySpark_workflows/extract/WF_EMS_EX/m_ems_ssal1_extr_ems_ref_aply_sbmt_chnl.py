@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_REF_APLY_SBMT_CHNL")
@@ -79,65 +64,92 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_REF_APLY_SBMT_CHNL")
         # Source Qualifier: apply_SQ_REF_APLY_SBMT_CHNL
         df_SQ_REF_APLY_SBMT_CHNL = df_REF_APLY_SBMT_CHNL
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_REF_APLY_SBMT_CHNL = df_SQ_REF_APLY_SBMT_CHNL.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["APLY_SBMT_CHNL_CODE", "APLY_SBMT_CHNL_DESP", "REF_CODE_BGN_DATE", "REF_CODE_END_DATE", "LAST_REC_TXN_MBR_CODE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID"]
-        df_SQ_REF_APLY_SBMT_CHNL = df_SQ_REF_APLY_SBMT_CHNL.select([col(c) if c.lower() in [x.lower() for x in df_SQ_REF_APLY_SBMT_CHNL.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_REF_APLY_SBMT_CHNL = lib.sq_output(
+            input_df=df_SQ_REF_APLY_SBMT_CHNL,
+            port_cols={
+                'APLY_SBMT_CHNL_CODE': 'string',
+                'APLY_SBMT_CHNL_DESP': 'string',
+                'REF_CODE_BGN_DATE': 'date/time',
+                'REF_CODE_END_DATE': 'date/time',
+                'LAST_REC_TXN_MBR_CODE': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_USER_ID': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_REF_APLY_SBMT_CHNL", df_SQ_REF_APLY_SBMT_CHNL)
         
         logger.info("Step: apply_EXP_L1")
         # Expression: apply_EXP_L1
-        df_EXP_L1 = df_SQ_REF_APLY_SBMT_CHNL
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["APLY_SBMT_CHNL_CODE", "APLY_SBMT_CHNL_DESP", "REF_CODE_BGN_DATE", "REF_CODE_END_DATE", "LAST_REC_TXN_MBR_CODE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID"]:
-            if _col.lower() not in [x.lower() for x in df_EXP_L1.columns]:
-                df_EXP_L1 = df_EXP_L1.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_L1 = lib.expression(
+            input_df=df_SQ_REF_APLY_SBMT_CHNL,
+        )
         ctx.register_df("df_EXP_L1", df_EXP_L1)
         
         logger.info("Step: write_EMS_REF_APLY_SBMT_CHNL")
         # Write to Target: write_EMS_REF_APLY_SBMT_CHNL
-        df_write = df_EXP_L1
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"APLY_SBMT_CHNL_CODE": "APLY_SBMT_CHNL_CODE", "APLY_SBMT_CHNL_DESP": "APLY_SBMT_CHNL_DESP", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_MBR_CODE": "LAST_REC_TXN_MBR_CODE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "REF_CODE_BGN_DATE": "REF_CODE_BGN_DATE", "REF_CODE_END_DATE": "REF_CODE_END_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['APLY_SBMT_CHNL_CODE', 'APLY_SBMT_CHNL_DESP', 'REF_CODE_BGN_DATE', 'REF_CODE_END_DATE', 'LAST_REC_TXN_MBR_CODE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_REF_APLY_SBMT_CHNL", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_L1,
+            conn=conn_target,
+            table='EMS_REF_APLY_SBMT_CHNL',
+            mode='append',
+            source_columns=[
+                'APLY_SBMT_CHNL_CODE',
+                'APLY_SBMT_CHNL_DESP',
+                'REF_CODE_BGN_DATE',
+                'REF_CODE_END_DATE',
+                'LAST_REC_TXN_MBR_CODE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+            ],
+            target_columns=[
+                'APLY_SBMT_CHNL_CODE',
+                'APLY_SBMT_CHNL_DESP',
+                'REF_CODE_BGN_DATE',
+                'REF_CODE_END_DATE',
+                'LAST_REC_TXN_MBR_CODE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_REF_APLY_SBMT_CHNL write completed")
         logger.info("Step: write_EMS_REF_APLY_SBMT_CHNL1")
         # Write to Target: write_EMS_REF_APLY_SBMT_CHNL1
-        df_write = df_EXP_L1
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"APLY_SBMT_CHNL_CODE": "APLY_SBMT_CHNL_CODE", "APLY_SBMT_CHNL_DESP": "APLY_SBMT_CHNL_DESP", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_MBR_CODE": "LAST_REC_TXN_MBR_CODE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "REF_CODE_BGN_DATE": "REF_CODE_BGN_DATE", "REF_CODE_END_DATE": "REF_CODE_END_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['APLY_SBMT_CHNL_CODE', 'APLY_SBMT_CHNL_DESP', 'REF_CODE_BGN_DATE', 'REF_CODE_END_DATE', 'LAST_REC_TXN_MBR_CODE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_REF_APLY_SBMT_CHNL", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_L1,
+            conn=conn_target,
+            table='EMS_REF_APLY_SBMT_CHNL',
+            mode='append',
+            source_columns=[
+                'APLY_SBMT_CHNL_CODE',
+                'APLY_SBMT_CHNL_DESP',
+                'REF_CODE_BGN_DATE',
+                'REF_CODE_END_DATE',
+                'LAST_REC_TXN_MBR_CODE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+            ],
+            target_columns=[
+                'APLY_SBMT_CHNL_CODE',
+                'APLY_SBMT_CHNL_DESP',
+                'REF_CODE_BGN_DATE',
+                'REF_CODE_END_DATE',
+                'LAST_REC_TXN_MBR_CODE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_REF_APLY_SBMT_CHNL1 write completed")
         

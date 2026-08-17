@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_TAM_RAS")
@@ -79,111 +64,333 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_TAM_RAS")
         # Source Qualifier: apply_SQ_TAM_RAS
         df_SQ_TAM_RAS = df_TAM_RAS
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_TAM_RAS = df_SQ_TAM_RAS.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["RAS_REC_KEY", "RAS_TYPE_CODE", "RAS_CRE_DATE", "RAS_STS_CODE", "RAS_RCV_DATE", "RAS_APLY_RSN_CODE", "CUST_KEY", "HSE_SRVC_APLY_KEY", "HSE_UNIT_KEY", "PRNT_RAS_REC_KEY", "DPO_IND", "CSSA_IND", "HSHLD_INCM_AMT", "APLY_CATG_CODE", "APLY_CATG_TEXT", "ALCT_STD_EXCD_IND", "NRML_RENT_AMT", "WLIL_AMT", "WLIL_PCT", "RIR_PCT", "RCMD_APRV_IND", "RAS_GRNT_PRD_MTH", "RAS_CNFRM_DATE", "RAS_RENT_FCTR_CODE", "RAS_RENT_BGN_DATE", "RAS_RENT_END_DATE", "RAS_RENT_CHNG_RSN_CODE", "RAS_RENT_CHNG_RSN_TEXT", "RAS_REJ_RSN_CODE", "RAS_REJ_RSN_TEXT", "RAS_RMK_TEXT", "LAST_RCMD_APRV_IND", "LAST_RCMD_RENT_FCTR_CODE", "LAST_RCMD_DATE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "PREV_RAS_REC_KEY", "RENT_RVW_CATG_CODE", "RENT_RVW_CATG_BGN_DATE", "HSE_UNIT_IFA_AREA", "RAS_REF_PHRM_IND", "IMG_DOC_KEY", "IMG_MINS_KEY", "ORIG_HSE_SRVC_APLY_KEY", "RIR_IND", "PRHIL_IND"]
-        df_SQ_TAM_RAS = df_SQ_TAM_RAS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_TAM_RAS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_TAM_RAS = lib.sq_output(
+            input_df=df_SQ_TAM_RAS,
+            port_cols={
+                'RAS_REC_KEY': 'decimal',
+                'RAS_TYPE_CODE': 'string',
+                'RAS_CRE_DATE': 'date/time',
+                'RAS_STS_CODE': 'string',
+                'RAS_RCV_DATE': 'date/time',
+                'RAS_APLY_RSN_CODE': 'string',
+                'CUST_KEY': 'string',
+                'HSE_SRVC_APLY_KEY': 'string',
+                'HSE_UNIT_KEY': 'string',
+                'PRNT_RAS_REC_KEY': 'decimal',
+                'DPO_IND': 'string',
+                'CSSA_IND': 'string',
+                'HSHLD_INCM_AMT': 'decimal',
+                'APLY_CATG_CODE': 'string',
+                'APLY_CATG_TEXT': 'string',
+                'ALCT_STD_EXCD_IND': 'string',
+                'NRML_RENT_AMT': 'decimal',
+                'WLIL_AMT': 'decimal',
+                'WLIL_PCT': 'decimal',
+                'RIR_PCT': 'decimal',
+                'RCMD_APRV_IND': 'string',
+                'RAS_GRNT_PRD_MTH': 'decimal',
+                'RAS_CNFRM_DATE': 'date/time',
+                'RAS_RENT_FCTR_CODE': 'decimal',
+                'RAS_RENT_BGN_DATE': 'date/time',
+                'RAS_RENT_END_DATE': 'date/time',
+                'RAS_RENT_CHNG_RSN_CODE': 'string',
+                'RAS_RENT_CHNG_RSN_TEXT': 'string',
+                'RAS_REJ_RSN_CODE': 'string',
+                'RAS_REJ_RSN_TEXT': 'string',
+                'RAS_RMK_TEXT': 'string',
+                'LAST_RCMD_APRV_IND': 'string',
+                'LAST_RCMD_RENT_FCTR_CODE': 'decimal',
+                'LAST_RCMD_DATE': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'string',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'PREV_RAS_REC_KEY': 'decimal',
+                'RENT_RVW_CATG_CODE': 'string',
+                'RENT_RVW_CATG_BGN_DATE': 'date/time',
+                'HSE_UNIT_IFA_AREA': 'decimal',
+                'RAS_REF_PHRM_IND': 'string',
+                'IMG_DOC_KEY': 'string',
+                'IMG_MINS_KEY': 'string',
+                'ORIG_HSE_SRVC_APLY_KEY': 'string',
+                'RIR_IND': 'string',
+                'PRHIL_IND': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_TAM_RAS", df_SQ_TAM_RAS)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_TAM_RAS
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAS_REC_KEY_OUT", expr("RAS_REC_KEY"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAS_TYPE_CODE_OUT", expr("ltrim(rtrim(RAS_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAS_CRE_DATE_OUT", expr("RAS_CRE_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAS_STS_CODE_OUT", expr("ltrim(rtrim(RAS_STS_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAS_RCV_DATE_OUT", expr("RAS_RCV_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAS_APLY_RSN_CODE_OUT", expr("ltrim(rtrim(RAS_APLY_RSN_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_KEY_OUT", expr("ltrim(rtrim(CUST_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_SRVC_APLY_KEY_OUT", expr("ltrim(rtrim(HSE_SRVC_APLY_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_UNIT_KEY_OUT", expr("ltrim(rtrim(HSE_UNIT_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PRNT_RAS_REC_KEY_OUT", expr("PRNT_RAS_REC_KEY"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DPO_IND_OUT", expr("ltrim(rtrim(DPO_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CSSA_IND_OUT", expr("ltrim(rtrim(CSSA_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSHLD_INCM_AMT_OUT", expr("HSHLD_INCM_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APLY_CATG_CODE_OUT", expr("ltrim(rtrim(APLY_CATG_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APLY_CATG_TEXT_OUT", expr("ltrim(rtrim(APLY_CATG_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ALCT_STD_EXCD_IND_OUT", expr("ltrim(rtrim(ALCT_STD_EXCD_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NRML_RENT_AMT_OUT", expr("NRML_RENT_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("WLIL_AMT_OUT", expr("WLIL_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("WLIL_PCT_OUT", expr("WLIL_PCT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RIR_PCT_OUT", expr("RIR_PCT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RCMD_APRV_IND_OUT", expr("ltrim(rtrim(RCMD_APRV_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAS_GRNT_PRD_MTH_OUT", expr("RAS_GRNT_PRD_MTH"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAS_CNFRM_DATE_OUT", expr("RAS_CNFRM_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAS_RENT_FCTR_CODE_OUT", expr("RAS_RENT_FCTR_CODE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAS_RENT_BGN_DATE_OUT", expr("RAS_RENT_BGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAS_RENT_END_DATE_OUT", expr("RAS_RENT_END_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAS_RENT_CHNG_RSN_CODE_OUT", expr("ltrim(rtrim(RAS_RENT_CHNG_RSN_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAS_RENT_CHNG_RSN_TEXT_OUT", expr("ltrim(rtrim(RAS_RENT_CHNG_RSN_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAS_REJ_RSN_CODE_OUT", expr("ltrim(rtrim(RAS_REJ_RSN_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAS_REJ_RSN_TEXT_OUT", expr("ltrim(rtrim(RAS_REJ_RSN_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAS_RMK_TEXT_OUT", expr("ltrim(rtrim(RAS_RMK_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_RCMD_APRV_IND_OUT", expr("ltrim(rtrim(LAST_RCMD_APRV_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_RCMD_RENT_FCTR_CODE_OUT", expr("LAST_RCMD_RENT_FCTR_CODE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_RCMD_DATE_OUT", expr("LAST_RCMD_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE_OUT", expr("LAST_REC_TXN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PREV_RAS_REC_KEY_OUT", expr("PREV_RAS_REC_KEY"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RENT_RVW_CATG_CODE_OUT", expr("ltrim(rtrim(RENT_RVW_CATG_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RENT_RVW_CATG_BGN_DATE_OUT", expr("RENT_RVW_CATG_BGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_UNIT_IFA_AREA_OUT", expr("HSE_UNIT_IFA_AREA"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("'|'"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAS_REF_PHRM_IND_OUT", expr("ltrim(rtrim(RAS_REF_PHRM_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("IMG_DOC_KEY_OUT", expr("ltrim(rtrim(IMG_DOC_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("IMG_MINS_KEY_OUT", expr("ltrim(rtrim(IMG_MINS_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ORIG_HSE_SRVC_APLY_KEY_OUT", expr("ltrim(rtrim(ORIG_HSE_SRVC_APLY_KEY))"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["RIR_IND", "PRHIL_IND"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_TAM_RAS,
+            computed_columns=[
+                {'name': 'RAS_REC_KEY_OUT', 'expr': 'RAS_REC_KEY'},
+                {'name': 'RAS_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(RAS_TYPE_CODE))'},
+                {'name': 'RAS_CRE_DATE_OUT', 'expr': 'RAS_CRE_DATE'},
+                {'name': 'RAS_STS_CODE_OUT', 'expr': 'ltrim(rtrim(RAS_STS_CODE))'},
+                {'name': 'RAS_RCV_DATE_OUT', 'expr': 'RAS_RCV_DATE'},
+                {'name': 'RAS_APLY_RSN_CODE_OUT', 'expr': 'ltrim(rtrim(RAS_APLY_RSN_CODE))'},
+                {'name': 'CUST_KEY_OUT', 'expr': 'ltrim(rtrim(CUST_KEY))'},
+                {'name': 'HSE_SRVC_APLY_KEY_OUT', 'expr': 'ltrim(rtrim(HSE_SRVC_APLY_KEY))'},
+                {'name': 'HSE_UNIT_KEY_OUT', 'expr': 'ltrim(rtrim(HSE_UNIT_KEY))'},
+                {'name': 'PRNT_RAS_REC_KEY_OUT', 'expr': 'PRNT_RAS_REC_KEY'},
+                {'name': 'DPO_IND_OUT', 'expr': 'ltrim(rtrim(DPO_IND))'},
+                {'name': 'CSSA_IND_OUT', 'expr': 'ltrim(rtrim(CSSA_IND))'},
+                {'name': 'HSHLD_INCM_AMT_OUT', 'expr': 'HSHLD_INCM_AMT'},
+                {'name': 'APLY_CATG_CODE_OUT', 'expr': 'ltrim(rtrim(APLY_CATG_CODE))'},
+                {'name': 'APLY_CATG_TEXT_OUT', 'expr': 'ltrim(rtrim(APLY_CATG_TEXT))'},
+                {'name': 'ALCT_STD_EXCD_IND_OUT', 'expr': 'ltrim(rtrim(ALCT_STD_EXCD_IND))'},
+                {'name': 'NRML_RENT_AMT_OUT', 'expr': 'NRML_RENT_AMT'},
+                {'name': 'WLIL_AMT_OUT', 'expr': 'WLIL_AMT'},
+                {'name': 'WLIL_PCT_OUT', 'expr': 'WLIL_PCT'},
+                {'name': 'RIR_PCT_OUT', 'expr': 'RIR_PCT'},
+                {'name': 'RCMD_APRV_IND_OUT', 'expr': 'ltrim(rtrim(RCMD_APRV_IND))'},
+                {'name': 'RAS_GRNT_PRD_MTH_OUT', 'expr': 'RAS_GRNT_PRD_MTH'},
+                {'name': 'RAS_CNFRM_DATE_OUT', 'expr': 'RAS_CNFRM_DATE'},
+                {'name': 'RAS_RENT_FCTR_CODE_OUT', 'expr': 'RAS_RENT_FCTR_CODE'},
+                {'name': 'RAS_RENT_BGN_DATE_OUT', 'expr': 'RAS_RENT_BGN_DATE'},
+                {'name': 'RAS_RENT_END_DATE_OUT', 'expr': 'RAS_RENT_END_DATE'},
+                {'name': 'RAS_RENT_CHNG_RSN_CODE_OUT', 'expr': 'ltrim(rtrim(RAS_RENT_CHNG_RSN_CODE))'},
+                {'name': 'RAS_RENT_CHNG_RSN_TEXT_OUT', 'expr': 'ltrim(rtrim(RAS_RENT_CHNG_RSN_TEXT))'},
+                {'name': 'RAS_REJ_RSN_CODE_OUT', 'expr': 'ltrim(rtrim(RAS_REJ_RSN_CODE))'},
+                {'name': 'RAS_REJ_RSN_TEXT_OUT', 'expr': 'ltrim(rtrim(RAS_REJ_RSN_TEXT))'},
+                {'name': 'RAS_RMK_TEXT_OUT', 'expr': 'ltrim(rtrim(RAS_RMK_TEXT))'},
+                {'name': 'LAST_RCMD_APRV_IND_OUT', 'expr': 'ltrim(rtrim(LAST_RCMD_APRV_IND))'},
+                {'name': 'LAST_RCMD_RENT_FCTR_CODE_OUT', 'expr': 'LAST_RCMD_RENT_FCTR_CODE'},
+                {'name': 'LAST_RCMD_DATE_OUT', 'expr': 'LAST_RCMD_DATE'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_DATE_OUT', 'expr': 'LAST_REC_TXN_DATE'},
+                {'name': 'LAST_REC_TXN_USER_ID_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID))'},
+                {'name': 'PREV_RAS_REC_KEY_OUT', 'expr': 'PREV_RAS_REC_KEY'},
+                {'name': 'RENT_RVW_CATG_CODE_OUT', 'expr': 'ltrim(rtrim(RENT_RVW_CATG_CODE))'},
+                {'name': 'RENT_RVW_CATG_BGN_DATE_OUT', 'expr': 'RENT_RVW_CATG_BGN_DATE'},
+                {'name': 'HSE_UNIT_IFA_AREA_OUT', 'expr': 'HSE_UNIT_IFA_AREA'},
+                {'name': 'DUMMY', 'expr': "'|'"},
+                {'name': 'RAS_REF_PHRM_IND_OUT', 'expr': 'ltrim(rtrim(RAS_REF_PHRM_IND))'},
+                {'name': 'IMG_DOC_KEY_OUT', 'expr': 'ltrim(rtrim(IMG_DOC_KEY))'},
+                {'name': 'IMG_MINS_KEY_OUT', 'expr': 'ltrim(rtrim(IMG_MINS_KEY))'},
+                {'name': 'ORIG_HSE_SRVC_APLY_KEY_OUT', 'expr': 'ltrim(rtrim(ORIG_HSE_SRVC_APLY_KEY))'}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EMS_TAM_RAS")
         # Write to Target: write_EMS_TAM_RAS
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"ALCT_STD_EXCD_IND": "ALCT_STD_EXCD_IND_OUT", "APLY_CATG_CODE": "APLY_CATG_CODE_OUT", "APLY_CATG_TEXT": "APLY_CATG_TEXT_OUT", "CSSA_IND": "CSSA_IND_OUT", "CUST_KEY": "CUST_KEY_OUT", "DPO_IND": "DPO_IND_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "HSE_UNIT_IFA_AREA": "HSE_UNIT_IFA_AREA_OUT", "HSE_UNIT_KEY": "HSE_UNIT_KEY_OUT", "HSHLD_INCM_AMT": "HSHLD_INCM_AMT_OUT", "IMG_DOC_KEY": "IMG_DOC_KEY_OUT", "IMG_MINS_KEY": "IMG_MINS_KEY_OUT", "LAST_RCMD_APRV_IND": "LAST_RCMD_APRV_IND_OUT", "LAST_RCMD_DATE": "LAST_RCMD_DATE_OUT", "LAST_RCMD_RENT_FCTR_CODE": "LAST_RCMD_RENT_FCTR_CODE_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "NRML_RENT_AMT": "NRML_RENT_AMT_OUT", "ORIG_HSE_SRVC_APLY_KEY": "ORIG_HSE_SRVC_APLY_KEY_OUT", "PREV_RAS_REC_KEY": "PREV_RAS_REC_KEY_OUT", "PRHIL_IND": "PRHIL_IND", "PRNT_RAS_REC_KEY": "PRNT_RAS_REC_KEY_OUT", "RAS_APLY_RSN_CODE": "RAS_APLY_RSN_CODE_OUT", "RAS_CNFRM_DATE": "RAS_CNFRM_DATE_OUT", "RAS_CRE_DATE": "RAS_CRE_DATE_OUT", "RAS_GRNT_PRD_MTH": "RAS_GRNT_PRD_MTH_OUT", "RAS_RCV_DATE": "RAS_RCV_DATE_OUT", "RAS_REC_KEY": "RAS_REC_KEY_OUT", "RAS_REF_PHRM_IND": "RAS_REF_PHRM_IND_OUT", "RAS_REJ_RSN_CODE": "RAS_REJ_RSN_CODE_OUT", "RAS_REJ_RSN_TEXT": "RAS_REJ_RSN_TEXT_OUT", "RAS_RENT_BGN_DATE": "RAS_RENT_BGN_DATE_OUT", "RAS_RENT_CHNG_RSN_CODE": "RAS_RENT_CHNG_RSN_CODE_OUT", "RAS_RENT_CHNG_RSN_TEXT": "RAS_RENT_CHNG_RSN_TEXT_OUT", "RAS_RENT_END_DATE": "RAS_RENT_END_DATE_OUT", "RAS_RENT_FCTR_CODE": "RAS_RENT_FCTR_CODE_OUT", "RAS_RMK_TEXT": "RAS_RMK_TEXT_OUT", "RAS_STS_CODE": "RAS_STS_CODE_OUT", "RAS_TYPE_CODE": "RAS_TYPE_CODE_OUT", "RCMD_APRV_IND": "RCMD_APRV_IND_OUT", "RENT_RVW_CATG_BGN_DATE": "RENT_RVW_CATG_BGN_DATE_OUT", "RENT_RVW_CATG_CODE": "RENT_RVW_CATG_CODE_OUT", "RIR_IND": "RIR_IND", "RIR_PCT": "RIR_PCT_OUT", "WLIL_AMT": "WLIL_AMT_OUT", "WLIL_PCT": "WLIL_PCT_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['RAS_REC_KEY', 'RAS_TYPE_CODE', 'RAS_CRE_DATE', 'RAS_STS_CODE', 'RAS_RCV_DATE', 'RAS_APLY_RSN_CODE', 'CUST_KEY', 'HSE_SRVC_APLY_KEY', 'HSE_UNIT_KEY', 'PRNT_RAS_REC_KEY', 'DPO_IND', 'CSSA_IND', 'HSHLD_INCM_AMT', 'APLY_CATG_CODE', 'APLY_CATG_TEXT', 'ALCT_STD_EXCD_IND', 'NRML_RENT_AMT', 'WLIL_AMT', 'WLIL_PCT', 'RIR_PCT', 'RCMD_APRV_IND', 'RAS_GRNT_PRD_MTH', 'RAS_CNFRM_DATE', 'RAS_RENT_FCTR_CODE', 'RAS_RENT_BGN_DATE', 'RAS_RENT_END_DATE', 'RAS_RENT_CHNG_RSN_CODE', 'RAS_RENT_CHNG_RSN_TEXT', 'RAS_REJ_RSN_CODE', 'RAS_REJ_RSN_TEXT', 'RAS_RMK_TEXT', 'LAST_RCMD_APRV_IND', 'LAST_RCMD_RENT_FCTR_CODE', 'LAST_RCMD_DATE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'PREV_RAS_REC_KEY', 'RENT_RVW_CATG_CODE', 'RENT_RVW_CATG_BGN_DATE', 'HSE_UNIT_IFA_AREA', 'RAS_REF_PHRM_IND', 'IMG_DOC_KEY', 'IMG_MINS_KEY', 'ORIG_HSE_SRVC_APLY_KEY', 'RIR_IND', 'PRHIL_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_TAM_RAS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_TAM_RAS',
+            mode='append',
+            source_columns=[
+                'RAS_REC_KEY_OUT',
+                'RAS_TYPE_CODE_OUT',
+                'RAS_CRE_DATE_OUT',
+                'RAS_STS_CODE_OUT',
+                'RAS_RCV_DATE_OUT',
+                'RAS_APLY_RSN_CODE_OUT',
+                'CUST_KEY_OUT',
+                'HSE_SRVC_APLY_KEY_OUT',
+                'HSE_UNIT_KEY_OUT',
+                'PRNT_RAS_REC_KEY_OUT',
+                'DPO_IND_OUT',
+                'CSSA_IND_OUT',
+                'HSHLD_INCM_AMT_OUT',
+                'APLY_CATG_CODE_OUT',
+                'APLY_CATG_TEXT_OUT',
+                'ALCT_STD_EXCD_IND_OUT',
+                'NRML_RENT_AMT_OUT',
+                'WLIL_AMT_OUT',
+                'WLIL_PCT_OUT',
+                'RIR_PCT_OUT',
+                'RCMD_APRV_IND_OUT',
+                'RAS_GRNT_PRD_MTH_OUT',
+                'RAS_CNFRM_DATE_OUT',
+                'RAS_RENT_FCTR_CODE_OUT',
+                'RAS_RENT_BGN_DATE_OUT',
+                'RAS_RENT_END_DATE_OUT',
+                'RAS_RENT_CHNG_RSN_CODE_OUT',
+                'RAS_RENT_CHNG_RSN_TEXT_OUT',
+                'RAS_REJ_RSN_CODE_OUT',
+                'RAS_REJ_RSN_TEXT_OUT',
+                'RAS_RMK_TEXT_OUT',
+                'LAST_RCMD_APRV_IND_OUT',
+                'LAST_RCMD_RENT_FCTR_CODE_OUT',
+                'LAST_RCMD_DATE_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'PREV_RAS_REC_KEY_OUT',
+                'RENT_RVW_CATG_CODE_OUT',
+                'RENT_RVW_CATG_BGN_DATE_OUT',
+                'HSE_UNIT_IFA_AREA_OUT',
+                'RAS_REF_PHRM_IND_OUT',
+                'IMG_DOC_KEY_OUT',
+                'IMG_MINS_KEY_OUT',
+                'ORIG_HSE_SRVC_APLY_KEY_OUT',
+                'RIR_IND',
+                'PRHIL_IND',
+            ],
+            target_columns=[
+                'RAS_REC_KEY',
+                'RAS_TYPE_CODE',
+                'RAS_CRE_DATE',
+                'RAS_STS_CODE',
+                'RAS_RCV_DATE',
+                'RAS_APLY_RSN_CODE',
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'HSE_UNIT_KEY',
+                'PRNT_RAS_REC_KEY',
+                'DPO_IND',
+                'CSSA_IND',
+                'HSHLD_INCM_AMT',
+                'APLY_CATG_CODE',
+                'APLY_CATG_TEXT',
+                'ALCT_STD_EXCD_IND',
+                'NRML_RENT_AMT',
+                'WLIL_AMT',
+                'WLIL_PCT',
+                'RIR_PCT',
+                'RCMD_APRV_IND',
+                'RAS_GRNT_PRD_MTH',
+                'RAS_CNFRM_DATE',
+                'RAS_RENT_FCTR_CODE',
+                'RAS_RENT_BGN_DATE',
+                'RAS_RENT_END_DATE',
+                'RAS_RENT_CHNG_RSN_CODE',
+                'RAS_RENT_CHNG_RSN_TEXT',
+                'RAS_REJ_RSN_CODE',
+                'RAS_REJ_RSN_TEXT',
+                'RAS_RMK_TEXT',
+                'LAST_RCMD_APRV_IND',
+                'LAST_RCMD_RENT_FCTR_CODE',
+                'LAST_RCMD_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'PREV_RAS_REC_KEY',
+                'RENT_RVW_CATG_CODE',
+                'RENT_RVW_CATG_BGN_DATE',
+                'HSE_UNIT_IFA_AREA',
+                'RAS_REF_PHRM_IND',
+                'IMG_DOC_KEY',
+                'IMG_MINS_KEY',
+                'ORIG_HSE_SRVC_APLY_KEY',
+                'RIR_IND',
+                'PRHIL_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_TAM_RAS write completed")
         logger.info("Step: write_EMS_TAM_RAS1")
         # Write to Target: write_EMS_TAM_RAS1
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"ALCT_STD_EXCD_IND": "ALCT_STD_EXCD_IND_OUT", "APLY_CATG_CODE": "APLY_CATG_CODE_OUT", "APLY_CATG_TEXT": "APLY_CATG_TEXT_OUT", "CSSA_IND": "CSSA_IND_OUT", "CUST_KEY": "CUST_KEY_OUT", "DPO_IND": "DPO_IND_OUT", "DUMMY": "DUMMY", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "HSE_UNIT_IFA_AREA": "HSE_UNIT_IFA_AREA_OUT", "HSE_UNIT_KEY": "HSE_UNIT_KEY_OUT", "HSHLD_INCM_AMT": "HSHLD_INCM_AMT_OUT", "IMG_DOC_KEY": "IMG_DOC_KEY_OUT", "IMG_MINS_KEY": "IMG_MINS_KEY_OUT", "LAST_RCMD_APRV_IND": "LAST_RCMD_APRV_IND_OUT", "LAST_RCMD_DATE": "LAST_RCMD_DATE_OUT", "LAST_RCMD_RENT_FCTR_CODE": "LAST_RCMD_RENT_FCTR_CODE_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "NRML_RENT_AMT": "NRML_RENT_AMT_OUT", "ORIG_HSE_SRVC_APLY_KEY": "ORIG_HSE_SRVC_APLY_KEY_OUT", "PREV_RAS_REC_KEY": "PREV_RAS_REC_KEY_OUT", "PRNT_RAS_REC_KEY": "PRNT_RAS_REC_KEY_OUT", "RAS_APLY_RSN_CODE": "RAS_APLY_RSN_CODE_OUT", "RAS_CNFRM_DATE": "RAS_CNFRM_DATE_OUT", "RAS_CRE_DATE": "RAS_CRE_DATE_OUT", "RAS_GRNT_PRD_MTH": "RAS_GRNT_PRD_MTH_OUT", "RAS_RCV_DATE": "RAS_RCV_DATE_OUT", "RAS_REC_KEY": "RAS_REC_KEY_OUT", "RAS_REF_PHRM_IND": "RAS_REF_PHRM_IND_OUT", "RAS_REJ_RSN_CODE": "RAS_REJ_RSN_CODE_OUT", "RAS_REJ_RSN_TEXT": "RAS_REJ_RSN_TEXT_OUT", "RAS_RENT_BGN_DATE": "RAS_RENT_BGN_DATE_OUT", "RAS_RENT_CHNG_RSN_CODE": "RAS_RENT_CHNG_RSN_CODE_OUT", "RAS_RENT_CHNG_RSN_TEXT": "RAS_RENT_CHNG_RSN_TEXT_OUT", "RAS_RENT_END_DATE": "RAS_RENT_END_DATE_OUT", "RAS_RENT_FCTR_CODE": "RAS_RENT_FCTR_CODE_OUT", "RAS_RMK_TEXT": "RAS_RMK_TEXT_OUT", "RAS_STS_CODE": "RAS_STS_CODE_OUT", "RAS_TYPE_CODE": "RAS_TYPE_CODE_OUT", "RCMD_APRV_IND": "RCMD_APRV_IND_OUT", "RENT_RVW_CATG_BGN_DATE": "RENT_RVW_CATG_BGN_DATE_OUT", "RENT_RVW_CATG_CODE": "RENT_RVW_CATG_CODE_OUT", "RIR_PCT": "RIR_PCT_OUT", "WLIL_AMT": "WLIL_AMT_OUT", "WLIL_PCT": "WLIL_PCT_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['RAS_REC_KEY', 'RAS_TYPE_CODE', 'RAS_CRE_DATE', 'RAS_STS_CODE', 'RAS_RCV_DATE', 'RAS_APLY_RSN_CODE', 'CUST_KEY', 'HSE_SRVC_APLY_KEY', 'HSE_UNIT_KEY', 'PRNT_RAS_REC_KEY', 'DPO_IND', 'CSSA_IND', 'HSHLD_INCM_AMT', 'APLY_CATG_CODE', 'APLY_CATG_TEXT', 'ALCT_STD_EXCD_IND', 'NRML_RENT_AMT', 'WLIL_AMT', 'WLIL_PCT', 'RIR_PCT', 'RCMD_APRV_IND', 'RAS_GRNT_PRD_MTH', 'RAS_CNFRM_DATE', 'RAS_RENT_FCTR_CODE', 'RAS_RENT_BGN_DATE', 'RAS_RENT_END_DATE', 'RAS_RENT_CHNG_RSN_CODE', 'RAS_RENT_CHNG_RSN_TEXT', 'RAS_REJ_RSN_CODE', 'RAS_REJ_RSN_TEXT', 'RAS_RMK_TEXT', 'LAST_RCMD_APRV_IND', 'LAST_RCMD_RENT_FCTR_CODE', 'LAST_RCMD_DATE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'PREV_RAS_REC_KEY', 'RENT_RVW_CATG_CODE', 'RENT_RVW_CATG_BGN_DATE', 'HSE_UNIT_IFA_AREA', 'RAS_REF_PHRM_IND', 'IMG_DOC_KEY', 'IMG_MINS_KEY', 'ORIG_HSE_SRVC_APLY_KEY', 'DUMMY']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_TAM_RAS1", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_TAM_RAS1',
+            mode='append',
+            source_columns=[
+                'RAS_REC_KEY_OUT',
+                'RAS_TYPE_CODE_OUT',
+                'RAS_CRE_DATE_OUT',
+                'RAS_STS_CODE_OUT',
+                'RAS_RCV_DATE_OUT',
+                'RAS_APLY_RSN_CODE_OUT',
+                'CUST_KEY_OUT',
+                'HSE_SRVC_APLY_KEY_OUT',
+                'HSE_UNIT_KEY_OUT',
+                'PRNT_RAS_REC_KEY_OUT',
+                'DPO_IND_OUT',
+                'CSSA_IND_OUT',
+                'HSHLD_INCM_AMT_OUT',
+                'APLY_CATG_CODE_OUT',
+                'APLY_CATG_TEXT_OUT',
+                'ALCT_STD_EXCD_IND_OUT',
+                'NRML_RENT_AMT_OUT',
+                'WLIL_AMT_OUT',
+                'WLIL_PCT_OUT',
+                'RIR_PCT_OUT',
+                'RCMD_APRV_IND_OUT',
+                'RAS_GRNT_PRD_MTH_OUT',
+                'RAS_CNFRM_DATE_OUT',
+                'RAS_RENT_FCTR_CODE_OUT',
+                'RAS_RENT_BGN_DATE_OUT',
+                'RAS_RENT_END_DATE_OUT',
+                'RAS_RENT_CHNG_RSN_CODE_OUT',
+                'RAS_RENT_CHNG_RSN_TEXT_OUT',
+                'RAS_REJ_RSN_CODE_OUT',
+                'RAS_REJ_RSN_TEXT_OUT',
+                'RAS_RMK_TEXT_OUT',
+                'LAST_RCMD_APRV_IND_OUT',
+                'LAST_RCMD_RENT_FCTR_CODE_OUT',
+                'LAST_RCMD_DATE_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'PREV_RAS_REC_KEY_OUT',
+                'RENT_RVW_CATG_CODE_OUT',
+                'RENT_RVW_CATG_BGN_DATE_OUT',
+                'HSE_UNIT_IFA_AREA_OUT',
+                'RAS_REF_PHRM_IND_OUT',
+                'IMG_DOC_KEY_OUT',
+                'IMG_MINS_KEY_OUT',
+                'ORIG_HSE_SRVC_APLY_KEY_OUT',
+                'DUMMY',
+            ],
+            target_columns=[
+                'RAS_REC_KEY',
+                'RAS_TYPE_CODE',
+                'RAS_CRE_DATE',
+                'RAS_STS_CODE',
+                'RAS_RCV_DATE',
+                'RAS_APLY_RSN_CODE',
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'HSE_UNIT_KEY',
+                'PRNT_RAS_REC_KEY',
+                'DPO_IND',
+                'CSSA_IND',
+                'HSHLD_INCM_AMT',
+                'APLY_CATG_CODE',
+                'APLY_CATG_TEXT',
+                'ALCT_STD_EXCD_IND',
+                'NRML_RENT_AMT',
+                'WLIL_AMT',
+                'WLIL_PCT',
+                'RIR_PCT',
+                'RCMD_APRV_IND',
+                'RAS_GRNT_PRD_MTH',
+                'RAS_CNFRM_DATE',
+                'RAS_RENT_FCTR_CODE',
+                'RAS_RENT_BGN_DATE',
+                'RAS_RENT_END_DATE',
+                'RAS_RENT_CHNG_RSN_CODE',
+                'RAS_RENT_CHNG_RSN_TEXT',
+                'RAS_REJ_RSN_CODE',
+                'RAS_REJ_RSN_TEXT',
+                'RAS_RMK_TEXT',
+                'LAST_RCMD_APRV_IND',
+                'LAST_RCMD_RENT_FCTR_CODE',
+                'LAST_RCMD_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'PREV_RAS_REC_KEY',
+                'RENT_RVW_CATG_CODE',
+                'RENT_RVW_CATG_BGN_DATE',
+                'HSE_UNIT_IFA_AREA',
+                'RAS_REF_PHRM_IND',
+                'IMG_DOC_KEY',
+                'IMG_MINS_KEY',
+                'ORIG_HSE_SRVC_APLY_KEY',
+                'DUMMY',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_TAM_RAS1 write completed")
         

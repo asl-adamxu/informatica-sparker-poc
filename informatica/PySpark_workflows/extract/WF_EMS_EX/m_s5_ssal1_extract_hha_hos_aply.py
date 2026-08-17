@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_HHA_HOS_APLY")
@@ -79,105 +64,401 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_HHA_HOS_APLY")
         # Source Qualifier: apply_SQ_HHA_HOS_APLY
         df_SQ_HHA_HOS_APLY = df_HHA_HOS_APLY
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_HHA_HOS_APLY = df_SQ_HHA_HOS_APLY.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HSE_SRVC_APLY_KEY", "HOS_PHASE_CODE", "HOS_APLY_STS_UPD_DATE", "APLY_PRIOR_NUM", "APLY_HOME_DSTR_KEY", "APLY_NONUBN_IND", "APLY_HOME_CODE_ADDR", "APLY_FMLY_SIZE_NUM", "APLY_HSHLD_INCM_AMT", "APLY_FMLY_SPLT_IND", "APLY_DBL_RENT_IND", "APLY_MAIN_APLY_IND", "APLY_PRPTY_OWNR_IND", "APLY_SCHM_TYPE_CODE", "APLY_APLY_MSS_IND", "APLY_MSS_REF_NUM", "HOS_APLY_STG_CODE", "HOS_APLY_STS_CODE", "HOS_APLY_TYPE_CODE", "EST_MGT_STS_CODE", "GF_CERT_NUM", "FMLY_CPST_CODE", "APLY_DSBL_IND", "INCM_ENR_CNT", "LOA_IND", "HOS_APLY_FRZ_IND", "NEW_HOS_APLY_TYPE_CODE", "NEW_HOS_APLY_NUM", "NEW_HOS_APLY_SFX_NUM", "NEW_HOS_PRIOR_NUM", "NEW_HOS_PRIOR_NUM_SFX_NUM", "PRH_APLY_NUM", "HOS_APLY_NUM", "APLY_CNCL_RSN_CODE", "APLY_CRT_CHC_SEQ_NUM", "HOS_RSCN_NUM", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "WFA_APLY_APRV_NUM", "WFA_APLY_APRV_DATE", "WFA_APLY_FRZ_RSN_CODE", "WFA_APLY_REJ_RSN_CODE", "APLY_PRIOR_DESP_1", "APLY_PRIOR_NUM_2", "APLY_PRIOR_DESP_2", "APLY_PRIOR_NUM_3", "APLY_PRIOR_DESP_3", "APLY_PRIOR_NUM_4", "APLY_PRIOR_DESP_4", "APLY_PRIOR_NUM_5", "APLY_PRIOR_DESP_5", "APLY_PRIOR_NUM_6", "APLY_PRIOR_DESP_6", "APLY_PRIOR_NUM_1", "APLY_PRIOR_NUM_SFX_NUM_1", "APLY_PRIOR_NUM_SFX_NUM_2", "APLY_PRIOR_NUM_SFX_NUM_3", "APLY_PRIOR_NUM_SFX_NUM_4", "APLY_PRIOR_NUM_SFX_NUM_5", "APLY_PRIOR_NUM_SFX_NUM_6"]
-        df_SQ_HHA_HOS_APLY = df_SQ_HHA_HOS_APLY.select([col(c) if c.lower() in [x.lower() for x in df_SQ_HHA_HOS_APLY.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_HHA_HOS_APLY = lib.sq_output(
+            input_df=df_SQ_HHA_HOS_APLY,
+            port_cols={
+                'HSE_SRVC_APLY_KEY': 'string',
+                'HOS_PHASE_CODE': 'string',
+                'HOS_APLY_STS_UPD_DATE': 'date/time',
+                'APLY_PRIOR_NUM': 'string',
+                'APLY_HOME_DSTR_KEY': 'string',
+                'APLY_NONUBN_IND': 'string',
+                'APLY_HOME_CODE_ADDR': 'string',
+                'APLY_FMLY_SIZE_NUM': 'decimal',
+                'APLY_HSHLD_INCM_AMT': 'decimal',
+                'APLY_FMLY_SPLT_IND': 'string',
+                'APLY_DBL_RENT_IND': 'string',
+                'APLY_MAIN_APLY_IND': 'string',
+                'APLY_PRPTY_OWNR_IND': 'string',
+                'APLY_SCHM_TYPE_CODE': 'string',
+                'APLY_APLY_MSS_IND': 'string',
+                'APLY_MSS_REF_NUM': 'string',
+                'HOS_APLY_STG_CODE': 'string',
+                'HOS_APLY_STS_CODE': 'string',
+                'HOS_APLY_TYPE_CODE': 'string',
+                'EST_MGT_STS_CODE': 'string',
+                'GF_CERT_NUM': 'string',
+                'FMLY_CPST_CODE': 'string',
+                'APLY_DSBL_IND': 'string',
+                'INCM_ENR_CNT': 'decimal',
+                'LOA_IND': 'string',
+                'HOS_APLY_FRZ_IND': 'string',
+                'NEW_HOS_APLY_TYPE_CODE': 'string',
+                'NEW_HOS_APLY_NUM': 'string',
+                'NEW_HOS_APLY_SFX_NUM': 'string',
+                'NEW_HOS_PRIOR_NUM': 'string',
+                'NEW_HOS_PRIOR_NUM_SFX_NUM': 'string',
+                'PRH_APLY_NUM': 'string',
+                'HOS_APLY_NUM': 'string',
+                'APLY_CNCL_RSN_CODE': 'string',
+                'APLY_CRT_CHC_SEQ_NUM': 'string',
+                'HOS_RSCN_NUM': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'string',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'WFA_APLY_APRV_NUM': 'string',
+                'WFA_APLY_APRV_DATE': 'date/time',
+                'WFA_APLY_FRZ_RSN_CODE': 'string',
+                'WFA_APLY_REJ_RSN_CODE': 'string',
+                'APLY_PRIOR_DESP_1': 'string',
+                'APLY_PRIOR_NUM_2': 'string',
+                'APLY_PRIOR_DESP_2': 'string',
+                'APLY_PRIOR_NUM_3': 'string',
+                'APLY_PRIOR_DESP_3': 'string',
+                'APLY_PRIOR_NUM_4': 'string',
+                'APLY_PRIOR_DESP_4': 'string',
+                'APLY_PRIOR_NUM_5': 'string',
+                'APLY_PRIOR_DESP_5': 'string',
+                'APLY_PRIOR_NUM_6': 'string',
+                'APLY_PRIOR_DESP_6': 'string',
+                'APLY_PRIOR_NUM_1': 'string',
+                'APLY_PRIOR_NUM_SFX_NUM_1': 'string',
+                'APLY_PRIOR_NUM_SFX_NUM_2': 'string',
+                'APLY_PRIOR_NUM_SFX_NUM_3': 'string',
+                'APLY_PRIOR_NUM_SFX_NUM_4': 'string',
+                'APLY_PRIOR_NUM_SFX_NUM_5': 'string',
+                'APLY_PRIOR_NUM_SFX_NUM_6': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_HHA_HOS_APLY", df_SQ_HHA_HOS_APLY)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_HHA_HOS_APLY
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_SRVC_APLY_KEY_OUT", expr("ltrim(rtrim(HSE_SRVC_APLY_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_PHASE_CODE_OUT", expr("ltrim(rtrim(HOS_PHASE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_APLY_STS_UPD_DATE_OUT", expr("HOS_APLY_STS_UPD_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APLY_PRIOR_NUM_OUT", expr("ltrim(rtrim(APLY_PRIOR_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APLY_HOME_DSTR_KEY_OUT", expr("ltrim(rtrim(APLY_HOME_DSTR_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APLY_NONUBN_IND_OUT", expr("ltrim(rtrim(APLY_NONUBN_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APLY_HOME_CODE_ADDR_OUT", expr("ltrim(rtrim(APLY_HOME_CODE_ADDR))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APLY_FMLY_SIZE_NUM_OUT", expr("APLY_FMLY_SIZE_NUM"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APLY_HSHLD_INCM_AMT_OUT", expr("APLY_HSHLD_INCM_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APLY_FMLY_SPLT_IND_OUT", expr("ltrim(rtrim(APLY_FMLY_SPLT_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APLY_DBL_RENT_IND_OUT", expr("ltrim(rtrim(APLY_DBL_RENT_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APLY_MAIN_APLY_IND_OUT", expr("ltrim(rtrim(APLY_MAIN_APLY_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APLY_PRPTY_OWNR_IND_OUT", expr("ltrim(rtrim(APLY_PRPTY_OWNR_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APLY_SCHM_TYPE_CODE_OUT", expr("ltrim(rtrim(APLY_SCHM_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APLY_APLY_MSS_IND_OUT", expr("ltrim(rtrim(APLY_APLY_MSS_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APLY_MSS_REF_NUM_OUT", expr("ltrim(rtrim(APLY_MSS_REF_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_APLY_STG_CODE_OUT", expr("ltrim(rtrim(HOS_APLY_STG_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_APLY_STS_CODE_OUT", expr("ltrim(rtrim(HOS_APLY_STS_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_APLY_TYPE_CODE_OUT", expr("ltrim(rtrim(HOS_APLY_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("EST_MGT_STS_CODE_OUT", expr("ltrim(rtrim(EST_MGT_STS_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("GF_CERT_NUM_OUT", expr("ltrim(rtrim(GF_CERT_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("FMLY_CPST_CODE_OUT", expr("ltrim(rtrim(FMLY_CPST_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APLY_DSBL_IND_OUT", expr("ltrim(rtrim(APLY_DSBL_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("INCM_ENR_CNT_OUT", expr("INCM_ENR_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LOA_IND_OUT", expr("ltrim(rtrim(LOA_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_APLY_FRZ_IND_OUT", expr("ltrim(rtrim(HOS_APLY_FRZ_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NEW_HOS_APLY_TYPE_CODE_OUT", expr("ltrim(rtrim(NEW_HOS_APLY_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NEW_HOS_APLY_NUM_OUT", expr("ltrim(rtrim(NEW_HOS_APLY_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NEW_HOS_APLY_SFX_NUM_OUT", expr("ltrim(rtrim(NEW_HOS_APLY_SFX_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NEW_HOS_PRIOR_NUM_OUT", expr("ltrim(rtrim(NEW_HOS_PRIOR_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NEW_HOS_PRIOR_NUM_SFX_NUM_OUT", expr("ltrim(rtrim(NEW_HOS_PRIOR_NUM_SFX_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PRH_APLY_NUM_OUT", expr("ltrim(rtrim(PRH_APLY_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_APLY_NUM_OUT", expr("ltrim(rtrim(HOS_APLY_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APLY_CNCL_RSN_CODE_OUT", expr("ltrim(rtrim(APLY_CNCL_RSN_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APLY_CRT_CHC_SEQ_NUM_OUT", expr("ltrim(rtrim(APLY_CRT_CHC_SEQ_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_RSCN_NUM_OUT", expr("ltrim(rtrim(HOS_RSCN_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE_OUT", expr("LAST_REC_TXN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("'|'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["WFA_APLY_APRV_NUM", "WFA_APLY_APRV_DATE", "WFA_APLY_FRZ_RSN_CODE", "WFA_APLY_REJ_RSN_CODE", "APLY_PRIOR_DESP_1", "APLY_PRIOR_NUM_2", "APLY_PRIOR_DESP_2", "APLY_PRIOR_NUM_3", "APLY_PRIOR_DESP_3", "APLY_PRIOR_NUM_4", "APLY_PRIOR_DESP_4", "APLY_PRIOR_NUM_5", "APLY_PRIOR_DESP_5", "APLY_PRIOR_NUM_6", "APLY_PRIOR_DESP_6", "APLY_PRIOR_NUM_1", "APLY_PRIOR_NUM_SFX_NUM_1", "APLY_PRIOR_NUM_SFX_NUM_2", "APLY_PRIOR_NUM_SFX_NUM_3", "APLY_PRIOR_NUM_SFX_NUM_4", "APLY_PRIOR_NUM_SFX_NUM_5", "APLY_PRIOR_NUM_SFX_NUM_6"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_HHA_HOS_APLY,
+            computed_columns=[
+                {'name': 'HSE_SRVC_APLY_KEY_OUT', 'expr': 'ltrim(rtrim(HSE_SRVC_APLY_KEY))'},
+                {'name': 'HOS_PHASE_CODE_OUT', 'expr': 'ltrim(rtrim(HOS_PHASE_CODE))'},
+                {'name': 'HOS_APLY_STS_UPD_DATE_OUT', 'expr': 'HOS_APLY_STS_UPD_DATE'},
+                {'name': 'APLY_PRIOR_NUM_OUT', 'expr': 'ltrim(rtrim(APLY_PRIOR_NUM))'},
+                {'name': 'APLY_HOME_DSTR_KEY_OUT', 'expr': 'ltrim(rtrim(APLY_HOME_DSTR_KEY))'},
+                {'name': 'APLY_NONUBN_IND_OUT', 'expr': 'ltrim(rtrim(APLY_NONUBN_IND))'},
+                {'name': 'APLY_HOME_CODE_ADDR_OUT', 'expr': 'ltrim(rtrim(APLY_HOME_CODE_ADDR))'},
+                {'name': 'APLY_FMLY_SIZE_NUM_OUT', 'expr': 'APLY_FMLY_SIZE_NUM'},
+                {'name': 'APLY_HSHLD_INCM_AMT_OUT', 'expr': 'APLY_HSHLD_INCM_AMT'},
+                {'name': 'APLY_FMLY_SPLT_IND_OUT', 'expr': 'ltrim(rtrim(APLY_FMLY_SPLT_IND))'},
+                {'name': 'APLY_DBL_RENT_IND_OUT', 'expr': 'ltrim(rtrim(APLY_DBL_RENT_IND))'},
+                {'name': 'APLY_MAIN_APLY_IND_OUT', 'expr': 'ltrim(rtrim(APLY_MAIN_APLY_IND))'},
+                {'name': 'APLY_PRPTY_OWNR_IND_OUT', 'expr': 'ltrim(rtrim(APLY_PRPTY_OWNR_IND))'},
+                {'name': 'APLY_SCHM_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(APLY_SCHM_TYPE_CODE))'},
+                {'name': 'APLY_APLY_MSS_IND_OUT', 'expr': 'ltrim(rtrim(APLY_APLY_MSS_IND))'},
+                {'name': 'APLY_MSS_REF_NUM_OUT', 'expr': 'ltrim(rtrim(APLY_MSS_REF_NUM))'},
+                {'name': 'HOS_APLY_STG_CODE_OUT', 'expr': 'ltrim(rtrim(HOS_APLY_STG_CODE))'},
+                {'name': 'HOS_APLY_STS_CODE_OUT', 'expr': 'ltrim(rtrim(HOS_APLY_STS_CODE))'},
+                {'name': 'HOS_APLY_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(HOS_APLY_TYPE_CODE))'},
+                {'name': 'EST_MGT_STS_CODE_OUT', 'expr': 'ltrim(rtrim(EST_MGT_STS_CODE))'},
+                {'name': 'GF_CERT_NUM_OUT', 'expr': 'ltrim(rtrim(GF_CERT_NUM))'},
+                {'name': 'FMLY_CPST_CODE_OUT', 'expr': 'ltrim(rtrim(FMLY_CPST_CODE))'},
+                {'name': 'APLY_DSBL_IND_OUT', 'expr': 'ltrim(rtrim(APLY_DSBL_IND))'},
+                {'name': 'INCM_ENR_CNT_OUT', 'expr': 'INCM_ENR_CNT'},
+                {'name': 'LOA_IND_OUT', 'expr': 'ltrim(rtrim(LOA_IND))'},
+                {'name': 'HOS_APLY_FRZ_IND_OUT', 'expr': 'ltrim(rtrim(HOS_APLY_FRZ_IND))'},
+                {'name': 'NEW_HOS_APLY_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(NEW_HOS_APLY_TYPE_CODE))'},
+                {'name': 'NEW_HOS_APLY_NUM_OUT', 'expr': 'ltrim(rtrim(NEW_HOS_APLY_NUM))'},
+                {'name': 'NEW_HOS_APLY_SFX_NUM_OUT', 'expr': 'ltrim(rtrim(NEW_HOS_APLY_SFX_NUM))'},
+                {'name': 'NEW_HOS_PRIOR_NUM_OUT', 'expr': 'ltrim(rtrim(NEW_HOS_PRIOR_NUM))'},
+                {'name': 'NEW_HOS_PRIOR_NUM_SFX_NUM_OUT', 'expr': 'ltrim(rtrim(NEW_HOS_PRIOR_NUM_SFX_NUM))'},
+                {'name': 'PRH_APLY_NUM_OUT', 'expr': 'ltrim(rtrim(PRH_APLY_NUM))'},
+                {'name': 'HOS_APLY_NUM_OUT', 'expr': 'ltrim(rtrim(HOS_APLY_NUM))'},
+                {'name': 'APLY_CNCL_RSN_CODE_OUT', 'expr': 'ltrim(rtrim(APLY_CNCL_RSN_CODE))'},
+                {'name': 'APLY_CRT_CHC_SEQ_NUM_OUT', 'expr': 'ltrim(rtrim(APLY_CRT_CHC_SEQ_NUM))'},
+                {'name': 'HOS_RSCN_NUM_OUT', 'expr': 'ltrim(rtrim(HOS_RSCN_NUM))'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_DATE_OUT', 'expr': 'LAST_REC_TXN_DATE'},
+                {'name': 'LAST_REC_TXN_USER_ID_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID))'},
+                {'name': 'DUMMY', 'expr': "'|'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EMS_HHA_HOS_APLY")
         # Write to Target: write_EMS_HHA_HOS_APLY
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"APLY_APLY_MSS_IND": "APLY_APLY_MSS_IND_OUT", "APLY_CNCL_RSN_CODE": "APLY_CNCL_RSN_CODE_OUT", "APLY_CRT_CHC_SEQ_NUM": "APLY_CRT_CHC_SEQ_NUM_OUT", "APLY_DBL_RENT_IND": "APLY_DBL_RENT_IND_OUT", "APLY_DSBL_IND": "APLY_DSBL_IND_OUT", "APLY_FMLY_SIZE_NUM": "APLY_FMLY_SIZE_NUM_OUT", "APLY_FMLY_SPLT_IND": "APLY_FMLY_SPLT_IND_OUT", "APLY_HOME_CODE_ADDR": "APLY_HOME_CODE_ADDR_OUT", "APLY_HOME_DSTR_KEY": "APLY_HOME_DSTR_KEY_OUT", "APLY_HSHLD_INCM_AMT": "APLY_HSHLD_INCM_AMT_OUT", "APLY_MAIN_APLY_IND": "APLY_MAIN_APLY_IND_OUT", "APLY_MSS_REF_NUM": "APLY_MSS_REF_NUM_OUT", "APLY_NONUBN_IND": "APLY_NONUBN_IND_OUT", "APLY_PRIOR_DESP_1": "APLY_PRIOR_DESP_1", "APLY_PRIOR_DESP_2": "APLY_PRIOR_DESP_2", "APLY_PRIOR_DESP_3": "APLY_PRIOR_DESP_3", "APLY_PRIOR_DESP_4": "APLY_PRIOR_DESP_4", "APLY_PRIOR_DESP_5": "APLY_PRIOR_DESP_5", "APLY_PRIOR_DESP_6": "APLY_PRIOR_DESP_6", "APLY_PRIOR_NUM": "APLY_PRIOR_NUM_OUT", "APLY_PRIOR_NUM_1": "APLY_PRIOR_NUM_1", "APLY_PRIOR_NUM_2": "APLY_PRIOR_NUM_2", "APLY_PRIOR_NUM_3": "APLY_PRIOR_NUM_3", "APLY_PRIOR_NUM_4": "APLY_PRIOR_NUM_4", "APLY_PRIOR_NUM_5": "APLY_PRIOR_NUM_5", "APLY_PRIOR_NUM_6": "APLY_PRIOR_NUM_6", "APLY_PRIOR_NUM_SFX_NUM_1": "APLY_PRIOR_NUM_SFX_NUM_1", "APLY_PRIOR_NUM_SFX_NUM_2": "APLY_PRIOR_NUM_SFX_NUM_2", "APLY_PRIOR_NUM_SFX_NUM_3": "APLY_PRIOR_NUM_SFX_NUM_3", "APLY_PRIOR_NUM_SFX_NUM_4": "APLY_PRIOR_NUM_SFX_NUM_4", "APLY_PRIOR_NUM_SFX_NUM_5": "APLY_PRIOR_NUM_SFX_NUM_5", "APLY_PRIOR_NUM_SFX_NUM_6": "APLY_PRIOR_NUM_SFX_NUM_6", "APLY_PRPTY_OWNR_IND": "APLY_PRPTY_OWNR_IND_OUT", "APLY_SCHM_TYPE_CODE": "APLY_SCHM_TYPE_CODE_OUT", "EST_MGT_STS_CODE": "EST_MGT_STS_CODE_OUT", "FMLY_CPST_CODE": "FMLY_CPST_CODE_OUT", "GF_CERT_NUM": "GF_CERT_NUM_OUT", "HOS_APLY_FRZ_IND": "HOS_APLY_FRZ_IND_OUT", "HOS_APLY_NUM": "HOS_APLY_NUM_OUT", "HOS_APLY_STG_CODE": "HOS_APLY_STG_CODE_OUT", "HOS_APLY_STS_CODE": "HOS_APLY_STS_CODE_OUT", "HOS_APLY_STS_UPD_DATE": "HOS_APLY_STS_UPD_DATE_OUT", "HOS_APLY_TYPE_CODE": "HOS_APLY_TYPE_CODE_OUT", "HOS_PHASE_CODE": "HOS_PHASE_CODE_OUT", "HOS_RSCN_NUM": "HOS_RSCN_NUM_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "INCM_ENR_CNT": "INCM_ENR_CNT_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "LOA_IND": "LOA_IND_OUT", "NEW_HOS_APLY_NUM": "NEW_HOS_APLY_NUM_OUT", "NEW_HOS_APLY_SFX_NUM": "NEW_HOS_APLY_SFX_NUM_OUT", "NEW_HOS_APLY_TYPE_CODE": "NEW_HOS_APLY_TYPE_CODE_OUT", "NEW_HOS_PRIOR_NUM": "NEW_HOS_PRIOR_NUM_OUT", "NEW_HOS_PRIOR_NUM_SFX_NUM": "NEW_HOS_PRIOR_NUM_SFX_NUM_OUT", "PRH_APLY_NUM": "PRH_APLY_NUM_OUT", "WFA_APLY_APRV_DATE": "WFA_APLY_APRV_DATE", "WFA_APLY_APRV_NUM": "WFA_APLY_APRV_NUM", "WFA_APLY_FRZ_RSN_CODE": "WFA_APLY_FRZ_RSN_CODE", "WFA_APLY_REJ_RSN_CODE": "WFA_APLY_REJ_RSN_CODE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HSE_SRVC_APLY_KEY', 'HOS_PHASE_CODE', 'HOS_APLY_STS_UPD_DATE', 'APLY_PRIOR_NUM', 'APLY_HOME_DSTR_KEY', 'APLY_NONUBN_IND', 'APLY_HOME_CODE_ADDR', 'APLY_FMLY_SIZE_NUM', 'APLY_HSHLD_INCM_AMT', 'APLY_FMLY_SPLT_IND', 'APLY_DBL_RENT_IND', 'APLY_MAIN_APLY_IND', 'APLY_PRPTY_OWNR_IND', 'APLY_SCHM_TYPE_CODE', 'APLY_APLY_MSS_IND', 'APLY_MSS_REF_NUM', 'HOS_APLY_STG_CODE', 'HOS_APLY_STS_CODE', 'HOS_APLY_TYPE_CODE', 'EST_MGT_STS_CODE', 'GF_CERT_NUM', 'FMLY_CPST_CODE', 'APLY_DSBL_IND', 'INCM_ENR_CNT', 'LOA_IND', 'HOS_APLY_FRZ_IND', 'NEW_HOS_APLY_TYPE_CODE', 'NEW_HOS_APLY_NUM', 'NEW_HOS_APLY_SFX_NUM', 'NEW_HOS_PRIOR_NUM', 'NEW_HOS_PRIOR_NUM_SFX_NUM', 'PRH_APLY_NUM', 'HOS_APLY_NUM', 'APLY_CNCL_RSN_CODE', 'APLY_CRT_CHC_SEQ_NUM', 'HOS_RSCN_NUM', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'WFA_APLY_APRV_NUM', 'WFA_APLY_APRV_DATE', 'WFA_APLY_FRZ_RSN_CODE', 'WFA_APLY_REJ_RSN_CODE', 'APLY_PRIOR_DESP_1', 'APLY_PRIOR_NUM_2', 'APLY_PRIOR_DESP_2', 'APLY_PRIOR_NUM_3', 'APLY_PRIOR_DESP_3', 'APLY_PRIOR_NUM_4', 'APLY_PRIOR_DESP_4', 'APLY_PRIOR_NUM_5', 'APLY_PRIOR_DESP_5', 'APLY_PRIOR_NUM_6', 'APLY_PRIOR_DESP_6', 'APLY_PRIOR_NUM_1', 'APLY_PRIOR_NUM_SFX_NUM_1', 'APLY_PRIOR_NUM_SFX_NUM_2', 'APLY_PRIOR_NUM_SFX_NUM_3', 'APLY_PRIOR_NUM_SFX_NUM_4', 'APLY_PRIOR_NUM_SFX_NUM_5', 'APLY_PRIOR_NUM_SFX_NUM_6']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_HHA_HOS_APLY", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_HHA_HOS_APLY',
+            mode='append',
+            source_columns=[
+                'HSE_SRVC_APLY_KEY_OUT',
+                'HOS_PHASE_CODE_OUT',
+                'HOS_APLY_STS_UPD_DATE_OUT',
+                'APLY_PRIOR_NUM_OUT',
+                'APLY_HOME_DSTR_KEY_OUT',
+                'APLY_NONUBN_IND_OUT',
+                'APLY_HOME_CODE_ADDR_OUT',
+                'APLY_FMLY_SIZE_NUM_OUT',
+                'APLY_HSHLD_INCM_AMT_OUT',
+                'APLY_FMLY_SPLT_IND_OUT',
+                'APLY_DBL_RENT_IND_OUT',
+                'APLY_MAIN_APLY_IND_OUT',
+                'APLY_PRPTY_OWNR_IND_OUT',
+                'APLY_SCHM_TYPE_CODE_OUT',
+                'APLY_APLY_MSS_IND_OUT',
+                'APLY_MSS_REF_NUM_OUT',
+                'HOS_APLY_STG_CODE_OUT',
+                'HOS_APLY_STS_CODE_OUT',
+                'HOS_APLY_TYPE_CODE_OUT',
+                'EST_MGT_STS_CODE_OUT',
+                'GF_CERT_NUM_OUT',
+                'FMLY_CPST_CODE_OUT',
+                'APLY_DSBL_IND_OUT',
+                'INCM_ENR_CNT_OUT',
+                'LOA_IND_OUT',
+                'HOS_APLY_FRZ_IND_OUT',
+                'NEW_HOS_APLY_TYPE_CODE_OUT',
+                'NEW_HOS_APLY_NUM_OUT',
+                'NEW_HOS_APLY_SFX_NUM_OUT',
+                'NEW_HOS_PRIOR_NUM_OUT',
+                'NEW_HOS_PRIOR_NUM_SFX_NUM_OUT',
+                'PRH_APLY_NUM_OUT',
+                'HOS_APLY_NUM_OUT',
+                'APLY_CNCL_RSN_CODE_OUT',
+                'APLY_CRT_CHC_SEQ_NUM_OUT',
+                'HOS_RSCN_NUM_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'WFA_APLY_APRV_NUM',
+                'WFA_APLY_APRV_DATE',
+                'WFA_APLY_FRZ_RSN_CODE',
+                'WFA_APLY_REJ_RSN_CODE',
+                'APLY_PRIOR_DESP_1',
+                'APLY_PRIOR_NUM_2',
+                'APLY_PRIOR_DESP_2',
+                'APLY_PRIOR_NUM_3',
+                'APLY_PRIOR_DESP_3',
+                'APLY_PRIOR_NUM_4',
+                'APLY_PRIOR_DESP_4',
+                'APLY_PRIOR_NUM_5',
+                'APLY_PRIOR_DESP_5',
+                'APLY_PRIOR_NUM_6',
+                'APLY_PRIOR_DESP_6',
+                'APLY_PRIOR_NUM_1',
+                'APLY_PRIOR_NUM_SFX_NUM_1',
+                'APLY_PRIOR_NUM_SFX_NUM_2',
+                'APLY_PRIOR_NUM_SFX_NUM_3',
+                'APLY_PRIOR_NUM_SFX_NUM_4',
+                'APLY_PRIOR_NUM_SFX_NUM_5',
+                'APLY_PRIOR_NUM_SFX_NUM_6',
+            ],
+            target_columns=[
+                'HSE_SRVC_APLY_KEY',
+                'HOS_PHASE_CODE',
+                'HOS_APLY_STS_UPD_DATE',
+                'APLY_PRIOR_NUM',
+                'APLY_HOME_DSTR_KEY',
+                'APLY_NONUBN_IND',
+                'APLY_HOME_CODE_ADDR',
+                'APLY_FMLY_SIZE_NUM',
+                'APLY_HSHLD_INCM_AMT',
+                'APLY_FMLY_SPLT_IND',
+                'APLY_DBL_RENT_IND',
+                'APLY_MAIN_APLY_IND',
+                'APLY_PRPTY_OWNR_IND',
+                'APLY_SCHM_TYPE_CODE',
+                'APLY_APLY_MSS_IND',
+                'APLY_MSS_REF_NUM',
+                'HOS_APLY_STG_CODE',
+                'HOS_APLY_STS_CODE',
+                'HOS_APLY_TYPE_CODE',
+                'EST_MGT_STS_CODE',
+                'GF_CERT_NUM',
+                'FMLY_CPST_CODE',
+                'APLY_DSBL_IND',
+                'INCM_ENR_CNT',
+                'LOA_IND',
+                'HOS_APLY_FRZ_IND',
+                'NEW_HOS_APLY_TYPE_CODE',
+                'NEW_HOS_APLY_NUM',
+                'NEW_HOS_APLY_SFX_NUM',
+                'NEW_HOS_PRIOR_NUM',
+                'NEW_HOS_PRIOR_NUM_SFX_NUM',
+                'PRH_APLY_NUM',
+                'HOS_APLY_NUM',
+                'APLY_CNCL_RSN_CODE',
+                'APLY_CRT_CHC_SEQ_NUM',
+                'HOS_RSCN_NUM',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'WFA_APLY_APRV_NUM',
+                'WFA_APLY_APRV_DATE',
+                'WFA_APLY_FRZ_RSN_CODE',
+                'WFA_APLY_REJ_RSN_CODE',
+                'APLY_PRIOR_DESP_1',
+                'APLY_PRIOR_NUM_2',
+                'APLY_PRIOR_DESP_2',
+                'APLY_PRIOR_NUM_3',
+                'APLY_PRIOR_DESP_3',
+                'APLY_PRIOR_NUM_4',
+                'APLY_PRIOR_DESP_4',
+                'APLY_PRIOR_NUM_5',
+                'APLY_PRIOR_DESP_5',
+                'APLY_PRIOR_NUM_6',
+                'APLY_PRIOR_DESP_6',
+                'APLY_PRIOR_NUM_1',
+                'APLY_PRIOR_NUM_SFX_NUM_1',
+                'APLY_PRIOR_NUM_SFX_NUM_2',
+                'APLY_PRIOR_NUM_SFX_NUM_3',
+                'APLY_PRIOR_NUM_SFX_NUM_4',
+                'APLY_PRIOR_NUM_SFX_NUM_5',
+                'APLY_PRIOR_NUM_SFX_NUM_6',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_HHA_HOS_APLY write completed")
         logger.info("Step: write_EMS_HHA_HOS_APLY1")
         # Write to Target: write_EMS_HHA_HOS_APLY1
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"APLY_APLY_MSS_IND": "APLY_APLY_MSS_IND_OUT", "APLY_CNCL_RSN_CODE": "APLY_CNCL_RSN_CODE_OUT", "APLY_CRT_CHC_SEQ_NUM": "APLY_CRT_CHC_SEQ_NUM_OUT", "APLY_DBL_RENT_IND": "APLY_DBL_RENT_IND_OUT", "APLY_DSBL_IND": "APLY_DSBL_IND_OUT", "APLY_FMLY_SIZE_NUM": "APLY_FMLY_SIZE_NUM_OUT", "APLY_FMLY_SPLT_IND": "APLY_FMLY_SPLT_IND_OUT", "APLY_HOME_CODE_ADDR": "APLY_HOME_CODE_ADDR_OUT", "APLY_HOME_DSTR_KEY": "APLY_HOME_DSTR_KEY_OUT", "APLY_HSHLD_INCM_AMT": "APLY_HSHLD_INCM_AMT_OUT", "APLY_MAIN_APLY_IND": "APLY_MAIN_APLY_IND_OUT", "APLY_MSS_REF_NUM": "APLY_MSS_REF_NUM_OUT", "APLY_NONUBN_IND": "APLY_NONUBN_IND_OUT", "APLY_PRIOR_DESP_1": "APLY_PRIOR_DESP_1", "APLY_PRIOR_DESP_2": "APLY_PRIOR_DESP_2", "APLY_PRIOR_DESP_3": "APLY_PRIOR_DESP_3", "APLY_PRIOR_DESP_4": "APLY_PRIOR_DESP_4", "APLY_PRIOR_DESP_5": "APLY_PRIOR_DESP_5", "APLY_PRIOR_DESP_6": "APLY_PRIOR_DESP_6", "APLY_PRIOR_NUM": "APLY_PRIOR_NUM_OUT", "APLY_PRIOR_NUM_1": "APLY_PRIOR_NUM_1", "APLY_PRIOR_NUM_2": "APLY_PRIOR_NUM_2", "APLY_PRIOR_NUM_3": "APLY_PRIOR_NUM_3", "APLY_PRIOR_NUM_4": "APLY_PRIOR_NUM_4", "APLY_PRIOR_NUM_5": "APLY_PRIOR_NUM_5", "APLY_PRIOR_NUM_6": "APLY_PRIOR_NUM_6", "APLY_PRIOR_NUM_SFX_NUM_1": "APLY_PRIOR_NUM_SFX_NUM_1", "APLY_PRIOR_NUM_SFX_NUM_2": "APLY_PRIOR_NUM_SFX_NUM_2", "APLY_PRIOR_NUM_SFX_NUM_3": "APLY_PRIOR_NUM_SFX_NUM_3", "APLY_PRIOR_NUM_SFX_NUM_4": "APLY_PRIOR_NUM_SFX_NUM_4", "APLY_PRIOR_NUM_SFX_NUM_5": "APLY_PRIOR_NUM_SFX_NUM_5", "APLY_PRIOR_NUM_SFX_NUM_6": "APLY_PRIOR_NUM_SFX_NUM_6", "APLY_PRPTY_OWNR_IND": "APLY_PRPTY_OWNR_IND_OUT", "APLY_SCHM_TYPE_CODE": "APLY_SCHM_TYPE_CODE_OUT", "DUMMY": "DUMMY", "EST_MGT_STS_CODE": "EST_MGT_STS_CODE_OUT", "FMLY_CPST_CODE": "FMLY_CPST_CODE_OUT", "GF_CERT_NUM": "GF_CERT_NUM_OUT", "HOS_APLY_FRZ_IND": "HOS_APLY_FRZ_IND_OUT", "HOS_APLY_NUM": "HOS_APLY_NUM_OUT", "HOS_APLY_STG_CODE": "HOS_APLY_STG_CODE_OUT", "HOS_APLY_STS_CODE": "HOS_APLY_STS_CODE_OUT", "HOS_APLY_STS_UPD_DATE": "HOS_APLY_STS_UPD_DATE_OUT", "HOS_APLY_TYPE_CODE": "HOS_APLY_TYPE_CODE_OUT", "HOS_PHASE_CODE": "HOS_PHASE_CODE_OUT", "HOS_RSCN_NUM": "HOS_RSCN_NUM_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "INCM_ENR_CNT": "INCM_ENR_CNT_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "LOA_IND": "LOA_IND_OUT", "NEW_HOS_APLY_NUM": "NEW_HOS_APLY_NUM_OUT", "NEW_HOS_APLY_SFX_NUM": "NEW_HOS_APLY_SFX_NUM_OUT", "NEW_HOS_APLY_TYPE_CODE": "NEW_HOS_APLY_TYPE_CODE_OUT", "NEW_HOS_PRIOR_NUM": "NEW_HOS_PRIOR_NUM_OUT", "NEW_HOS_PRIOR_NUM_SFX_NUM": "NEW_HOS_PRIOR_NUM_SFX_NUM_OUT", "PRH_APLY_NUM": "PRH_APLY_NUM_OUT", "WFA_APLY_APRV_DATE": "WFA_APLY_APRV_DATE", "WFA_APLY_APRV_NUM": "WFA_APLY_APRV_NUM", "WFA_APLY_FRZ_RSN_CODE": "WFA_APLY_FRZ_RSN_CODE", "WFA_APLY_REJ_RSN_CODE": "WFA_APLY_REJ_RSN_CODE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HSE_SRVC_APLY_KEY', 'HOS_PHASE_CODE', 'HOS_APLY_STS_UPD_DATE', 'APLY_PRIOR_NUM', 'APLY_HOME_DSTR_KEY', 'APLY_NONUBN_IND', 'APLY_HOME_CODE_ADDR', 'APLY_FMLY_SIZE_NUM', 'APLY_HSHLD_INCM_AMT', 'APLY_FMLY_SPLT_IND', 'APLY_DBL_RENT_IND', 'APLY_MAIN_APLY_IND', 'APLY_PRPTY_OWNR_IND', 'APLY_SCHM_TYPE_CODE', 'APLY_APLY_MSS_IND', 'APLY_MSS_REF_NUM', 'HOS_APLY_STG_CODE', 'HOS_APLY_STS_CODE', 'HOS_APLY_TYPE_CODE', 'EST_MGT_STS_CODE', 'GF_CERT_NUM', 'FMLY_CPST_CODE', 'APLY_DSBL_IND', 'INCM_ENR_CNT', 'LOA_IND', 'HOS_APLY_FRZ_IND', 'NEW_HOS_APLY_TYPE_CODE', 'NEW_HOS_APLY_NUM', 'NEW_HOS_APLY_SFX_NUM', 'NEW_HOS_PRIOR_NUM', 'NEW_HOS_PRIOR_NUM_SFX_NUM', 'PRH_APLY_NUM', 'HOS_APLY_NUM', 'APLY_CNCL_RSN_CODE', 'APLY_CRT_CHC_SEQ_NUM', 'HOS_RSCN_NUM', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'DUMMY', 'WFA_APLY_APRV_NUM', 'WFA_APLY_APRV_DATE', 'WFA_APLY_FRZ_RSN_CODE', 'WFA_APLY_REJ_RSN_CODE', 'APLY_PRIOR_DESP_1', 'APLY_PRIOR_NUM_2', 'APLY_PRIOR_DESP_2', 'APLY_PRIOR_NUM_3', 'APLY_PRIOR_DESP_3', 'APLY_PRIOR_NUM_4', 'APLY_PRIOR_DESP_4', 'APLY_PRIOR_NUM_5', 'APLY_PRIOR_DESP_5', 'APLY_PRIOR_NUM_6', 'APLY_PRIOR_DESP_6', 'APLY_PRIOR_NUM_1', 'APLY_PRIOR_NUM_SFX_NUM_1', 'APLY_PRIOR_NUM_SFX_NUM_2', 'APLY_PRIOR_NUM_SFX_NUM_3', 'APLY_PRIOR_NUM_SFX_NUM_4', 'APLY_PRIOR_NUM_SFX_NUM_5', 'APLY_PRIOR_NUM_SFX_NUM_6']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_HHA_HOS_APLY1", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_HHA_HOS_APLY1',
+            mode='append',
+            source_columns=[
+                'HSE_SRVC_APLY_KEY_OUT',
+                'HOS_PHASE_CODE_OUT',
+                'HOS_APLY_STS_UPD_DATE_OUT',
+                'APLY_PRIOR_NUM_OUT',
+                'APLY_HOME_DSTR_KEY_OUT',
+                'APLY_NONUBN_IND_OUT',
+                'APLY_HOME_CODE_ADDR_OUT',
+                'APLY_FMLY_SIZE_NUM_OUT',
+                'APLY_HSHLD_INCM_AMT_OUT',
+                'APLY_FMLY_SPLT_IND_OUT',
+                'APLY_DBL_RENT_IND_OUT',
+                'APLY_MAIN_APLY_IND_OUT',
+                'APLY_PRPTY_OWNR_IND_OUT',
+                'APLY_SCHM_TYPE_CODE_OUT',
+                'APLY_APLY_MSS_IND_OUT',
+                'APLY_MSS_REF_NUM_OUT',
+                'HOS_APLY_STG_CODE_OUT',
+                'HOS_APLY_STS_CODE_OUT',
+                'HOS_APLY_TYPE_CODE_OUT',
+                'EST_MGT_STS_CODE_OUT',
+                'GF_CERT_NUM_OUT',
+                'FMLY_CPST_CODE_OUT',
+                'APLY_DSBL_IND_OUT',
+                'INCM_ENR_CNT_OUT',
+                'LOA_IND_OUT',
+                'HOS_APLY_FRZ_IND_OUT',
+                'NEW_HOS_APLY_TYPE_CODE_OUT',
+                'NEW_HOS_APLY_NUM_OUT',
+                'NEW_HOS_APLY_SFX_NUM_OUT',
+                'NEW_HOS_PRIOR_NUM_OUT',
+                'NEW_HOS_PRIOR_NUM_SFX_NUM_OUT',
+                'PRH_APLY_NUM_OUT',
+                'HOS_APLY_NUM_OUT',
+                'APLY_CNCL_RSN_CODE_OUT',
+                'APLY_CRT_CHC_SEQ_NUM_OUT',
+                'HOS_RSCN_NUM_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'DUMMY',
+                'WFA_APLY_APRV_NUM',
+                'WFA_APLY_APRV_DATE',
+                'WFA_APLY_FRZ_RSN_CODE',
+                'WFA_APLY_REJ_RSN_CODE',
+                'APLY_PRIOR_DESP_1',
+                'APLY_PRIOR_NUM_2',
+                'APLY_PRIOR_DESP_2',
+                'APLY_PRIOR_NUM_3',
+                'APLY_PRIOR_DESP_3',
+                'APLY_PRIOR_NUM_4',
+                'APLY_PRIOR_DESP_4',
+                'APLY_PRIOR_NUM_5',
+                'APLY_PRIOR_DESP_5',
+                'APLY_PRIOR_NUM_6',
+                'APLY_PRIOR_DESP_6',
+                'APLY_PRIOR_NUM_1',
+                'APLY_PRIOR_NUM_SFX_NUM_1',
+                'APLY_PRIOR_NUM_SFX_NUM_2',
+                'APLY_PRIOR_NUM_SFX_NUM_3',
+                'APLY_PRIOR_NUM_SFX_NUM_4',
+                'APLY_PRIOR_NUM_SFX_NUM_5',
+                'APLY_PRIOR_NUM_SFX_NUM_6',
+            ],
+            target_columns=[
+                'HSE_SRVC_APLY_KEY',
+                'HOS_PHASE_CODE',
+                'HOS_APLY_STS_UPD_DATE',
+                'APLY_PRIOR_NUM',
+                'APLY_HOME_DSTR_KEY',
+                'APLY_NONUBN_IND',
+                'APLY_HOME_CODE_ADDR',
+                'APLY_FMLY_SIZE_NUM',
+                'APLY_HSHLD_INCM_AMT',
+                'APLY_FMLY_SPLT_IND',
+                'APLY_DBL_RENT_IND',
+                'APLY_MAIN_APLY_IND',
+                'APLY_PRPTY_OWNR_IND',
+                'APLY_SCHM_TYPE_CODE',
+                'APLY_APLY_MSS_IND',
+                'APLY_MSS_REF_NUM',
+                'HOS_APLY_STG_CODE',
+                'HOS_APLY_STS_CODE',
+                'HOS_APLY_TYPE_CODE',
+                'EST_MGT_STS_CODE',
+                'GF_CERT_NUM',
+                'FMLY_CPST_CODE',
+                'APLY_DSBL_IND',
+                'INCM_ENR_CNT',
+                'LOA_IND',
+                'HOS_APLY_FRZ_IND',
+                'NEW_HOS_APLY_TYPE_CODE',
+                'NEW_HOS_APLY_NUM',
+                'NEW_HOS_APLY_SFX_NUM',
+                'NEW_HOS_PRIOR_NUM',
+                'NEW_HOS_PRIOR_NUM_SFX_NUM',
+                'PRH_APLY_NUM',
+                'HOS_APLY_NUM',
+                'APLY_CNCL_RSN_CODE',
+                'APLY_CRT_CHC_SEQ_NUM',
+                'HOS_RSCN_NUM',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'DUMMY',
+                'WFA_APLY_APRV_NUM',
+                'WFA_APLY_APRV_DATE',
+                'WFA_APLY_FRZ_RSN_CODE',
+                'WFA_APLY_REJ_RSN_CODE',
+                'APLY_PRIOR_DESP_1',
+                'APLY_PRIOR_NUM_2',
+                'APLY_PRIOR_DESP_2',
+                'APLY_PRIOR_NUM_3',
+                'APLY_PRIOR_DESP_3',
+                'APLY_PRIOR_NUM_4',
+                'APLY_PRIOR_DESP_4',
+                'APLY_PRIOR_NUM_5',
+                'APLY_PRIOR_DESP_5',
+                'APLY_PRIOR_NUM_6',
+                'APLY_PRIOR_DESP_6',
+                'APLY_PRIOR_NUM_1',
+                'APLY_PRIOR_NUM_SFX_NUM_1',
+                'APLY_PRIOR_NUM_SFX_NUM_2',
+                'APLY_PRIOR_NUM_SFX_NUM_3',
+                'APLY_PRIOR_NUM_SFX_NUM_4',
+                'APLY_PRIOR_NUM_SFX_NUM_5',
+                'APLY_PRIOR_NUM_SFX_NUM_6',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_HHA_HOS_APLY1 write completed")
         

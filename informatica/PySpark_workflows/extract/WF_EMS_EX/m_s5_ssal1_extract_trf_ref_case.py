@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_TRF_REF_CASE")
@@ -79,128 +64,463 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_TRF_REF_CASE")
         # Source Qualifier: apply_SQ_TRF_REF_CASE
         df_SQ_TRF_REF_CASE = df_TRF_REF_CASE
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_TRF_REF_CASE = df_SQ_TRF_REF_CASE.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["REF_CASE_KEY", "REF_CASE_CRE_DATE", "REF_CASE_CRE_USER_ID", "REF_CASE_STS_CODE", "REF_CASE_STS_UPD_DATE", "CUST_KEY", "RCMD_RENT_FCTR_CODE", "RCMD_RENT_RVW_CATG_CODE", "EXPCT_CHILD_NUM", "EXPCT_DLVR_DATE", "HSHLD_AST_AMT", "HSHLD_INCM_AMT", "MARK_SCHM_PNT_NUM", "CSSA_IND", "CMT_RQR_IND", "CMT_PASS_IND", "DPT_RQR_IND", "LU_SBMT_DATE", "OPR_CODE", "RNTBL_AMT", "TFR_TYPE_CODE", "RR_FLFL_IND", "HSE_SRVC_APLY_KEY", "GRD_UP_CNT", "LU_STS_CODE", "REF_CASE_TYPE_CODE", "REF_CASE_APRV_LVL_CODE", "REF_CASE_CNFRM_BY_USER_ID", "HSE_UNIT_KEY", "LANG_PREF_CODE", "CRSP_ADDR_1", "CRSP_ADDR_2", "CRSP_ADDR_3", "CRSP_ADDR_4", "CRSP_ADDR_5", "LIFT_STOP_IND", "DPO_IND", "PAY_MORE_IND", "PAY_MORE_RATE", "NOT_ACPT_FLAT_IND", "INCM_LMT_IND", "SWD_RCMD_IND", "CRS_DSTR_ELGBL_IND", "OR_TYPE_CODE", "TFR_RSN_CODE", "TFR_RSN_TEXT", "TFR_NFA_RSN_CODE", "TFR_NFA_RSN_TEXT", "FTR_IFA_FROM_AREA", "FTR_IFA_TO_AREA", "APRV_DSTR_CHC_CODE", "PRH_APLY_SBMT_DATE", "IH_INTK_DATE", "SBMT_TO_USER_ID", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "OTHR_GRD_UP_RMK_TEXT", "EXTM_URG_CASE_IND", "CUST_PRMY_CNTC_PHONE_NUM", "CUST_SCND_CNTC_PHONE_NUM", "REF_CASE_CRE_USER_POST_NAME", "REF_CASE_CNFRM_USER_POST_NAME", "SBMT_TO_USER_POST_NAME", "FRST_LU_SBMT_DATE", "HSHLD_INCM_OVER_IND", "HSHLD_AST_OVER_IND", "EFAS_TFR_DBR_IND", "EFAS_TFR_DBR_END_DATE", "RENT_EXMPT_IND"]
-        df_SQ_TRF_REF_CASE = df_SQ_TRF_REF_CASE.select([col(c) if c.lower() in [x.lower() for x in df_SQ_TRF_REF_CASE.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_TRF_REF_CASE = lib.sq_output(
+            input_df=df_SQ_TRF_REF_CASE,
+            port_cols={
+                'REF_CASE_KEY': 'string',
+                'REF_CASE_CRE_DATE': 'date/time',
+                'REF_CASE_CRE_USER_ID': 'string',
+                'REF_CASE_STS_CODE': 'string',
+                'REF_CASE_STS_UPD_DATE': 'date/time',
+                'CUST_KEY': 'string',
+                'RCMD_RENT_FCTR_CODE': 'decimal',
+                'RCMD_RENT_RVW_CATG_CODE': 'string',
+                'EXPCT_CHILD_NUM': 'decimal',
+                'EXPCT_DLVR_DATE': 'date/time',
+                'HSHLD_AST_AMT': 'decimal',
+                'HSHLD_INCM_AMT': 'decimal',
+                'MARK_SCHM_PNT_NUM': 'decimal',
+                'CSSA_IND': 'string',
+                'CMT_RQR_IND': 'string',
+                'CMT_PASS_IND': 'string',
+                'DPT_RQR_IND': 'string',
+                'LU_SBMT_DATE': 'date/time',
+                'OPR_CODE': 'string',
+                'RNTBL_AMT': 'decimal',
+                'TFR_TYPE_CODE': 'string',
+                'RR_FLFL_IND': 'string',
+                'HSE_SRVC_APLY_KEY': 'string',
+                'GRD_UP_CNT': 'decimal',
+                'LU_STS_CODE': 'string',
+                'REF_CASE_TYPE_CODE': 'string',
+                'REF_CASE_APRV_LVL_CODE': 'string',
+                'REF_CASE_CNFRM_BY_USER_ID': 'string',
+                'HSE_UNIT_KEY': 'string',
+                'LANG_PREF_CODE': 'string',
+                'CRSP_ADDR_1': 'string',
+                'CRSP_ADDR_2': 'string',
+                'CRSP_ADDR_3': 'string',
+                'CRSP_ADDR_4': 'string',
+                'CRSP_ADDR_5': 'string',
+                'LIFT_STOP_IND': 'string',
+                'DPO_IND': 'string',
+                'PAY_MORE_IND': 'string',
+                'PAY_MORE_RATE': 'decimal',
+                'NOT_ACPT_FLAT_IND': 'string',
+                'INCM_LMT_IND': 'string',
+                'SWD_RCMD_IND': 'string',
+                'CRS_DSTR_ELGBL_IND': 'string',
+                'OR_TYPE_CODE': 'string',
+                'TFR_RSN_CODE': 'string',
+                'TFR_RSN_TEXT': 'string',
+                'TFR_NFA_RSN_CODE': 'string',
+                'TFR_NFA_RSN_TEXT': 'string',
+                'FTR_IFA_FROM_AREA': 'decimal',
+                'FTR_IFA_TO_AREA': 'decimal',
+                'APRV_DSTR_CHC_CODE': 'string',
+                'PRH_APLY_SBMT_DATE': 'date/time',
+                'IH_INTK_DATE': 'date/time',
+                'SBMT_TO_USER_ID': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'OTHR_GRD_UP_RMK_TEXT': 'string',
+                'EXTM_URG_CASE_IND': 'string',
+                'CUST_PRMY_CNTC_PHONE_NUM': 'string',
+                'CUST_SCND_CNTC_PHONE_NUM': 'string',
+                'REF_CASE_CRE_USER_POST_NAME': 'string',
+                'REF_CASE_CNFRM_USER_POST_NAME': 'string',
+                'SBMT_TO_USER_POST_NAME': 'string',
+                'FRST_LU_SBMT_DATE': 'date/time',
+                'HSHLD_INCM_OVER_IND': 'string',
+                'HSHLD_AST_OVER_IND': 'string',
+                'EFAS_TFR_DBR_IND': 'string',
+                'EFAS_TFR_DBR_END_DATE': 'date/time',
+                'RENT_EXMPT_IND': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_TRF_REF_CASE", df_SQ_TRF_REF_CASE)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_TRF_REF_CASE
-        df_EXPTRANS = df_EXPTRANS.withColumn("REF_CASE_KEY_OUT", expr("ltrim(rtrim(REF_CASE_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("REF_CASE_CRE_DATE_OUT", expr("REF_CASE_CRE_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("REF_CASE_CRE_USER_ID_OUT", expr("ltrim(rtrim(REF_CASE_CRE_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("REF_CASE_STS_COD_OUTE_OUT", expr("ltrim(rtrim(REF_CASE_STS_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("REF_CASE_STS_UPD_DATE_OUT", expr("REF_CASE_STS_UPD_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_KEY_OUT", expr("ltrim(rtrim(CUST_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RCMD_RENT_FCTR_CODE_OUT", expr("RCMD_RENT_FCTR_CODE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RCMD_RENT_RVW_CATG_CODE_OUT", expr("ltrim(rtrim(RCMD_RENT_RVW_CATG_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("EXPCT_CHILD_NUM_OUT", expr("EXPCT_CHILD_NUM"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("EXPCT_DLVR_DATE_OUT", expr("EXPCT_DLVR_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSHLD_AST_AMT_OUT", expr("HSHLD_AST_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSHLD_INCM_AMT_OUT", expr("HSHLD_INCM_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("MARK_SCHM_PNT_NUM_OUT", expr("MARK_SCHM_PNT_NUM"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CSSA_IND_OUT", expr("ltrim(rtrim(CSSA_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CMT_RQR_IND_OUT", expr("ltrim(rtrim(CMT_RQR_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CMT_PASS_IND_OUT", expr("ltrim(rtrim(CMT_PASS_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DPT_RQR_IND_OUT", expr("ltrim(rtrim(DPT_RQR_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LU_SBMT_DATE_OUT", expr("LU_SBMT_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_CODE_OUT", expr("ltrim(rtrim(OPR_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RNTBL_AMT_OUT", expr("RNTBL_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TFR_TYPE_CODE_OUT", expr("ltrim(rtrim(TFR_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RR_FLFL_IND_OUT", expr("ltrim(rtrim(RR_FLFL_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_SRVC_APLY_KEY_OUT", expr("ltrim(rtrim(HSE_SRVC_APLY_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("GRD_UP_CNT_OUT", expr("GRD_UP_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LU_STS_CODE_OUT", expr("ltrim(rtrim(LU_STS_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("REF_CASE_TYPE_CODE_OUT", expr("ltrim(rtrim(REF_CASE_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("REF_CASE_APRV_LVL_CODE_OUT", expr("ltrim(rtrim(REF_CASE_APRV_LVL_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("REF_CASE_CNFRM_BY_USER_ID_OUT", expr("ltrim(rtrim(REF_CASE_CNFRM_BY_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_UNIT_KEY_OUT", expr("ltrim(rtrim(HSE_UNIT_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LANG_PREF_CODE_OUT", expr("ltrim(rtrim(LANG_PREF_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRSP_ADDR_1_OUT", expr("ltrim(rtrim(CRSP_ADDR_1))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRSP_ADDR_2_OUT", expr("ltrim(rtrim(CRSP_ADDR_2))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRSP_ADDR_3_OUT", expr("ltrim(rtrim(CRSP_ADDR_3))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRSP_ADDR_4_OUT", expr("ltrim(rtrim(CRSP_ADDR_4))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRSP_ADDR_5_OUT", expr("ltrim(rtrim(CRSP_ADDR_5))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LIFT_STOP_IND_OUT", expr("ltrim(rtrim(LIFT_STOP_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DPO_IND_OUT", expr("ltrim(rtrim(DPO_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PAY_MORE_IND_OUT", expr("ltrim(rtrim(PAY_MORE_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PAY_MORE_RATE_OUT", expr("PAY_MORE_RATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NOT_ACPT_FLAT_IND_OUT", expr("ltrim(rtrim(NOT_ACPT_FLAT_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("INCM_LMT_IND_OUT", expr("ltrim(rtrim(INCM_LMT_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("SWD_RCMD_IND_OUT", expr("ltrim(rtrim(SWD_RCMD_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRS_DSTR_ELGBL_IND_OUT", expr("ltrim(rtrim(CRS_DSTR_ELGBL_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OR_TYPE_CODE_OUT", expr("ltrim(rtrim(OR_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TFR_RSN_CODE_OUT", expr("ltrim(rtrim(TFR_RSN_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TFR_RSN_TEXT_OUT", expr("ltrim(rtrim(TFR_RSN_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TFR_NFA_RSN_CODE_OUT", expr("ltrim(rtrim(TFR_NFA_RSN_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TFR_NFA_RSN_TEXT_OUT", expr("ltrim(rtrim(TFR_NFA_RSN_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("FTR_IFA_FROM_AREA_OUT", expr("FTR_IFA_FROM_AREA"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("FTR_IFA_TO_AREA_OUT", expr("FTR_IFA_TO_AREA"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APRV_DSTR_CHC_CODE_OUT", expr("ltrim(rtrim(APRV_DSTR_CHC_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PRH_APLY_SBMT_DATE_OUT", expr("PRH_APLY_SBMT_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("IH_INTK_DATE_OUT", expr("IH_INTK_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("SBMT_TO_USER_ID_OUT", expr("ltrim(rtrim(SBMT_TO_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OTHR_GRD_UP_RMK_TEXT_OUT", expr("ltrim(rtrim(OTHR_GRD_UP_RMK_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("EXTM_URG_CASE_IND_OUT", expr("ltrim(rtrim(EXTM_URG_CASE_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ELDR_MBR_ID_TYPE_CODE_OUT", expr("ltrim(rtrim(NULL))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ELDR_MBR_ID_NUM_OUT", expr("ltrim(rtrim(NULL))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ELDR_MBR_UNIT_KEY_OUT", expr("ltrim(rtrim(NULL))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("'|'"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_DATE))"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["LAST_REC_TXN_DATE", "CUST_PRMY_CNTC_PHONE_NUM", "CUST_SCND_CNTC_PHONE_NUM", "REF_CASE_CRE_USER_POST_NAME", "REF_CASE_CNFRM_USER_POST_NAME", "SBMT_TO_USER_POST_NAME", "FRST_LU_SBMT_DATE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_TRF_REF_CASE,
+            computed_columns=[
+                {'name': 'REF_CASE_KEY_OUT', 'expr': 'ltrim(rtrim(REF_CASE_KEY))'},
+                {'name': 'REF_CASE_CRE_DATE_OUT', 'expr': 'REF_CASE_CRE_DATE'},
+                {'name': 'REF_CASE_CRE_USER_ID_OUT', 'expr': 'ltrim(rtrim(REF_CASE_CRE_USER_ID))'},
+                {'name': 'REF_CASE_STS_COD_OUTE_OUT', 'expr': 'ltrim(rtrim(REF_CASE_STS_CODE))'},
+                {'name': 'REF_CASE_STS_UPD_DATE_OUT', 'expr': 'REF_CASE_STS_UPD_DATE'},
+                {'name': 'CUST_KEY_OUT', 'expr': 'ltrim(rtrim(CUST_KEY))'},
+                {'name': 'RCMD_RENT_FCTR_CODE_OUT', 'expr': 'RCMD_RENT_FCTR_CODE'},
+                {'name': 'RCMD_RENT_RVW_CATG_CODE_OUT', 'expr': 'ltrim(rtrim(RCMD_RENT_RVW_CATG_CODE))'},
+                {'name': 'EXPCT_CHILD_NUM_OUT', 'expr': 'EXPCT_CHILD_NUM'},
+                {'name': 'EXPCT_DLVR_DATE_OUT', 'expr': 'EXPCT_DLVR_DATE'},
+                {'name': 'HSHLD_AST_AMT_OUT', 'expr': 'HSHLD_AST_AMT'},
+                {'name': 'HSHLD_INCM_AMT_OUT', 'expr': 'HSHLD_INCM_AMT'},
+                {'name': 'MARK_SCHM_PNT_NUM_OUT', 'expr': 'MARK_SCHM_PNT_NUM'},
+                {'name': 'CSSA_IND_OUT', 'expr': 'ltrim(rtrim(CSSA_IND))'},
+                {'name': 'CMT_RQR_IND_OUT', 'expr': 'ltrim(rtrim(CMT_RQR_IND))'},
+                {'name': 'CMT_PASS_IND_OUT', 'expr': 'ltrim(rtrim(CMT_PASS_IND))'},
+                {'name': 'DPT_RQR_IND_OUT', 'expr': 'ltrim(rtrim(DPT_RQR_IND))'},
+                {'name': 'LU_SBMT_DATE_OUT', 'expr': 'LU_SBMT_DATE'},
+                {'name': 'OPR_CODE_OUT', 'expr': 'ltrim(rtrim(OPR_CODE))'},
+                {'name': 'RNTBL_AMT_OUT', 'expr': 'RNTBL_AMT'},
+                {'name': 'TFR_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(TFR_TYPE_CODE))'},
+                {'name': 'RR_FLFL_IND_OUT', 'expr': 'ltrim(rtrim(RR_FLFL_IND))'},
+                {'name': 'HSE_SRVC_APLY_KEY_OUT', 'expr': 'ltrim(rtrim(HSE_SRVC_APLY_KEY))'},
+                {'name': 'GRD_UP_CNT_OUT', 'expr': 'GRD_UP_CNT'},
+                {'name': 'LU_STS_CODE_OUT', 'expr': 'ltrim(rtrim(LU_STS_CODE))'},
+                {'name': 'REF_CASE_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(REF_CASE_TYPE_CODE))'},
+                {'name': 'REF_CASE_APRV_LVL_CODE_OUT', 'expr': 'ltrim(rtrim(REF_CASE_APRV_LVL_CODE))'},
+                {'name': 'REF_CASE_CNFRM_BY_USER_ID_OUT', 'expr': 'ltrim(rtrim(REF_CASE_CNFRM_BY_USER_ID))'},
+                {'name': 'HSE_UNIT_KEY_OUT', 'expr': 'ltrim(rtrim(HSE_UNIT_KEY))'},
+                {'name': 'LANG_PREF_CODE_OUT', 'expr': 'ltrim(rtrim(LANG_PREF_CODE))'},
+                {'name': 'CRSP_ADDR_1_OUT', 'expr': 'ltrim(rtrim(CRSP_ADDR_1))'},
+                {'name': 'CRSP_ADDR_2_OUT', 'expr': 'ltrim(rtrim(CRSP_ADDR_2))'},
+                {'name': 'CRSP_ADDR_3_OUT', 'expr': 'ltrim(rtrim(CRSP_ADDR_3))'},
+                {'name': 'CRSP_ADDR_4_OUT', 'expr': 'ltrim(rtrim(CRSP_ADDR_4))'},
+                {'name': 'CRSP_ADDR_5_OUT', 'expr': 'ltrim(rtrim(CRSP_ADDR_5))'},
+                {'name': 'LIFT_STOP_IND_OUT', 'expr': 'ltrim(rtrim(LIFT_STOP_IND))'},
+                {'name': 'DPO_IND_OUT', 'expr': 'ltrim(rtrim(DPO_IND))'},
+                {'name': 'PAY_MORE_IND_OUT', 'expr': 'ltrim(rtrim(PAY_MORE_IND))'},
+                {'name': 'PAY_MORE_RATE_OUT', 'expr': 'PAY_MORE_RATE'},
+                {'name': 'NOT_ACPT_FLAT_IND_OUT', 'expr': 'ltrim(rtrim(NOT_ACPT_FLAT_IND))'},
+                {'name': 'INCM_LMT_IND_OUT', 'expr': 'ltrim(rtrim(INCM_LMT_IND))'},
+                {'name': 'SWD_RCMD_IND_OUT', 'expr': 'ltrim(rtrim(SWD_RCMD_IND))'},
+                {'name': 'CRS_DSTR_ELGBL_IND_OUT', 'expr': 'ltrim(rtrim(CRS_DSTR_ELGBL_IND))'},
+                {'name': 'OR_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(OR_TYPE_CODE))'},
+                {'name': 'TFR_RSN_CODE_OUT', 'expr': 'ltrim(rtrim(TFR_RSN_CODE))'},
+                {'name': 'TFR_RSN_TEXT_OUT', 'expr': 'ltrim(rtrim(TFR_RSN_TEXT))'},
+                {'name': 'TFR_NFA_RSN_CODE_OUT', 'expr': 'ltrim(rtrim(TFR_NFA_RSN_CODE))'},
+                {'name': 'TFR_NFA_RSN_TEXT_OUT', 'expr': 'ltrim(rtrim(TFR_NFA_RSN_TEXT))'},
+                {'name': 'FTR_IFA_FROM_AREA_OUT', 'expr': 'FTR_IFA_FROM_AREA'},
+                {'name': 'FTR_IFA_TO_AREA_OUT', 'expr': 'FTR_IFA_TO_AREA'},
+                {'name': 'APRV_DSTR_CHC_CODE_OUT', 'expr': 'ltrim(rtrim(APRV_DSTR_CHC_CODE))'},
+                {'name': 'PRH_APLY_SBMT_DATE_OUT', 'expr': 'PRH_APLY_SBMT_DATE'},
+                {'name': 'IH_INTK_DATE_OUT', 'expr': 'IH_INTK_DATE'},
+                {'name': 'SBMT_TO_USER_ID_OUT', 'expr': 'ltrim(rtrim(SBMT_TO_USER_ID))'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_USER_ID_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID))'},
+                {'name': 'OTHR_GRD_UP_RMK_TEXT_OUT', 'expr': 'ltrim(rtrim(OTHR_GRD_UP_RMK_TEXT))'},
+                {'name': 'EXTM_URG_CASE_IND_OUT', 'expr': 'ltrim(rtrim(EXTM_URG_CASE_IND))'},
+                {'name': 'ELDR_MBR_ID_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(NULL))'},
+                {'name': 'ELDR_MBR_ID_NUM_OUT', 'expr': 'ltrim(rtrim(NULL))'},
+                {'name': 'ELDR_MBR_UNIT_KEY_OUT', 'expr': 'ltrim(rtrim(NULL))'},
+                {'name': 'DUMMY', 'expr': "'|'"},
+                {'name': 'LAST_REC_TXN_DATE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_DATE))'}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EMS_TRF_REF_CASE1")
         # Write to Target: write_EMS_TRF_REF_CASE1
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"APRV_DSTR_CHC_CODE": "APRV_DSTR_CHC_CODE_OUT", "CMT_PASS_IND": "CMT_PASS_IND_OUT", "CMT_RQR_IND": "CMT_RQR_IND_OUT", "CRSP_ADDR_1": "CRSP_ADDR_1_OUT", "CRSP_ADDR_2": "CRSP_ADDR_2_OUT", "CRSP_ADDR_3": "CRSP_ADDR_3_OUT", "CRSP_ADDR_4": "CRSP_ADDR_4_OUT", "CRSP_ADDR_5": "CRSP_ADDR_5_OUT", "CRS_DSTR_ELGBL_IND": "CRS_DSTR_ELGBL_IND_OUT", "CSSA_IND": "CSSA_IND_OUT", "CUST_KEY": "CUST_KEY_OUT", "CUST_PRMY_CNTC_PHONE_NUM": "CUST_PRMY_CNTC_PHONE_NUM", "CUST_SCND_CNTC_PHONE_NUM": "CUST_SCND_CNTC_PHONE_NUM", "DPO_IND": "DPO_IND_OUT", "DPT_RQR_IND": "DPT_RQR_IND_OUT", "DUMMY": "DUMMY", "ELDR_MBR_ID_NUM": "ELDR_MBR_ID_NUM_OUT", "ELDR_MBR_ID_TYPE_CODE": "ELDR_MBR_ID_TYPE_CODE_OUT", "ELDR_MBR_UNIT_KEY": "ELDR_MBR_UNIT_KEY_OUT", "EXPCT_CHILD_NUM": "EXPCT_CHILD_NUM_OUT", "EXPCT_DLVR_DATE": "EXPCT_DLVR_DATE_OUT", "EXTM_URG_CASE_IND": "EXTM_URG_CASE_IND_OUT", "FTR_IFA_FROM_AREA": "FTR_IFA_FROM_AREA_OUT", "FTR_IFA_TO_AREA": "FTR_IFA_TO_AREA_OUT", "GRD_UP_CNT": "GRD_UP_CNT_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "HSE_UNIT_KEY": "HSE_UNIT_KEY_OUT", "HSHLD_AST_AMT": "HSHLD_AST_AMT_OUT", "HSHLD_INCM_AMT": "HSHLD_INCM_AMT_OUT", "IH_INTK_DATE": "IH_INTK_DATE_OUT", "INCM_LMT_IND": "INCM_LMT_IND_OUT", "LANG_PREF_CODE": "LANG_PREF_CODE_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "LIFT_STOP_IND": "LIFT_STOP_IND_OUT", "LU_SBMT_DATE": "LU_SBMT_DATE_OUT", "LU_STS_CODE": "LU_STS_CODE_OUT", "MARK_SCHM_PNT_NUM": "MARK_SCHM_PNT_NUM_OUT", "NOT_ACPT_FLAT_IND": "NOT_ACPT_FLAT_IND_OUT", "OPR_CODE": "OPR_CODE_OUT", "OR_TYPE_CODE": "OR_TYPE_CODE_OUT", "OTHR_GRD_UP_RMK_TEXT": "OTHR_GRD_UP_RMK_TEXT_OUT", "PAY_MORE_IND": "PAY_MORE_IND_OUT", "PAY_MORE_RATE": "PAY_MORE_RATE_OUT", "PRH_APLY_SBMT_DATE": "PRH_APLY_SBMT_DATE_OUT", "RCMD_RENT_FCTR_CODE": "RCMD_RENT_FCTR_CODE_OUT", "RCMD_RENT_RVW_CATG_CODE": "RCMD_RENT_RVW_CATG_CODE_OUT", "REF_CASE_APRV_LVL_CODE": "REF_CASE_APRV_LVL_CODE_OUT", "REF_CASE_CNFRM_BY_USER_ID": "REF_CASE_CNFRM_BY_USER_ID_OUT", "REF_CASE_CRE_DATE": "REF_CASE_CRE_DATE_OUT", "REF_CASE_CRE_USER_ID": "REF_CASE_CRE_USER_ID_OUT", "REF_CASE_KEY": "REF_CASE_KEY_OUT", "REF_CASE_STS_CODE": "REF_CASE_STS_COD_OUTE_OUT", "REF_CASE_STS_UPD_DATE": "REF_CASE_STS_UPD_DATE_OUT", "REF_CASE_TYPE_CODE": "REF_CASE_TYPE_CODE_OUT", "RNTBL_AMT": "RNTBL_AMT_OUT", "RR_FLFL_IND": "RR_FLFL_IND_OUT", "SBMT_TO_USER_ID": "SBMT_TO_USER_ID_OUT", "SWD_RCMD_IND": "SWD_RCMD_IND_OUT", "TFR_NFA_RSN_CODE": "TFR_NFA_RSN_CODE_OUT", "TFR_NFA_RSN_TEXT": "TFR_NFA_RSN_TEXT_OUT", "TFR_RSN_CODE": "TFR_RSN_CODE_OUT", "TFR_RSN_TEXT": "TFR_RSN_TEXT_OUT", "TFR_TYPE_CODE": "TFR_TYPE_CODE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['REF_CASE_KEY', 'REF_CASE_CRE_DATE', 'REF_CASE_CRE_USER_ID', 'REF_CASE_STS_CODE', 'REF_CASE_STS_UPD_DATE', 'CUST_KEY', 'RCMD_RENT_FCTR_CODE', 'RCMD_RENT_RVW_CATG_CODE', 'EXPCT_CHILD_NUM', 'EXPCT_DLVR_DATE', 'HSHLD_AST_AMT', 'HSHLD_INCM_AMT', 'MARK_SCHM_PNT_NUM', 'CSSA_IND', 'CMT_RQR_IND', 'CMT_PASS_IND', 'DPT_RQR_IND', 'LU_SBMT_DATE', 'OPR_CODE', 'RNTBL_AMT', 'TFR_TYPE_CODE', 'RR_FLFL_IND', 'HSE_SRVC_APLY_KEY', 'GRD_UP_CNT', 'LU_STS_CODE', 'REF_CASE_TYPE_CODE', 'REF_CASE_APRV_LVL_CODE', 'REF_CASE_CNFRM_BY_USER_ID', 'HSE_UNIT_KEY', 'LANG_PREF_CODE', 'CRSP_ADDR_1', 'CRSP_ADDR_2', 'CRSP_ADDR_3', 'CRSP_ADDR_4', 'CRSP_ADDR_5', 'LIFT_STOP_IND', 'DPO_IND', 'PAY_MORE_IND', 'PAY_MORE_RATE', 'NOT_ACPT_FLAT_IND', 'INCM_LMT_IND', 'SWD_RCMD_IND', 'CRS_DSTR_ELGBL_IND', 'OR_TYPE_CODE', 'TFR_RSN_CODE', 'TFR_RSN_TEXT', 'TFR_NFA_RSN_CODE', 'TFR_NFA_RSN_TEXT', 'FTR_IFA_FROM_AREA', 'FTR_IFA_TO_AREA', 'APRV_DSTR_CHC_CODE', 'PRH_APLY_SBMT_DATE', 'IH_INTK_DATE', 'SBMT_TO_USER_ID', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'OTHR_GRD_UP_RMK_TEXT', 'EXTM_URG_CASE_IND', 'ELDR_MBR_ID_TYPE_CODE', 'ELDR_MBR_ID_NUM', 'ELDR_MBR_UNIT_KEY', 'CUST_PRMY_CNTC_PHONE_NUM', 'CUST_SCND_CNTC_PHONE_NUM', 'DUMMY']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_TRF_REF_CASE1", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_TRF_REF_CASE1',
+            mode='append',
+            source_columns=[
+                'REF_CASE_KEY_OUT',
+                'REF_CASE_CRE_DATE_OUT',
+                'REF_CASE_CRE_USER_ID_OUT',
+                'REF_CASE_STS_COD_OUTE_OUT',
+                'REF_CASE_STS_UPD_DATE_OUT',
+                'CUST_KEY_OUT',
+                'RCMD_RENT_FCTR_CODE_OUT',
+                'RCMD_RENT_RVW_CATG_CODE_OUT',
+                'EXPCT_CHILD_NUM_OUT',
+                'EXPCT_DLVR_DATE_OUT',
+                'HSHLD_AST_AMT_OUT',
+                'HSHLD_INCM_AMT_OUT',
+                'MARK_SCHM_PNT_NUM_OUT',
+                'CSSA_IND_OUT',
+                'CMT_RQR_IND_OUT',
+                'CMT_PASS_IND_OUT',
+                'DPT_RQR_IND_OUT',
+                'LU_SBMT_DATE_OUT',
+                'OPR_CODE_OUT',
+                'RNTBL_AMT_OUT',
+                'TFR_TYPE_CODE_OUT',
+                'RR_FLFL_IND_OUT',
+                'HSE_SRVC_APLY_KEY_OUT',
+                'GRD_UP_CNT_OUT',
+                'LU_STS_CODE_OUT',
+                'REF_CASE_TYPE_CODE_OUT',
+                'REF_CASE_APRV_LVL_CODE_OUT',
+                'REF_CASE_CNFRM_BY_USER_ID_OUT',
+                'HSE_UNIT_KEY_OUT',
+                'LANG_PREF_CODE_OUT',
+                'CRSP_ADDR_1_OUT',
+                'CRSP_ADDR_2_OUT',
+                'CRSP_ADDR_3_OUT',
+                'CRSP_ADDR_4_OUT',
+                'CRSP_ADDR_5_OUT',
+                'LIFT_STOP_IND_OUT',
+                'DPO_IND_OUT',
+                'PAY_MORE_IND_OUT',
+                'PAY_MORE_RATE_OUT',
+                'NOT_ACPT_FLAT_IND_OUT',
+                'INCM_LMT_IND_OUT',
+                'SWD_RCMD_IND_OUT',
+                'CRS_DSTR_ELGBL_IND_OUT',
+                'OR_TYPE_CODE_OUT',
+                'TFR_RSN_CODE_OUT',
+                'TFR_RSN_TEXT_OUT',
+                'TFR_NFA_RSN_CODE_OUT',
+                'TFR_NFA_RSN_TEXT_OUT',
+                'FTR_IFA_FROM_AREA_OUT',
+                'FTR_IFA_TO_AREA_OUT',
+                'APRV_DSTR_CHC_CODE_OUT',
+                'PRH_APLY_SBMT_DATE_OUT',
+                'IH_INTK_DATE_OUT',
+                'SBMT_TO_USER_ID_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'OTHR_GRD_UP_RMK_TEXT_OUT',
+                'EXTM_URG_CASE_IND_OUT',
+                'ELDR_MBR_ID_TYPE_CODE_OUT',
+                'ELDR_MBR_ID_NUM_OUT',
+                'ELDR_MBR_UNIT_KEY_OUT',
+                'CUST_PRMY_CNTC_PHONE_NUM',
+                'CUST_SCND_CNTC_PHONE_NUM',
+                'DUMMY',
+            ],
+            target_columns=[
+                'REF_CASE_KEY',
+                'REF_CASE_CRE_DATE',
+                'REF_CASE_CRE_USER_ID',
+                'REF_CASE_STS_CODE',
+                'REF_CASE_STS_UPD_DATE',
+                'CUST_KEY',
+                'RCMD_RENT_FCTR_CODE',
+                'RCMD_RENT_RVW_CATG_CODE',
+                'EXPCT_CHILD_NUM',
+                'EXPCT_DLVR_DATE',
+                'HSHLD_AST_AMT',
+                'HSHLD_INCM_AMT',
+                'MARK_SCHM_PNT_NUM',
+                'CSSA_IND',
+                'CMT_RQR_IND',
+                'CMT_PASS_IND',
+                'DPT_RQR_IND',
+                'LU_SBMT_DATE',
+                'OPR_CODE',
+                'RNTBL_AMT',
+                'TFR_TYPE_CODE',
+                'RR_FLFL_IND',
+                'HSE_SRVC_APLY_KEY',
+                'GRD_UP_CNT',
+                'LU_STS_CODE',
+                'REF_CASE_TYPE_CODE',
+                'REF_CASE_APRV_LVL_CODE',
+                'REF_CASE_CNFRM_BY_USER_ID',
+                'HSE_UNIT_KEY',
+                'LANG_PREF_CODE',
+                'CRSP_ADDR_1',
+                'CRSP_ADDR_2',
+                'CRSP_ADDR_3',
+                'CRSP_ADDR_4',
+                'CRSP_ADDR_5',
+                'LIFT_STOP_IND',
+                'DPO_IND',
+                'PAY_MORE_IND',
+                'PAY_MORE_RATE',
+                'NOT_ACPT_FLAT_IND',
+                'INCM_LMT_IND',
+                'SWD_RCMD_IND',
+                'CRS_DSTR_ELGBL_IND',
+                'OR_TYPE_CODE',
+                'TFR_RSN_CODE',
+                'TFR_RSN_TEXT',
+                'TFR_NFA_RSN_CODE',
+                'TFR_NFA_RSN_TEXT',
+                'FTR_IFA_FROM_AREA',
+                'FTR_IFA_TO_AREA',
+                'APRV_DSTR_CHC_CODE',
+                'PRH_APLY_SBMT_DATE',
+                'IH_INTK_DATE',
+                'SBMT_TO_USER_ID',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'OTHR_GRD_UP_RMK_TEXT',
+                'EXTM_URG_CASE_IND',
+                'ELDR_MBR_ID_TYPE_CODE',
+                'ELDR_MBR_ID_NUM',
+                'ELDR_MBR_UNIT_KEY',
+                'CUST_PRMY_CNTC_PHONE_NUM',
+                'CUST_SCND_CNTC_PHONE_NUM',
+                'DUMMY',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_TRF_REF_CASE1 write completed")
         logger.info("Step: write_EMS_TRF_REF_CASE")
         # Write to Target: write_EMS_TRF_REF_CASE
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"APRV_DSTR_CHC_CODE": "APRV_DSTR_CHC_CODE_OUT", "CMT_PASS_IND": "CMT_PASS_IND_OUT", "CMT_RQR_IND": "CMT_RQR_IND_OUT", "CRSP_ADDR_1": "CRSP_ADDR_1_OUT", "CRSP_ADDR_2": "CRSP_ADDR_2_OUT", "CRSP_ADDR_3": "CRSP_ADDR_3_OUT", "CRSP_ADDR_4": "CRSP_ADDR_4_OUT", "CRSP_ADDR_5": "CRSP_ADDR_5_OUT", "CRS_DSTR_ELGBL_IND": "CRS_DSTR_ELGBL_IND_OUT", "CSSA_IND": "CSSA_IND_OUT", "CUST_KEY": "CUST_KEY_OUT", "CUST_PRMY_CNTC_PHONE_NUM": "CUST_PRMY_CNTC_PHONE_NUM", "CUST_SCND_CNTC_PHONE_NUM": "CUST_SCND_CNTC_PHONE_NUM", "DPO_IND": "DPO_IND_OUT", "DPT_RQR_IND": "DPT_RQR_IND_OUT", "EFAS_TFR_DBR_END_DATE": "EFAS_TFR_DBR_END_DATE", "EFAS_TFR_DBR_IND": "EFAS_TFR_DBR_IND", "ELDR_MBR_ID_NUM": "ELDR_MBR_ID_NUM_OUT", "ELDR_MBR_ID_TYPE_CODE": "ELDR_MBR_ID_TYPE_CODE_OUT", "ELDR_MBR_UNIT_KEY": "ELDR_MBR_UNIT_KEY_OUT", "EXPCT_CHILD_NUM": "EXPCT_CHILD_NUM_OUT", "EXPCT_DLVR_DATE": "EXPCT_DLVR_DATE_OUT", "EXTM_URG_CASE_IND": "EXTM_URG_CASE_IND_OUT", "FRST_LU_SBMT_DATE": "FRST_LU_SBMT_DATE", "FTR_IFA_FROM_AREA": "FTR_IFA_FROM_AREA_OUT", "FTR_IFA_TO_AREA": "FTR_IFA_TO_AREA_OUT", "GRD_UP_CNT": "GRD_UP_CNT_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "HSE_UNIT_KEY": "HSE_UNIT_KEY_OUT", "HSHLD_AST_AMT": "HSHLD_AST_AMT_OUT", "HSHLD_AST_OVER_IND": "HSHLD_AST_OVER_IND", "HSHLD_INCM_AMT": "HSHLD_INCM_AMT_OUT", "HSHLD_INCM_OVER_IND": "HSHLD_INCM_OVER_IND", "IH_INTK_DATE": "IH_INTK_DATE_OUT", "INCM_LMT_IND": "INCM_LMT_IND_OUT", "LANG_PREF_CODE": "LANG_PREF_CODE_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "LIFT_STOP_IND": "LIFT_STOP_IND_OUT", "LU_SBMT_DATE": "LU_SBMT_DATE_OUT", "LU_STS_CODE": "LU_STS_CODE_OUT", "MARK_SCHM_PNT_NUM": "MARK_SCHM_PNT_NUM_OUT", "NOT_ACPT_FLAT_IND": "NOT_ACPT_FLAT_IND_OUT", "OPR_CODE": "OPR_CODE_OUT", "OR_TYPE_CODE": "OR_TYPE_CODE_OUT", "OTHR_GRD_UP_RMK_TEXT": "OTHR_GRD_UP_RMK_TEXT_OUT", "PAY_MORE_IND": "PAY_MORE_IND_OUT", "PAY_MORE_RATE": "PAY_MORE_RATE_OUT", "PRH_APLY_SBMT_DATE": "PRH_APLY_SBMT_DATE_OUT", "RCMD_RENT_FCTR_CODE": "RCMD_RENT_FCTR_CODE_OUT", "RCMD_RENT_RVW_CATG_CODE": "RCMD_RENT_RVW_CATG_CODE_OUT", "REF_CASE_APRV_LVL_CODE": "REF_CASE_APRV_LVL_CODE_OUT", "REF_CASE_CNFRM_BY_USER_ID": "REF_CASE_CNFRM_BY_USER_ID_OUT", "REF_CASE_CNFRM_USER_POST_NAME": "REF_CASE_CNFRM_USER_POST_NAME", "REF_CASE_CRE_DATE": "REF_CASE_CRE_DATE_OUT", "REF_CASE_CRE_USER_ID": "REF_CASE_CRE_USER_ID_OUT", "REF_CASE_CRE_USER_POST_NAME": "REF_CASE_CRE_USER_POST_NAME", "REF_CASE_KEY": "REF_CASE_KEY_OUT", "REF_CASE_STS_CODE": "REF_CASE_STS_COD_OUTE_OUT", "REF_CASE_STS_UPD_DATE": "REF_CASE_STS_UPD_DATE_OUT", "REF_CASE_TYPE_CODE": "REF_CASE_TYPE_CODE_OUT", "RENT_EXMPT_IND": "RENT_EXMPT_IND", "RNTBL_AMT": "RNTBL_AMT_OUT", "RR_FLFL_IND": "RR_FLFL_IND_OUT", "SBMT_TO_USER_ID": "SBMT_TO_USER_ID_OUT", "SBMT_TO_USER_POST_NAME": "SBMT_TO_USER_POST_NAME", "SWD_RCMD_IND": "SWD_RCMD_IND_OUT", "TFR_NFA_RSN_CODE": "TFR_NFA_RSN_CODE_OUT", "TFR_NFA_RSN_TEXT": "TFR_NFA_RSN_TEXT_OUT", "TFR_RSN_CODE": "TFR_RSN_CODE_OUT", "TFR_RSN_TEXT": "TFR_RSN_TEXT_OUT", "TFR_TYPE_CODE": "TFR_TYPE_CODE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['REF_CASE_KEY', 'REF_CASE_CRE_DATE', 'REF_CASE_CRE_USER_ID', 'REF_CASE_STS_CODE', 'REF_CASE_STS_UPD_DATE', 'CUST_KEY', 'RCMD_RENT_FCTR_CODE', 'RCMD_RENT_RVW_CATG_CODE', 'EXPCT_CHILD_NUM', 'EXPCT_DLVR_DATE', 'HSHLD_AST_AMT', 'HSHLD_INCM_AMT', 'MARK_SCHM_PNT_NUM', 'CSSA_IND', 'CMT_RQR_IND', 'CMT_PASS_IND', 'DPT_RQR_IND', 'LU_SBMT_DATE', 'OPR_CODE', 'RNTBL_AMT', 'TFR_TYPE_CODE', 'RR_FLFL_IND', 'HSE_SRVC_APLY_KEY', 'GRD_UP_CNT', 'LU_STS_CODE', 'REF_CASE_TYPE_CODE', 'REF_CASE_APRV_LVL_CODE', 'REF_CASE_CNFRM_BY_USER_ID', 'HSE_UNIT_KEY', 'LANG_PREF_CODE', 'CRSP_ADDR_1', 'CRSP_ADDR_2', 'CRSP_ADDR_3', 'CRSP_ADDR_4', 'CRSP_ADDR_5', 'LIFT_STOP_IND', 'DPO_IND', 'PAY_MORE_IND', 'PAY_MORE_RATE', 'NOT_ACPT_FLAT_IND', 'INCM_LMT_IND', 'SWD_RCMD_IND', 'CRS_DSTR_ELGBL_IND', 'OR_TYPE_CODE', 'TFR_RSN_CODE', 'TFR_RSN_TEXT', 'TFR_NFA_RSN_CODE', 'TFR_NFA_RSN_TEXT', 'FTR_IFA_FROM_AREA', 'FTR_IFA_TO_AREA', 'APRV_DSTR_CHC_CODE', 'PRH_APLY_SBMT_DATE', 'IH_INTK_DATE', 'SBMT_TO_USER_ID', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'OTHR_GRD_UP_RMK_TEXT', 'EXTM_URG_CASE_IND', 'ELDR_MBR_ID_TYPE_CODE', 'ELDR_MBR_ID_NUM', 'ELDR_MBR_UNIT_KEY', 'CUST_PRMY_CNTC_PHONE_NUM', 'CUST_SCND_CNTC_PHONE_NUM', 'REF_CASE_CRE_USER_POST_NAME', 'REF_CASE_CNFRM_USER_POST_NAME', 'SBMT_TO_USER_POST_NAME', 'FRST_LU_SBMT_DATE', 'HSHLD_INCM_OVER_IND', 'HSHLD_AST_OVER_IND', 'EFAS_TFR_DBR_IND', 'EFAS_TFR_DBR_END_DATE', 'RENT_EXMPT_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_TRF_REF_CASE", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_TRF_REF_CASE',
+            mode='append',
+            source_columns=[
+                'REF_CASE_KEY_OUT',
+                'REF_CASE_CRE_DATE_OUT',
+                'REF_CASE_CRE_USER_ID_OUT',
+                'REF_CASE_STS_COD_OUTE_OUT',
+                'REF_CASE_STS_UPD_DATE_OUT',
+                'CUST_KEY_OUT',
+                'RCMD_RENT_FCTR_CODE_OUT',
+                'RCMD_RENT_RVW_CATG_CODE_OUT',
+                'EXPCT_CHILD_NUM_OUT',
+                'EXPCT_DLVR_DATE_OUT',
+                'HSHLD_AST_AMT_OUT',
+                'HSHLD_INCM_AMT_OUT',
+                'MARK_SCHM_PNT_NUM_OUT',
+                'CSSA_IND_OUT',
+                'CMT_RQR_IND_OUT',
+                'CMT_PASS_IND_OUT',
+                'DPT_RQR_IND_OUT',
+                'LU_SBMT_DATE_OUT',
+                'OPR_CODE_OUT',
+                'RNTBL_AMT_OUT',
+                'TFR_TYPE_CODE_OUT',
+                'RR_FLFL_IND_OUT',
+                'HSE_SRVC_APLY_KEY_OUT',
+                'GRD_UP_CNT_OUT',
+                'LU_STS_CODE_OUT',
+                'REF_CASE_TYPE_CODE_OUT',
+                'REF_CASE_APRV_LVL_CODE_OUT',
+                'REF_CASE_CNFRM_BY_USER_ID_OUT',
+                'HSE_UNIT_KEY_OUT',
+                'LANG_PREF_CODE_OUT',
+                'CRSP_ADDR_1_OUT',
+                'CRSP_ADDR_2_OUT',
+                'CRSP_ADDR_3_OUT',
+                'CRSP_ADDR_4_OUT',
+                'CRSP_ADDR_5_OUT',
+                'LIFT_STOP_IND_OUT',
+                'DPO_IND_OUT',
+                'PAY_MORE_IND_OUT',
+                'PAY_MORE_RATE_OUT',
+                'NOT_ACPT_FLAT_IND_OUT',
+                'INCM_LMT_IND_OUT',
+                'SWD_RCMD_IND_OUT',
+                'CRS_DSTR_ELGBL_IND_OUT',
+                'OR_TYPE_CODE_OUT',
+                'TFR_RSN_CODE_OUT',
+                'TFR_RSN_TEXT_OUT',
+                'TFR_NFA_RSN_CODE_OUT',
+                'TFR_NFA_RSN_TEXT_OUT',
+                'FTR_IFA_FROM_AREA_OUT',
+                'FTR_IFA_TO_AREA_OUT',
+                'APRV_DSTR_CHC_CODE_OUT',
+                'PRH_APLY_SBMT_DATE_OUT',
+                'IH_INTK_DATE_OUT',
+                'SBMT_TO_USER_ID_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'OTHR_GRD_UP_RMK_TEXT_OUT',
+                'EXTM_URG_CASE_IND_OUT',
+                'ELDR_MBR_ID_TYPE_CODE_OUT',
+                'ELDR_MBR_ID_NUM_OUT',
+                'ELDR_MBR_UNIT_KEY_OUT',
+                'CUST_PRMY_CNTC_PHONE_NUM',
+                'CUST_SCND_CNTC_PHONE_NUM',
+                'REF_CASE_CRE_USER_POST_NAME',
+                'REF_CASE_CNFRM_USER_POST_NAME',
+                'SBMT_TO_USER_POST_NAME',
+                'FRST_LU_SBMT_DATE',
+                'HSHLD_INCM_OVER_IND',
+                'HSHLD_AST_OVER_IND',
+                'EFAS_TFR_DBR_IND',
+                'EFAS_TFR_DBR_END_DATE',
+                'RENT_EXMPT_IND',
+            ],
+            target_columns=[
+                'REF_CASE_KEY',
+                'REF_CASE_CRE_DATE',
+                'REF_CASE_CRE_USER_ID',
+                'REF_CASE_STS_CODE',
+                'REF_CASE_STS_UPD_DATE',
+                'CUST_KEY',
+                'RCMD_RENT_FCTR_CODE',
+                'RCMD_RENT_RVW_CATG_CODE',
+                'EXPCT_CHILD_NUM',
+                'EXPCT_DLVR_DATE',
+                'HSHLD_AST_AMT',
+                'HSHLD_INCM_AMT',
+                'MARK_SCHM_PNT_NUM',
+                'CSSA_IND',
+                'CMT_RQR_IND',
+                'CMT_PASS_IND',
+                'DPT_RQR_IND',
+                'LU_SBMT_DATE',
+                'OPR_CODE',
+                'RNTBL_AMT',
+                'TFR_TYPE_CODE',
+                'RR_FLFL_IND',
+                'HSE_SRVC_APLY_KEY',
+                'GRD_UP_CNT',
+                'LU_STS_CODE',
+                'REF_CASE_TYPE_CODE',
+                'REF_CASE_APRV_LVL_CODE',
+                'REF_CASE_CNFRM_BY_USER_ID',
+                'HSE_UNIT_KEY',
+                'LANG_PREF_CODE',
+                'CRSP_ADDR_1',
+                'CRSP_ADDR_2',
+                'CRSP_ADDR_3',
+                'CRSP_ADDR_4',
+                'CRSP_ADDR_5',
+                'LIFT_STOP_IND',
+                'DPO_IND',
+                'PAY_MORE_IND',
+                'PAY_MORE_RATE',
+                'NOT_ACPT_FLAT_IND',
+                'INCM_LMT_IND',
+                'SWD_RCMD_IND',
+                'CRS_DSTR_ELGBL_IND',
+                'OR_TYPE_CODE',
+                'TFR_RSN_CODE',
+                'TFR_RSN_TEXT',
+                'TFR_NFA_RSN_CODE',
+                'TFR_NFA_RSN_TEXT',
+                'FTR_IFA_FROM_AREA',
+                'FTR_IFA_TO_AREA',
+                'APRV_DSTR_CHC_CODE',
+                'PRH_APLY_SBMT_DATE',
+                'IH_INTK_DATE',
+                'SBMT_TO_USER_ID',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'OTHR_GRD_UP_RMK_TEXT',
+                'EXTM_URG_CASE_IND',
+                'ELDR_MBR_ID_TYPE_CODE',
+                'ELDR_MBR_ID_NUM',
+                'ELDR_MBR_UNIT_KEY',
+                'CUST_PRMY_CNTC_PHONE_NUM',
+                'CUST_SCND_CNTC_PHONE_NUM',
+                'REF_CASE_CRE_USER_POST_NAME',
+                'REF_CASE_CNFRM_USER_POST_NAME',
+                'SBMT_TO_USER_POST_NAME',
+                'FRST_LU_SBMT_DATE',
+                'HSHLD_INCM_OVER_IND',
+                'HSHLD_AST_OVER_IND',
+                'EFAS_TFR_DBR_IND',
+                'EFAS_TFR_DBR_END_DATE',
+                'RENT_EXMPT_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_TRF_REF_CASE write completed")
         

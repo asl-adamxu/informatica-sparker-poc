@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_HSC_HOS_CNTR_AGRMT")
@@ -79,96 +64,253 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_HSC_HOS_CNTR_AGRMT")
         # Source Qualifier: apply_SQ_HSC_HOS_CNTR_AGRMT
         df_SQ_HSC_HOS_CNTR_AGRMT = df_HSC_HOS_CNTR_AGRMT
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_HSC_HOS_CNTR_AGRMT = df_SQ_HSC_HOS_CNTR_AGRMT.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HSE_SRVC_APLY_KEY", "HOS_UNIT_KEY", "HOS_CNTR_EXOWNR_REF_CODE", "HOS_AGRMT_HOME_PHONE_NUM_1", "HOS_AGRMT_OFFC_PHONE_NUM_1", "HOS_AGRMT_HOME_PHONE_NUM_2", "HOS_AGRMT_OFFC_PHONE_NUM_2", "HOS_AGRMT_HOME_PHONE_NUM_3", "HOS_AGRMT_OFFC_PHONE_NUM_3", "HOS_AGRMT_RSCN_DATE", "HOS_AGRMT_RSCN_CODE", "HOS_AGRMT_ASGN_DATE", "HOS_AGRMT_DMND_LTR_ISS_DATE", "HOS_AGRMT_LAST_PYMT_DATE", "HOS_AGRMT_PCHS_BAL_AMT", "HOS_AGRMT_MRTG_CODE", "HOS_AGRMT_MRTG_NAME", "HOS_AGRMT_HOME_ENG_ADDR_1", "HOS_AGRMT_HOME_ENG_ADDR_2", "HOS_AGRMT_HOME_ENG_ADDR_3", "HOS_AGRMT_CRSP_ENG_ADDR_1", "HOS_AGRMT_CRSP_ENG_ADDR_2", "HOS_AGRMT_CRSP_ENG_ADDR_3", "HOS_AGRMT_MRTG_OPT_CODE", "HOS_AGRMT_SIGN_DATE", "HOS_AGRMT_RMDR_LTR_ISS_DATE", "HOS_AGRMT_FLAT_SLCT_DATE", "HOS_AGRMT_DMND_LTR_RQS_DATE", "HOS_AGRMT_DPST_RFND_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "MRTG_SLCTR_NAME"]
-        df_SQ_HSC_HOS_CNTR_AGRMT = df_SQ_HSC_HOS_CNTR_AGRMT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_HSC_HOS_CNTR_AGRMT.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_HSC_HOS_CNTR_AGRMT = lib.sq_output(
+            input_df=df_SQ_HSC_HOS_CNTR_AGRMT,
+            port_cols={
+                'HSE_SRVC_APLY_KEY': 'string',
+                'HOS_UNIT_KEY': 'string',
+                'HOS_CNTR_EXOWNR_REF_CODE': 'string',
+                'HOS_AGRMT_HOME_PHONE_NUM_1': 'string',
+                'HOS_AGRMT_OFFC_PHONE_NUM_1': 'string',
+                'HOS_AGRMT_HOME_PHONE_NUM_2': 'string',
+                'HOS_AGRMT_OFFC_PHONE_NUM_2': 'string',
+                'HOS_AGRMT_HOME_PHONE_NUM_3': 'string',
+                'HOS_AGRMT_OFFC_PHONE_NUM_3': 'string',
+                'HOS_AGRMT_RSCN_DATE': 'date/time',
+                'HOS_AGRMT_RSCN_CODE': 'string',
+                'HOS_AGRMT_ASGN_DATE': 'date/time',
+                'HOS_AGRMT_DMND_LTR_ISS_DATE': 'date/time',
+                'HOS_AGRMT_LAST_PYMT_DATE': 'date/time',
+                'HOS_AGRMT_PCHS_BAL_AMT': 'decimal',
+                'HOS_AGRMT_MRTG_CODE': 'string',
+                'HOS_AGRMT_MRTG_NAME': 'string',
+                'HOS_AGRMT_HOME_ENG_ADDR_1': 'string',
+                'HOS_AGRMT_HOME_ENG_ADDR_2': 'string',
+                'HOS_AGRMT_HOME_ENG_ADDR_3': 'string',
+                'HOS_AGRMT_CRSP_ENG_ADDR_1': 'string',
+                'HOS_AGRMT_CRSP_ENG_ADDR_2': 'string',
+                'HOS_AGRMT_CRSP_ENG_ADDR_3': 'string',
+                'HOS_AGRMT_MRTG_OPT_CODE': 'string',
+                'HOS_AGRMT_SIGN_DATE': 'date/time',
+                'HOS_AGRMT_RMDR_LTR_ISS_DATE': 'date/time',
+                'HOS_AGRMT_FLAT_SLCT_DATE': 'date/time',
+                'HOS_AGRMT_DMND_LTR_RQS_DATE': 'date/time',
+                'HOS_AGRMT_DPST_RFND_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'string',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'MRTG_SLCTR_NAME': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_HSC_HOS_CNTR_AGRMT", df_SQ_HSC_HOS_CNTR_AGRMT)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_HSC_HOS_CNTR_AGRMT
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_SRVC_APLY_KEY_OUT", expr("ltrim(rtrim(HSE_SRVC_APLY_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_UNIT_KEY_OUT", expr("ltrim(rtrim(HOS_UNIT_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_CNTR_EXOWNR_REF_CODE_OUT", expr("ltrim(rtrim(HOS_CNTR_EXOWNR_REF_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_AGRMT_HOME_PHONE_NUM_1_OUT", expr("ltrim(rtrim(HOS_AGRMT_HOME_PHONE_NUM_1))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_AGRMT_OFFC_PHONE_NUM_1_OUT", expr("ltrim(rtrim(HOS_AGRMT_OFFC_PHONE_NUM_1))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_AGRMT_HOME_PHONE_NUM_2_OUT", expr("ltrim(rtrim(HOS_AGRMT_HOME_PHONE_NUM_2))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_AGRMT_OFFC_PHONE_NUM_2_OUT", expr("ltrim(rtrim(HOS_AGRMT_OFFC_PHONE_NUM_2))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_AGRMT_HOME_PHONE_NUM_3_OUT", expr("ltrim(rtrim(HOS_AGRMT_HOME_PHONE_NUM_3))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_AGRMT_OFFC_PHONE_NUM_3_OUT", expr("ltrim(rtrim(HOS_AGRMT_OFFC_PHONE_NUM_3))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_AGRMT_RSCN_DATE_OUT", expr("HOS_AGRMT_RSCN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_AGRMT_RSCN_CODE_OUT", expr("ltrim(rtrim(HOS_AGRMT_RSCN_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_AGRMT_ASGN_DATE_OUT", expr("HOS_AGRMT_ASGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_AGRMT_DMND_LTR_ISS_DATE_OUT", expr("HOS_AGRMT_DMND_LTR_ISS_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_AGRMT_LAST_PYMT_DATE_OUT", expr("HOS_AGRMT_LAST_PYMT_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_AGRMT_PCHS_BAL_AMT_OUT", expr("HOS_AGRMT_PCHS_BAL_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_AGRMT_MRTG_CODE_OUT", expr("ltrim(rtrim(HOS_AGRMT_MRTG_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_AGRMT_MRTG_NAME_OUT", expr("ltrim(rtrim(HOS_AGRMT_MRTG_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_AGRMT_HOME_ENG_ADDR_1_OUT", expr("ltrim(rtrim(HOS_AGRMT_HOME_ENG_ADDR_1))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_AGRMT_HOME_ENG_ADDR_2_OUT", expr("ltrim(rtrim(HOS_AGRMT_HOME_ENG_ADDR_2))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_AGRMT_HOME_ENG_ADDR_3_OUT", expr("ltrim(rtrim(HOS_AGRMT_HOME_ENG_ADDR_3))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_AGRMT_CRSP_ENG_ADDR_1_OUT", expr("ltrim(rtrim(HOS_AGRMT_CRSP_ENG_ADDR_1))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_AGRMT_CRSP_ENG_ADDR_2_OUT", expr("ltrim(rtrim(HOS_AGRMT_CRSP_ENG_ADDR_2))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_AGRMT_CRSP_ENG_ADDR_3_OUT", expr("ltrim(rtrim(HOS_AGRMT_CRSP_ENG_ADDR_3))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_AGRMT_MRTG_OPT_CODE_OUT", expr("ltrim(rtrim(HOS_AGRMT_MRTG_OPT_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_AGRMT_SIGN_DATE_OUT", expr("HOS_AGRMT_SIGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_AGRMT_RMDR_LTR_ISS_DATE_OUT", expr("HOS_AGRMT_RMDR_LTR_ISS_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_AGRMT_FLAT_SLCT_DATE_OUT", expr("HOS_AGRMT_FLAT_SLCT_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_AGRMT_DMND_LTR_RQS_DATE_OUT", expr("HOS_AGRMT_DMND_LTR_RQS_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOS_AGRMT_DPST_RFND_IND_OUT", expr("ltrim(rtrim(HOS_AGRMT_DPST_RFND_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE_OUT", expr("LAST_REC_TXN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("MRTG_SLCTR_NAME_OUT", expr("ltrim(rtrim(MRTG_SLCTR_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("'|'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_HSC_HOS_CNTR_AGRMT,
+            computed_columns=[
+                {'name': 'HSE_SRVC_APLY_KEY_OUT', 'expr': 'ltrim(rtrim(HSE_SRVC_APLY_KEY))'},
+                {'name': 'HOS_UNIT_KEY_OUT', 'expr': 'ltrim(rtrim(HOS_UNIT_KEY))'},
+                {'name': 'HOS_CNTR_EXOWNR_REF_CODE_OUT', 'expr': 'ltrim(rtrim(HOS_CNTR_EXOWNR_REF_CODE))'},
+                {'name': 'HOS_AGRMT_HOME_PHONE_NUM_1_OUT', 'expr': 'ltrim(rtrim(HOS_AGRMT_HOME_PHONE_NUM_1))'},
+                {'name': 'HOS_AGRMT_OFFC_PHONE_NUM_1_OUT', 'expr': 'ltrim(rtrim(HOS_AGRMT_OFFC_PHONE_NUM_1))'},
+                {'name': 'HOS_AGRMT_HOME_PHONE_NUM_2_OUT', 'expr': 'ltrim(rtrim(HOS_AGRMT_HOME_PHONE_NUM_2))'},
+                {'name': 'HOS_AGRMT_OFFC_PHONE_NUM_2_OUT', 'expr': 'ltrim(rtrim(HOS_AGRMT_OFFC_PHONE_NUM_2))'},
+                {'name': 'HOS_AGRMT_HOME_PHONE_NUM_3_OUT', 'expr': 'ltrim(rtrim(HOS_AGRMT_HOME_PHONE_NUM_3))'},
+                {'name': 'HOS_AGRMT_OFFC_PHONE_NUM_3_OUT', 'expr': 'ltrim(rtrim(HOS_AGRMT_OFFC_PHONE_NUM_3))'},
+                {'name': 'HOS_AGRMT_RSCN_DATE_OUT', 'expr': 'HOS_AGRMT_RSCN_DATE'},
+                {'name': 'HOS_AGRMT_RSCN_CODE_OUT', 'expr': 'ltrim(rtrim(HOS_AGRMT_RSCN_CODE))'},
+                {'name': 'HOS_AGRMT_ASGN_DATE_OUT', 'expr': 'HOS_AGRMT_ASGN_DATE'},
+                {'name': 'HOS_AGRMT_DMND_LTR_ISS_DATE_OUT', 'expr': 'HOS_AGRMT_DMND_LTR_ISS_DATE'},
+                {'name': 'HOS_AGRMT_LAST_PYMT_DATE_OUT', 'expr': 'HOS_AGRMT_LAST_PYMT_DATE'},
+                {'name': 'HOS_AGRMT_PCHS_BAL_AMT_OUT', 'expr': 'HOS_AGRMT_PCHS_BAL_AMT'},
+                {'name': 'HOS_AGRMT_MRTG_CODE_OUT', 'expr': 'ltrim(rtrim(HOS_AGRMT_MRTG_CODE))'},
+                {'name': 'HOS_AGRMT_MRTG_NAME_OUT', 'expr': 'ltrim(rtrim(HOS_AGRMT_MRTG_NAME))'},
+                {'name': 'HOS_AGRMT_HOME_ENG_ADDR_1_OUT', 'expr': 'ltrim(rtrim(HOS_AGRMT_HOME_ENG_ADDR_1))'},
+                {'name': 'HOS_AGRMT_HOME_ENG_ADDR_2_OUT', 'expr': 'ltrim(rtrim(HOS_AGRMT_HOME_ENG_ADDR_2))'},
+                {'name': 'HOS_AGRMT_HOME_ENG_ADDR_3_OUT', 'expr': 'ltrim(rtrim(HOS_AGRMT_HOME_ENG_ADDR_3))'},
+                {'name': 'HOS_AGRMT_CRSP_ENG_ADDR_1_OUT', 'expr': 'ltrim(rtrim(HOS_AGRMT_CRSP_ENG_ADDR_1))'},
+                {'name': 'HOS_AGRMT_CRSP_ENG_ADDR_2_OUT', 'expr': 'ltrim(rtrim(HOS_AGRMT_CRSP_ENG_ADDR_2))'},
+                {'name': 'HOS_AGRMT_CRSP_ENG_ADDR_3_OUT', 'expr': 'ltrim(rtrim(HOS_AGRMT_CRSP_ENG_ADDR_3))'},
+                {'name': 'HOS_AGRMT_MRTG_OPT_CODE_OUT', 'expr': 'ltrim(rtrim(HOS_AGRMT_MRTG_OPT_CODE))'},
+                {'name': 'HOS_AGRMT_SIGN_DATE_OUT', 'expr': 'HOS_AGRMT_SIGN_DATE'},
+                {'name': 'HOS_AGRMT_RMDR_LTR_ISS_DATE_OUT', 'expr': 'HOS_AGRMT_RMDR_LTR_ISS_DATE'},
+                {'name': 'HOS_AGRMT_FLAT_SLCT_DATE_OUT', 'expr': 'HOS_AGRMT_FLAT_SLCT_DATE'},
+                {'name': 'HOS_AGRMT_DMND_LTR_RQS_DATE_OUT', 'expr': 'HOS_AGRMT_DMND_LTR_RQS_DATE'},
+                {'name': 'HOS_AGRMT_DPST_RFND_IND_OUT', 'expr': 'ltrim(rtrim(HOS_AGRMT_DPST_RFND_IND))'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_DATE_OUT', 'expr': 'LAST_REC_TXN_DATE'},
+                {'name': 'LAST_REC_TXN_USER_ID_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID))'},
+                {'name': 'MRTG_SLCTR_NAME_OUT', 'expr': 'ltrim(rtrim(MRTG_SLCTR_NAME))'},
+                {'name': 'DUMMY', 'expr': "'|'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EMS_HSC_HOS_CNTR_AGRMT1")
         # Write to Target: write_EMS_HSC_HOS_CNTR_AGRMT1
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"DUMMY": "DUMMY", "HOS_AGRMT_ASGN_DATE": "HOS_AGRMT_ASGN_DATE_OUT", "HOS_AGRMT_CRSP_ENG_ADDR_1": "HOS_AGRMT_CRSP_ENG_ADDR_1_OUT", "HOS_AGRMT_CRSP_ENG_ADDR_2": "HOS_AGRMT_CRSP_ENG_ADDR_2_OUT", "HOS_AGRMT_CRSP_ENG_ADDR_3": "HOS_AGRMT_CRSP_ENG_ADDR_3_OUT", "HOS_AGRMT_DMND_LTR_ISS_DATE": "HOS_AGRMT_DMND_LTR_ISS_DATE_OUT", "HOS_AGRMT_DMND_LTR_RQS_DATE": "HOS_AGRMT_DMND_LTR_RQS_DATE_OUT", "HOS_AGRMT_DPST_RFND_IND": "HOS_AGRMT_DPST_RFND_IND_OUT", "HOS_AGRMT_FLAT_SLCT_DATE": "HOS_AGRMT_FLAT_SLCT_DATE_OUT", "HOS_AGRMT_HOME_ENG_ADDR_1": "HOS_AGRMT_HOME_ENG_ADDR_1_OUT", "HOS_AGRMT_HOME_ENG_ADDR_2": "HOS_AGRMT_HOME_ENG_ADDR_2_OUT", "HOS_AGRMT_HOME_ENG_ADDR_3": "HOS_AGRMT_HOME_ENG_ADDR_3_OUT", "HOS_AGRMT_HOME_PHONE_NUM_1": "HOS_AGRMT_HOME_PHONE_NUM_1_OUT", "HOS_AGRMT_HOME_PHONE_NUM_2": "HOS_AGRMT_HOME_PHONE_NUM_2_OUT", "HOS_AGRMT_HOME_PHONE_NUM_3": "HOS_AGRMT_HOME_PHONE_NUM_3_OUT", "HOS_AGRMT_LAST_PYMT_DATE": "HOS_AGRMT_LAST_PYMT_DATE_OUT", "HOS_AGRMT_MRTG_CODE": "HOS_AGRMT_MRTG_CODE_OUT", "HOS_AGRMT_MRTG_NAME": "HOS_AGRMT_MRTG_NAME_OUT", "HOS_AGRMT_MRTG_OPT_CODE": "HOS_AGRMT_MRTG_OPT_CODE_OUT", "HOS_AGRMT_OFFC_PHONE_NUM_1": "HOS_AGRMT_OFFC_PHONE_NUM_1_OUT", "HOS_AGRMT_OFFC_PHONE_NUM_2": "HOS_AGRMT_OFFC_PHONE_NUM_2_OUT", "HOS_AGRMT_OFFC_PHONE_NUM_3": "HOS_AGRMT_OFFC_PHONE_NUM_3_OUT", "HOS_AGRMT_PCHS_BAL_AMT": "HOS_AGRMT_PCHS_BAL_AMT_OUT", "HOS_AGRMT_RMDR_LTR_ISS_DATE": "HOS_AGRMT_RMDR_LTR_ISS_DATE_OUT", "HOS_AGRMT_RSCN_CODE": "HOS_AGRMT_RSCN_CODE_OUT", "HOS_AGRMT_RSCN_DATE": "HOS_AGRMT_RSCN_DATE_OUT", "HOS_AGRMT_SIGN_DATE": "HOS_AGRMT_SIGN_DATE_OUT", "HOS_CNTR_EXOWNR_REF_CODE": "HOS_CNTR_EXOWNR_REF_CODE_OUT", "HOS_UNIT_KEY": "HOS_UNIT_KEY_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "MRTG_SLCTR_NAME": "MRTG_SLCTR_NAME_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HSE_SRVC_APLY_KEY', 'HOS_UNIT_KEY', 'HOS_CNTR_EXOWNR_REF_CODE', 'HOS_AGRMT_HOME_PHONE_NUM_1', 'HOS_AGRMT_OFFC_PHONE_NUM_1', 'HOS_AGRMT_HOME_PHONE_NUM_2', 'HOS_AGRMT_OFFC_PHONE_NUM_2', 'HOS_AGRMT_HOME_PHONE_NUM_3', 'HOS_AGRMT_OFFC_PHONE_NUM_3', 'HOS_AGRMT_RSCN_DATE', 'HOS_AGRMT_RSCN_CODE', 'HOS_AGRMT_ASGN_DATE', 'HOS_AGRMT_DMND_LTR_ISS_DATE', 'HOS_AGRMT_LAST_PYMT_DATE', 'HOS_AGRMT_PCHS_BAL_AMT', 'HOS_AGRMT_MRTG_CODE', 'HOS_AGRMT_MRTG_NAME', 'HOS_AGRMT_HOME_ENG_ADDR_1', 'HOS_AGRMT_HOME_ENG_ADDR_2', 'HOS_AGRMT_HOME_ENG_ADDR_3', 'HOS_AGRMT_CRSP_ENG_ADDR_1', 'HOS_AGRMT_CRSP_ENG_ADDR_2', 'HOS_AGRMT_CRSP_ENG_ADDR_3', 'HOS_AGRMT_MRTG_OPT_CODE', 'HOS_AGRMT_SIGN_DATE', 'HOS_AGRMT_RMDR_LTR_ISS_DATE', 'HOS_AGRMT_FLAT_SLCT_DATE', 'HOS_AGRMT_DMND_LTR_RQS_DATE', 'HOS_AGRMT_DPST_RFND_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'MRTG_SLCTR_NAME']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_HSC_HOS_CNTR_AGRMT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_HSC_HOS_CNTR_AGRMT',
+            mode='append',
+            source_columns=[
+                'HSE_SRVC_APLY_KEY_OUT',
+                'HOS_UNIT_KEY_OUT',
+                'HOS_CNTR_EXOWNR_REF_CODE_OUT',
+                'HOS_AGRMT_HOME_PHONE_NUM_1_OUT',
+                'HOS_AGRMT_OFFC_PHONE_NUM_1_OUT',
+                'HOS_AGRMT_HOME_PHONE_NUM_2_OUT',
+                'HOS_AGRMT_OFFC_PHONE_NUM_2_OUT',
+                'HOS_AGRMT_HOME_PHONE_NUM_3_OUT',
+                'HOS_AGRMT_OFFC_PHONE_NUM_3_OUT',
+                'HOS_AGRMT_RSCN_DATE_OUT',
+                'HOS_AGRMT_RSCN_CODE_OUT',
+                'HOS_AGRMT_ASGN_DATE_OUT',
+                'HOS_AGRMT_DMND_LTR_ISS_DATE_OUT',
+                'HOS_AGRMT_LAST_PYMT_DATE_OUT',
+                'HOS_AGRMT_PCHS_BAL_AMT_OUT',
+                'HOS_AGRMT_MRTG_CODE_OUT',
+                'HOS_AGRMT_MRTG_NAME_OUT',
+                'HOS_AGRMT_HOME_ENG_ADDR_1_OUT',
+                'HOS_AGRMT_HOME_ENG_ADDR_2_OUT',
+                'HOS_AGRMT_HOME_ENG_ADDR_3_OUT',
+                'HOS_AGRMT_CRSP_ENG_ADDR_1_OUT',
+                'HOS_AGRMT_CRSP_ENG_ADDR_2_OUT',
+                'HOS_AGRMT_CRSP_ENG_ADDR_3_OUT',
+                'HOS_AGRMT_MRTG_OPT_CODE_OUT',
+                'HOS_AGRMT_SIGN_DATE_OUT',
+                'HOS_AGRMT_RMDR_LTR_ISS_DATE_OUT',
+                'HOS_AGRMT_FLAT_SLCT_DATE_OUT',
+                'HOS_AGRMT_DMND_LTR_RQS_DATE_OUT',
+                'HOS_AGRMT_DPST_RFND_IND_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'MRTG_SLCTR_NAME_OUT',
+            ],
+            target_columns=[
+                'HSE_SRVC_APLY_KEY',
+                'HOS_UNIT_KEY',
+                'HOS_CNTR_EXOWNR_REF_CODE',
+                'HOS_AGRMT_HOME_PHONE_NUM_1',
+                'HOS_AGRMT_OFFC_PHONE_NUM_1',
+                'HOS_AGRMT_HOME_PHONE_NUM_2',
+                'HOS_AGRMT_OFFC_PHONE_NUM_2',
+                'HOS_AGRMT_HOME_PHONE_NUM_3',
+                'HOS_AGRMT_OFFC_PHONE_NUM_3',
+                'HOS_AGRMT_RSCN_DATE',
+                'HOS_AGRMT_RSCN_CODE',
+                'HOS_AGRMT_ASGN_DATE',
+                'HOS_AGRMT_DMND_LTR_ISS_DATE',
+                'HOS_AGRMT_LAST_PYMT_DATE',
+                'HOS_AGRMT_PCHS_BAL_AMT',
+                'HOS_AGRMT_MRTG_CODE',
+                'HOS_AGRMT_MRTG_NAME',
+                'HOS_AGRMT_HOME_ENG_ADDR_1',
+                'HOS_AGRMT_HOME_ENG_ADDR_2',
+                'HOS_AGRMT_HOME_ENG_ADDR_3',
+                'HOS_AGRMT_CRSP_ENG_ADDR_1',
+                'HOS_AGRMT_CRSP_ENG_ADDR_2',
+                'HOS_AGRMT_CRSP_ENG_ADDR_3',
+                'HOS_AGRMT_MRTG_OPT_CODE',
+                'HOS_AGRMT_SIGN_DATE',
+                'HOS_AGRMT_RMDR_LTR_ISS_DATE',
+                'HOS_AGRMT_FLAT_SLCT_DATE',
+                'HOS_AGRMT_DMND_LTR_RQS_DATE',
+                'HOS_AGRMT_DPST_RFND_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'MRTG_SLCTR_NAME',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_HSC_HOS_CNTR_AGRMT1 write completed")
         logger.info("Step: write_EMS_HSC_HOS_CNTR_AGRMT")
         # Write to Target: write_EMS_HSC_HOS_CNTR_AGRMT
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"HOS_AGRMT_ASGN_DATE": "HOS_AGRMT_ASGN_DATE_OUT", "HOS_AGRMT_CRSP_ENG_ADDR_1": "HOS_AGRMT_CRSP_ENG_ADDR_1_OUT", "HOS_AGRMT_CRSP_ENG_ADDR_2": "HOS_AGRMT_CRSP_ENG_ADDR_2_OUT", "HOS_AGRMT_CRSP_ENG_ADDR_3": "HOS_AGRMT_CRSP_ENG_ADDR_3_OUT", "HOS_AGRMT_DMND_LTR_ISS_DATE": "HOS_AGRMT_DMND_LTR_ISS_DATE_OUT", "HOS_AGRMT_DMND_LTR_RQS_DATE": "HOS_AGRMT_DMND_LTR_RQS_DATE_OUT", "HOS_AGRMT_DPST_RFND_IND": "HOS_AGRMT_DPST_RFND_IND_OUT", "HOS_AGRMT_FLAT_SLCT_DATE": "HOS_AGRMT_FLAT_SLCT_DATE_OUT", "HOS_AGRMT_HOME_ENG_ADDR_1": "HOS_AGRMT_HOME_ENG_ADDR_1_OUT", "HOS_AGRMT_HOME_ENG_ADDR_2": "HOS_AGRMT_HOME_ENG_ADDR_2_OUT", "HOS_AGRMT_HOME_ENG_ADDR_3": "HOS_AGRMT_HOME_ENG_ADDR_3_OUT", "HOS_AGRMT_HOME_PHONE_NUM_1": "HOS_AGRMT_HOME_PHONE_NUM_1_OUT", "HOS_AGRMT_HOME_PHONE_NUM_2": "HOS_AGRMT_HOME_PHONE_NUM_2_OUT", "HOS_AGRMT_HOME_PHONE_NUM_3": "HOS_AGRMT_HOME_PHONE_NUM_3_OUT", "HOS_AGRMT_LAST_PYMT_DATE": "HOS_AGRMT_LAST_PYMT_DATE_OUT", "HOS_AGRMT_MRTG_CODE": "HOS_AGRMT_MRTG_CODE_OUT", "HOS_AGRMT_MRTG_NAME": "HOS_AGRMT_MRTG_NAME_OUT", "HOS_AGRMT_MRTG_OPT_CODE": "HOS_AGRMT_MRTG_OPT_CODE_OUT", "HOS_AGRMT_OFFC_PHONE_NUM_1": "HOS_AGRMT_OFFC_PHONE_NUM_1_OUT", "HOS_AGRMT_OFFC_PHONE_NUM_2": "HOS_AGRMT_OFFC_PHONE_NUM_2_OUT", "HOS_AGRMT_OFFC_PHONE_NUM_3": "HOS_AGRMT_OFFC_PHONE_NUM_3_OUT", "HOS_AGRMT_PCHS_BAL_AMT": "HOS_AGRMT_PCHS_BAL_AMT_OUT", "HOS_AGRMT_RMDR_LTR_ISS_DATE": "HOS_AGRMT_RMDR_LTR_ISS_DATE_OUT", "HOS_AGRMT_RSCN_CODE": "HOS_AGRMT_RSCN_CODE_OUT", "HOS_AGRMT_RSCN_DATE": "HOS_AGRMT_RSCN_DATE_OUT", "HOS_AGRMT_SIGN_DATE": "HOS_AGRMT_SIGN_DATE_OUT", "HOS_CNTR_EXOWNR_REF_CODE": "HOS_CNTR_EXOWNR_REF_CODE_OUT", "HOS_UNIT_KEY": "HOS_UNIT_KEY_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "MRTG_SLCTR_NAME": "MRTG_SLCTR_NAME_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HSE_SRVC_APLY_KEY', 'HOS_UNIT_KEY', 'HOS_CNTR_EXOWNR_REF_CODE', 'HOS_AGRMT_HOME_PHONE_NUM_1', 'HOS_AGRMT_OFFC_PHONE_NUM_1', 'HOS_AGRMT_HOME_PHONE_NUM_2', 'HOS_AGRMT_OFFC_PHONE_NUM_2', 'HOS_AGRMT_HOME_PHONE_NUM_3', 'HOS_AGRMT_OFFC_PHONE_NUM_3', 'HOS_AGRMT_RSCN_DATE', 'HOS_AGRMT_RSCN_CODE', 'HOS_AGRMT_ASGN_DATE', 'HOS_AGRMT_DMND_LTR_ISS_DATE', 'HOS_AGRMT_LAST_PYMT_DATE', 'HOS_AGRMT_PCHS_BAL_AMT', 'HOS_AGRMT_MRTG_CODE', 'HOS_AGRMT_MRTG_NAME', 'HOS_AGRMT_HOME_ENG_ADDR_1', 'HOS_AGRMT_HOME_ENG_ADDR_2', 'HOS_AGRMT_HOME_ENG_ADDR_3', 'HOS_AGRMT_CRSP_ENG_ADDR_1', 'HOS_AGRMT_CRSP_ENG_ADDR_2', 'HOS_AGRMT_CRSP_ENG_ADDR_3', 'HOS_AGRMT_MRTG_OPT_CODE', 'HOS_AGRMT_SIGN_DATE', 'HOS_AGRMT_RMDR_LTR_ISS_DATE', 'HOS_AGRMT_FLAT_SLCT_DATE', 'HOS_AGRMT_DMND_LTR_RQS_DATE', 'HOS_AGRMT_DPST_RFND_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'MRTG_SLCTR_NAME']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_HSC_HOS_CNTR_AGRMT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_HSC_HOS_CNTR_AGRMT',
+            mode='append',
+            source_columns=[
+                'HSE_SRVC_APLY_KEY_OUT',
+                'HOS_UNIT_KEY_OUT',
+                'HOS_CNTR_EXOWNR_REF_CODE_OUT',
+                'HOS_AGRMT_HOME_PHONE_NUM_1_OUT',
+                'HOS_AGRMT_OFFC_PHONE_NUM_1_OUT',
+                'HOS_AGRMT_HOME_PHONE_NUM_2_OUT',
+                'HOS_AGRMT_OFFC_PHONE_NUM_2_OUT',
+                'HOS_AGRMT_HOME_PHONE_NUM_3_OUT',
+                'HOS_AGRMT_OFFC_PHONE_NUM_3_OUT',
+                'HOS_AGRMT_RSCN_DATE_OUT',
+                'HOS_AGRMT_RSCN_CODE_OUT',
+                'HOS_AGRMT_ASGN_DATE_OUT',
+                'HOS_AGRMT_DMND_LTR_ISS_DATE_OUT',
+                'HOS_AGRMT_LAST_PYMT_DATE_OUT',
+                'HOS_AGRMT_PCHS_BAL_AMT_OUT',
+                'HOS_AGRMT_MRTG_CODE_OUT',
+                'HOS_AGRMT_MRTG_NAME_OUT',
+                'HOS_AGRMT_HOME_ENG_ADDR_1_OUT',
+                'HOS_AGRMT_HOME_ENG_ADDR_2_OUT',
+                'HOS_AGRMT_HOME_ENG_ADDR_3_OUT',
+                'HOS_AGRMT_CRSP_ENG_ADDR_1_OUT',
+                'HOS_AGRMT_CRSP_ENG_ADDR_2_OUT',
+                'HOS_AGRMT_CRSP_ENG_ADDR_3_OUT',
+                'HOS_AGRMT_MRTG_OPT_CODE_OUT',
+                'HOS_AGRMT_SIGN_DATE_OUT',
+                'HOS_AGRMT_RMDR_LTR_ISS_DATE_OUT',
+                'HOS_AGRMT_FLAT_SLCT_DATE_OUT',
+                'HOS_AGRMT_DMND_LTR_RQS_DATE_OUT',
+                'HOS_AGRMT_DPST_RFND_IND_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'MRTG_SLCTR_NAME_OUT',
+            ],
+            target_columns=[
+                'HSE_SRVC_APLY_KEY',
+                'HOS_UNIT_KEY',
+                'HOS_CNTR_EXOWNR_REF_CODE',
+                'HOS_AGRMT_HOME_PHONE_NUM_1',
+                'HOS_AGRMT_OFFC_PHONE_NUM_1',
+                'HOS_AGRMT_HOME_PHONE_NUM_2',
+                'HOS_AGRMT_OFFC_PHONE_NUM_2',
+                'HOS_AGRMT_HOME_PHONE_NUM_3',
+                'HOS_AGRMT_OFFC_PHONE_NUM_3',
+                'HOS_AGRMT_RSCN_DATE',
+                'HOS_AGRMT_RSCN_CODE',
+                'HOS_AGRMT_ASGN_DATE',
+                'HOS_AGRMT_DMND_LTR_ISS_DATE',
+                'HOS_AGRMT_LAST_PYMT_DATE',
+                'HOS_AGRMT_PCHS_BAL_AMT',
+                'HOS_AGRMT_MRTG_CODE',
+                'HOS_AGRMT_MRTG_NAME',
+                'HOS_AGRMT_HOME_ENG_ADDR_1',
+                'HOS_AGRMT_HOME_ENG_ADDR_2',
+                'HOS_AGRMT_HOME_ENG_ADDR_3',
+                'HOS_AGRMT_CRSP_ENG_ADDR_1',
+                'HOS_AGRMT_CRSP_ENG_ADDR_2',
+                'HOS_AGRMT_CRSP_ENG_ADDR_3',
+                'HOS_AGRMT_MRTG_OPT_CODE',
+                'HOS_AGRMT_SIGN_DATE',
+                'HOS_AGRMT_RMDR_LTR_ISS_DATE',
+                'HOS_AGRMT_FLAT_SLCT_DATE',
+                'HOS_AGRMT_DMND_LTR_RQS_DATE',
+                'HOS_AGRMT_DPST_RFND_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'MRTG_SLCTR_NAME',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_HSC_HOS_CNTR_AGRMT write completed")
         

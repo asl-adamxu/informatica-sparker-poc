@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_rpt_mth = ""
     v_snsh_date = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_rpt_mth",  "$$v_snsh_date", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_rpt_mth":
-                            v_rpt_mth = _val
-                        if _clean == "v_snsh_date":
-                            v_snsh_date = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_rpt_mth",  "$$v_snsh_date", ], logger)
+    v_rpt_mth = _vars.get("v_rpt_mth", v_rpt_mth)
+    v_snsh_date = _vars.get("v_snsh_date", v_snsh_date)
     
     try:
         logger.info("Step: read_SOR_RRS_ADT_TRL")

@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_WTP_DCLR")
@@ -79,65 +64,262 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_WTP_DCLR")
         # Source Qualifier: apply_SQ_WTP_DCLR
         df_SQ_WTP_DCLR = df_WTP_DCLR
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_WTP_DCLR = df_SQ_WTP_DCLR.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["WTP_REC_KEY", "CUST_KEY", "HSE_SRVC_APLY_KEY", "HSE_UNIT_KEY", "WTP_CYCL_YEAR_MTH", "WTP_STS_CODE", "WTP_DCLR_FORM_RCV_IND", "WTP_REF_PHRM_IND", "WTP_OPT_NOT_DCLR_IND", "CMT_SBTYP_CODE", "WTP_DSBL_ALWN_RCPT_IND", "WTP_HK_DPO_IND", "WTP_HSHLD_INCM_OVER_IND", "WTP_HSHLD_AST_OVER_IND", "FMLY_SIZE_NUM", "HSHLD_INCM_AMT", "HSHLD_AST_AMT", "RENT_FCTR_CODE", "RENT_BGN_DATE", "RENT_END_DATE", "RENT_CHNG_RSN_CODE", "RENT_CHNG_RSN_TEXT", "WTP_RMK_TEXT", "INT37_PRN_DATE", "WTP25_PRN_DATE", "WTP26_PRN_DATE", "WTP28_PRN_DATE", "WTP29_PRN_DATE", "WTP30_PRN_DATE", "WTP31_PRN_DATE", "WTP32_PRN_DATE", "WTP33_PRN_DATE", "WTP34_PRN_DATE", "WTP35_PRN_DATE", "WTP36_PRN_DATE", "WTP37_PRN_DATE", "WTP38_PRN_DATE", "ORIG_HSE_SRVC_APLY_KEY", "WTP_EXTRC_DATE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID"]
-        df_SQ_WTP_DCLR = df_SQ_WTP_DCLR.select([col(c) if c.lower() in [x.lower() for x in df_SQ_WTP_DCLR.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_WTP_DCLR = lib.sq_output(
+            input_df=df_SQ_WTP_DCLR,
+            port_cols={
+                'WTP_REC_KEY': 'decimal',
+                'CUST_KEY': 'string',
+                'HSE_SRVC_APLY_KEY': 'string',
+                'HSE_UNIT_KEY': 'string',
+                'WTP_CYCL_YEAR_MTH': 'decimal',
+                'WTP_STS_CODE': 'string',
+                'WTP_DCLR_FORM_RCV_IND': 'string',
+                'WTP_REF_PHRM_IND': 'string',
+                'WTP_OPT_NOT_DCLR_IND': 'string',
+                'CMT_SBTYP_CODE': 'string',
+                'WTP_DSBL_ALWN_RCPT_IND': 'string',
+                'WTP_HK_DPO_IND': 'string',
+                'WTP_HSHLD_INCM_OVER_IND': 'string',
+                'WTP_HSHLD_AST_OVER_IND': 'string',
+                'FMLY_SIZE_NUM': 'decimal',
+                'HSHLD_INCM_AMT': 'decimal',
+                'HSHLD_AST_AMT': 'decimal',
+                'RENT_FCTR_CODE': 'decimal',
+                'RENT_BGN_DATE': 'date/time',
+                'RENT_END_DATE': 'date/time',
+                'RENT_CHNG_RSN_CODE': 'string',
+                'RENT_CHNG_RSN_TEXT': 'string',
+                'WTP_RMK_TEXT': 'string',
+                'INT37_PRN_DATE': 'date/time',
+                'WTP25_PRN_DATE': 'date/time',
+                'WTP26_PRN_DATE': 'date/time',
+                'WTP28_PRN_DATE': 'date/time',
+                'WTP29_PRN_DATE': 'date/time',
+                'WTP30_PRN_DATE': 'date/time',
+                'WTP31_PRN_DATE': 'date/time',
+                'WTP32_PRN_DATE': 'date/time',
+                'WTP33_PRN_DATE': 'date/time',
+                'WTP34_PRN_DATE': 'date/time',
+                'WTP35_PRN_DATE': 'date/time',
+                'WTP36_PRN_DATE': 'date/time',
+                'WTP37_PRN_DATE': 'date/time',
+                'WTP38_PRN_DATE': 'date/time',
+                'ORIG_HSE_SRVC_APLY_KEY': 'string',
+                'WTP_EXTRC_DATE': 'date/time',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_USER_ID': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_WTP_DCLR", df_SQ_WTP_DCLR)
         
         logger.info("Step: apply_EXP_L1")
         # Expression: apply_EXP_L1
-        df_EXP_L1 = df_SQ_WTP_DCLR
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["WTP_REC_KEY", "CUST_KEY", "HSE_SRVC_APLY_KEY", "HSE_UNIT_KEY", "WTP_CYCL_YEAR_MTH", "WTP_STS_CODE", "WTP_DCLR_FORM_RCV_IND", "WTP_REF_PHRM_IND", "WTP_OPT_NOT_DCLR_IND", "CMT_SBTYP_CODE", "WTP_DSBL_ALWN_RCPT_IND", "WTP_HK_DPO_IND", "WTP_HSHLD_INCM_OVER_IND", "WTP_HSHLD_AST_OVER_IND", "FMLY_SIZE_NUM", "HSHLD_INCM_AMT", "HSHLD_AST_AMT", "RENT_FCTR_CODE", "RENT_BGN_DATE", "RENT_END_DATE", "RENT_CHNG_RSN_CODE", "RENT_CHNG_RSN_TEXT", "WTP_RMK_TEXT", "INT37_PRN_DATE", "WTP25_PRN_DATE", "WTP26_PRN_DATE", "WTP28_PRN_DATE", "WTP29_PRN_DATE", "WTP30_PRN_DATE", "WTP31_PRN_DATE", "WTP32_PRN_DATE", "WTP33_PRN_DATE", "WTP34_PRN_DATE", "WTP35_PRN_DATE", "WTP36_PRN_DATE", "WTP37_PRN_DATE", "WTP38_PRN_DATE", "ORIG_HSE_SRVC_APLY_KEY", "WTP_EXTRC_DATE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID"]:
-            if _col.lower() not in [x.lower() for x in df_EXP_L1.columns]:
-                df_EXP_L1 = df_EXP_L1.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_L1 = lib.expression(
+            input_df=df_SQ_WTP_DCLR,
+        )
         ctx.register_df("df_EXP_L1", df_EXP_L1)
         
         logger.info("Step: write_EMS_WTP_DCLR")
         # Write to Target: write_EMS_WTP_DCLR
-        df_write = df_EXP_L1
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"CMT_SBTYP_CODE": "CMT_SBTYP_CODE", "CUST_KEY": "CUST_KEY", "FMLY_SIZE_NUM": "FMLY_SIZE_NUM", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY", "HSE_UNIT_KEY": "HSE_UNIT_KEY", "HSHLD_AST_AMT": "HSHLD_AST_AMT", "HSHLD_INCM_AMT": "HSHLD_INCM_AMT", "INT37_PRN_DATE": "INT37_PRN_DATE", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "ORIG_HSE_SRVC_APLY_KEY": "ORIG_HSE_SRVC_APLY_KEY", "RENT_BGN_DATE": "RENT_BGN_DATE", "RENT_CHNG_RSN_CODE": "RENT_CHNG_RSN_CODE", "RENT_CHNG_RSN_TEXT": "RENT_CHNG_RSN_TEXT", "RENT_END_DATE": "RENT_END_DATE", "RENT_FCTR_CODE": "RENT_FCTR_CODE", "WTP25_PRN_DATE": "WTP25_PRN_DATE", "WTP26_PRN_DATE": "WTP26_PRN_DATE", "WTP28_PRN_DATE": "WTP28_PRN_DATE", "WTP29_PRN_DATE": "WTP29_PRN_DATE", "WTP30_PRN_DATE": "WTP30_PRN_DATE", "WTP31_PRN_DATE": "WTP31_PRN_DATE", "WTP32_PRN_DATE": "WTP32_PRN_DATE", "WTP33_PRN_DATE": "WTP33_PRN_DATE", "WTP34_PRN_DATE": "WTP34_PRN_DATE", "WTP35_PRN_DATE": "WTP35_PRN_DATE", "WTP36_PRN_DATE": "WTP36_PRN_DATE", "WTP37_PRN_DATE": "WTP37_PRN_DATE", "WTP38_PRN_DATE": "WTP38_PRN_DATE", "WTP_CYCL_YEAR_MTH": "WTP_CYCL_YEAR_MTH", "WTP_DCLR_FORM_RCV_IND": "WTP_DCLR_FORM_RCV_IND", "WTP_DSBL_ALWN_RCPT_IND": "WTP_DSBL_ALWN_RCPT_IND", "WTP_EXTRC_DATE": "WTP_EXTRC_DATE", "WTP_HK_DPO_IND": "WTP_HK_DPO_IND", "WTP_HSHLD_AST_OVER_IND": "WTP_HSHLD_AST_OVER_IND", "WTP_HSHLD_INCM_OVER_IND": "WTP_HSHLD_INCM_OVER_IND", "WTP_OPT_NOT_DCLR_IND": "WTP_OPT_NOT_DCLR_IND", "WTP_REC_KEY": "WTP_REC_KEY", "WTP_REF_PHRM_IND": "WTP_REF_PHRM_IND", "WTP_RMK_TEXT": "WTP_RMK_TEXT", "WTP_STS_CODE": "WTP_STS_CODE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['WTP_REC_KEY', 'CUST_KEY', 'HSE_SRVC_APLY_KEY', 'HSE_UNIT_KEY', 'WTP_CYCL_YEAR_MTH', 'WTP_STS_CODE', 'WTP_DCLR_FORM_RCV_IND', 'WTP_REF_PHRM_IND', 'WTP_OPT_NOT_DCLR_IND', 'CMT_SBTYP_CODE', 'WTP_DSBL_ALWN_RCPT_IND', 'WTP_HK_DPO_IND', 'WTP_HSHLD_INCM_OVER_IND', 'WTP_HSHLD_AST_OVER_IND', 'FMLY_SIZE_NUM', 'HSHLD_INCM_AMT', 'HSHLD_AST_AMT', 'RENT_FCTR_CODE', 'RENT_BGN_DATE', 'RENT_END_DATE', 'RENT_CHNG_RSN_CODE', 'RENT_CHNG_RSN_TEXT', 'WTP_RMK_TEXT', 'INT37_PRN_DATE', 'WTP25_PRN_DATE', 'WTP26_PRN_DATE', 'WTP28_PRN_DATE', 'WTP29_PRN_DATE', 'WTP30_PRN_DATE', 'WTP31_PRN_DATE', 'WTP32_PRN_DATE', 'WTP33_PRN_DATE', 'WTP34_PRN_DATE', 'WTP35_PRN_DATE', 'WTP36_PRN_DATE', 'WTP37_PRN_DATE', 'WTP38_PRN_DATE', 'ORIG_HSE_SRVC_APLY_KEY', 'WTP_EXTRC_DATE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_WTP_DCLR", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_L1,
+            conn=conn_target,
+            table='EMS_WTP_DCLR',
+            mode='append',
+            source_columns=[
+                'WTP_REC_KEY',
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'HSE_UNIT_KEY',
+                'WTP_CYCL_YEAR_MTH',
+                'WTP_STS_CODE',
+                'WTP_DCLR_FORM_RCV_IND',
+                'WTP_REF_PHRM_IND',
+                'WTP_OPT_NOT_DCLR_IND',
+                'CMT_SBTYP_CODE',
+                'WTP_DSBL_ALWN_RCPT_IND',
+                'WTP_HK_DPO_IND',
+                'WTP_HSHLD_INCM_OVER_IND',
+                'WTP_HSHLD_AST_OVER_IND',
+                'FMLY_SIZE_NUM',
+                'HSHLD_INCM_AMT',
+                'HSHLD_AST_AMT',
+                'RENT_FCTR_CODE',
+                'RENT_BGN_DATE',
+                'RENT_END_DATE',
+                'RENT_CHNG_RSN_CODE',
+                'RENT_CHNG_RSN_TEXT',
+                'WTP_RMK_TEXT',
+                'INT37_PRN_DATE',
+                'WTP25_PRN_DATE',
+                'WTP26_PRN_DATE',
+                'WTP28_PRN_DATE',
+                'WTP29_PRN_DATE',
+                'WTP30_PRN_DATE',
+                'WTP31_PRN_DATE',
+                'WTP32_PRN_DATE',
+                'WTP33_PRN_DATE',
+                'WTP34_PRN_DATE',
+                'WTP35_PRN_DATE',
+                'WTP36_PRN_DATE',
+                'WTP37_PRN_DATE',
+                'WTP38_PRN_DATE',
+                'ORIG_HSE_SRVC_APLY_KEY',
+                'WTP_EXTRC_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+            ],
+            target_columns=[
+                'WTP_REC_KEY',
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'HSE_UNIT_KEY',
+                'WTP_CYCL_YEAR_MTH',
+                'WTP_STS_CODE',
+                'WTP_DCLR_FORM_RCV_IND',
+                'WTP_REF_PHRM_IND',
+                'WTP_OPT_NOT_DCLR_IND',
+                'CMT_SBTYP_CODE',
+                'WTP_DSBL_ALWN_RCPT_IND',
+                'WTP_HK_DPO_IND',
+                'WTP_HSHLD_INCM_OVER_IND',
+                'WTP_HSHLD_AST_OVER_IND',
+                'FMLY_SIZE_NUM',
+                'HSHLD_INCM_AMT',
+                'HSHLD_AST_AMT',
+                'RENT_FCTR_CODE',
+                'RENT_BGN_DATE',
+                'RENT_END_DATE',
+                'RENT_CHNG_RSN_CODE',
+                'RENT_CHNG_RSN_TEXT',
+                'WTP_RMK_TEXT',
+                'INT37_PRN_DATE',
+                'WTP25_PRN_DATE',
+                'WTP26_PRN_DATE',
+                'WTP28_PRN_DATE',
+                'WTP29_PRN_DATE',
+                'WTP30_PRN_DATE',
+                'WTP31_PRN_DATE',
+                'WTP32_PRN_DATE',
+                'WTP33_PRN_DATE',
+                'WTP34_PRN_DATE',
+                'WTP35_PRN_DATE',
+                'WTP36_PRN_DATE',
+                'WTP37_PRN_DATE',
+                'WTP38_PRN_DATE',
+                'ORIG_HSE_SRVC_APLY_KEY',
+                'WTP_EXTRC_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_WTP_DCLR write completed")
         logger.info("Step: write_EMS_WTP_DCLR1")
         # Write to Target: write_EMS_WTP_DCLR1
-        df_write = df_EXP_L1
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"CMT_SBTYP_CODE": "CMT_SBTYP_CODE", "CUST_KEY": "CUST_KEY", "FMLY_SIZE_NUM": "FMLY_SIZE_NUM", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY", "HSE_UNIT_KEY": "HSE_UNIT_KEY", "HSHLD_AST_AMT": "HSHLD_AST_AMT", "HSHLD_INCM_AMT": "HSHLD_INCM_AMT", "INT37_PRN_DATE": "INT37_PRN_DATE", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "ORIG_HSE_SRVC_APLY_KEY": "ORIG_HSE_SRVC_APLY_KEY", "RENT_BGN_DATE": "RENT_BGN_DATE", "RENT_CHNG_RSN_CODE": "RENT_CHNG_RSN_CODE", "RENT_CHNG_RSN_TEXT": "RENT_CHNG_RSN_TEXT", "RENT_END_DATE": "RENT_END_DATE", "RENT_FCTR_CODE": "RENT_FCTR_CODE", "WTP25_PRN_DATE": "WTP25_PRN_DATE", "WTP26_PRN_DATE": "WTP26_PRN_DATE", "WTP28_PRN_DATE": "WTP28_PRN_DATE", "WTP29_PRN_DATE": "WTP29_PRN_DATE", "WTP30_PRN_DATE": "WTP30_PRN_DATE", "WTP31_PRN_DATE": "WTP31_PRN_DATE", "WTP32_PRN_DATE": "WTP32_PRN_DATE", "WTP33_PRN_DATE": "WTP33_PRN_DATE", "WTP34_PRN_DATE": "WTP34_PRN_DATE", "WTP35_PRN_DATE": "WTP35_PRN_DATE", "WTP36_PRN_DATE": "WTP36_PRN_DATE", "WTP37_PRN_DATE": "WTP37_PRN_DATE", "WTP38_PRN_DATE": "WTP38_PRN_DATE", "WTP_CYCL_YEAR_MTH": "WTP_CYCL_YEAR_MTH", "WTP_DCLR_FORM_RCV_IND": "WTP_DCLR_FORM_RCV_IND", "WTP_DSBL_ALWN_RCPT_IND": "WTP_DSBL_ALWN_RCPT_IND", "WTP_EXTRC_DATE": "WTP_EXTRC_DATE", "WTP_HK_DPO_IND": "WTP_HK_DPO_IND", "WTP_HSHLD_AST_OVER_IND": "WTP_HSHLD_AST_OVER_IND", "WTP_HSHLD_INCM_OVER_IND": "WTP_HSHLD_INCM_OVER_IND", "WTP_OPT_NOT_DCLR_IND": "WTP_OPT_NOT_DCLR_IND", "WTP_REC_KEY": "WTP_REC_KEY", "WTP_REF_PHRM_IND": "WTP_REF_PHRM_IND", "WTP_RMK_TEXT": "WTP_RMK_TEXT", "WTP_STS_CODE": "WTP_STS_CODE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['WTP_REC_KEY', 'CUST_KEY', 'HSE_SRVC_APLY_KEY', 'HSE_UNIT_KEY', 'WTP_CYCL_YEAR_MTH', 'WTP_STS_CODE', 'WTP_DCLR_FORM_RCV_IND', 'WTP_REF_PHRM_IND', 'WTP_OPT_NOT_DCLR_IND', 'CMT_SBTYP_CODE', 'WTP_DSBL_ALWN_RCPT_IND', 'WTP_HK_DPO_IND', 'WTP_HSHLD_INCM_OVER_IND', 'WTP_HSHLD_AST_OVER_IND', 'FMLY_SIZE_NUM', 'HSHLD_INCM_AMT', 'HSHLD_AST_AMT', 'RENT_FCTR_CODE', 'RENT_BGN_DATE', 'RENT_END_DATE', 'RENT_CHNG_RSN_CODE', 'RENT_CHNG_RSN_TEXT', 'WTP_RMK_TEXT', 'INT37_PRN_DATE', 'WTP25_PRN_DATE', 'WTP26_PRN_DATE', 'WTP28_PRN_DATE', 'WTP29_PRN_DATE', 'WTP30_PRN_DATE', 'WTP31_PRN_DATE', 'WTP32_PRN_DATE', 'WTP33_PRN_DATE', 'WTP34_PRN_DATE', 'WTP35_PRN_DATE', 'WTP36_PRN_DATE', 'WTP37_PRN_DATE', 'WTP38_PRN_DATE', 'ORIG_HSE_SRVC_APLY_KEY', 'WTP_EXTRC_DATE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_WTP_DCLR", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_L1,
+            conn=conn_target,
+            table='EMS_WTP_DCLR',
+            mode='append',
+            source_columns=[
+                'WTP_REC_KEY',
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'HSE_UNIT_KEY',
+                'WTP_CYCL_YEAR_MTH',
+                'WTP_STS_CODE',
+                'WTP_DCLR_FORM_RCV_IND',
+                'WTP_REF_PHRM_IND',
+                'WTP_OPT_NOT_DCLR_IND',
+                'CMT_SBTYP_CODE',
+                'WTP_DSBL_ALWN_RCPT_IND',
+                'WTP_HK_DPO_IND',
+                'WTP_HSHLD_INCM_OVER_IND',
+                'WTP_HSHLD_AST_OVER_IND',
+                'FMLY_SIZE_NUM',
+                'HSHLD_INCM_AMT',
+                'HSHLD_AST_AMT',
+                'RENT_FCTR_CODE',
+                'RENT_BGN_DATE',
+                'RENT_END_DATE',
+                'RENT_CHNG_RSN_CODE',
+                'RENT_CHNG_RSN_TEXT',
+                'WTP_RMK_TEXT',
+                'INT37_PRN_DATE',
+                'WTP25_PRN_DATE',
+                'WTP26_PRN_DATE',
+                'WTP28_PRN_DATE',
+                'WTP29_PRN_DATE',
+                'WTP30_PRN_DATE',
+                'WTP31_PRN_DATE',
+                'WTP32_PRN_DATE',
+                'WTP33_PRN_DATE',
+                'WTP34_PRN_DATE',
+                'WTP35_PRN_DATE',
+                'WTP36_PRN_DATE',
+                'WTP37_PRN_DATE',
+                'WTP38_PRN_DATE',
+                'ORIG_HSE_SRVC_APLY_KEY',
+                'WTP_EXTRC_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+            ],
+            target_columns=[
+                'WTP_REC_KEY',
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'HSE_UNIT_KEY',
+                'WTP_CYCL_YEAR_MTH',
+                'WTP_STS_CODE',
+                'WTP_DCLR_FORM_RCV_IND',
+                'WTP_REF_PHRM_IND',
+                'WTP_OPT_NOT_DCLR_IND',
+                'CMT_SBTYP_CODE',
+                'WTP_DSBL_ALWN_RCPT_IND',
+                'WTP_HK_DPO_IND',
+                'WTP_HSHLD_INCM_OVER_IND',
+                'WTP_HSHLD_AST_OVER_IND',
+                'FMLY_SIZE_NUM',
+                'HSHLD_INCM_AMT',
+                'HSHLD_AST_AMT',
+                'RENT_FCTR_CODE',
+                'RENT_BGN_DATE',
+                'RENT_END_DATE',
+                'RENT_CHNG_RSN_CODE',
+                'RENT_CHNG_RSN_TEXT',
+                'WTP_RMK_TEXT',
+                'INT37_PRN_DATE',
+                'WTP25_PRN_DATE',
+                'WTP26_PRN_DATE',
+                'WTP28_PRN_DATE',
+                'WTP29_PRN_DATE',
+                'WTP30_PRN_DATE',
+                'WTP31_PRN_DATE',
+                'WTP32_PRN_DATE',
+                'WTP33_PRN_DATE',
+                'WTP34_PRN_DATE',
+                'WTP35_PRN_DATE',
+                'WTP36_PRN_DATE',
+                'WTP37_PRN_DATE',
+                'WTP38_PRN_DATE',
+                'ORIG_HSE_SRVC_APLY_KEY',
+                'WTP_EXTRC_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_WTP_DCLR1 write completed")
         

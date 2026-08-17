@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_NHS_HOS_CRT")
@@ -79,44 +64,138 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_NHS_HOS_CRT")
         # Source Qualifier: apply_SQ_NHS_HOS_CRT
         df_SQ_NHS_HOS_CRT = df_NHS_HOS_CRT
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_NHS_HOS_CRT = df_SQ_NHS_HOS_CRT.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HOS_CRT_ID", "CRT_TYPE_CODE", "CRT_CODE", "CRT_ENG_NAME", "CRT_CHI_NAME", "SITE_AREA", "LAND_RGSTR_CODE", "LES_DATE", "TERM_CMNC_DATE", "CRT_DEV_DESP", "LOT_CODE", "LOT_DESP", "LOT_UNDVD_SHR_NUM", "ROW_VER_NUM", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "UTL_CODE", "LOC_DEV_CHI_DESP", "LOC_DEV_ENG_DESP", "DSTR_BRD_DSTR_KEY", "HSE_DSTR_KEY", "MGT_TYPE_CODE", "GEOG_DSTR_KEY", "ADDR_DSTR_KEY", "CNSTT_AREA_CODE", "CRT_EMAIL_ADDR", "LES_DATE_FMT_TEXT", "TERM_CMNC_DATE_FMT_TEXT", "LOT_BFR_SBDIV_DESP", "DMC_DATE_FMT_TEXT", "DMC_PRTY_ENG_TEXT", "DMC_MMRL_NUM", "DSTR_ASGN_RMK_TEXT"]
-        df_SQ_NHS_HOS_CRT = df_SQ_NHS_HOS_CRT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_NHS_HOS_CRT.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_NHS_HOS_CRT = lib.sq_output(
+            input_df=df_SQ_NHS_HOS_CRT,
+            port_cols={
+                'HOS_CRT_ID': 'decimal',
+                'CRT_TYPE_CODE': 'string',
+                'CRT_CODE': 'string',
+                'CRT_ENG_NAME': 'string',
+                'CRT_CHI_NAME': 'string',
+                'SITE_AREA': 'decimal',
+                'LAND_RGSTR_CODE': 'string',
+                'LES_DATE': 'date/time',
+                'TERM_CMNC_DATE': 'date/time',
+                'CRT_DEV_DESP': 'string',
+                'LOT_CODE': 'string',
+                'LOT_DESP': 'string',
+                'LOT_UNDVD_SHR_NUM': 'decimal',
+                'ROW_VER_NUM': 'decimal',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'UTL_CODE': 'string',
+                'LOC_DEV_CHI_DESP': 'string',
+                'LOC_DEV_ENG_DESP': 'string',
+                'DSTR_BRD_DSTR_KEY': 'string',
+                'HSE_DSTR_KEY': 'string',
+                'MGT_TYPE_CODE': 'string',
+                'GEOG_DSTR_KEY': 'string',
+                'ADDR_DSTR_KEY': 'string',
+                'CNSTT_AREA_CODE': 'string',
+                'CRT_EMAIL_ADDR': 'string',
+                'LES_DATE_FMT_TEXT': 'string',
+                'TERM_CMNC_DATE_FMT_TEXT': 'string',
+                'LOT_BFR_SBDIV_DESP': 'string',
+                'DMC_DATE_FMT_TEXT': 'string',
+                'DMC_PRTY_ENG_TEXT': 'string',
+                'DMC_MMRL_NUM': 'string',
+                'DSTR_ASGN_RMK_TEXT': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_NHS_HOS_CRT", df_SQ_NHS_HOS_CRT)
         
         logger.info("Step: apply_EXP_L1")
         # Expression: apply_EXP_L1
-        df_EXP_L1 = df_SQ_NHS_HOS_CRT
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["HOS_CRT_ID", "CRT_TYPE_CODE", "CRT_CODE", "CRT_ENG_NAME", "CRT_CHI_NAME", "SITE_AREA", "LAND_RGSTR_CODE", "LES_DATE", "TERM_CMNC_DATE", "CRT_DEV_DESP", "LOT_CODE", "LOT_DESP", "LOT_UNDVD_SHR_NUM", "ROW_VER_NUM", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "UTL_CODE", "LOC_DEV_CHI_DESP", "LOC_DEV_ENG_DESP", "DSTR_BRD_DSTR_KEY", "HSE_DSTR_KEY", "MGT_TYPE_CODE", "GEOG_DSTR_KEY", "ADDR_DSTR_KEY", "CNSTT_AREA_CODE", "CRT_EMAIL_ADDR", "LES_DATE_FMT_TEXT", "TERM_CMNC_DATE_FMT_TEXT", "LOT_BFR_SBDIV_DESP", "DMC_DATE_FMT_TEXT", "DMC_PRTY_ENG_TEXT", "DMC_MMRL_NUM", "DSTR_ASGN_RMK_TEXT"]:
-            if _col.lower() not in [x.lower() for x in df_EXP_L1.columns]:
-                df_EXP_L1 = df_EXP_L1.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_L1 = lib.expression(
+            input_df=df_SQ_NHS_HOS_CRT,
+        )
         ctx.register_df("df_EXP_L1", df_EXP_L1)
         
         logger.info("Step: write_NHS_HOS_CRT1")
         # Write to Target: write_NHS_HOS_CRT1
-        df_write = df_EXP_L1
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"ADDR_DSTR_KEY": "ADDR_DSTR_KEY", "CNSTT_AREA_CODE": "CNSTT_AREA_CODE", "CRT_CHI_NAME": "CRT_CHI_NAME", "CRT_CODE": "CRT_CODE", "CRT_DEV_DESP": "CRT_DEV_DESP", "CRT_EMAIL_ADDR": "CRT_EMAIL_ADDR", "CRT_ENG_NAME": "CRT_ENG_NAME", "CRT_TYPE_CODE": "CRT_TYPE_CODE", "DMC_DATE_FMT_TEXT": "DMC_DATE_FMT_TEXT", "DMC_MMRL_NUM": "DMC_MMRL_NUM", "DMC_PRTY_ENG_TEXT": "DMC_PRTY_ENG_TEXT", "DSTR_ASGN_RMK_TEXT": "DSTR_ASGN_RMK_TEXT", "DSTR_BRD_DSTR_KEY": "DSTR_BRD_DSTR_KEY", "GEOG_DSTR_KEY": "GEOG_DSTR_KEY", "HOS_CRT_ID": "HOS_CRT_ID", "HSE_DSTR_KEY": "HSE_DSTR_KEY", "LAND_RGSTR_CODE": "LAND_RGSTR_CODE", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "LES_DATE": "LES_DATE", "LES_DATE_FMT_TEXT": "LES_DATE_FMT_TEXT", "LOC_DEV_CHI_DESP": "LOC_DEV_CHI_DESP", "LOC_DEV_ENG_DESP": "LOC_DEV_ENG_DESP", "LOT_BFR_SBDIV_DESP": "LOT_BFR_SBDIV_DESP", "LOT_CODE": "LOT_CODE", "LOT_DESP": "LOT_DESP", "LOT_UNDVD_SHR_NUM": "LOT_UNDVD_SHR_NUM", "MGT_TYPE_CODE": "MGT_TYPE_CODE", "ROW_VER_NUM": "ROW_VER_NUM", "SITE_AREA": "SITE_AREA", "TERM_CMNC_DATE": "TERM_CMNC_DATE", "TERM_CMNC_DATE_FMT_TEXT": "TERM_CMNC_DATE_FMT_TEXT", "UTL_CODE": "UTL_CODE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HOS_CRT_ID', 'CRT_TYPE_CODE', 'CRT_CODE', 'CRT_ENG_NAME', 'CRT_CHI_NAME', 'SITE_AREA', 'LAND_RGSTR_CODE', 'LES_DATE', 'TERM_CMNC_DATE', 'CRT_DEV_DESP', 'LOT_CODE', 'LOT_DESP', 'LOT_UNDVD_SHR_NUM', 'ROW_VER_NUM', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'UTL_CODE', 'LOC_DEV_CHI_DESP', 'LOC_DEV_ENG_DESP', 'DSTR_BRD_DSTR_KEY', 'HSE_DSTR_KEY', 'MGT_TYPE_CODE', 'GEOG_DSTR_KEY', 'ADDR_DSTR_KEY', 'CNSTT_AREA_CODE', 'CRT_EMAIL_ADDR', 'LES_DATE_FMT_TEXT', 'TERM_CMNC_DATE_FMT_TEXT', 'LOT_BFR_SBDIV_DESP', 'DMC_DATE_FMT_TEXT', 'DMC_PRTY_ENG_TEXT', 'DMC_MMRL_NUM', 'DSTR_ASGN_RMK_TEXT']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "NHS_HOS_CRT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_L1,
+            conn=conn_target,
+            table='NHS_HOS_CRT',
+            mode='append',
+            source_columns=[
+                'HOS_CRT_ID',
+                'CRT_TYPE_CODE',
+                'CRT_CODE',
+                'CRT_ENG_NAME',
+                'CRT_CHI_NAME',
+                'SITE_AREA',
+                'LAND_RGSTR_CODE',
+                'LES_DATE',
+                'TERM_CMNC_DATE',
+                'CRT_DEV_DESP',
+                'LOT_CODE',
+                'LOT_DESP',
+                'LOT_UNDVD_SHR_NUM',
+                'ROW_VER_NUM',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'UTL_CODE',
+                'LOC_DEV_CHI_DESP',
+                'LOC_DEV_ENG_DESP',
+                'DSTR_BRD_DSTR_KEY',
+                'HSE_DSTR_KEY',
+                'MGT_TYPE_CODE',
+                'GEOG_DSTR_KEY',
+                'ADDR_DSTR_KEY',
+                'CNSTT_AREA_CODE',
+                'CRT_EMAIL_ADDR',
+                'LES_DATE_FMT_TEXT',
+                'TERM_CMNC_DATE_FMT_TEXT',
+                'LOT_BFR_SBDIV_DESP',
+                'DMC_DATE_FMT_TEXT',
+                'DMC_PRTY_ENG_TEXT',
+                'DMC_MMRL_NUM',
+                'DSTR_ASGN_RMK_TEXT',
+            ],
+            target_columns=[
+                'HOS_CRT_ID',
+                'CRT_TYPE_CODE',
+                'CRT_CODE',
+                'CRT_ENG_NAME',
+                'CRT_CHI_NAME',
+                'SITE_AREA',
+                'LAND_RGSTR_CODE',
+                'LES_DATE',
+                'TERM_CMNC_DATE',
+                'CRT_DEV_DESP',
+                'LOT_CODE',
+                'LOT_DESP',
+                'LOT_UNDVD_SHR_NUM',
+                'ROW_VER_NUM',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'UTL_CODE',
+                'LOC_DEV_CHI_DESP',
+                'LOC_DEV_ENG_DESP',
+                'DSTR_BRD_DSTR_KEY',
+                'HSE_DSTR_KEY',
+                'MGT_TYPE_CODE',
+                'GEOG_DSTR_KEY',
+                'ADDR_DSTR_KEY',
+                'CNSTT_AREA_CODE',
+                'CRT_EMAIL_ADDR',
+                'LES_DATE_FMT_TEXT',
+                'TERM_CMNC_DATE_FMT_TEXT',
+                'LOT_BFR_SBDIV_DESP',
+                'DMC_DATE_FMT_TEXT',
+                'DMC_PRTY_ENG_TEXT',
+                'DMC_MMRL_NUM',
+                'DSTR_ASGN_RMK_TEXT',
+            ],
+            config=config,
+        )
 
         logger.info("write_NHS_HOS_CRT1 write completed")
         

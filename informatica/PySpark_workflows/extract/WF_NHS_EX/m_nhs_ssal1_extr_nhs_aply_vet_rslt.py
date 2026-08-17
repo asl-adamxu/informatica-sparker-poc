@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_NHV_APLY_VET_RSLT")
@@ -79,65 +64,217 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_NHV_APLY_VET_RSLT")
         # Source Qualifier: apply_SQ_NHV_APLY_VET_RSLT
         df_SQ_NHV_APLY_VET_RSLT = df_NHV_APLY_VET_RSLT
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_NHV_APLY_VET_RSLT = df_SQ_NHV_APLY_VET_RSLT.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HOS_APLY_KEY", "APLY_VET_STG_CODE", "APLY_VET_SEQ_NUM", "ELGBL_CHK_RSLT_CODE", "RLTN_CHK_RSLT_CODE", "ITGRTY_CHK_RSLT_CODE", "HSE_BNFT_A_DUP_CHK_RSLT_CODE", "HSE_BNFT_G_DUP_CHK_RSLT_CODE", "HSE_BNFT_J_DUP_CHK_RSLT_CODE", "HSE_BNFT_K_DUP_CHK_RSLT_CODE", "HSE_BNFT_L_DUP_CHK_RSLT_CODE", "HSE_BNFT_N_DUP_CHK_RSLT_CODE", "HSE_BNFT_S_DUP_CHK_RSLT_CODE", "HSE_BNFT_T_DUP_CHK_RSLT_CODE", "HSE_BNFT_U_DUP_CHK_RSLT_CODE", "HSE_BNFT_W_DUP_CHK_RSLT_CODE", "HSE_BNFT_Y_DUP_CHK_RSLT_CODE", "HSE_BNFT_Z_DUP_CHK_RSLT_CODE", "DUP_CHK_RSLT_CODE", "APLY_VET_OVRD_RSLT_CODE", "APLY_VET_OVRL_RSLT_CODE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "HO_RCMD_RSN_TEXT", "HO_RCMD_OTHR_RSN_TEXT", "HO_RMK_TEXT", "DUP_SBMT_CHK_IND", "RPRIOR_RQR_IND", "APLY_VET_STS_CODE", "DUP_SBMT_CHK_RSLT_CODE", "EFAS_CHK_RSLT_CODE", "APLY_VET_SCRN_ID"]
-        df_SQ_NHV_APLY_VET_RSLT = df_SQ_NHV_APLY_VET_RSLT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_NHV_APLY_VET_RSLT.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_NHV_APLY_VET_RSLT = lib.sq_output(
+            input_df=df_SQ_NHV_APLY_VET_RSLT,
+            port_cols={
+                'HOS_APLY_KEY': 'decimal',
+                'APLY_VET_STG_CODE': 'string',
+                'APLY_VET_SEQ_NUM': 'decimal',
+                'ELGBL_CHK_RSLT_CODE': 'string',
+                'RLTN_CHK_RSLT_CODE': 'string',
+                'ITGRTY_CHK_RSLT_CODE': 'string',
+                'HSE_BNFT_A_DUP_CHK_RSLT_CODE': 'string',
+                'HSE_BNFT_G_DUP_CHK_RSLT_CODE': 'string',
+                'HSE_BNFT_J_DUP_CHK_RSLT_CODE': 'string',
+                'HSE_BNFT_K_DUP_CHK_RSLT_CODE': 'string',
+                'HSE_BNFT_L_DUP_CHK_RSLT_CODE': 'string',
+                'HSE_BNFT_N_DUP_CHK_RSLT_CODE': 'string',
+                'HSE_BNFT_S_DUP_CHK_RSLT_CODE': 'string',
+                'HSE_BNFT_T_DUP_CHK_RSLT_CODE': 'string',
+                'HSE_BNFT_U_DUP_CHK_RSLT_CODE': 'string',
+                'HSE_BNFT_W_DUP_CHK_RSLT_CODE': 'string',
+                'HSE_BNFT_Y_DUP_CHK_RSLT_CODE': 'string',
+                'HSE_BNFT_Z_DUP_CHK_RSLT_CODE': 'string',
+                'DUP_CHK_RSLT_CODE': 'string',
+                'APLY_VET_OVRD_RSLT_CODE': 'string',
+                'APLY_VET_OVRL_RSLT_CODE': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'HO_RCMD_RSN_TEXT': 'string',
+                'HO_RCMD_OTHR_RSN_TEXT': 'string',
+                'HO_RMK_TEXT': 'string',
+                'DUP_SBMT_CHK_IND': 'string',
+                'RPRIOR_RQR_IND': 'string',
+                'APLY_VET_STS_CODE': 'string',
+                'DUP_SBMT_CHK_RSLT_CODE': 'string',
+                'EFAS_CHK_RSLT_CODE': 'string',
+                'APLY_VET_SCRN_ID': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_NHV_APLY_VET_RSLT", df_SQ_NHV_APLY_VET_RSLT)
         
         logger.info("Step: apply_EXP_L1")
         # Expression: apply_EXP_L1
-        df_EXP_L1 = df_SQ_NHV_APLY_VET_RSLT
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["HOS_APLY_KEY", "APLY_VET_STG_CODE", "APLY_VET_SEQ_NUM", "ELGBL_CHK_RSLT_CODE", "RLTN_CHK_RSLT_CODE", "ITGRTY_CHK_RSLT_CODE", "HSE_BNFT_A_DUP_CHK_RSLT_CODE", "HSE_BNFT_G_DUP_CHK_RSLT_CODE", "HSE_BNFT_J_DUP_CHK_RSLT_CODE", "HSE_BNFT_K_DUP_CHK_RSLT_CODE", "HSE_BNFT_L_DUP_CHK_RSLT_CODE", "HSE_BNFT_N_DUP_CHK_RSLT_CODE", "HSE_BNFT_S_DUP_CHK_RSLT_CODE", "HSE_BNFT_T_DUP_CHK_RSLT_CODE", "HSE_BNFT_U_DUP_CHK_RSLT_CODE", "HSE_BNFT_W_DUP_CHK_RSLT_CODE", "HSE_BNFT_Y_DUP_CHK_RSLT_CODE", "HSE_BNFT_Z_DUP_CHK_RSLT_CODE", "DUP_CHK_RSLT_CODE", "APLY_VET_OVRD_RSLT_CODE", "APLY_VET_OVRL_RSLT_CODE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "HO_RCMD_RSN_TEXT", "HO_RCMD_OTHR_RSN_TEXT", "HO_RMK_TEXT", "DUP_SBMT_CHK_IND", "RPRIOR_RQR_IND", "APLY_VET_STS_CODE", "DUP_SBMT_CHK_RSLT_CODE", "EFAS_CHK_RSLT_CODE", "APLY_VET_SCRN_ID"]:
-            if _col.lower() not in [x.lower() for x in df_EXP_L1.columns]:
-                df_EXP_L1 = df_EXP_L1.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_L1 = lib.expression(
+            input_df=df_SQ_NHV_APLY_VET_RSLT,
+        )
         ctx.register_df("df_EXP_L1", df_EXP_L1)
         
         logger.info("Step: write_NHS_APLY_VET_RSLT")
         # Write to Target: write_NHS_APLY_VET_RSLT
-        df_write = df_EXP_L1
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"APLY_VET_OVRD_RSLT_CODE": "APLY_VET_OVRD_RSLT_CODE", "APLY_VET_OVRL_RSLT_CODE": "APLY_VET_OVRL_RSLT_CODE", "APLY_VET_SCRN_ID": "APLY_VET_SCRN_ID", "APLY_VET_SEQ_NUM": "APLY_VET_SEQ_NUM", "APLY_VET_STG_CODE": "APLY_VET_STG_CODE", "APLY_VET_STS_CODE": "APLY_VET_STS_CODE", "DUP_CHK_RSLT_CODE": "DUP_CHK_RSLT_CODE", "DUP_SBMT_CHK_IND": "DUP_SBMT_CHK_IND", "DUP_SBMT_CHK_RSLT_CODE": "DUP_SBMT_CHK_RSLT_CODE", "EFAS_CHK_RSLT_CODE": "EFAS_CHK_RSLT_CODE", "ELGBL_CHK_RSLT_CODE": "ELGBL_CHK_RSLT_CODE", "HOS_APLY_KEY": "HOS_APLY_KEY", "HO_RCMD_OTHR_RSN_TEXT": "HO_RCMD_OTHR_RSN_TEXT", "HO_RCMD_RSN_TEXT": "HO_RCMD_RSN_TEXT", "HO_RMK_TEXT": "HO_RMK_TEXT", "HSE_BNFT_A_DUP_CHK_RSLT_CODE": "HSE_BNFT_A_DUP_CHK_RSLT_CODE", "HSE_BNFT_G_DUP_CHK_RSLT_CODE": "HSE_BNFT_G_DUP_CHK_RSLT_CODE", "HSE_BNFT_J_DUP_CHK_RSLT_CODE": "HSE_BNFT_J_DUP_CHK_RSLT_CODE", "HSE_BNFT_K_DUP_CHK_RSLT_CODE": "HSE_BNFT_K_DUP_CHK_RSLT_CODE", "HSE_BNFT_L_DUP_CHK_RSLT_CODE": "HSE_BNFT_L_DUP_CHK_RSLT_CODE", "HSE_BNFT_N_DUP_CHK_RSLT_CODE": "HSE_BNFT_N_DUP_CHK_RSLT_CODE", "HSE_BNFT_S_DUP_CHK_RSLT_CODE": "HSE_BNFT_S_DUP_CHK_RSLT_CODE", "HSE_BNFT_T_DUP_CHK_RSLT_CODE": "HSE_BNFT_T_DUP_CHK_RSLT_CODE", "HSE_BNFT_U_DUP_CHK_RSLT_CODE": "HSE_BNFT_U_DUP_CHK_RSLT_CODE", "HSE_BNFT_W_DUP_CHK_RSLT_CODE": "HSE_BNFT_W_DUP_CHK_RSLT_CODE", "HSE_BNFT_Y_DUP_CHK_RSLT_CODE": "HSE_BNFT_Y_DUP_CHK_RSLT_CODE", "HSE_BNFT_Z_DUP_CHK_RSLT_CODE": "HSE_BNFT_Z_DUP_CHK_RSLT_CODE", "ITGRTY_CHK_RSLT_CODE": "ITGRTY_CHK_RSLT_CODE", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "RLTN_CHK_RSLT_CODE": "RLTN_CHK_RSLT_CODE", "RPRIOR_RQR_IND": "RPRIOR_RQR_IND"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HOS_APLY_KEY', 'APLY_VET_STG_CODE', 'APLY_VET_SEQ_NUM', 'ELGBL_CHK_RSLT_CODE', 'RLTN_CHK_RSLT_CODE', 'ITGRTY_CHK_RSLT_CODE', 'HSE_BNFT_A_DUP_CHK_RSLT_CODE', 'HSE_BNFT_G_DUP_CHK_RSLT_CODE', 'HSE_BNFT_J_DUP_CHK_RSLT_CODE', 'HSE_BNFT_K_DUP_CHK_RSLT_CODE', 'HSE_BNFT_L_DUP_CHK_RSLT_CODE', 'HSE_BNFT_N_DUP_CHK_RSLT_CODE', 'HSE_BNFT_S_DUP_CHK_RSLT_CODE', 'HSE_BNFT_T_DUP_CHK_RSLT_CODE', 'HSE_BNFT_U_DUP_CHK_RSLT_CODE', 'HSE_BNFT_W_DUP_CHK_RSLT_CODE', 'HSE_BNFT_Y_DUP_CHK_RSLT_CODE', 'HSE_BNFT_Z_DUP_CHK_RSLT_CODE', 'DUP_CHK_RSLT_CODE', 'APLY_VET_OVRD_RSLT_CODE', 'APLY_VET_OVRL_RSLT_CODE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'HO_RCMD_RSN_TEXT', 'HO_RCMD_OTHR_RSN_TEXT', 'HO_RMK_TEXT', 'DUP_SBMT_CHK_IND', 'RPRIOR_RQR_IND', 'APLY_VET_STS_CODE', 'DUP_SBMT_CHK_RSLT_CODE', 'EFAS_CHK_RSLT_CODE', 'APLY_VET_SCRN_ID']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "NHS_APLY_VET_RSLT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_L1,
+            conn=conn_target,
+            table='NHS_APLY_VET_RSLT',
+            mode='append',
+            source_columns=[
+                'HOS_APLY_KEY',
+                'APLY_VET_STG_CODE',
+                'APLY_VET_SEQ_NUM',
+                'ELGBL_CHK_RSLT_CODE',
+                'RLTN_CHK_RSLT_CODE',
+                'ITGRTY_CHK_RSLT_CODE',
+                'HSE_BNFT_A_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_G_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_J_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_K_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_L_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_N_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_S_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_T_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_U_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_W_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_Y_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_Z_DUP_CHK_RSLT_CODE',
+                'DUP_CHK_RSLT_CODE',
+                'APLY_VET_OVRD_RSLT_CODE',
+                'APLY_VET_OVRL_RSLT_CODE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'HO_RCMD_RSN_TEXT',
+                'HO_RCMD_OTHR_RSN_TEXT',
+                'HO_RMK_TEXT',
+                'DUP_SBMT_CHK_IND',
+                'RPRIOR_RQR_IND',
+                'APLY_VET_STS_CODE',
+                'DUP_SBMT_CHK_RSLT_CODE',
+                'EFAS_CHK_RSLT_CODE',
+                'APLY_VET_SCRN_ID',
+            ],
+            target_columns=[
+                'HOS_APLY_KEY',
+                'APLY_VET_STG_CODE',
+                'APLY_VET_SEQ_NUM',
+                'ELGBL_CHK_RSLT_CODE',
+                'RLTN_CHK_RSLT_CODE',
+                'ITGRTY_CHK_RSLT_CODE',
+                'HSE_BNFT_A_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_G_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_J_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_K_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_L_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_N_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_S_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_T_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_U_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_W_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_Y_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_Z_DUP_CHK_RSLT_CODE',
+                'DUP_CHK_RSLT_CODE',
+                'APLY_VET_OVRD_RSLT_CODE',
+                'APLY_VET_OVRL_RSLT_CODE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'HO_RCMD_RSN_TEXT',
+                'HO_RCMD_OTHR_RSN_TEXT',
+                'HO_RMK_TEXT',
+                'DUP_SBMT_CHK_IND',
+                'RPRIOR_RQR_IND',
+                'APLY_VET_STS_CODE',
+                'DUP_SBMT_CHK_RSLT_CODE',
+                'EFAS_CHK_RSLT_CODE',
+                'APLY_VET_SCRN_ID',
+            ],
+            config=config,
+        )
 
         logger.info("write_NHS_APLY_VET_RSLT write completed")
         logger.info("Step: write_NHS_APLY_VET_RSLT1")
         # Write to Target: write_NHS_APLY_VET_RSLT1
-        df_write = df_EXP_L1
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"APLY_VET_OVRD_RSLT_CODE": "APLY_VET_OVRD_RSLT_CODE", "APLY_VET_OVRL_RSLT_CODE": "APLY_VET_OVRL_RSLT_CODE", "APLY_VET_SCRN_ID": "APLY_VET_SCRN_ID", "APLY_VET_SEQ_NUM": "APLY_VET_SEQ_NUM", "APLY_VET_STG_CODE": "APLY_VET_STG_CODE", "APLY_VET_STS_CODE": "APLY_VET_STS_CODE", "DUP_CHK_RSLT_CODE": "DUP_CHK_RSLT_CODE", "DUP_SBMT_CHK_IND": "DUP_SBMT_CHK_IND", "DUP_SBMT_CHK_RSLT_CODE": "DUP_SBMT_CHK_RSLT_CODE", "EFAS_CHK_RSLT_CODE": "EFAS_CHK_RSLT_CODE", "ELGBL_CHK_RSLT_CODE": "ELGBL_CHK_RSLT_CODE", "HOS_APLY_KEY": "HOS_APLY_KEY", "HO_RCMD_OTHR_RSN_TEXT": "HO_RCMD_OTHR_RSN_TEXT", "HO_RCMD_RSN_TEXT": "HO_RCMD_RSN_TEXT", "HO_RMK_TEXT": "HO_RMK_TEXT", "HSE_BNFT_A_DUP_CHK_RSLT_CODE": "HSE_BNFT_A_DUP_CHK_RSLT_CODE", "HSE_BNFT_G_DUP_CHK_RSLT_CODE": "HSE_BNFT_G_DUP_CHK_RSLT_CODE", "HSE_BNFT_J_DUP_CHK_RSLT_CODE": "HSE_BNFT_J_DUP_CHK_RSLT_CODE", "HSE_BNFT_K_DUP_CHK_RSLT_CODE": "HSE_BNFT_K_DUP_CHK_RSLT_CODE", "HSE_BNFT_L_DUP_CHK_RSLT_CODE": "HSE_BNFT_L_DUP_CHK_RSLT_CODE", "HSE_BNFT_N_DUP_CHK_RSLT_CODE": "HSE_BNFT_N_DUP_CHK_RSLT_CODE", "HSE_BNFT_S_DUP_CHK_RSLT_CODE": "HSE_BNFT_S_DUP_CHK_RSLT_CODE", "HSE_BNFT_T_DUP_CHK_RSLT_CODE": "HSE_BNFT_T_DUP_CHK_RSLT_CODE", "HSE_BNFT_U_DUP_CHK_RSLT_CODE": "HSE_BNFT_U_DUP_CHK_RSLT_CODE", "HSE_BNFT_W_DUP_CHK_RSLT_CODE": "HSE_BNFT_W_DUP_CHK_RSLT_CODE", "HSE_BNFT_Y_DUP_CHK_RSLT_CODE": "HSE_BNFT_Y_DUP_CHK_RSLT_CODE", "HSE_BNFT_Z_DUP_CHK_RSLT_CODE": "HSE_BNFT_Z_DUP_CHK_RSLT_CODE", "ITGRTY_CHK_RSLT_CODE": "ITGRTY_CHK_RSLT_CODE", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "RLTN_CHK_RSLT_CODE": "RLTN_CHK_RSLT_CODE", "RPRIOR_RQR_IND": "RPRIOR_RQR_IND"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HOS_APLY_KEY', 'APLY_VET_STG_CODE', 'APLY_VET_SEQ_NUM', 'ELGBL_CHK_RSLT_CODE', 'RLTN_CHK_RSLT_CODE', 'ITGRTY_CHK_RSLT_CODE', 'HSE_BNFT_A_DUP_CHK_RSLT_CODE', 'HSE_BNFT_G_DUP_CHK_RSLT_CODE', 'HSE_BNFT_J_DUP_CHK_RSLT_CODE', 'HSE_BNFT_K_DUP_CHK_RSLT_CODE', 'HSE_BNFT_L_DUP_CHK_RSLT_CODE', 'HSE_BNFT_N_DUP_CHK_RSLT_CODE', 'HSE_BNFT_S_DUP_CHK_RSLT_CODE', 'HSE_BNFT_T_DUP_CHK_RSLT_CODE', 'HSE_BNFT_U_DUP_CHK_RSLT_CODE', 'HSE_BNFT_W_DUP_CHK_RSLT_CODE', 'HSE_BNFT_Y_DUP_CHK_RSLT_CODE', 'HSE_BNFT_Z_DUP_CHK_RSLT_CODE', 'DUP_CHK_RSLT_CODE', 'APLY_VET_OVRD_RSLT_CODE', 'APLY_VET_OVRL_RSLT_CODE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'HO_RCMD_RSN_TEXT', 'HO_RCMD_OTHR_RSN_TEXT', 'HO_RMK_TEXT', 'DUP_SBMT_CHK_IND', 'RPRIOR_RQR_IND', 'APLY_VET_STS_CODE', 'DUP_SBMT_CHK_RSLT_CODE', 'EFAS_CHK_RSLT_CODE', 'APLY_VET_SCRN_ID']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "NHS_APLY_VET_RSLT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_L1,
+            conn=conn_target,
+            table='NHS_APLY_VET_RSLT',
+            mode='append',
+            source_columns=[
+                'HOS_APLY_KEY',
+                'APLY_VET_STG_CODE',
+                'APLY_VET_SEQ_NUM',
+                'ELGBL_CHK_RSLT_CODE',
+                'RLTN_CHK_RSLT_CODE',
+                'ITGRTY_CHK_RSLT_CODE',
+                'HSE_BNFT_A_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_G_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_J_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_K_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_L_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_N_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_S_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_T_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_U_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_W_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_Y_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_Z_DUP_CHK_RSLT_CODE',
+                'DUP_CHK_RSLT_CODE',
+                'APLY_VET_OVRD_RSLT_CODE',
+                'APLY_VET_OVRL_RSLT_CODE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'HO_RCMD_RSN_TEXT',
+                'HO_RCMD_OTHR_RSN_TEXT',
+                'HO_RMK_TEXT',
+                'DUP_SBMT_CHK_IND',
+                'RPRIOR_RQR_IND',
+                'APLY_VET_STS_CODE',
+                'DUP_SBMT_CHK_RSLT_CODE',
+                'EFAS_CHK_RSLT_CODE',
+                'APLY_VET_SCRN_ID',
+            ],
+            target_columns=[
+                'HOS_APLY_KEY',
+                'APLY_VET_STG_CODE',
+                'APLY_VET_SEQ_NUM',
+                'ELGBL_CHK_RSLT_CODE',
+                'RLTN_CHK_RSLT_CODE',
+                'ITGRTY_CHK_RSLT_CODE',
+                'HSE_BNFT_A_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_G_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_J_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_K_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_L_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_N_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_S_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_T_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_U_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_W_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_Y_DUP_CHK_RSLT_CODE',
+                'HSE_BNFT_Z_DUP_CHK_RSLT_CODE',
+                'DUP_CHK_RSLT_CODE',
+                'APLY_VET_OVRD_RSLT_CODE',
+                'APLY_VET_OVRL_RSLT_CODE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'HO_RCMD_RSN_TEXT',
+                'HO_RCMD_OTHR_RSN_TEXT',
+                'HO_RMK_TEXT',
+                'DUP_SBMT_CHK_IND',
+                'RPRIOR_RQR_IND',
+                'APLY_VET_STS_CODE',
+                'DUP_SBMT_CHK_RSLT_CODE',
+                'EFAS_CHK_RSLT_CODE',
+                'APLY_VET_SCRN_ID',
+            ],
+            config=config,
+        )
 
         logger.info("write_NHS_APLY_VET_RSLT1 write completed")
         

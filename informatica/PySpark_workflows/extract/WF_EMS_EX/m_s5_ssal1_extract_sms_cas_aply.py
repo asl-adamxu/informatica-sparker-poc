@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_SMS_CAS_APLY_V")
@@ -79,93 +64,229 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SMS_CAS_APLY_V")
         # Source Qualifier: apply_SQ_SMS_CAS_APLY_V
         df_SQ_SMS_CAS_APLY_V = df_SMS_CAS_APLY_V
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_SMS_CAS_APLY_V = df_SQ_SMS_CAS_APLY_V.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["CAS_APLY_NUM", "UNIT_CODE_ADDR", "CAS_APLY_DATE", "FRST_ASGN_DATE", "LAND_SRCH_DATE", "CAS_CERT_PRN_IND", "CAS_APLY_STS_CODE", "LAST_STS_CHNG_DATE", "UNIT_SFA_AREA", "FULL_ADDR_1", "FULL_ADDR_2", "FULL_ADDR_3", "SCHM_CODE", "FULL_ADDR_4", "PREM_PAID_IND", "PREM_PAID_DATE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "CAS_APLY_RINSTA_RSN_CODE", "CAS_APLY_REJ_RSN_CODE", "CAS_APLY_CNCL_RSN_CODE", "PLNTR_ADDR_IND", "LAST_REC_TXN_USER_ID_TYPE_CODE"]
-        df_SQ_SMS_CAS_APLY_V = df_SQ_SMS_CAS_APLY_V.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SMS_CAS_APLY_V.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SMS_CAS_APLY_V = lib.sq_output(
+            input_df=df_SQ_SMS_CAS_APLY_V,
+            port_cols={
+                'CAS_APLY_NUM': 'string',
+                'UNIT_CODE_ADDR': 'string',
+                'CAS_APLY_DATE': 'date/time',
+                'FRST_ASGN_DATE': 'date/time',
+                'LAND_SRCH_DATE': 'date/time',
+                'CAS_CERT_PRN_IND': 'string',
+                'CAS_APLY_STS_CODE': 'string',
+                'LAST_STS_CHNG_DATE': 'date/time',
+                'UNIT_SFA_AREA': 'decimal',
+                'FULL_ADDR_1': 'string',
+                'FULL_ADDR_2': 'string',
+                'FULL_ADDR_3': 'string',
+                'SCHM_CODE': 'string',
+                'FULL_ADDR_4': 'string',
+                'PREM_PAID_IND': 'string',
+                'PREM_PAID_DATE': 'date/time',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'string',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'CAS_APLY_RINSTA_RSN_CODE': 'decimal',
+                'CAS_APLY_REJ_RSN_CODE': 'decimal',
+                'CAS_APLY_CNCL_RSN_CODE': 'decimal',
+                'PLNTR_ADDR_IND': 'string',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_SMS_CAS_APLY_V", df_SQ_SMS_CAS_APLY_V)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_SMS_CAS_APLY_V
-        df_EXPTRANS = df_EXPTRANS.withColumn("CAS_APLY_NUM_OUT", expr("ltrim(rtrim(CAS_APLY_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CAS_APLY_HKIC_NUM_1_OUT", expr("NULL"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CAS_APLY_HKIC_NUM_2_OUT", expr("NULL"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("UNIT_CODE_ADDR_OUT", expr("ltrim(rtrim(UNIT_CODE_ADDR))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CAS_APLY_DATE_OUT", expr("CAS_APLY_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("FRST_ASGN_DATE_OUT", expr("FRST_ASGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAND_SRCH_DATE_OUT", expr("LAND_SRCH_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CAS_CERT_PRN_IND_OUT", expr("ltrim(rtrim(CAS_CERT_PRN_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CAS_APLY_STS_CODE_OUT", expr("ltrim(rtrim(CAS_APLY_STS_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_STS_CHNG_DATE_OUT", expr("LAST_STS_CHNG_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OWNR_NAME_OUT", expr("NULL"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("JNT_OWNR_NAME_1_OUT", expr("NULL"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("UNIT_SFA_AREA_OUT", expr("UNIT_SFA_AREA"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("FULL_ADDR_1_OUT", expr("ltrim(rtrim(FULL_ADDR_1))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("FULL_ADDR_2_OUT", expr("ltrim(rtrim(FULL_ADDR_2))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("FULL_ADDR_3_OUT", expr("ltrim(rtrim(FULL_ADDR_3))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CAS_APLY_HKIC_NUM_3_OUT", expr("NULL"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("JNT_OWNR_NAME_2_OUT", expr("NULL"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("SCHM_CODE_OUT", expr("ltrim(rtrim(SCHM_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("FULL_ADDR_4_OUT", expr("ltrim(rtrim(FULL_ADDR_4))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PREM_PAID_IND_OUT", expr("ltrim(rtrim(PREM_PAID_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PREM_PAID_DATE_OUT", expr("PREM_PAID_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE_OUT", expr("LAST_REC_TXN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CAS_APLY_RINSTA_RSN_CODE_OUT", expr("CAS_APLY_RINSTA_RSN_CODE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CAS_APLY_REJ_RSN_CODE_OUT", expr("CAS_APLY_REJ_RSN_CODE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CAS_APLY_CNCL_RSN_CODE_OUT", expr("CAS_APLY_CNCL_RSN_CODE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PLNTR_ADDR_IND_OUT", expr("ltrim(rtrim(PLNTR_ADDR_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("'|'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_SMS_CAS_APLY_V,
+            computed_columns=[
+                {'name': 'CAS_APLY_NUM_OUT', 'expr': 'ltrim(rtrim(CAS_APLY_NUM))'},
+                {'name': 'CAS_APLY_HKIC_NUM_1_OUT', 'expr': 'NULL'},
+                {'name': 'CAS_APLY_HKIC_NUM_2_OUT', 'expr': 'NULL'},
+                {'name': 'UNIT_CODE_ADDR_OUT', 'expr': 'ltrim(rtrim(UNIT_CODE_ADDR))'},
+                {'name': 'CAS_APLY_DATE_OUT', 'expr': 'CAS_APLY_DATE'},
+                {'name': 'FRST_ASGN_DATE_OUT', 'expr': 'FRST_ASGN_DATE'},
+                {'name': 'LAND_SRCH_DATE_OUT', 'expr': 'LAND_SRCH_DATE'},
+                {'name': 'CAS_CERT_PRN_IND_OUT', 'expr': 'ltrim(rtrim(CAS_CERT_PRN_IND))'},
+                {'name': 'CAS_APLY_STS_CODE_OUT', 'expr': 'ltrim(rtrim(CAS_APLY_STS_CODE))'},
+                {'name': 'LAST_STS_CHNG_DATE_OUT', 'expr': 'LAST_STS_CHNG_DATE'},
+                {'name': 'OWNR_NAME_OUT', 'expr': 'NULL'},
+                {'name': 'JNT_OWNR_NAME_1_OUT', 'expr': 'NULL'},
+                {'name': 'UNIT_SFA_AREA_OUT', 'expr': 'UNIT_SFA_AREA'},
+                {'name': 'FULL_ADDR_1_OUT', 'expr': 'ltrim(rtrim(FULL_ADDR_1))'},
+                {'name': 'FULL_ADDR_2_OUT', 'expr': 'ltrim(rtrim(FULL_ADDR_2))'},
+                {'name': 'FULL_ADDR_3_OUT', 'expr': 'ltrim(rtrim(FULL_ADDR_3))'},
+                {'name': 'CAS_APLY_HKIC_NUM_3_OUT', 'expr': 'NULL'},
+                {'name': 'JNT_OWNR_NAME_2_OUT', 'expr': 'NULL'},
+                {'name': 'SCHM_CODE_OUT', 'expr': 'ltrim(rtrim(SCHM_CODE))'},
+                {'name': 'FULL_ADDR_4_OUT', 'expr': 'ltrim(rtrim(FULL_ADDR_4))'},
+                {'name': 'PREM_PAID_IND_OUT', 'expr': 'ltrim(rtrim(PREM_PAID_IND))'},
+                {'name': 'PREM_PAID_DATE_OUT', 'expr': 'PREM_PAID_DATE'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_DATE_OUT', 'expr': 'LAST_REC_TXN_DATE'},
+                {'name': 'LAST_REC_TXN_USER_ID_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID))'},
+                {'name': 'CAS_APLY_RINSTA_RSN_CODE_OUT', 'expr': 'CAS_APLY_RINSTA_RSN_CODE'},
+                {'name': 'CAS_APLY_REJ_RSN_CODE_OUT', 'expr': 'CAS_APLY_REJ_RSN_CODE'},
+                {'name': 'CAS_APLY_CNCL_RSN_CODE_OUT', 'expr': 'CAS_APLY_CNCL_RSN_CODE'},
+                {'name': 'PLNTR_ADDR_IND_OUT', 'expr': 'ltrim(rtrim(PLNTR_ADDR_IND))'},
+                {'name': 'LAST_REC_TXN_USER_ID_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID_TYPE_CODE))'},
+                {'name': 'DUMMY', 'expr': "'|'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EMS_SMS_CAS_APLY1")
         # Write to Target: write_EMS_SMS_CAS_APLY1
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"CAS_APLY_CNCL_RSN_CODE": "CAS_APLY_CNCL_RSN_CODE_OUT", "CAS_APLY_DATE": "CAS_APLY_DATE_OUT", "CAS_APLY_HKIC_NUM_1": "CAS_APLY_HKIC_NUM_1_OUT", "CAS_APLY_HKIC_NUM_2": "CAS_APLY_HKIC_NUM_2_OUT", "CAS_APLY_HKIC_NUM_3": "CAS_APLY_HKIC_NUM_3_OUT", "CAS_APLY_NUM": "CAS_APLY_NUM_OUT", "CAS_APLY_REJ_RSN_CODE": "CAS_APLY_REJ_RSN_CODE_OUT", "CAS_APLY_RINSTA_RSN_CODE": "CAS_APLY_RINSTA_RSN_CODE_OUT", "CAS_APLY_STS_CODE": "CAS_APLY_STS_CODE_OUT", "CAS_CERT_PRN_IND": "CAS_CERT_PRN_IND_OUT", "DUMMY": "DUMMY", "FRST_ASGN_DATE": "FRST_ASGN_DATE_OUT", "FULL_ADDR_1": "FULL_ADDR_1_OUT", "FULL_ADDR_2": "FULL_ADDR_2_OUT", "FULL_ADDR_3": "FULL_ADDR_3_OUT", "FULL_ADDR_4": "FULL_ADDR_4_OUT", "JNT_OWNR_NAME_1": "JNT_OWNR_NAME_1_OUT", "JNT_OWNR_NAME_2": "JNT_OWNR_NAME_2_OUT", "LAND_SRCH_DATE": "LAND_SRCH_DATE_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "LAST_REC_TXN_USER_ID_TYPE_CODE": "LAST_REC_TXN_USER_ID_TYPE_CODE_OUT", "LAST_STS_CHNG_DATE": "LAST_STS_CHNG_DATE_OUT", "OWNR_NAME": "OWNR_NAME_OUT", "PLNTR_ADDR_IND": "PLNTR_ADDR_IND_OUT", "PREM_PAID_DATE": "PREM_PAID_DATE_OUT", "PREM_PAID_IND": "PREM_PAID_IND_OUT", "SCHM_CODE": "SCHM_CODE_OUT", "UNIT_CODE_ADDR": "UNIT_CODE_ADDR_OUT", "UNIT_SFA_AREA": "UNIT_SFA_AREA_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['CAS_APLY_NUM', 'CAS_APLY_HKIC_NUM_1', 'CAS_APLY_HKIC_NUM_2', 'UNIT_CODE_ADDR', 'CAS_APLY_DATE', 'FRST_ASGN_DATE', 'LAND_SRCH_DATE', 'CAS_CERT_PRN_IND', 'CAS_APLY_STS_CODE', 'LAST_STS_CHNG_DATE', 'OWNR_NAME', 'JNT_OWNR_NAME_1', 'UNIT_SFA_AREA', 'FULL_ADDR_1', 'FULL_ADDR_2', 'FULL_ADDR_3', 'CAS_APLY_HKIC_NUM_3', 'JNT_OWNR_NAME_2', 'SCHM_CODE', 'FULL_ADDR_4', 'PREM_PAID_IND', 'PREM_PAID_DATE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'CAS_APLY_RINSTA_RSN_CODE', 'CAS_APLY_REJ_RSN_CODE', 'CAS_APLY_CNCL_RSN_CODE', 'PLNTR_ADDR_IND', 'LAST_REC_TXN_USER_ID_TYPE_CODE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_SMS_CAS_APLY", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_SMS_CAS_APLY',
+            mode='append',
+            source_columns=[
+                'CAS_APLY_NUM_OUT',
+                'CAS_APLY_HKIC_NUM_1_OUT',
+                'CAS_APLY_HKIC_NUM_2_OUT',
+                'UNIT_CODE_ADDR_OUT',
+                'CAS_APLY_DATE_OUT',
+                'FRST_ASGN_DATE_OUT',
+                'LAND_SRCH_DATE_OUT',
+                'CAS_CERT_PRN_IND_OUT',
+                'CAS_APLY_STS_CODE_OUT',
+                'LAST_STS_CHNG_DATE_OUT',
+                'OWNR_NAME_OUT',
+                'JNT_OWNR_NAME_1_OUT',
+                'UNIT_SFA_AREA_OUT',
+                'FULL_ADDR_1_OUT',
+                'FULL_ADDR_2_OUT',
+                'FULL_ADDR_3_OUT',
+                'CAS_APLY_HKIC_NUM_3_OUT',
+                'JNT_OWNR_NAME_2_OUT',
+                'SCHM_CODE_OUT',
+                'FULL_ADDR_4_OUT',
+                'PREM_PAID_IND_OUT',
+                'PREM_PAID_DATE_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'CAS_APLY_RINSTA_RSN_CODE_OUT',
+                'CAS_APLY_REJ_RSN_CODE_OUT',
+                'CAS_APLY_CNCL_RSN_CODE_OUT',
+                'PLNTR_ADDR_IND_OUT',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE_OUT',
+            ],
+            target_columns=[
+                'CAS_APLY_NUM',
+                'CAS_APLY_HKIC_NUM_1',
+                'CAS_APLY_HKIC_NUM_2',
+                'UNIT_CODE_ADDR',
+                'CAS_APLY_DATE',
+                'FRST_ASGN_DATE',
+                'LAND_SRCH_DATE',
+                'CAS_CERT_PRN_IND',
+                'CAS_APLY_STS_CODE',
+                'LAST_STS_CHNG_DATE',
+                'OWNR_NAME',
+                'JNT_OWNR_NAME_1',
+                'UNIT_SFA_AREA',
+                'FULL_ADDR_1',
+                'FULL_ADDR_2',
+                'FULL_ADDR_3',
+                'CAS_APLY_HKIC_NUM_3',
+                'JNT_OWNR_NAME_2',
+                'SCHM_CODE',
+                'FULL_ADDR_4',
+                'PREM_PAID_IND',
+                'PREM_PAID_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'CAS_APLY_RINSTA_RSN_CODE',
+                'CAS_APLY_REJ_RSN_CODE',
+                'CAS_APLY_CNCL_RSN_CODE',
+                'PLNTR_ADDR_IND',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_SMS_CAS_APLY1 write completed")
         logger.info("Step: write_EMS_SMS_CAS_APLY")
         # Write to Target: write_EMS_SMS_CAS_APLY
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"CAS_APLY_CNCL_RSN_CODE": "CAS_APLY_CNCL_RSN_CODE_OUT", "CAS_APLY_DATE": "CAS_APLY_DATE_OUT", "CAS_APLY_HKIC_NUM_1": "CAS_APLY_HKIC_NUM_1_OUT", "CAS_APLY_HKIC_NUM_2": "CAS_APLY_HKIC_NUM_2_OUT", "CAS_APLY_HKIC_NUM_3": "CAS_APLY_HKIC_NUM_3_OUT", "CAS_APLY_NUM": "CAS_APLY_NUM_OUT", "CAS_APLY_REJ_RSN_CODE": "CAS_APLY_REJ_RSN_CODE_OUT", "CAS_APLY_RINSTA_RSN_CODE": "CAS_APLY_RINSTA_RSN_CODE_OUT", "CAS_APLY_STS_CODE": "CAS_APLY_STS_CODE_OUT", "CAS_CERT_PRN_IND": "CAS_CERT_PRN_IND_OUT", "FRST_ASGN_DATE": "FRST_ASGN_DATE_OUT", "FULL_ADDR_1": "FULL_ADDR_1_OUT", "FULL_ADDR_2": "FULL_ADDR_2_OUT", "FULL_ADDR_3": "FULL_ADDR_3_OUT", "FULL_ADDR_4": "FULL_ADDR_4_OUT", "JNT_OWNR_NAME_1": "JNT_OWNR_NAME_1_OUT", "JNT_OWNR_NAME_2": "JNT_OWNR_NAME_2_OUT", "LAND_SRCH_DATE": "LAND_SRCH_DATE_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "LAST_REC_TXN_USER_ID_TYPE_CODE": "LAST_REC_TXN_USER_ID_TYPE_CODE_OUT", "LAST_STS_CHNG_DATE": "LAST_STS_CHNG_DATE_OUT", "OWNR_NAME": "OWNR_NAME_OUT", "PLNTR_ADDR_IND": "PLNTR_ADDR_IND_OUT", "PREM_PAID_DATE": "PREM_PAID_DATE_OUT", "PREM_PAID_IND": "PREM_PAID_IND_OUT", "SCHM_CODE": "SCHM_CODE_OUT", "UNIT_CODE_ADDR": "UNIT_CODE_ADDR_OUT", "UNIT_SFA_AREA": "UNIT_SFA_AREA_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['CAS_APLY_NUM', 'CAS_APLY_HKIC_NUM_1', 'CAS_APLY_HKIC_NUM_2', 'UNIT_CODE_ADDR', 'CAS_APLY_DATE', 'FRST_ASGN_DATE', 'LAND_SRCH_DATE', 'CAS_CERT_PRN_IND', 'CAS_APLY_STS_CODE', 'LAST_STS_CHNG_DATE', 'OWNR_NAME', 'JNT_OWNR_NAME_1', 'UNIT_SFA_AREA', 'FULL_ADDR_1', 'FULL_ADDR_2', 'FULL_ADDR_3', 'CAS_APLY_HKIC_NUM_3', 'JNT_OWNR_NAME_2', 'SCHM_CODE', 'FULL_ADDR_4', 'PREM_PAID_IND', 'PREM_PAID_DATE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'CAS_APLY_RINSTA_RSN_CODE', 'CAS_APLY_REJ_RSN_CODE', 'CAS_APLY_CNCL_RSN_CODE', 'PLNTR_ADDR_IND', 'LAST_REC_TXN_USER_ID_TYPE_CODE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_SMS_CAS_APLY", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_SMS_CAS_APLY',
+            mode='append',
+            source_columns=[
+                'CAS_APLY_NUM_OUT',
+                'CAS_APLY_HKIC_NUM_1_OUT',
+                'CAS_APLY_HKIC_NUM_2_OUT',
+                'UNIT_CODE_ADDR_OUT',
+                'CAS_APLY_DATE_OUT',
+                'FRST_ASGN_DATE_OUT',
+                'LAND_SRCH_DATE_OUT',
+                'CAS_CERT_PRN_IND_OUT',
+                'CAS_APLY_STS_CODE_OUT',
+                'LAST_STS_CHNG_DATE_OUT',
+                'OWNR_NAME_OUT',
+                'JNT_OWNR_NAME_1_OUT',
+                'UNIT_SFA_AREA_OUT',
+                'FULL_ADDR_1_OUT',
+                'FULL_ADDR_2_OUT',
+                'FULL_ADDR_3_OUT',
+                'CAS_APLY_HKIC_NUM_3_OUT',
+                'JNT_OWNR_NAME_2_OUT',
+                'SCHM_CODE_OUT',
+                'FULL_ADDR_4_OUT',
+                'PREM_PAID_IND_OUT',
+                'PREM_PAID_DATE_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'CAS_APLY_RINSTA_RSN_CODE_OUT',
+                'CAS_APLY_REJ_RSN_CODE_OUT',
+                'CAS_APLY_CNCL_RSN_CODE_OUT',
+                'PLNTR_ADDR_IND_OUT',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE_OUT',
+            ],
+            target_columns=[
+                'CAS_APLY_NUM',
+                'CAS_APLY_HKIC_NUM_1',
+                'CAS_APLY_HKIC_NUM_2',
+                'UNIT_CODE_ADDR',
+                'CAS_APLY_DATE',
+                'FRST_ASGN_DATE',
+                'LAND_SRCH_DATE',
+                'CAS_CERT_PRN_IND',
+                'CAS_APLY_STS_CODE',
+                'LAST_STS_CHNG_DATE',
+                'OWNR_NAME',
+                'JNT_OWNR_NAME_1',
+                'UNIT_SFA_AREA',
+                'FULL_ADDR_1',
+                'FULL_ADDR_2',
+                'FULL_ADDR_3',
+                'CAS_APLY_HKIC_NUM_3',
+                'JNT_OWNR_NAME_2',
+                'SCHM_CODE',
+                'FULL_ADDR_4',
+                'PREM_PAID_IND',
+                'PREM_PAID_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'CAS_APLY_RINSTA_RSN_CODE',
+                'CAS_APLY_REJ_RSN_CODE',
+                'CAS_APLY_CNCL_RSN_CODE',
+                'PLNTR_ADDR_IND',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_SMS_CAS_APLY write completed")
         

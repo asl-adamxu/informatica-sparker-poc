@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_CMM_HOS_APLY_REJ_RSN")
@@ -79,289 +64,534 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_CMM_HOS_APLY_REJ_RSN")
         # Source Qualifier: apply_SQ_CMM_HOS_APLY_REJ_RSN
         df_SQ_CMM_HOS_APLY_REJ_RSN = df_CMM_HOS_APLY_REJ_RSN
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HOS_APLY_KEY", "REJ_RSN_SEQ_NUM", "REJ_RSN_DESP", "ROW_VER_NUM", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "APLY_STS_CODE"]
-        df_SQ_CMM_HOS_APLY_REJ_RSN = df_SQ_CMM_HOS_APLY_REJ_RSN.select([col(c) if c.lower() in [x.lower() for x in df_SQ_CMM_HOS_APLY_REJ_RSN.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_CMM_HOS_APLY_REJ_RSN = lib.sq_output(
+            input_df=df_SQ_CMM_HOS_APLY_REJ_RSN,
+            port_cols={
+                'HOS_APLY_KEY': 'decimal',
+                'REJ_RSN_SEQ_NUM': 'decimal',
+                'REJ_RSN_DESP': 'string',
+                'ROW_VER_NUM': 'decimal',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'APLY_STS_CODE': 'string',
+            },
+        )
         ctx.register_df("df_SQ_CMM_HOS_APLY_REJ_RSN", df_SQ_CMM_HOS_APLY_REJ_RSN)
         
         logger.info("Step: apply_EXP_L1")
         # Expression: apply_EXP_L1
-        df_EXP_L1 = df_SQ_CMM_HOS_APLY_REJ_RSN
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["HOS_APLY_KEY", "REJ_RSN_SEQ_NUM", "REJ_RSN_DESP", "ROW_VER_NUM", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "APLY_STS_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_EXP_L1.columns]:
-                df_EXP_L1 = df_EXP_L1.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_L1 = lib.expression(
+            input_df=df_SQ_CMM_HOS_APLY_REJ_RSN,
+        )
         ctx.register_df("df_EXP_L1", df_EXP_L1)
         
         logger.info("Step: write_NHS_HOS_APLY_REJ_RSN")
         # Write to Target: write_NHS_HOS_APLY_REJ_RSN
-        df_write = df_EXP_L1
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"APLY_STS_CODE": "APLY_STS_CODE", "HOS_APLY_KEY": "HOS_APLY_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "REJ_RSN_DESP": "REJ_RSN_DESP", "REJ_RSN_SEQ_NUM": "REJ_RSN_SEQ_NUM", "ROW_VER_NUM": "ROW_VER_NUM"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("APLY_1D_BRCD_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PHASE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_APLY_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("BTCH_ID", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("FORM_COLR_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_HOME_PHONE_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_MBL_PHONE_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_ENG_ADDR_1", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_ENG_ADDR_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_ENG_ADDR_3", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_ENG_ADDR_4", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_ENG_ADDR_5", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("POST_BOX_ENG_ADDR", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_CHI_ADDR_1", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_CHI_ADDR_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_CHI_ADDR_3", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_CHI_ADDR_4", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_CHI_ADDR_5", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("POST_BOX_CHI_ADDR", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CRSP_ADDR_IMG_PATH_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_RSDN_ENG_ADDR_1", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_RSDN_ENG_ADDR_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_RSDN_ENG_ADDR_3", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_RSDN_ENG_ADDR_4", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_RSDN_ENG_ADDR_5", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_RSDN_CHI_ADDR_1", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_RSDN_CHI_ADDR_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_RSDN_CHI_ADDR_3", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_RSDN_CHI_ADDR_4", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_RSDN_CHI_ADDR_5", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RSDN_ADDR_IMG_PATH_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_OFCR_RMK_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_FMLY_TOT_INCM_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_FMLY_TOT_AST_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ELDR_MBR_PRIOR_SCM_JOIN_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("GPRNT_GCHILD_NCLR_FMLY_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_TPS_OWNR_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CODE_ADDR_EST_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CODE_ADDR_BLK_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CODE_ADDR_FLAT_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CODE_ADDR_SFX_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("FMLY_CPST_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("UNIT_SPLT_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LTR_ASRN_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_PRPTY_OWN_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("GFC_NO", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRE_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("BANK_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("BANK_BRCH_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_FEE_CHQ_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("FEE_CHQ_NUM_IMG_PATH_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EFAS_JOIN_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CRP_JOIN_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("FEP_JOIN_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("AMND_IN_PGS_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_LANG_PREF_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_OFFC_PHONE_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_VET_STS_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ASGN_HO_USER_ID", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_SIGN_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("TOP_PRIOR_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("SRA_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RENT_LVL_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CODE_ADDR_EST_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("USER_INPT_PRPTY_OWN_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("USER_INPT_UNIT_SPLT_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("USER_INPT_RMK_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EFAS_EXCP_VRFY_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ASGN_AHM_USER_ID", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APRV_ACT_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APRV_ACT_USER_ID", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_EMAIL_ADDR", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EAS_APLY_SBMT_REF_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EAS_PYMT_MTHD_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EAS_APLY_SBMT_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EAS_EGIS_PSDR_GNRT_TS", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EAS_PYMT_RCPT_ACK_TS", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EAS_BKGND_RCVR_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EAS_MLTP_SCHM_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_HSE_TYPE_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_LVNG_DSTR_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("MIN_TOT_INCM_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("MAX_TOT_INCM_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("MIN_TOT_AST_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("MAX_TOT_AST_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EGIS_FIN_INSTT_LINK_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EAS_DIR_IMPRT_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ORIG_HOS_APLY_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_COPY_GSH_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("IH_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("BANK_CODE_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("BANK_BRCH_CODE_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_FEE_CHQ_NUM_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("BANK_CODE_3", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("BANK_BRCH_CODE_3", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_FEE_CHQ_NUM_3", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("FMLY_MBR_ADD_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EFAS_OPT_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("GSH_ELGBL_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PRH_APLY_STG_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PRH_APLY_STS_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PRH_APLY_STS_UPD_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PRH_APLY_RSN_CODE_LIST", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EFAS_APLY_STS_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EFAS_APLY_RSN_CODE_LIST", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EFAS_FLAT_SLCT_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("DOUBT_CASE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PRH_OFR_CNT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PRH_URSN_WTHDRW_CNT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("NB_SCHM_JOIN_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("NB_JOIN_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("NOTE_EMAIL_RCV_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("YOUTH_SCHM_JOIN_IND", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HOS_APLY_KEY', 'APLY_1D_BRCD_NUM', 'PHASE_CODE', 'HOS_APLY_NUM', 'BTCH_ID', 'FORM_COLR_CODE', 'APLY_HOME_PHONE_NUM', 'APLY_MBL_PHONE_NUM', 'APLY_CRSP_ENG_ADDR_1', 'APLY_CRSP_ENG_ADDR_2', 'APLY_CRSP_ENG_ADDR_3', 'APLY_CRSP_ENG_ADDR_4', 'APLY_CRSP_ENG_ADDR_5', 'POST_BOX_ENG_ADDR', 'APLY_CRSP_CHI_ADDR_1', 'APLY_CRSP_CHI_ADDR_2', 'APLY_CRSP_CHI_ADDR_3', 'APLY_CRSP_CHI_ADDR_4', 'APLY_CRSP_CHI_ADDR_5', 'POST_BOX_CHI_ADDR', 'CRSP_ADDR_IMG_PATH_TEXT', 'APLY_RSDN_ENG_ADDR_1', 'APLY_RSDN_ENG_ADDR_2', 'APLY_RSDN_ENG_ADDR_3', 'APLY_RSDN_ENG_ADDR_4', 'APLY_RSDN_ENG_ADDR_5', 'APLY_RSDN_CHI_ADDR_1', 'APLY_RSDN_CHI_ADDR_2', 'APLY_RSDN_CHI_ADDR_3', 'APLY_RSDN_CHI_ADDR_4', 'APLY_RSDN_CHI_ADDR_5', 'RSDN_ADDR_IMG_PATH_TEXT', 'HOS_OFCR_RMK_TEXT', 'APLY_FMLY_TOT_INCM_AMT', 'APLY_FMLY_TOT_AST_AMT', 'ELDR_MBR_PRIOR_SCM_JOIN_IND', 'GPRNT_GCHILD_NCLR_FMLY_IND', 'APLY_TPS_OWNR_IND', 'CODE_ADDR_EST_CODE', 'CODE_ADDR_BLK_CODE', 'CODE_ADDR_FLAT_NUM', 'CODE_ADDR_SFX_CODE', 'FMLY_CPST_CODE', 'UNIT_SPLT_IND', 'LTR_ASRN_IND', 'APLY_PRPTY_OWN_IND', 'GFC_NO', 'APLY_STS_CODE', 'APLY_CRE_DATE', 'BANK_CODE', 'BANK_BRCH_CODE', 'APLY_FEE_CHQ_NUM', 'FEE_CHQ_NUM_IMG_PATH_TEXT', 'EFAS_JOIN_IND', 'CRP_JOIN_IND', 'FEP_JOIN_IND', 'AMND_IN_PGS_IND', 'APLY_LANG_PREF_CODE', 'APLY_OFFC_PHONE_NUM', 'ROW_VER_NUM', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'APLY_VET_STS_CODE', 'ASGN_HO_USER_ID', 'APLY_SIGN_DATE', 'TOP_PRIOR_IND', 'SRA_IND', 'RENT_LVL_CODE', 'CODE_ADDR_EST_TYPE_CODE', 'USER_INPT_PRPTY_OWN_IND', 'USER_INPT_UNIT_SPLT_IND', 'USER_INPT_RMK_IND', 'EFAS_EXCP_VRFY_IND', 'ASGN_AHM_USER_ID', 'APRV_ACT_DATE', 'APRV_ACT_USER_ID', 'APLY_EMAIL_ADDR', 'EAS_APLY_SBMT_REF_NUM', 'EAS_PYMT_MTHD_CODE', 'EAS_APLY_SBMT_DATE', 'EAS_EGIS_PSDR_GNRT_TS', 'EAS_PYMT_RCPT_ACK_TS', 'EAS_BKGND_RCVR_IND', 'EAS_MLTP_SCHM_IND', 'APLY_HSE_TYPE_TEXT', 'APLY_LVNG_DSTR_TEXT', 'MIN_TOT_INCM_AMT', 'MAX_TOT_INCM_AMT', 'MIN_TOT_AST_AMT', 'MAX_TOT_AST_AMT', 'EGIS_FIN_INSTT_LINK_KEY', 'EAS_DIR_IMPRT_IND', 'ORIG_HOS_APLY_KEY', 'APLY_COPY_GSH_IND', 'IH_IND', 'BANK_CODE_2', 'BANK_BRCH_CODE_2', 'APLY_FEE_CHQ_NUM_2', 'BANK_CODE_3', 'BANK_BRCH_CODE_3', 'APLY_FEE_CHQ_NUM_3', 'FMLY_MBR_ADD_IND', 'EFAS_OPT_IND', 'GSH_ELGBL_IND', 'PRH_APLY_STG_CODE', 'PRH_APLY_STS_CODE', 'PRH_APLY_STS_UPD_DATE', 'PRH_APLY_RSN_CODE_LIST', 'EFAS_APLY_STS_CODE', 'EFAS_APLY_RSN_CODE_LIST', 'EFAS_FLAT_SLCT_DATE', 'DOUBT_CASE_CODE', 'PRH_OFR_CNT', 'PRH_URSN_WTHDRW_CNT', 'NB_SCHM_JOIN_IND', 'NB_JOIN_IND', 'NOTE_EMAIL_RCV_IND', 'YOUTH_SCHM_JOIN_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "NHS_HOS_APLY", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_L1,
+            conn=conn_target,
+            table='NHS_HOS_APLY',
+            mode='append',
+            source_columns=[
+                'HOS_APLY_KEY',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                'APLY_STS_CODE',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                'ROW_VER_NUM',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ],
+            target_columns=[
+                'HOS_APLY_KEY',
+                'APLY_1D_BRCD_NUM',
+                'PHASE_CODE',
+                'HOS_APLY_NUM',
+                'BTCH_ID',
+                'FORM_COLR_CODE',
+                'APLY_HOME_PHONE_NUM',
+                'APLY_MBL_PHONE_NUM',
+                'APLY_CRSP_ENG_ADDR_1',
+                'APLY_CRSP_ENG_ADDR_2',
+                'APLY_CRSP_ENG_ADDR_3',
+                'APLY_CRSP_ENG_ADDR_4',
+                'APLY_CRSP_ENG_ADDR_5',
+                'POST_BOX_ENG_ADDR',
+                'APLY_CRSP_CHI_ADDR_1',
+                'APLY_CRSP_CHI_ADDR_2',
+                'APLY_CRSP_CHI_ADDR_3',
+                'APLY_CRSP_CHI_ADDR_4',
+                'APLY_CRSP_CHI_ADDR_5',
+                'POST_BOX_CHI_ADDR',
+                'CRSP_ADDR_IMG_PATH_TEXT',
+                'APLY_RSDN_ENG_ADDR_1',
+                'APLY_RSDN_ENG_ADDR_2',
+                'APLY_RSDN_ENG_ADDR_3',
+                'APLY_RSDN_ENG_ADDR_4',
+                'APLY_RSDN_ENG_ADDR_5',
+                'APLY_RSDN_CHI_ADDR_1',
+                'APLY_RSDN_CHI_ADDR_2',
+                'APLY_RSDN_CHI_ADDR_3',
+                'APLY_RSDN_CHI_ADDR_4',
+                'APLY_RSDN_CHI_ADDR_5',
+                'RSDN_ADDR_IMG_PATH_TEXT',
+                'HOS_OFCR_RMK_TEXT',
+                'APLY_FMLY_TOT_INCM_AMT',
+                'APLY_FMLY_TOT_AST_AMT',
+                'ELDR_MBR_PRIOR_SCM_JOIN_IND',
+                'GPRNT_GCHILD_NCLR_FMLY_IND',
+                'APLY_TPS_OWNR_IND',
+                'CODE_ADDR_EST_CODE',
+                'CODE_ADDR_BLK_CODE',
+                'CODE_ADDR_FLAT_NUM',
+                'CODE_ADDR_SFX_CODE',
+                'FMLY_CPST_CODE',
+                'UNIT_SPLT_IND',
+                'LTR_ASRN_IND',
+                'APLY_PRPTY_OWN_IND',
+                'GFC_NO',
+                'APLY_STS_CODE',
+                'APLY_CRE_DATE',
+                'BANK_CODE',
+                'BANK_BRCH_CODE',
+                'APLY_FEE_CHQ_NUM',
+                'FEE_CHQ_NUM_IMG_PATH_TEXT',
+                'EFAS_JOIN_IND',
+                'CRP_JOIN_IND',
+                'FEP_JOIN_IND',
+                'AMND_IN_PGS_IND',
+                'APLY_LANG_PREF_CODE',
+                'APLY_OFFC_PHONE_NUM',
+                'ROW_VER_NUM',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'APLY_VET_STS_CODE',
+                'ASGN_HO_USER_ID',
+                'APLY_SIGN_DATE',
+                'TOP_PRIOR_IND',
+                'SRA_IND',
+                'RENT_LVL_CODE',
+                'CODE_ADDR_EST_TYPE_CODE',
+                'USER_INPT_PRPTY_OWN_IND',
+                'USER_INPT_UNIT_SPLT_IND',
+                'USER_INPT_RMK_IND',
+                'EFAS_EXCP_VRFY_IND',
+                'ASGN_AHM_USER_ID',
+                'APRV_ACT_DATE',
+                'APRV_ACT_USER_ID',
+                'APLY_EMAIL_ADDR',
+                'EAS_APLY_SBMT_REF_NUM',
+                'EAS_PYMT_MTHD_CODE',
+                'EAS_APLY_SBMT_DATE',
+                'EAS_EGIS_PSDR_GNRT_TS',
+                'EAS_PYMT_RCPT_ACK_TS',
+                'EAS_BKGND_RCVR_IND',
+                'EAS_MLTP_SCHM_IND',
+                'APLY_HSE_TYPE_TEXT',
+                'APLY_LVNG_DSTR_TEXT',
+                'MIN_TOT_INCM_AMT',
+                'MAX_TOT_INCM_AMT',
+                'MIN_TOT_AST_AMT',
+                'MAX_TOT_AST_AMT',
+                'EGIS_FIN_INSTT_LINK_KEY',
+                'EAS_DIR_IMPRT_IND',
+                'ORIG_HOS_APLY_KEY',
+                'APLY_COPY_GSH_IND',
+                'IH_IND',
+                'BANK_CODE_2',
+                'BANK_BRCH_CODE_2',
+                'APLY_FEE_CHQ_NUM_2',
+                'BANK_CODE_3',
+                'BANK_BRCH_CODE_3',
+                'APLY_FEE_CHQ_NUM_3',
+                'FMLY_MBR_ADD_IND',
+                'EFAS_OPT_IND',
+                'GSH_ELGBL_IND',
+                'PRH_APLY_STG_CODE',
+                'PRH_APLY_STS_CODE',
+                'PRH_APLY_STS_UPD_DATE',
+                'PRH_APLY_RSN_CODE_LIST',
+                'EFAS_APLY_STS_CODE',
+                'EFAS_APLY_RSN_CODE_LIST',
+                'EFAS_FLAT_SLCT_DATE',
+                'DOUBT_CASE_CODE',
+                'PRH_OFR_CNT',
+                'PRH_URSN_WTHDRW_CNT',
+                'NB_SCHM_JOIN_IND',
+                'NB_JOIN_IND',
+                'NOTE_EMAIL_RCV_IND',
+                'YOUTH_SCHM_JOIN_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_NHS_HOS_APLY_REJ_RSN write completed")
         logger.info("Step: write_NHS_HOS_APLY_REJ_RSN1")
         # Write to Target: write_NHS_HOS_APLY_REJ_RSN1
-        df_write = df_EXP_L1
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"APLY_STS_CODE": "APLY_STS_CODE", "HOS_APLY_KEY": "HOS_APLY_KEY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "REJ_RSN_DESP": "REJ_RSN_DESP", "REJ_RSN_SEQ_NUM": "REJ_RSN_SEQ_NUM", "ROW_VER_NUM": "ROW_VER_NUM"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("APLY_1D_BRCD_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PHASE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_APLY_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("BTCH_ID", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("FORM_COLR_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_HOME_PHONE_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_MBL_PHONE_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_ENG_ADDR_1", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_ENG_ADDR_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_ENG_ADDR_3", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_ENG_ADDR_4", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_ENG_ADDR_5", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("POST_BOX_ENG_ADDR", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_CHI_ADDR_1", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_CHI_ADDR_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_CHI_ADDR_3", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_CHI_ADDR_4", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_CHI_ADDR_5", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("POST_BOX_CHI_ADDR", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CRSP_ADDR_IMG_PATH_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_RSDN_ENG_ADDR_1", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_RSDN_ENG_ADDR_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_RSDN_ENG_ADDR_3", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_RSDN_ENG_ADDR_4", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_RSDN_ENG_ADDR_5", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_RSDN_CHI_ADDR_1", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_RSDN_CHI_ADDR_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_RSDN_CHI_ADDR_3", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_RSDN_CHI_ADDR_4", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_RSDN_CHI_ADDR_5", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RSDN_ADDR_IMG_PATH_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_OFCR_RMK_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_FMLY_TOT_INCM_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_FMLY_TOT_AST_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ELDR_MBR_PRIOR_SCM_JOIN_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("GPRNT_GCHILD_NCLR_FMLY_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_TPS_OWNR_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CODE_ADDR_EST_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CODE_ADDR_BLK_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CODE_ADDR_FLAT_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CODE_ADDR_SFX_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("FMLY_CPST_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("UNIT_SPLT_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LTR_ASRN_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_PRPTY_OWN_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("GFC_NO", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRE_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("BANK_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("BANK_BRCH_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_FEE_CHQ_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("FEE_CHQ_NUM_IMG_PATH_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EFAS_JOIN_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CRP_JOIN_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("FEP_JOIN_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("AMND_IN_PGS_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_LANG_PREF_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_OFFC_PHONE_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_VET_STS_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ASGN_HO_USER_ID", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_SIGN_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("TOP_PRIOR_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("SRA_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RENT_LVL_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CODE_ADDR_EST_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("USER_INPT_PRPTY_OWN_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("USER_INPT_UNIT_SPLT_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("USER_INPT_RMK_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EFAS_EXCP_VRFY_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ASGN_AHM_USER_ID", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APRV_ACT_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APRV_ACT_USER_ID", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_EMAIL_ADDR", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EAS_APLY_SBMT_REF_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EAS_PYMT_MTHD_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EAS_APLY_SBMT_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EAS_EGIS_PSDR_GNRT_TS", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EAS_PYMT_RCPT_ACK_TS", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EAS_BKGND_RCVR_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EAS_MLTP_SCHM_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_HSE_TYPE_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_LVNG_DSTR_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("MIN_TOT_INCM_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("MAX_TOT_INCM_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("MIN_TOT_AST_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("MAX_TOT_AST_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EGIS_FIN_INSTT_LINK_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EAS_DIR_IMPRT_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ORIG_HOS_APLY_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_COPY_GSH_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("IH_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("BANK_CODE_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("BANK_BRCH_CODE_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_FEE_CHQ_NUM_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("BANK_CODE_3", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("BANK_BRCH_CODE_3", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_FEE_CHQ_NUM_3", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("FMLY_MBR_ADD_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EFAS_OPT_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("GSH_ELGBL_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PRH_APLY_STG_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PRH_APLY_STS_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PRH_APLY_STS_UPD_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PRH_APLY_RSN_CODE_LIST", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EFAS_APLY_STS_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EFAS_APLY_RSN_CODE_LIST", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EFAS_FLAT_SLCT_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("DOUBT_CASE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PRH_OFR_CNT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PRH_URSN_WTHDRW_CNT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("NB_SCHM_JOIN_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("NB_JOIN_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("NOTE_EMAIL_RCV_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("YOUTH_SCHM_JOIN_IND", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HOS_APLY_KEY', 'APLY_1D_BRCD_NUM', 'PHASE_CODE', 'HOS_APLY_NUM', 'BTCH_ID', 'FORM_COLR_CODE', 'APLY_HOME_PHONE_NUM', 'APLY_MBL_PHONE_NUM', 'APLY_CRSP_ENG_ADDR_1', 'APLY_CRSP_ENG_ADDR_2', 'APLY_CRSP_ENG_ADDR_3', 'APLY_CRSP_ENG_ADDR_4', 'APLY_CRSP_ENG_ADDR_5', 'POST_BOX_ENG_ADDR', 'APLY_CRSP_CHI_ADDR_1', 'APLY_CRSP_CHI_ADDR_2', 'APLY_CRSP_CHI_ADDR_3', 'APLY_CRSP_CHI_ADDR_4', 'APLY_CRSP_CHI_ADDR_5', 'POST_BOX_CHI_ADDR', 'CRSP_ADDR_IMG_PATH_TEXT', 'APLY_RSDN_ENG_ADDR_1', 'APLY_RSDN_ENG_ADDR_2', 'APLY_RSDN_ENG_ADDR_3', 'APLY_RSDN_ENG_ADDR_4', 'APLY_RSDN_ENG_ADDR_5', 'APLY_RSDN_CHI_ADDR_1', 'APLY_RSDN_CHI_ADDR_2', 'APLY_RSDN_CHI_ADDR_3', 'APLY_RSDN_CHI_ADDR_4', 'APLY_RSDN_CHI_ADDR_5', 'RSDN_ADDR_IMG_PATH_TEXT', 'HOS_OFCR_RMK_TEXT', 'APLY_FMLY_TOT_INCM_AMT', 'APLY_FMLY_TOT_AST_AMT', 'ELDR_MBR_PRIOR_SCM_JOIN_IND', 'GPRNT_GCHILD_NCLR_FMLY_IND', 'APLY_TPS_OWNR_IND', 'CODE_ADDR_EST_CODE', 'CODE_ADDR_BLK_CODE', 'CODE_ADDR_FLAT_NUM', 'CODE_ADDR_SFX_CODE', 'FMLY_CPST_CODE', 'UNIT_SPLT_IND', 'LTR_ASRN_IND', 'APLY_PRPTY_OWN_IND', 'GFC_NO', 'APLY_STS_CODE', 'APLY_CRE_DATE', 'BANK_CODE', 'BANK_BRCH_CODE', 'APLY_FEE_CHQ_NUM', 'FEE_CHQ_NUM_IMG_PATH_TEXT', 'EFAS_JOIN_IND', 'CRP_JOIN_IND', 'FEP_JOIN_IND', 'AMND_IN_PGS_IND', 'APLY_LANG_PREF_CODE', 'APLY_OFFC_PHONE_NUM', 'ROW_VER_NUM', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'APLY_VET_STS_CODE', 'ASGN_HO_USER_ID', 'APLY_SIGN_DATE', 'TOP_PRIOR_IND', 'SRA_IND', 'RENT_LVL_CODE', 'CODE_ADDR_EST_TYPE_CODE', 'USER_INPT_PRPTY_OWN_IND', 'USER_INPT_UNIT_SPLT_IND', 'USER_INPT_RMK_IND', 'EFAS_EXCP_VRFY_IND', 'ASGN_AHM_USER_ID', 'APRV_ACT_DATE', 'APRV_ACT_USER_ID', 'APLY_EMAIL_ADDR', 'EAS_APLY_SBMT_REF_NUM', 'EAS_PYMT_MTHD_CODE', 'EAS_APLY_SBMT_DATE', 'EAS_EGIS_PSDR_GNRT_TS', 'EAS_PYMT_RCPT_ACK_TS', 'EAS_BKGND_RCVR_IND', 'EAS_MLTP_SCHM_IND', 'APLY_HSE_TYPE_TEXT', 'APLY_LVNG_DSTR_TEXT', 'MIN_TOT_INCM_AMT', 'MAX_TOT_INCM_AMT', 'MIN_TOT_AST_AMT', 'MAX_TOT_AST_AMT', 'EGIS_FIN_INSTT_LINK_KEY', 'EAS_DIR_IMPRT_IND', 'ORIG_HOS_APLY_KEY', 'APLY_COPY_GSH_IND', 'IH_IND', 'BANK_CODE_2', 'BANK_BRCH_CODE_2', 'APLY_FEE_CHQ_NUM_2', 'BANK_CODE_3', 'BANK_BRCH_CODE_3', 'APLY_FEE_CHQ_NUM_3', 'FMLY_MBR_ADD_IND', 'EFAS_OPT_IND', 'GSH_ELGBL_IND', 'PRH_APLY_STG_CODE', 'PRH_APLY_STS_CODE', 'PRH_APLY_STS_UPD_DATE', 'PRH_APLY_RSN_CODE_LIST', 'EFAS_APLY_STS_CODE', 'EFAS_APLY_RSN_CODE_LIST', 'EFAS_FLAT_SLCT_DATE', 'DOUBT_CASE_CODE', 'PRH_OFR_CNT', 'PRH_URSN_WTHDRW_CNT', 'NB_SCHM_JOIN_IND', 'NB_JOIN_IND', 'NOTE_EMAIL_RCV_IND', 'YOUTH_SCHM_JOIN_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "NHS_HOS_APLY", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_L1,
+            conn=conn_target,
+            table='NHS_HOS_APLY',
+            mode='append',
+            source_columns=[
+                'HOS_APLY_KEY',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                'APLY_STS_CODE',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                'ROW_VER_NUM',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ],
+            target_columns=[
+                'HOS_APLY_KEY',
+                'APLY_1D_BRCD_NUM',
+                'PHASE_CODE',
+                'HOS_APLY_NUM',
+                'BTCH_ID',
+                'FORM_COLR_CODE',
+                'APLY_HOME_PHONE_NUM',
+                'APLY_MBL_PHONE_NUM',
+                'APLY_CRSP_ENG_ADDR_1',
+                'APLY_CRSP_ENG_ADDR_2',
+                'APLY_CRSP_ENG_ADDR_3',
+                'APLY_CRSP_ENG_ADDR_4',
+                'APLY_CRSP_ENG_ADDR_5',
+                'POST_BOX_ENG_ADDR',
+                'APLY_CRSP_CHI_ADDR_1',
+                'APLY_CRSP_CHI_ADDR_2',
+                'APLY_CRSP_CHI_ADDR_3',
+                'APLY_CRSP_CHI_ADDR_4',
+                'APLY_CRSP_CHI_ADDR_5',
+                'POST_BOX_CHI_ADDR',
+                'CRSP_ADDR_IMG_PATH_TEXT',
+                'APLY_RSDN_ENG_ADDR_1',
+                'APLY_RSDN_ENG_ADDR_2',
+                'APLY_RSDN_ENG_ADDR_3',
+                'APLY_RSDN_ENG_ADDR_4',
+                'APLY_RSDN_ENG_ADDR_5',
+                'APLY_RSDN_CHI_ADDR_1',
+                'APLY_RSDN_CHI_ADDR_2',
+                'APLY_RSDN_CHI_ADDR_3',
+                'APLY_RSDN_CHI_ADDR_4',
+                'APLY_RSDN_CHI_ADDR_5',
+                'RSDN_ADDR_IMG_PATH_TEXT',
+                'HOS_OFCR_RMK_TEXT',
+                'APLY_FMLY_TOT_INCM_AMT',
+                'APLY_FMLY_TOT_AST_AMT',
+                'ELDR_MBR_PRIOR_SCM_JOIN_IND',
+                'GPRNT_GCHILD_NCLR_FMLY_IND',
+                'APLY_TPS_OWNR_IND',
+                'CODE_ADDR_EST_CODE',
+                'CODE_ADDR_BLK_CODE',
+                'CODE_ADDR_FLAT_NUM',
+                'CODE_ADDR_SFX_CODE',
+                'FMLY_CPST_CODE',
+                'UNIT_SPLT_IND',
+                'LTR_ASRN_IND',
+                'APLY_PRPTY_OWN_IND',
+                'GFC_NO',
+                'APLY_STS_CODE',
+                'APLY_CRE_DATE',
+                'BANK_CODE',
+                'BANK_BRCH_CODE',
+                'APLY_FEE_CHQ_NUM',
+                'FEE_CHQ_NUM_IMG_PATH_TEXT',
+                'EFAS_JOIN_IND',
+                'CRP_JOIN_IND',
+                'FEP_JOIN_IND',
+                'AMND_IN_PGS_IND',
+                'APLY_LANG_PREF_CODE',
+                'APLY_OFFC_PHONE_NUM',
+                'ROW_VER_NUM',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'APLY_VET_STS_CODE',
+                'ASGN_HO_USER_ID',
+                'APLY_SIGN_DATE',
+                'TOP_PRIOR_IND',
+                'SRA_IND',
+                'RENT_LVL_CODE',
+                'CODE_ADDR_EST_TYPE_CODE',
+                'USER_INPT_PRPTY_OWN_IND',
+                'USER_INPT_UNIT_SPLT_IND',
+                'USER_INPT_RMK_IND',
+                'EFAS_EXCP_VRFY_IND',
+                'ASGN_AHM_USER_ID',
+                'APRV_ACT_DATE',
+                'APRV_ACT_USER_ID',
+                'APLY_EMAIL_ADDR',
+                'EAS_APLY_SBMT_REF_NUM',
+                'EAS_PYMT_MTHD_CODE',
+                'EAS_APLY_SBMT_DATE',
+                'EAS_EGIS_PSDR_GNRT_TS',
+                'EAS_PYMT_RCPT_ACK_TS',
+                'EAS_BKGND_RCVR_IND',
+                'EAS_MLTP_SCHM_IND',
+                'APLY_HSE_TYPE_TEXT',
+                'APLY_LVNG_DSTR_TEXT',
+                'MIN_TOT_INCM_AMT',
+                'MAX_TOT_INCM_AMT',
+                'MIN_TOT_AST_AMT',
+                'MAX_TOT_AST_AMT',
+                'EGIS_FIN_INSTT_LINK_KEY',
+                'EAS_DIR_IMPRT_IND',
+                'ORIG_HOS_APLY_KEY',
+                'APLY_COPY_GSH_IND',
+                'IH_IND',
+                'BANK_CODE_2',
+                'BANK_BRCH_CODE_2',
+                'APLY_FEE_CHQ_NUM_2',
+                'BANK_CODE_3',
+                'BANK_BRCH_CODE_3',
+                'APLY_FEE_CHQ_NUM_3',
+                'FMLY_MBR_ADD_IND',
+                'EFAS_OPT_IND',
+                'GSH_ELGBL_IND',
+                'PRH_APLY_STG_CODE',
+                'PRH_APLY_STS_CODE',
+                'PRH_APLY_STS_UPD_DATE',
+                'PRH_APLY_RSN_CODE_LIST',
+                'EFAS_APLY_STS_CODE',
+                'EFAS_APLY_RSN_CODE_LIST',
+                'EFAS_FLAT_SLCT_DATE',
+                'DOUBT_CASE_CODE',
+                'PRH_OFR_CNT',
+                'PRH_URSN_WTHDRW_CNT',
+                'NB_SCHM_JOIN_IND',
+                'NB_JOIN_IND',
+                'NOTE_EMAIL_RCV_IND',
+                'YOUTH_SCHM_JOIN_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_NHS_HOS_APLY_REJ_RSN1 write completed")
         

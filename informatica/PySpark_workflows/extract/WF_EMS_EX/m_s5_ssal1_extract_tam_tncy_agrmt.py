@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_TAM_TNCY_AGRMT")
@@ -79,126 +64,452 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_TAM_TNCY_AGRMT")
         # Source Qualifier: apply_SQ_TAM_TNCY_AGRMT
         df_SQ_TAM_TNCY_AGRMT = df_TAM_TNCY_AGRMT
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_TAM_TNCY_AGRMT = df_SQ_TAM_TNCY_AGRMT.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["CUST_KEY", "HSE_SRVC_APLY_KEY", "HSE_UNIT_KEY", "TNCY_AGRMT_TYPE_CODE", "TNT_INTK_DATE", "TNCY_AGRMT_CMNC_DATE", "TNCY_AGRMT_STS_CODE", "TNCY_AGRMT_TRMT_DATE", "TNT_SPCL_NEED_IND", "TNT_INTK_DPST_AMT", "ORIG_TNCY_AGRMT_CMNC_DATE", "DPST_RSTL_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "TNCY_AGRMT_TM_STS_CODE", "TNCY_AGRMT_TM_TRMT_DATE", "SEPRT_ASMT_IND", "AMND_BY_USER_ID_NUM", "CNFRM_BY_USER_ID_NUM", "DOG_RGSTR_IND", "EXMPT_RSN_CODE", "INTL_HSE_SRVC_APLY_NUM", "NEXT_RENT_BGN_DATE", "NEXT_RENT_CHNG_RSN_CODE", "NEXT_RENT_CHNG_RSN_TEXT", "NEXT_RENT_END_DATE", "NEXT_RENT_FCTR_CODE", "NEXT_RENT_RVW_CATG_BGN_DATE", "NEXT_RENT_RVW_CATG_CODE", "NEXT_TNT_NEXT_RVW_DATE", "OPR_CODE", "PREV_CODE_ADDR", "PREV_CUST_KEY", "PREV_HSE_SRVC_APLY_KEY", "REHSE_CATG_CODE", "RENT_BGN_DATE", "RENT_CHNG_RSN_CODE", "RENT_CHNG_RSN_TEXT", "RENT_END_DATE", "RENT_FCTR_CODE", "RENT_RVW_CATG_BGN_DATE", "RENT_RVW_CATG_CODE", "SCND_PRIOR_GF_CERT_BGN_DATE", "SCND_PRIOR_GF_CERT_END_DATE", "SCND_PRIOR_GF_CERT_SRC_CODE", "TEMP_OCPY_END_DATE", "TNCY_AGRMT_AMND_DATE", "TNCY_AGRMT_AMND_RSN_TEXT", "TNCY_AGRMT_CNFRM_DATE", "TNCY_AGRMT_TNTV_TRMT_DATE", "TNCY_RMK_TEXT", "TNT_NEXT_RVW_DATE", "TNT_UND_RVW_IND", "RENT_FREE_TYPE_CODE", "RENT_FREE_PRD_CODE", "RENT_FREE_TFR_DBR_END_DATE", "RENT_FREE_BGN_DATE", "TNCY_AGRMT_TM_PRCS_TRMT_DATE", "OFR_LTR_ISS_DATE", "EFAS_DBR_TFR_END_DATE", "UNDOCPY_STAY_PUT_END_DATE", "MKT_RENT_CATG_CODE", "DSBL_ALWN_RCPT_LMT_OVER_IND", "NEXT_MKT_RENT_CATG_CODE", "RENT_EXMPT_IND", "BD_NEXT_RVW_DATE"]
-        df_SQ_TAM_TNCY_AGRMT = df_SQ_TAM_TNCY_AGRMT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_TAM_TNCY_AGRMT.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_TAM_TNCY_AGRMT = lib.sq_output(
+            input_df=df_SQ_TAM_TNCY_AGRMT,
+            port_cols={
+                'CUST_KEY': 'string',
+                'HSE_SRVC_APLY_KEY': 'string',
+                'HSE_UNIT_KEY': 'string',
+                'TNCY_AGRMT_TYPE_CODE': 'string',
+                'TNT_INTK_DATE': 'date/time',
+                'TNCY_AGRMT_CMNC_DATE': 'date/time',
+                'TNCY_AGRMT_STS_CODE': 'string',
+                'TNCY_AGRMT_TRMT_DATE': 'date/time',
+                'TNT_SPCL_NEED_IND': 'string',
+                'TNT_INTK_DPST_AMT': 'decimal',
+                'ORIG_TNCY_AGRMT_CMNC_DATE': 'date/time',
+                'DPST_RSTL_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'TNCY_AGRMT_TM_STS_CODE': 'string',
+                'TNCY_AGRMT_TM_TRMT_DATE': 'date/time',
+                'SEPRT_ASMT_IND': 'string',
+                'AMND_BY_USER_ID_NUM': 'string',
+                'CNFRM_BY_USER_ID_NUM': 'string',
+                'DOG_RGSTR_IND': 'string',
+                'EXMPT_RSN_CODE': 'string',
+                'INTL_HSE_SRVC_APLY_NUM': 'string',
+                'NEXT_RENT_BGN_DATE': 'date/time',
+                'NEXT_RENT_CHNG_RSN_CODE': 'string',
+                'NEXT_RENT_CHNG_RSN_TEXT': 'string',
+                'NEXT_RENT_END_DATE': 'date/time',
+                'NEXT_RENT_FCTR_CODE': 'decimal',
+                'NEXT_RENT_RVW_CATG_BGN_DATE': 'date/time',
+                'NEXT_RENT_RVW_CATG_CODE': 'string',
+                'NEXT_TNT_NEXT_RVW_DATE': 'date/time',
+                'OPR_CODE': 'string',
+                'PREV_CODE_ADDR': 'string',
+                'PREV_CUST_KEY': 'string',
+                'PREV_HSE_SRVC_APLY_KEY': 'string',
+                'REHSE_CATG_CODE': 'string',
+                'RENT_BGN_DATE': 'date/time',
+                'RENT_CHNG_RSN_CODE': 'string',
+                'RENT_CHNG_RSN_TEXT': 'string',
+                'RENT_END_DATE': 'date/time',
+                'RENT_FCTR_CODE': 'decimal',
+                'RENT_RVW_CATG_BGN_DATE': 'date/time',
+                'RENT_RVW_CATG_CODE': 'string',
+                'SCND_PRIOR_GF_CERT_BGN_DATE': 'date/time',
+                'SCND_PRIOR_GF_CERT_END_DATE': 'date/time',
+                'SCND_PRIOR_GF_CERT_SRC_CODE': 'string',
+                'TEMP_OCPY_END_DATE': 'date/time',
+                'TNCY_AGRMT_AMND_DATE': 'date/time',
+                'TNCY_AGRMT_AMND_RSN_TEXT': 'string',
+                'TNCY_AGRMT_CNFRM_DATE': 'date/time',
+                'TNCY_AGRMT_TNTV_TRMT_DATE': 'date/time',
+                'TNCY_RMK_TEXT': 'string',
+                'TNT_NEXT_RVW_DATE': 'date/time',
+                'TNT_UND_RVW_IND': 'string',
+                'RENT_FREE_TYPE_CODE': 'string',
+                'RENT_FREE_PRD_CODE': 'string',
+                'RENT_FREE_TFR_DBR_END_DATE': 'date/time',
+                'RENT_FREE_BGN_DATE': 'date/time',
+                'TNCY_AGRMT_TM_PRCS_TRMT_DATE': 'date/time',
+                'OFR_LTR_ISS_DATE': 'date/time',
+                'EFAS_DBR_TFR_END_DATE': 'date/time',
+                'UNDOCPY_STAY_PUT_END_DATE': 'date/time',
+                'MKT_RENT_CATG_CODE': 'string',
+                'DSBL_ALWN_RCPT_LMT_OVER_IND': 'string',
+                'NEXT_MKT_RENT_CATG_CODE': 'string',
+                'RENT_EXMPT_IND': 'string',
+                'BD_NEXT_RVW_DATE': 'date/time',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_TAM_TNCY_AGRMT", df_SQ_TAM_TNCY_AGRMT)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_TAM_TNCY_AGRMT
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_KEY_OUT", expr("ltrim(rtrim(CUST_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_SRVC_APLY_KEY_OUT", expr("ltrim(rtrim(HSE_SRVC_APLY_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_UNIT_KEY_OUT", expr("ltrim(rtrim(HSE_UNIT_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNCY_AGRMT_TYPE_CODE_OUT", expr("ltrim(rtrim(TNCY_AGRMT_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNT_INTK_DATE_OUT", expr("TNT_INTK_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNCY_AGRMT_CMNC_DATE_OUT", expr("TNCY_AGRMT_CMNC_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNCY_AGRMT_STS_CODE_OUT", expr("ltrim(rtrim(TNCY_AGRMT_STS_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNCY_AGRMT_TRMT_DATE_OUT", expr("TNCY_AGRMT_TRMT_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNT_SPCL_NEED_IND_OUT", expr("ltrim(rtrim(TNT_SPCL_NEED_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNT_INTK_DPST_AMT_OUT", expr("TNT_INTK_DPST_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ORIG_TNCY_AGRMT_CMNC_DATE_OUT", expr("ORIG_TNCY_AGRMT_CMNC_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DPST_RSTL_IND_OUT", expr("ltrim(rtrim(DPST_RSTL_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNCY_AGRMT_TM_STS_CODE_OUT", expr("ltrim(rtrim(TNCY_AGRMT_TM_STS_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNCY_AGRMT_TM_TRMT_DATE_OUT", expr("TNCY_AGRMT_TM_TRMT_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("SEPRT_ASMT_IND_OUT", expr("ltrim(rtrim(SEPRT_ASMT_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("AMND_BY_USER_ID_NUM_OUT", expr("ltrim(rtrim(AMND_BY_USER_ID_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CNFRM_BY_USER_ID_NUM_OUT", expr("ltrim(rtrim(CNFRM_BY_USER_ID_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DOG_RGSTR_IND_OUT", expr("ltrim(rtrim(DOG_RGSTR_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("EXMPT_RSN_CODE_OUT", expr("ltrim(rtrim(EXMPT_RSN_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("INTL_HSE_SRVC_APLY_NUM_OUT", expr("ltrim(rtrim(INTL_HSE_SRVC_APLY_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NEXT_RENT_BGN_DATE_OUT", expr("NEXT_RENT_BGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NEXT_RENT_CHNG_RSN_CODE_OUT", expr("ltrim(rtrim(NEXT_RENT_CHNG_RSN_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NEXT_RENT_CHNG_RSN_TEXT_OUT", expr("ltrim(rtrim(NEXT_RENT_CHNG_RSN_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NEXT_RENT_END_DATE_OUT", expr("NEXT_RENT_END_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NEXT_RENT_FCTR_CODE_OUT", expr("NEXT_RENT_FCTR_CODE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NEXT_RENT_RVW_CATG_BGN_DATE_OUT", expr("NEXT_RENT_RVW_CATG_BGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NEXT_RENT_RVW_CATG_CODE_OUT", expr("ltrim(rtrim(NEXT_RENT_RVW_CATG_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NEXT_TNT_NEXT_RVW_DATE_OUT", expr("NEXT_TNT_NEXT_RVW_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_CODE_OUT", expr("ltrim(rtrim(OPR_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PREV_CODE_ADDR_OUT", expr("ltrim(rtrim(PREV_CODE_ADDR))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PREV_CUST_KEY_OUT", expr("ltrim(rtrim(PREV_CUST_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PREV_HSE_SRVC_APLY_KEY_OUT", expr("ltrim(rtrim(PREV_HSE_SRVC_APLY_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("REHSE_CATG_CODE_OUT", expr("ltrim(rtrim(REHSE_CATG_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RENT_BGN_DATE_OUT", expr("RENT_BGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RENT_CHNG_RSN_CODE_OUT", expr("ltrim(rtrim(RENT_CHNG_RSN_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RENT_CHNG_RSN_TEXT_OUT", expr("ltrim(rtrim(RENT_CHNG_RSN_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RENT_END_DATE_OUT", expr("RENT_END_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RENT_FCTR_CODE_OUT", expr("RENT_FCTR_CODE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RENT_RVW_CATG_BGN_DATE_OUT", expr("RENT_RVW_CATG_BGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RENT_RVW_CATG_CODE_OUT", expr("ltrim(rtrim(RENT_RVW_CATG_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("SCND_PRIOR_GF_CERT_BGN_DATE_OUT", expr("SCND_PRIOR_GF_CERT_BGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("SCND_PRIOR_GF_CERT_END_DATE_OUT", expr("SCND_PRIOR_GF_CERT_END_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("SCND_PRIOR_GF_CERT_SRC_CODE_OUT", expr("ltrim(rtrim(SCND_PRIOR_GF_CERT_SRC_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TEMP_OCPY_END_DATE_OUT", expr("TEMP_OCPY_END_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNCY_AGRMT_AMND_DATE_OUT", expr("TNCY_AGRMT_AMND_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNCY_AGRMT_AMND_RSN_TEXT_OUT", expr("ltrim(rtrim(TNCY_AGRMT_AMND_RSN_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNCY_AGRMT_CNFRM_DATE_OUT", expr("TNCY_AGRMT_CNFRM_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNCY_AGRMT_TNTV_TRMT_DATE_OUT", expr("TNCY_AGRMT_TNTV_TRMT_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNCY_RMK_TEXT_OUT", expr("ltrim(rtrim(TNCY_RMK_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNT_NEXT_RVW_DATE_OUT", expr("TNT_NEXT_RVW_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNT_UND_RVW_IND_OUT", expr("ltrim(rtrim(TNT_UND_RVW_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RENT_FREE_TYPE_CODE_OUT", expr("ltrim(rtrim(RENT_FREE_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RENT_FREE_PRD_CODE_OUT", expr("ltrim(rtrim(RENT_FREE_PRD_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RENT_FREE_TFR_DBR_END_DATE_OUT", expr("RENT_FREE_TFR_DBR_END_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RENT_FREE_BGN_DATE_OUT", expr("RENT_FREE_BGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNCY_AGRMT_TM_PRCS_TRMT_DATE_OUT", expr("TNCY_AGRMT_TM_PRCS_TRMT_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OFR_LTR_ISS_DATE_OUT", expr("OFR_LTR_ISS_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("'|'"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_DATE))"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["LAST_REC_TXN_DATE", "EFAS_DBR_TFR_END_DATE", "UNDOCPY_STAY_PUT_END_DATE", "MKT_RENT_CATG_CODE", "DSBL_ALWN_RCPT_LMT_OVER_IND", "NEXT_MKT_RENT_CATG_CODE", "RENT_EXMPT_IND", "BD_NEXT_RVW_DATE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_TAM_TNCY_AGRMT,
+            computed_columns=[
+                {'name': 'CUST_KEY_OUT', 'expr': 'ltrim(rtrim(CUST_KEY))'},
+                {'name': 'HSE_SRVC_APLY_KEY_OUT', 'expr': 'ltrim(rtrim(HSE_SRVC_APLY_KEY))'},
+                {'name': 'HSE_UNIT_KEY_OUT', 'expr': 'ltrim(rtrim(HSE_UNIT_KEY))'},
+                {'name': 'TNCY_AGRMT_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(TNCY_AGRMT_TYPE_CODE))'},
+                {'name': 'TNT_INTK_DATE_OUT', 'expr': 'TNT_INTK_DATE'},
+                {'name': 'TNCY_AGRMT_CMNC_DATE_OUT', 'expr': 'TNCY_AGRMT_CMNC_DATE'},
+                {'name': 'TNCY_AGRMT_STS_CODE_OUT', 'expr': 'ltrim(rtrim(TNCY_AGRMT_STS_CODE))'},
+                {'name': 'TNCY_AGRMT_TRMT_DATE_OUT', 'expr': 'TNCY_AGRMT_TRMT_DATE'},
+                {'name': 'TNT_SPCL_NEED_IND_OUT', 'expr': 'ltrim(rtrim(TNT_SPCL_NEED_IND))'},
+                {'name': 'TNT_INTK_DPST_AMT_OUT', 'expr': 'TNT_INTK_DPST_AMT'},
+                {'name': 'ORIG_TNCY_AGRMT_CMNC_DATE_OUT', 'expr': 'ORIG_TNCY_AGRMT_CMNC_DATE'},
+                {'name': 'DPST_RSTL_IND_OUT', 'expr': 'ltrim(rtrim(DPST_RSTL_IND))'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_USER_ID_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID))'},
+                {'name': 'TNCY_AGRMT_TM_STS_CODE_OUT', 'expr': 'ltrim(rtrim(TNCY_AGRMT_TM_STS_CODE))'},
+                {'name': 'TNCY_AGRMT_TM_TRMT_DATE_OUT', 'expr': 'TNCY_AGRMT_TM_TRMT_DATE'},
+                {'name': 'SEPRT_ASMT_IND_OUT', 'expr': 'ltrim(rtrim(SEPRT_ASMT_IND))'},
+                {'name': 'AMND_BY_USER_ID_NUM_OUT', 'expr': 'ltrim(rtrim(AMND_BY_USER_ID_NUM))'},
+                {'name': 'CNFRM_BY_USER_ID_NUM_OUT', 'expr': 'ltrim(rtrim(CNFRM_BY_USER_ID_NUM))'},
+                {'name': 'DOG_RGSTR_IND_OUT', 'expr': 'ltrim(rtrim(DOG_RGSTR_IND))'},
+                {'name': 'EXMPT_RSN_CODE_OUT', 'expr': 'ltrim(rtrim(EXMPT_RSN_CODE))'},
+                {'name': 'INTL_HSE_SRVC_APLY_NUM_OUT', 'expr': 'ltrim(rtrim(INTL_HSE_SRVC_APLY_NUM))'},
+                {'name': 'NEXT_RENT_BGN_DATE_OUT', 'expr': 'NEXT_RENT_BGN_DATE'},
+                {'name': 'NEXT_RENT_CHNG_RSN_CODE_OUT', 'expr': 'ltrim(rtrim(NEXT_RENT_CHNG_RSN_CODE))'},
+                {'name': 'NEXT_RENT_CHNG_RSN_TEXT_OUT', 'expr': 'ltrim(rtrim(NEXT_RENT_CHNG_RSN_TEXT))'},
+                {'name': 'NEXT_RENT_END_DATE_OUT', 'expr': 'NEXT_RENT_END_DATE'},
+                {'name': 'NEXT_RENT_FCTR_CODE_OUT', 'expr': 'NEXT_RENT_FCTR_CODE'},
+                {'name': 'NEXT_RENT_RVW_CATG_BGN_DATE_OUT', 'expr': 'NEXT_RENT_RVW_CATG_BGN_DATE'},
+                {'name': 'NEXT_RENT_RVW_CATG_CODE_OUT', 'expr': 'ltrim(rtrim(NEXT_RENT_RVW_CATG_CODE))'},
+                {'name': 'NEXT_TNT_NEXT_RVW_DATE_OUT', 'expr': 'NEXT_TNT_NEXT_RVW_DATE'},
+                {'name': 'OPR_CODE_OUT', 'expr': 'ltrim(rtrim(OPR_CODE))'},
+                {'name': 'PREV_CODE_ADDR_OUT', 'expr': 'ltrim(rtrim(PREV_CODE_ADDR))'},
+                {'name': 'PREV_CUST_KEY_OUT', 'expr': 'ltrim(rtrim(PREV_CUST_KEY))'},
+                {'name': 'PREV_HSE_SRVC_APLY_KEY_OUT', 'expr': 'ltrim(rtrim(PREV_HSE_SRVC_APLY_KEY))'},
+                {'name': 'REHSE_CATG_CODE_OUT', 'expr': 'ltrim(rtrim(REHSE_CATG_CODE))'},
+                {'name': 'RENT_BGN_DATE_OUT', 'expr': 'RENT_BGN_DATE'},
+                {'name': 'RENT_CHNG_RSN_CODE_OUT', 'expr': 'ltrim(rtrim(RENT_CHNG_RSN_CODE))'},
+                {'name': 'RENT_CHNG_RSN_TEXT_OUT', 'expr': 'ltrim(rtrim(RENT_CHNG_RSN_TEXT))'},
+                {'name': 'RENT_END_DATE_OUT', 'expr': 'RENT_END_DATE'},
+                {'name': 'RENT_FCTR_CODE_OUT', 'expr': 'RENT_FCTR_CODE'},
+                {'name': 'RENT_RVW_CATG_BGN_DATE_OUT', 'expr': 'RENT_RVW_CATG_BGN_DATE'},
+                {'name': 'RENT_RVW_CATG_CODE_OUT', 'expr': 'ltrim(rtrim(RENT_RVW_CATG_CODE))'},
+                {'name': 'SCND_PRIOR_GF_CERT_BGN_DATE_OUT', 'expr': 'SCND_PRIOR_GF_CERT_BGN_DATE'},
+                {'name': 'SCND_PRIOR_GF_CERT_END_DATE_OUT', 'expr': 'SCND_PRIOR_GF_CERT_END_DATE'},
+                {'name': 'SCND_PRIOR_GF_CERT_SRC_CODE_OUT', 'expr': 'ltrim(rtrim(SCND_PRIOR_GF_CERT_SRC_CODE))'},
+                {'name': 'TEMP_OCPY_END_DATE_OUT', 'expr': 'TEMP_OCPY_END_DATE'},
+                {'name': 'TNCY_AGRMT_AMND_DATE_OUT', 'expr': 'TNCY_AGRMT_AMND_DATE'},
+                {'name': 'TNCY_AGRMT_AMND_RSN_TEXT_OUT', 'expr': 'ltrim(rtrim(TNCY_AGRMT_AMND_RSN_TEXT))'},
+                {'name': 'TNCY_AGRMT_CNFRM_DATE_OUT', 'expr': 'TNCY_AGRMT_CNFRM_DATE'},
+                {'name': 'TNCY_AGRMT_TNTV_TRMT_DATE_OUT', 'expr': 'TNCY_AGRMT_TNTV_TRMT_DATE'},
+                {'name': 'TNCY_RMK_TEXT_OUT', 'expr': 'ltrim(rtrim(TNCY_RMK_TEXT))'},
+                {'name': 'TNT_NEXT_RVW_DATE_OUT', 'expr': 'TNT_NEXT_RVW_DATE'},
+                {'name': 'TNT_UND_RVW_IND_OUT', 'expr': 'ltrim(rtrim(TNT_UND_RVW_IND))'},
+                {'name': 'RENT_FREE_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(RENT_FREE_TYPE_CODE))'},
+                {'name': 'RENT_FREE_PRD_CODE_OUT', 'expr': 'ltrim(rtrim(RENT_FREE_PRD_CODE))'},
+                {'name': 'RENT_FREE_TFR_DBR_END_DATE_OUT', 'expr': 'RENT_FREE_TFR_DBR_END_DATE'},
+                {'name': 'RENT_FREE_BGN_DATE_OUT', 'expr': 'RENT_FREE_BGN_DATE'},
+                {'name': 'TNCY_AGRMT_TM_PRCS_TRMT_DATE_OUT', 'expr': 'TNCY_AGRMT_TM_PRCS_TRMT_DATE'},
+                {'name': 'OFR_LTR_ISS_DATE_OUT', 'expr': 'OFR_LTR_ISS_DATE'},
+                {'name': 'DUMMY', 'expr': "'|'"},
+                {'name': 'LAST_REC_TXN_DATE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_DATE))'}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EMS_TAM_TNCY_AGRMT1")
         # Write to Target: write_EMS_TAM_TNCY_AGRMT1
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AMND_BY_USER_ID_NUM": "AMND_BY_USER_ID_NUM_OUT", "BD_NEXT_RVW_DATE": "BD_NEXT_RVW_DATE", "CNFRM_BY_USER_ID_NUM": "CNFRM_BY_USER_ID_NUM_OUT", "CUST_KEY": "CUST_KEY_OUT", "DOG_RGSTR_IND": "DOG_RGSTR_IND_OUT", "DPST_RSTL_IND": "DPST_RSTL_IND_OUT", "DSBL_ALWN_RCPT_LMT_OVER_IND": "DSBL_ALWN_RCPT_LMT_OVER_IND", "DUMMY": "DUMMY", "EFAS_DBR_TFR_END_DATE": "EFAS_DBR_TFR_END_DATE", "EXMPT_RSN_CODE": "EXMPT_RSN_CODE_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "HSE_UNIT_KEY": "HSE_UNIT_KEY_OUT", "INTL_HSE_SRVC_APLY_NUM": "INTL_HSE_SRVC_APLY_NUM_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "MKT_RENT_CATG_CODE": "MKT_RENT_CATG_CODE", "NEXT_MKT_RENT_CATG_CODE": "NEXT_MKT_RENT_CATG_CODE", "NEXT_RENT_BGN_DATE": "NEXT_RENT_BGN_DATE_OUT", "NEXT_RENT_CHNG_RSN_CODE": "NEXT_RENT_CHNG_RSN_CODE_OUT", "NEXT_RENT_CHNG_RSN_TEXT": "NEXT_RENT_CHNG_RSN_TEXT_OUT", "NEXT_RENT_END_DATE": "NEXT_RENT_END_DATE_OUT", "NEXT_RENT_FCTR_CODE": "NEXT_RENT_FCTR_CODE_OUT", "NEXT_RENT_RVW_CATG_BGN_DATE": "NEXT_RENT_RVW_CATG_BGN_DATE_OUT", "NEXT_RENT_RVW_CATG_CODE": "NEXT_RENT_RVW_CATG_CODE_OUT", "NEXT_TNT_NEXT_RVW_DATE": "NEXT_TNT_NEXT_RVW_DATE_OUT", "OFR_LTR_ISS_DATE": "OFR_LTR_ISS_DATE_OUT", "OPR_CODE": "OPR_CODE_OUT", "ORIG_TNCY_AGRMT_CMNC_DATE": "ORIG_TNCY_AGRMT_CMNC_DATE_OUT", "PREV_CODE_ADDR": "PREV_CODE_ADDR_OUT", "PREV_CUST_KEY": "PREV_CUST_KEY_OUT", "PREV_HSE_SRVC_APLY_KEY": "PREV_HSE_SRVC_APLY_KEY_OUT", "REHSE_CATG_CODE": "REHSE_CATG_CODE_OUT", "RENT_BGN_DATE": "RENT_BGN_DATE_OUT", "RENT_CHNG_RSN_CODE": "RENT_CHNG_RSN_CODE_OUT", "RENT_CHNG_RSN_TEXT": "RENT_CHNG_RSN_TEXT_OUT", "RENT_END_DATE": "RENT_END_DATE_OUT", "RENT_EXMPT_IND": "RENT_EXMPT_IND", "RENT_FCTR_CODE": "RENT_FCTR_CODE_OUT", "RENT_FREE_BGN_DATE": "RENT_FREE_BGN_DATE_OUT", "RENT_FREE_PRD_CODE": "RENT_FREE_PRD_CODE_OUT", "RENT_FREE_TFR_DBR_END_DATE": "RENT_FREE_TFR_DBR_END_DATE_OUT", "RENT_FREE_TYPE_CODE": "RENT_FREE_TYPE_CODE_OUT", "RENT_RVW_CATG_BGN_DATE": "RENT_RVW_CATG_BGN_DATE_OUT", "RENT_RVW_CATG_CODE": "RENT_RVW_CATG_CODE_OUT", "SCND_PRIOR_GF_CERT_BGN_DATE": "SCND_PRIOR_GF_CERT_BGN_DATE_OUT", "SCND_PRIOR_GF_CERT_END_DATE": "SCND_PRIOR_GF_CERT_END_DATE_OUT", "SCND_PRIOR_GF_CERT_SRC_CODE": "SCND_PRIOR_GF_CERT_SRC_CODE_OUT", "SEPRT_ASMT_IND": "SEPRT_ASMT_IND_OUT", "TEMP_OCPY_END_DATE": "TEMP_OCPY_END_DATE_OUT", "TNCY_AGRMT_AMND_DATE": "TNCY_AGRMT_AMND_DATE_OUT", "TNCY_AGRMT_AMND_RSN_TEXT": "TNCY_AGRMT_AMND_RSN_TEXT_OUT", "TNCY_AGRMT_CMNC_DATE": "TNCY_AGRMT_CMNC_DATE_OUT", "TNCY_AGRMT_CNFRM_DATE": "TNCY_AGRMT_CNFRM_DATE_OUT", "TNCY_AGRMT_STS_CODE": "TNCY_AGRMT_STS_CODE_OUT", "TNCY_AGRMT_TM_PRCS_TRMT_DATE": "TNCY_AGRMT_TM_PRCS_TRMT_DATE_OUT", "TNCY_AGRMT_TM_STS_CODE": "TNCY_AGRMT_TM_STS_CODE_OUT", "TNCY_AGRMT_TM_TRMT_DATE": "TNCY_AGRMT_TM_TRMT_DATE_OUT", "TNCY_AGRMT_TNTV_TRMT_DATE": "TNCY_AGRMT_TNTV_TRMT_DATE_OUT", "TNCY_AGRMT_TRMT_DATE": "TNCY_AGRMT_TRMT_DATE_OUT", "TNCY_AGRMT_TYPE_CODE": "TNCY_AGRMT_TYPE_CODE_OUT", "TNCY_RMK_TEXT": "TNCY_RMK_TEXT_OUT", "TNT_INTK_DATE": "TNT_INTK_DATE_OUT", "TNT_INTK_DPST_AMT": "TNT_INTK_DPST_AMT_OUT", "TNT_NEXT_RVW_DATE": "TNT_NEXT_RVW_DATE_OUT", "TNT_SPCL_NEED_IND": "TNT_SPCL_NEED_IND_OUT", "TNT_UND_RVW_IND": "TNT_UND_RVW_IND_OUT", "UNDOCPY_STAY_PUT_END_DATE": "UNDOCPY_STAY_PUT_END_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['CUST_KEY', 'HSE_SRVC_APLY_KEY', 'HSE_UNIT_KEY', 'TNCY_AGRMT_TYPE_CODE', 'TNT_INTK_DATE', 'TNCY_AGRMT_CMNC_DATE', 'TNCY_AGRMT_STS_CODE', 'TNCY_AGRMT_TRMT_DATE', 'TNT_SPCL_NEED_IND', 'TNT_INTK_DPST_AMT', 'ORIG_TNCY_AGRMT_CMNC_DATE', 'DPST_RSTL_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'TNCY_AGRMT_TM_STS_CODE', 'TNCY_AGRMT_TM_TRMT_DATE', 'SEPRT_ASMT_IND', 'AMND_BY_USER_ID_NUM', 'CNFRM_BY_USER_ID_NUM', 'DOG_RGSTR_IND', 'EXMPT_RSN_CODE', 'INTL_HSE_SRVC_APLY_NUM', 'NEXT_RENT_BGN_DATE', 'NEXT_RENT_CHNG_RSN_CODE', 'NEXT_RENT_CHNG_RSN_TEXT', 'NEXT_RENT_END_DATE', 'NEXT_RENT_FCTR_CODE', 'NEXT_RENT_RVW_CATG_BGN_DATE', 'NEXT_RENT_RVW_CATG_CODE', 'NEXT_TNT_NEXT_RVW_DATE', 'OPR_CODE', 'PREV_CODE_ADDR', 'PREV_CUST_KEY', 'PREV_HSE_SRVC_APLY_KEY', 'REHSE_CATG_CODE', 'RENT_BGN_DATE', 'RENT_CHNG_RSN_CODE', 'RENT_CHNG_RSN_TEXT', 'RENT_END_DATE', 'RENT_FCTR_CODE', 'RENT_RVW_CATG_BGN_DATE', 'RENT_RVW_CATG_CODE', 'SCND_PRIOR_GF_CERT_BGN_DATE', 'SCND_PRIOR_GF_CERT_END_DATE', 'SCND_PRIOR_GF_CERT_SRC_CODE', 'TEMP_OCPY_END_DATE', 'TNCY_AGRMT_AMND_DATE', 'TNCY_AGRMT_AMND_RSN_TEXT', 'TNCY_AGRMT_CNFRM_DATE', 'TNCY_AGRMT_TNTV_TRMT_DATE', 'TNCY_RMK_TEXT', 'TNT_NEXT_RVW_DATE', 'TNT_UND_RVW_IND', 'RENT_FREE_TYPE_CODE', 'RENT_FREE_PRD_CODE', 'RENT_FREE_TFR_DBR_END_DATE', 'RENT_FREE_BGN_DATE', 'TNCY_AGRMT_TM_PRCS_TRMT_DATE', 'OFR_LTR_ISS_DATE', 'DUMMY', 'EFAS_DBR_TFR_END_DATE', 'UNDOCPY_STAY_PUT_END_DATE', 'MKT_RENT_CATG_CODE', 'DSBL_ALWN_RCPT_LMT_OVER_IND', 'NEXT_MKT_RENT_CATG_CODE', 'RENT_EXMPT_IND', 'BD_NEXT_RVW_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_TAM_TNCY_AGRMT1", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_TAM_TNCY_AGRMT1',
+            mode='append',
+            source_columns=[
+                'CUST_KEY_OUT',
+                'HSE_SRVC_APLY_KEY_OUT',
+                'HSE_UNIT_KEY_OUT',
+                'TNCY_AGRMT_TYPE_CODE_OUT',
+                'TNT_INTK_DATE_OUT',
+                'TNCY_AGRMT_CMNC_DATE_OUT',
+                'TNCY_AGRMT_STS_CODE_OUT',
+                'TNCY_AGRMT_TRMT_DATE_OUT',
+                'TNT_SPCL_NEED_IND_OUT',
+                'TNT_INTK_DPST_AMT_OUT',
+                'ORIG_TNCY_AGRMT_CMNC_DATE_OUT',
+                'DPST_RSTL_IND_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'TNCY_AGRMT_TM_STS_CODE_OUT',
+                'TNCY_AGRMT_TM_TRMT_DATE_OUT',
+                'SEPRT_ASMT_IND_OUT',
+                'AMND_BY_USER_ID_NUM_OUT',
+                'CNFRM_BY_USER_ID_NUM_OUT',
+                'DOG_RGSTR_IND_OUT',
+                'EXMPT_RSN_CODE_OUT',
+                'INTL_HSE_SRVC_APLY_NUM_OUT',
+                'NEXT_RENT_BGN_DATE_OUT',
+                'NEXT_RENT_CHNG_RSN_CODE_OUT',
+                'NEXT_RENT_CHNG_RSN_TEXT_OUT',
+                'NEXT_RENT_END_DATE_OUT',
+                'NEXT_RENT_FCTR_CODE_OUT',
+                'NEXT_RENT_RVW_CATG_BGN_DATE_OUT',
+                'NEXT_RENT_RVW_CATG_CODE_OUT',
+                'NEXT_TNT_NEXT_RVW_DATE_OUT',
+                'OPR_CODE_OUT',
+                'PREV_CODE_ADDR_OUT',
+                'PREV_CUST_KEY_OUT',
+                'PREV_HSE_SRVC_APLY_KEY_OUT',
+                'REHSE_CATG_CODE_OUT',
+                'RENT_BGN_DATE_OUT',
+                'RENT_CHNG_RSN_CODE_OUT',
+                'RENT_CHNG_RSN_TEXT_OUT',
+                'RENT_END_DATE_OUT',
+                'RENT_FCTR_CODE_OUT',
+                'RENT_RVW_CATG_BGN_DATE_OUT',
+                'RENT_RVW_CATG_CODE_OUT',
+                'SCND_PRIOR_GF_CERT_BGN_DATE_OUT',
+                'SCND_PRIOR_GF_CERT_END_DATE_OUT',
+                'SCND_PRIOR_GF_CERT_SRC_CODE_OUT',
+                'TEMP_OCPY_END_DATE_OUT',
+                'TNCY_AGRMT_AMND_DATE_OUT',
+                'TNCY_AGRMT_AMND_RSN_TEXT_OUT',
+                'TNCY_AGRMT_CNFRM_DATE_OUT',
+                'TNCY_AGRMT_TNTV_TRMT_DATE_OUT',
+                'TNCY_RMK_TEXT_OUT',
+                'TNT_NEXT_RVW_DATE_OUT',
+                'TNT_UND_RVW_IND_OUT',
+                'RENT_FREE_TYPE_CODE_OUT',
+                'RENT_FREE_PRD_CODE_OUT',
+                'RENT_FREE_TFR_DBR_END_DATE_OUT',
+                'RENT_FREE_BGN_DATE_OUT',
+                'TNCY_AGRMT_TM_PRCS_TRMT_DATE_OUT',
+                'OFR_LTR_ISS_DATE_OUT',
+                'DUMMY',
+                'EFAS_DBR_TFR_END_DATE',
+                'UNDOCPY_STAY_PUT_END_DATE',
+                'MKT_RENT_CATG_CODE',
+                'DSBL_ALWN_RCPT_LMT_OVER_IND',
+                'NEXT_MKT_RENT_CATG_CODE',
+                'RENT_EXMPT_IND',
+                'BD_NEXT_RVW_DATE',
+            ],
+            target_columns=[
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'HSE_UNIT_KEY',
+                'TNCY_AGRMT_TYPE_CODE',
+                'TNT_INTK_DATE',
+                'TNCY_AGRMT_CMNC_DATE',
+                'TNCY_AGRMT_STS_CODE',
+                'TNCY_AGRMT_TRMT_DATE',
+                'TNT_SPCL_NEED_IND',
+                'TNT_INTK_DPST_AMT',
+                'ORIG_TNCY_AGRMT_CMNC_DATE',
+                'DPST_RSTL_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'TNCY_AGRMT_TM_STS_CODE',
+                'TNCY_AGRMT_TM_TRMT_DATE',
+                'SEPRT_ASMT_IND',
+                'AMND_BY_USER_ID_NUM',
+                'CNFRM_BY_USER_ID_NUM',
+                'DOG_RGSTR_IND',
+                'EXMPT_RSN_CODE',
+                'INTL_HSE_SRVC_APLY_NUM',
+                'NEXT_RENT_BGN_DATE',
+                'NEXT_RENT_CHNG_RSN_CODE',
+                'NEXT_RENT_CHNG_RSN_TEXT',
+                'NEXT_RENT_END_DATE',
+                'NEXT_RENT_FCTR_CODE',
+                'NEXT_RENT_RVW_CATG_BGN_DATE',
+                'NEXT_RENT_RVW_CATG_CODE',
+                'NEXT_TNT_NEXT_RVW_DATE',
+                'OPR_CODE',
+                'PREV_CODE_ADDR',
+                'PREV_CUST_KEY',
+                'PREV_HSE_SRVC_APLY_KEY',
+                'REHSE_CATG_CODE',
+                'RENT_BGN_DATE',
+                'RENT_CHNG_RSN_CODE',
+                'RENT_CHNG_RSN_TEXT',
+                'RENT_END_DATE',
+                'RENT_FCTR_CODE',
+                'RENT_RVW_CATG_BGN_DATE',
+                'RENT_RVW_CATG_CODE',
+                'SCND_PRIOR_GF_CERT_BGN_DATE',
+                'SCND_PRIOR_GF_CERT_END_DATE',
+                'SCND_PRIOR_GF_CERT_SRC_CODE',
+                'TEMP_OCPY_END_DATE',
+                'TNCY_AGRMT_AMND_DATE',
+                'TNCY_AGRMT_AMND_RSN_TEXT',
+                'TNCY_AGRMT_CNFRM_DATE',
+                'TNCY_AGRMT_TNTV_TRMT_DATE',
+                'TNCY_RMK_TEXT',
+                'TNT_NEXT_RVW_DATE',
+                'TNT_UND_RVW_IND',
+                'RENT_FREE_TYPE_CODE',
+                'RENT_FREE_PRD_CODE',
+                'RENT_FREE_TFR_DBR_END_DATE',
+                'RENT_FREE_BGN_DATE',
+                'TNCY_AGRMT_TM_PRCS_TRMT_DATE',
+                'OFR_LTR_ISS_DATE',
+                'DUMMY',
+                'EFAS_DBR_TFR_END_DATE',
+                'UNDOCPY_STAY_PUT_END_DATE',
+                'MKT_RENT_CATG_CODE',
+                'DSBL_ALWN_RCPT_LMT_OVER_IND',
+                'NEXT_MKT_RENT_CATG_CODE',
+                'RENT_EXMPT_IND',
+                'BD_NEXT_RVW_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_TAM_TNCY_AGRMT1 write completed")
         logger.info("Step: write_EMS_TAM_TNCY_AGRMT")
         # Write to Target: write_EMS_TAM_TNCY_AGRMT
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AMND_BY_USER_ID_NUM": "AMND_BY_USER_ID_NUM_OUT", "BD_NEXT_RVW_DATE": "BD_NEXT_RVW_DATE", "CNFRM_BY_USER_ID_NUM": "CNFRM_BY_USER_ID_NUM_OUT", "CUST_KEY": "CUST_KEY_OUT", "DOG_RGSTR_IND": "DOG_RGSTR_IND_OUT", "DPST_RSTL_IND": "DPST_RSTL_IND_OUT", "DSBL_ALWN_RCPT_LMT_OVER_IND": "DSBL_ALWN_RCPT_LMT_OVER_IND", "EFAS_DBR_TFR_END_DATE": "EFAS_DBR_TFR_END_DATE", "EXMPT_RSN_CODE": "EXMPT_RSN_CODE_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "HSE_UNIT_KEY": "HSE_UNIT_KEY_OUT", "INTL_HSE_SRVC_APLY_NUM": "INTL_HSE_SRVC_APLY_NUM_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "MKT_RENT_CATG_CODE": "MKT_RENT_CATG_CODE", "NEXT_MKT_RENT_CATG_CODE": "NEXT_MKT_RENT_CATG_CODE", "NEXT_RENT_BGN_DATE": "NEXT_RENT_BGN_DATE_OUT", "NEXT_RENT_CHNG_RSN_CODE": "NEXT_RENT_CHNG_RSN_CODE_OUT", "NEXT_RENT_CHNG_RSN_TEXT": "NEXT_RENT_CHNG_RSN_TEXT_OUT", "NEXT_RENT_END_DATE": "NEXT_RENT_END_DATE_OUT", "NEXT_RENT_FCTR_CODE": "NEXT_RENT_FCTR_CODE_OUT", "NEXT_RENT_RVW_CATG_BGN_DATE": "NEXT_RENT_RVW_CATG_BGN_DATE_OUT", "NEXT_RENT_RVW_CATG_CODE": "NEXT_RENT_RVW_CATG_CODE_OUT", "NEXT_TNT_NEXT_RVW_DATE": "NEXT_TNT_NEXT_RVW_DATE_OUT", "OFR_LTR_ISS_DATE": "OFR_LTR_ISS_DATE_OUT", "OPR_CODE": "OPR_CODE_OUT", "ORIG_TNCY_AGRMT_CMNC_DATE": "ORIG_TNCY_AGRMT_CMNC_DATE_OUT", "PREV_CODE_ADDR": "PREV_CODE_ADDR_OUT", "PREV_CUST_KEY": "PREV_CUST_KEY_OUT", "PREV_HSE_SRVC_APLY_KEY": "PREV_HSE_SRVC_APLY_KEY_OUT", "REHSE_CATG_CODE": "REHSE_CATG_CODE_OUT", "RENT_BGN_DATE": "RENT_BGN_DATE_OUT", "RENT_CHNG_RSN_CODE": "RENT_CHNG_RSN_CODE_OUT", "RENT_CHNG_RSN_TEXT": "RENT_CHNG_RSN_TEXT_OUT", "RENT_END_DATE": "RENT_END_DATE_OUT", "RENT_EXMPT_IND": "RENT_EXMPT_IND", "RENT_FCTR_CODE": "RENT_FCTR_CODE_OUT", "RENT_FREE_BGN_DATE": "RENT_FREE_BGN_DATE_OUT", "RENT_FREE_PRD_CODE": "RENT_FREE_PRD_CODE_OUT", "RENT_FREE_TFR_DBR_END_DATE": "RENT_FREE_TFR_DBR_END_DATE_OUT", "RENT_FREE_TYPE_CODE": "RENT_FREE_TYPE_CODE_OUT", "RENT_RVW_CATG_BGN_DATE": "RENT_RVW_CATG_BGN_DATE_OUT", "RENT_RVW_CATG_CODE": "RENT_RVW_CATG_CODE_OUT", "SCND_PRIOR_GF_CERT_BGN_DATE": "SCND_PRIOR_GF_CERT_BGN_DATE_OUT", "SCND_PRIOR_GF_CERT_END_DATE": "SCND_PRIOR_GF_CERT_END_DATE_OUT", "SCND_PRIOR_GF_CERT_SRC_CODE": "SCND_PRIOR_GF_CERT_SRC_CODE_OUT", "SEPRT_ASMT_IND": "SEPRT_ASMT_IND_OUT", "TEMP_OCPY_END_DATE": "TEMP_OCPY_END_DATE_OUT", "TNCY_AGRMT_AMND_DATE": "TNCY_AGRMT_AMND_DATE_OUT", "TNCY_AGRMT_AMND_RSN_TEXT": "TNCY_AGRMT_AMND_RSN_TEXT_OUT", "TNCY_AGRMT_CMNC_DATE": "TNCY_AGRMT_CMNC_DATE_OUT", "TNCY_AGRMT_CNFRM_DATE": "TNCY_AGRMT_CNFRM_DATE_OUT", "TNCY_AGRMT_STS_CODE": "TNCY_AGRMT_STS_CODE_OUT", "TNCY_AGRMT_TM_PRCS_TRMT_DATE": "TNCY_AGRMT_TM_PRCS_TRMT_DATE_OUT", "TNCY_AGRMT_TM_STS_CODE": "TNCY_AGRMT_TM_STS_CODE_OUT", "TNCY_AGRMT_TM_TRMT_DATE": "TNCY_AGRMT_TM_TRMT_DATE_OUT", "TNCY_AGRMT_TNTV_TRMT_DATE": "TNCY_AGRMT_TNTV_TRMT_DATE_OUT", "TNCY_AGRMT_TRMT_DATE": "TNCY_AGRMT_TRMT_DATE_OUT", "TNCY_AGRMT_TYPE_CODE": "TNCY_AGRMT_TYPE_CODE_OUT", "TNCY_RMK_TEXT": "TNCY_RMK_TEXT_OUT", "TNT_INTK_DATE": "TNT_INTK_DATE_OUT", "TNT_INTK_DPST_AMT": "TNT_INTK_DPST_AMT_OUT", "TNT_NEXT_RVW_DATE": "TNT_NEXT_RVW_DATE_OUT", "TNT_SPCL_NEED_IND": "TNT_SPCL_NEED_IND_OUT", "TNT_UND_RVW_IND": "TNT_UND_RVW_IND_OUT", "UNDOCPY_STAY_PUT_END_DATE": "UNDOCPY_STAY_PUT_END_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['CUST_KEY', 'HSE_SRVC_APLY_KEY', 'HSE_UNIT_KEY', 'TNCY_AGRMT_TYPE_CODE', 'TNT_INTK_DATE', 'TNCY_AGRMT_CMNC_DATE', 'TNCY_AGRMT_STS_CODE', 'TNCY_AGRMT_TRMT_DATE', 'TNT_SPCL_NEED_IND', 'TNT_INTK_DPST_AMT', 'ORIG_TNCY_AGRMT_CMNC_DATE', 'DPST_RSTL_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'TNCY_AGRMT_TM_STS_CODE', 'TNCY_AGRMT_TM_TRMT_DATE', 'SEPRT_ASMT_IND', 'AMND_BY_USER_ID_NUM', 'CNFRM_BY_USER_ID_NUM', 'DOG_RGSTR_IND', 'EXMPT_RSN_CODE', 'INTL_HSE_SRVC_APLY_NUM', 'NEXT_RENT_BGN_DATE', 'NEXT_RENT_CHNG_RSN_CODE', 'NEXT_RENT_CHNG_RSN_TEXT', 'NEXT_RENT_END_DATE', 'NEXT_RENT_FCTR_CODE', 'NEXT_RENT_RVW_CATG_BGN_DATE', 'NEXT_RENT_RVW_CATG_CODE', 'NEXT_TNT_NEXT_RVW_DATE', 'OPR_CODE', 'PREV_CODE_ADDR', 'PREV_CUST_KEY', 'PREV_HSE_SRVC_APLY_KEY', 'REHSE_CATG_CODE', 'RENT_BGN_DATE', 'RENT_CHNG_RSN_CODE', 'RENT_CHNG_RSN_TEXT', 'RENT_END_DATE', 'RENT_FCTR_CODE', 'RENT_RVW_CATG_BGN_DATE', 'RENT_RVW_CATG_CODE', 'SCND_PRIOR_GF_CERT_BGN_DATE', 'SCND_PRIOR_GF_CERT_END_DATE', 'SCND_PRIOR_GF_CERT_SRC_CODE', 'TEMP_OCPY_END_DATE', 'TNCY_AGRMT_AMND_DATE', 'TNCY_AGRMT_AMND_RSN_TEXT', 'TNCY_AGRMT_CNFRM_DATE', 'TNCY_AGRMT_TNTV_TRMT_DATE', 'TNCY_RMK_TEXT', 'TNT_NEXT_RVW_DATE', 'TNT_UND_RVW_IND', 'RENT_FREE_TYPE_CODE', 'RENT_FREE_PRD_CODE', 'RENT_FREE_TFR_DBR_END_DATE', 'RENT_FREE_BGN_DATE', 'TNCY_AGRMT_TM_PRCS_TRMT_DATE', 'OFR_LTR_ISS_DATE', 'EFAS_DBR_TFR_END_DATE', 'UNDOCPY_STAY_PUT_END_DATE', 'MKT_RENT_CATG_CODE', 'DSBL_ALWN_RCPT_LMT_OVER_IND', 'NEXT_MKT_RENT_CATG_CODE', 'RENT_EXMPT_IND', 'BD_NEXT_RVW_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_TAM_TNCY_AGRMT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_TAM_TNCY_AGRMT',
+            mode='append',
+            source_columns=[
+                'CUST_KEY_OUT',
+                'HSE_SRVC_APLY_KEY_OUT',
+                'HSE_UNIT_KEY_OUT',
+                'TNCY_AGRMT_TYPE_CODE_OUT',
+                'TNT_INTK_DATE_OUT',
+                'TNCY_AGRMT_CMNC_DATE_OUT',
+                'TNCY_AGRMT_STS_CODE_OUT',
+                'TNCY_AGRMT_TRMT_DATE_OUT',
+                'TNT_SPCL_NEED_IND_OUT',
+                'TNT_INTK_DPST_AMT_OUT',
+                'ORIG_TNCY_AGRMT_CMNC_DATE_OUT',
+                'DPST_RSTL_IND_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'TNCY_AGRMT_TM_STS_CODE_OUT',
+                'TNCY_AGRMT_TM_TRMT_DATE_OUT',
+                'SEPRT_ASMT_IND_OUT',
+                'AMND_BY_USER_ID_NUM_OUT',
+                'CNFRM_BY_USER_ID_NUM_OUT',
+                'DOG_RGSTR_IND_OUT',
+                'EXMPT_RSN_CODE_OUT',
+                'INTL_HSE_SRVC_APLY_NUM_OUT',
+                'NEXT_RENT_BGN_DATE_OUT',
+                'NEXT_RENT_CHNG_RSN_CODE_OUT',
+                'NEXT_RENT_CHNG_RSN_TEXT_OUT',
+                'NEXT_RENT_END_DATE_OUT',
+                'NEXT_RENT_FCTR_CODE_OUT',
+                'NEXT_RENT_RVW_CATG_BGN_DATE_OUT',
+                'NEXT_RENT_RVW_CATG_CODE_OUT',
+                'NEXT_TNT_NEXT_RVW_DATE_OUT',
+                'OPR_CODE_OUT',
+                'PREV_CODE_ADDR_OUT',
+                'PREV_CUST_KEY_OUT',
+                'PREV_HSE_SRVC_APLY_KEY_OUT',
+                'REHSE_CATG_CODE_OUT',
+                'RENT_BGN_DATE_OUT',
+                'RENT_CHNG_RSN_CODE_OUT',
+                'RENT_CHNG_RSN_TEXT_OUT',
+                'RENT_END_DATE_OUT',
+                'RENT_FCTR_CODE_OUT',
+                'RENT_RVW_CATG_BGN_DATE_OUT',
+                'RENT_RVW_CATG_CODE_OUT',
+                'SCND_PRIOR_GF_CERT_BGN_DATE_OUT',
+                'SCND_PRIOR_GF_CERT_END_DATE_OUT',
+                'SCND_PRIOR_GF_CERT_SRC_CODE_OUT',
+                'TEMP_OCPY_END_DATE_OUT',
+                'TNCY_AGRMT_AMND_DATE_OUT',
+                'TNCY_AGRMT_AMND_RSN_TEXT_OUT',
+                'TNCY_AGRMT_CNFRM_DATE_OUT',
+                'TNCY_AGRMT_TNTV_TRMT_DATE_OUT',
+                'TNCY_RMK_TEXT_OUT',
+                'TNT_NEXT_RVW_DATE_OUT',
+                'TNT_UND_RVW_IND_OUT',
+                'RENT_FREE_TYPE_CODE_OUT',
+                'RENT_FREE_PRD_CODE_OUT',
+                'RENT_FREE_TFR_DBR_END_DATE_OUT',
+                'RENT_FREE_BGN_DATE_OUT',
+                'TNCY_AGRMT_TM_PRCS_TRMT_DATE_OUT',
+                'OFR_LTR_ISS_DATE_OUT',
+                'EFAS_DBR_TFR_END_DATE',
+                'UNDOCPY_STAY_PUT_END_DATE',
+                'MKT_RENT_CATG_CODE',
+                'DSBL_ALWN_RCPT_LMT_OVER_IND',
+                'NEXT_MKT_RENT_CATG_CODE',
+                'RENT_EXMPT_IND',
+                'BD_NEXT_RVW_DATE',
+            ],
+            target_columns=[
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'HSE_UNIT_KEY',
+                'TNCY_AGRMT_TYPE_CODE',
+                'TNT_INTK_DATE',
+                'TNCY_AGRMT_CMNC_DATE',
+                'TNCY_AGRMT_STS_CODE',
+                'TNCY_AGRMT_TRMT_DATE',
+                'TNT_SPCL_NEED_IND',
+                'TNT_INTK_DPST_AMT',
+                'ORIG_TNCY_AGRMT_CMNC_DATE',
+                'DPST_RSTL_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'TNCY_AGRMT_TM_STS_CODE',
+                'TNCY_AGRMT_TM_TRMT_DATE',
+                'SEPRT_ASMT_IND',
+                'AMND_BY_USER_ID_NUM',
+                'CNFRM_BY_USER_ID_NUM',
+                'DOG_RGSTR_IND',
+                'EXMPT_RSN_CODE',
+                'INTL_HSE_SRVC_APLY_NUM',
+                'NEXT_RENT_BGN_DATE',
+                'NEXT_RENT_CHNG_RSN_CODE',
+                'NEXT_RENT_CHNG_RSN_TEXT',
+                'NEXT_RENT_END_DATE',
+                'NEXT_RENT_FCTR_CODE',
+                'NEXT_RENT_RVW_CATG_BGN_DATE',
+                'NEXT_RENT_RVW_CATG_CODE',
+                'NEXT_TNT_NEXT_RVW_DATE',
+                'OPR_CODE',
+                'PREV_CODE_ADDR',
+                'PREV_CUST_KEY',
+                'PREV_HSE_SRVC_APLY_KEY',
+                'REHSE_CATG_CODE',
+                'RENT_BGN_DATE',
+                'RENT_CHNG_RSN_CODE',
+                'RENT_CHNG_RSN_TEXT',
+                'RENT_END_DATE',
+                'RENT_FCTR_CODE',
+                'RENT_RVW_CATG_BGN_DATE',
+                'RENT_RVW_CATG_CODE',
+                'SCND_PRIOR_GF_CERT_BGN_DATE',
+                'SCND_PRIOR_GF_CERT_END_DATE',
+                'SCND_PRIOR_GF_CERT_SRC_CODE',
+                'TEMP_OCPY_END_DATE',
+                'TNCY_AGRMT_AMND_DATE',
+                'TNCY_AGRMT_AMND_RSN_TEXT',
+                'TNCY_AGRMT_CNFRM_DATE',
+                'TNCY_AGRMT_TNTV_TRMT_DATE',
+                'TNCY_RMK_TEXT',
+                'TNT_NEXT_RVW_DATE',
+                'TNT_UND_RVW_IND',
+                'RENT_FREE_TYPE_CODE',
+                'RENT_FREE_PRD_CODE',
+                'RENT_FREE_TFR_DBR_END_DATE',
+                'RENT_FREE_BGN_DATE',
+                'TNCY_AGRMT_TM_PRCS_TRMT_DATE',
+                'OFR_LTR_ISS_DATE',
+                'EFAS_DBR_TFR_END_DATE',
+                'UNDOCPY_STAY_PUT_END_DATE',
+                'MKT_RENT_CATG_CODE',
+                'DSBL_ALWN_RCPT_LMT_OVER_IND',
+                'NEXT_MKT_RENT_CATG_CODE',
+                'RENT_EXMPT_IND',
+                'BD_NEXT_RVW_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_TAM_TNCY_AGRMT write completed")
         

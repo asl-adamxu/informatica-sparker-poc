@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_TAM_TNCY_CNCL")
@@ -79,85 +64,198 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_TAM_TNCY_CNCL")
         # Source Qualifier: apply_SQ_TAM_TNCY_CNCL
         df_SQ_TAM_TNCY_CNCL = df_TAM_TNCY_CNCL
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_TAM_TNCY_CNCL = df_SQ_TAM_TNCY_CNCL.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["CUST_KEY", "HSE_SRVC_APLY_KEY", "CNCL_CRE_DATE", "TRMT_DATE", "TNCY_TRMT_BU_DATE", "SCORE_TFR_IND", "FWD_HSE_UNIT_KEY", "TNCY_CNCL_CODE", "CNCL_STS_CODE", "DOG_TFR_IND", "FWD_ADDR_TEXT", "CNCL_WTHDRW_IND", "TNCY_CNCL_TEXT", "HSE_UNIT_KEY", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "TNCY_CNCL_RSN_CODE", "LAST_CNCL_STS_UPD_DATE", "FLS_DCLR_PRSC_TFR_IND", "FLS_DCLR_WATCH_LIST_TFR_IND", "CNCL_SBMT_DATE", "CNCL_SBMT_USER_ID", "LAST_CNCL_APRV_DATE", "LAST_CNCL_APRV_USER_ID", "SZR_PRPTY_ACT_CODE", "SZR_PRPTY_CRE_DATE", "CASE_INVTG_ACT_CODE"]
-        df_SQ_TAM_TNCY_CNCL = df_SQ_TAM_TNCY_CNCL.select([col(c) if c.lower() in [x.lower() for x in df_SQ_TAM_TNCY_CNCL.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_TAM_TNCY_CNCL = lib.sq_output(
+            input_df=df_SQ_TAM_TNCY_CNCL,
+            port_cols={
+                'CUST_KEY': 'string',
+                'HSE_SRVC_APLY_KEY': 'string',
+                'CNCL_CRE_DATE': 'string',
+                'TRMT_DATE': 'date/time',
+                'TNCY_TRMT_BU_DATE': 'date/time',
+                'SCORE_TFR_IND': 'string',
+                'FWD_HSE_UNIT_KEY': 'string',
+                'TNCY_CNCL_CODE': 'string',
+                'CNCL_STS_CODE': 'string',
+                'DOG_TFR_IND': 'string',
+                'FWD_ADDR_TEXT': 'string',
+                'CNCL_WTHDRW_IND': 'string',
+                'TNCY_CNCL_TEXT': 'string',
+                'HSE_UNIT_KEY': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'string',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'TNCY_CNCL_RSN_CODE': 'string',
+                'LAST_CNCL_STS_UPD_DATE': 'date/time',
+                'FLS_DCLR_PRSC_TFR_IND': 'string',
+                'FLS_DCLR_WATCH_LIST_TFR_IND': 'string',
+                'CNCL_SBMT_DATE': 'date/time',
+                'CNCL_SBMT_USER_ID': 'string',
+                'LAST_CNCL_APRV_DATE': 'date/time',
+                'LAST_CNCL_APRV_USER_ID': 'string',
+                'SZR_PRPTY_ACT_CODE': 'string',
+                'SZR_PRPTY_CRE_DATE': 'date/time',
+                'CASE_INVTG_ACT_CODE': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_TAM_TNCY_CNCL", df_SQ_TAM_TNCY_CNCL)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_TAM_TNCY_CNCL
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_KEY_OUT", expr("ltrim(rtrim(CUST_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_SRVC_APLY_KEY_OUT", expr("ltrim(rtrim(HSE_SRVC_APLY_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CNCL_CRE_DATE_OUT", expr("CNCL_CRE_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TRMT_DATE_OUT", expr("TRMT_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNCY_TRMT_BU_DATE_OUT", expr("TNCY_TRMT_BU_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("SCORE_TFR_IND_OUT", expr("ltrim(rtrim(SCORE_TFR_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("FWD_HSE_UNIT_KEY_OUT", expr("ltrim(rtrim(FWD_HSE_UNIT_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNCY_CNCL_CODE_OUT", expr("ltrim(rtrim(TNCY_CNCL_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CNCL_STS_CODE_OUT", expr("ltrim(rtrim(CNCL_STS_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DOG_TFR_IND_OUT", expr("ltrim(rtrim(DOG_TFR_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("FWD_ADDR_TEXT_OUT", expr("ltrim(rtrim(FWD_ADDR_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CNCL_WTHDRW_IND_OUT", expr("ltrim(rtrim(CNCL_WTHDRW_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNCY_CNCL_TEXT_OUT", expr("ltrim(rtrim(TNCY_CNCL_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_UNIT_KEY_OUT", expr("ltrim(rtrim(HSE_UNIT_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE_OUT", expr("LAST_REC_TXN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNCY_CNCL_RSN_CODE_OUT", expr("ltrim(rtrim(TNCY_CNCL_RSN_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_CNCL_STS_UPD_DATE_OUT", expr("LAST_CNCL_STS_UPD_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("'|'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["FLS_DCLR_PRSC_TFR_IND", "FLS_DCLR_WATCH_LIST_TFR_IND", "CNCL_SBMT_DATE", "CNCL_SBMT_USER_ID", "LAST_CNCL_APRV_DATE", "LAST_CNCL_APRV_USER_ID", "SZR_PRPTY_ACT_CODE", "SZR_PRPTY_CRE_DATE", "CASE_INVTG_ACT_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_TAM_TNCY_CNCL,
+            computed_columns=[
+                {'name': 'CUST_KEY_OUT', 'expr': 'ltrim(rtrim(CUST_KEY))'},
+                {'name': 'HSE_SRVC_APLY_KEY_OUT', 'expr': 'ltrim(rtrim(HSE_SRVC_APLY_KEY))'},
+                {'name': 'CNCL_CRE_DATE_OUT', 'expr': 'CNCL_CRE_DATE'},
+                {'name': 'TRMT_DATE_OUT', 'expr': 'TRMT_DATE'},
+                {'name': 'TNCY_TRMT_BU_DATE_OUT', 'expr': 'TNCY_TRMT_BU_DATE'},
+                {'name': 'SCORE_TFR_IND_OUT', 'expr': 'ltrim(rtrim(SCORE_TFR_IND))'},
+                {'name': 'FWD_HSE_UNIT_KEY_OUT', 'expr': 'ltrim(rtrim(FWD_HSE_UNIT_KEY))'},
+                {'name': 'TNCY_CNCL_CODE_OUT', 'expr': 'ltrim(rtrim(TNCY_CNCL_CODE))'},
+                {'name': 'CNCL_STS_CODE_OUT', 'expr': 'ltrim(rtrim(CNCL_STS_CODE))'},
+                {'name': 'DOG_TFR_IND_OUT', 'expr': 'ltrim(rtrim(DOG_TFR_IND))'},
+                {'name': 'FWD_ADDR_TEXT_OUT', 'expr': 'ltrim(rtrim(FWD_ADDR_TEXT))'},
+                {'name': 'CNCL_WTHDRW_IND_OUT', 'expr': 'ltrim(rtrim(CNCL_WTHDRW_IND))'},
+                {'name': 'TNCY_CNCL_TEXT_OUT', 'expr': 'ltrim(rtrim(TNCY_CNCL_TEXT))'},
+                {'name': 'HSE_UNIT_KEY_OUT', 'expr': 'ltrim(rtrim(HSE_UNIT_KEY))'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_DATE_OUT', 'expr': 'LAST_REC_TXN_DATE'},
+                {'name': 'LAST_REC_TXN_USER_ID_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID))'},
+                {'name': 'TNCY_CNCL_RSN_CODE_OUT', 'expr': 'ltrim(rtrim(TNCY_CNCL_RSN_CODE))'},
+                {'name': 'LAST_CNCL_STS_UPD_DATE_OUT', 'expr': 'LAST_CNCL_STS_UPD_DATE'},
+                {'name': 'DUMMY', 'expr': "'|'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EMS_TAM_TNCY_CNCL")
         # Write to Target: write_EMS_TAM_TNCY_CNCL
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"CASE_INVTG_ACT_CODE": "CASE_INVTG_ACT_CODE", "CNCL_CRE_DATE": "CNCL_CRE_DATE_OUT", "CNCL_SBMT_DATE": "CNCL_SBMT_DATE", "CNCL_SBMT_USER_ID": "CNCL_SBMT_USER_ID", "CNCL_STS_CODE": "CNCL_STS_CODE_OUT", "CNCL_WTHDRW_IND": "CNCL_WTHDRW_IND_OUT", "CUST_KEY": "CUST_KEY_OUT", "DOG_TFR_IND": "DOG_TFR_IND_OUT", "FLS_DCLR_PRSC_TFR_IND": "FLS_DCLR_PRSC_TFR_IND", "FLS_DCLR_WATCH_LIST_TFR_IND": "FLS_DCLR_WATCH_LIST_TFR_IND", "FWD_ADDR_TEXT": "FWD_ADDR_TEXT_OUT", "FWD_HSE_UNIT_KEY": "FWD_HSE_UNIT_KEY_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "HSE_UNIT_KEY": "HSE_UNIT_KEY_OUT", "LAST_CNCL_APRV_DATE": "LAST_CNCL_APRV_DATE", "LAST_CNCL_APRV_USER_ID": "LAST_CNCL_APRV_USER_ID", "LAST_CNCL_STS_UPD_DATE": "LAST_CNCL_STS_UPD_DATE_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "SCORE_TFR_IND": "SCORE_TFR_IND_OUT", "SZR_PRPTY_ACT_CODE": "SZR_PRPTY_ACT_CODE", "SZR_PRPTY_CRE_DATE": "SZR_PRPTY_CRE_DATE", "TNCY_CNCL_CODE": "TNCY_CNCL_CODE_OUT", "TNCY_CNCL_RSN_CODE": "TNCY_CNCL_RSN_CODE_OUT", "TNCY_CNCL_TEXT": "TNCY_CNCL_TEXT_OUT", "TNCY_TRMT_BU_DATE": "TNCY_TRMT_BU_DATE_OUT", "TRMT_DATE": "TRMT_DATE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['CUST_KEY', 'HSE_SRVC_APLY_KEY', 'CNCL_CRE_DATE', 'TRMT_DATE', 'TNCY_TRMT_BU_DATE', 'SCORE_TFR_IND', 'FWD_HSE_UNIT_KEY', 'TNCY_CNCL_CODE', 'CNCL_STS_CODE', 'DOG_TFR_IND', 'FWD_ADDR_TEXT', 'CNCL_WTHDRW_IND', 'TNCY_CNCL_TEXT', 'HSE_UNIT_KEY', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'TNCY_CNCL_RSN_CODE', 'LAST_CNCL_STS_UPD_DATE', 'FLS_DCLR_PRSC_TFR_IND', 'FLS_DCLR_WATCH_LIST_TFR_IND', 'CNCL_SBMT_DATE', 'CNCL_SBMT_USER_ID', 'LAST_CNCL_APRV_DATE', 'LAST_CNCL_APRV_USER_ID', 'SZR_PRPTY_ACT_CODE', 'SZR_PRPTY_CRE_DATE', 'CASE_INVTG_ACT_CODE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_TAM_TNCY_CNCL", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_TAM_TNCY_CNCL',
+            mode='append',
+            source_columns=[
+                'CUST_KEY_OUT',
+                'HSE_SRVC_APLY_KEY_OUT',
+                'CNCL_CRE_DATE_OUT',
+                'TRMT_DATE_OUT',
+                'TNCY_TRMT_BU_DATE_OUT',
+                'SCORE_TFR_IND_OUT',
+                'FWD_HSE_UNIT_KEY_OUT',
+                'TNCY_CNCL_CODE_OUT',
+                'CNCL_STS_CODE_OUT',
+                'DOG_TFR_IND_OUT',
+                'FWD_ADDR_TEXT_OUT',
+                'CNCL_WTHDRW_IND_OUT',
+                'TNCY_CNCL_TEXT_OUT',
+                'HSE_UNIT_KEY_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'TNCY_CNCL_RSN_CODE_OUT',
+                'LAST_CNCL_STS_UPD_DATE_OUT',
+                'FLS_DCLR_PRSC_TFR_IND',
+                'FLS_DCLR_WATCH_LIST_TFR_IND',
+                'CNCL_SBMT_DATE',
+                'CNCL_SBMT_USER_ID',
+                'LAST_CNCL_APRV_DATE',
+                'LAST_CNCL_APRV_USER_ID',
+                'SZR_PRPTY_ACT_CODE',
+                'SZR_PRPTY_CRE_DATE',
+                'CASE_INVTG_ACT_CODE',
+            ],
+            target_columns=[
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'CNCL_CRE_DATE',
+                'TRMT_DATE',
+                'TNCY_TRMT_BU_DATE',
+                'SCORE_TFR_IND',
+                'FWD_HSE_UNIT_KEY',
+                'TNCY_CNCL_CODE',
+                'CNCL_STS_CODE',
+                'DOG_TFR_IND',
+                'FWD_ADDR_TEXT',
+                'CNCL_WTHDRW_IND',
+                'TNCY_CNCL_TEXT',
+                'HSE_UNIT_KEY',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'TNCY_CNCL_RSN_CODE',
+                'LAST_CNCL_STS_UPD_DATE',
+                'FLS_DCLR_PRSC_TFR_IND',
+                'FLS_DCLR_WATCH_LIST_TFR_IND',
+                'CNCL_SBMT_DATE',
+                'CNCL_SBMT_USER_ID',
+                'LAST_CNCL_APRV_DATE',
+                'LAST_CNCL_APRV_USER_ID',
+                'SZR_PRPTY_ACT_CODE',
+                'SZR_PRPTY_CRE_DATE',
+                'CASE_INVTG_ACT_CODE',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_TAM_TNCY_CNCL write completed")
         logger.info("Step: write_EMS_TAM_TNCY_CNCL1")
         # Write to Target: write_EMS_TAM_TNCY_CNCL1
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"CNCL_CRE_DATE": "CNCL_CRE_DATE_OUT", "CNCL_STS_CODE": "CNCL_STS_CODE_OUT", "CNCL_WTHDRW_IND": "CNCL_WTHDRW_IND_OUT", "CUST_KEY": "CUST_KEY_OUT", "DOG_TFR_IND": "DOG_TFR_IND_OUT", "DUMMY": "DUMMY", "FWD_ADDR_TEXT": "FWD_ADDR_TEXT_OUT", "FWD_HSE_UNIT_KEY": "FWD_HSE_UNIT_KEY_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "HSE_UNIT_KEY": "HSE_UNIT_KEY_OUT", "LAST_CNCL_STS_UPD_DATE": "LAST_CNCL_STS_UPD_DATE_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "SCORE_TFR_IND": "SCORE_TFR_IND_OUT", "TNCY_CNCL_CODE": "TNCY_CNCL_CODE_OUT", "TNCY_CNCL_RSN_CODE": "TNCY_CNCL_RSN_CODE_OUT", "TNCY_CNCL_TEXT": "TNCY_CNCL_TEXT_OUT", "TNCY_TRMT_BU_DATE": "TNCY_TRMT_BU_DATE_OUT", "TRMT_DATE": "TRMT_DATE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['CUST_KEY', 'HSE_SRVC_APLY_KEY', 'CNCL_CRE_DATE', 'TRMT_DATE', 'TNCY_TRMT_BU_DATE', 'SCORE_TFR_IND', 'FWD_HSE_UNIT_KEY', 'TNCY_CNCL_CODE', 'CNCL_STS_CODE', 'DOG_TFR_IND', 'FWD_ADDR_TEXT', 'CNCL_WTHDRW_IND', 'TNCY_CNCL_TEXT', 'HSE_UNIT_KEY', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'TNCY_CNCL_RSN_CODE', 'LAST_CNCL_STS_UPD_DATE', 'DUMMY']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_TAM_TNCY_CNCL1", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_TAM_TNCY_CNCL1',
+            mode='append',
+            source_columns=[
+                'CUST_KEY_OUT',
+                'HSE_SRVC_APLY_KEY_OUT',
+                'CNCL_CRE_DATE_OUT',
+                'TRMT_DATE_OUT',
+                'TNCY_TRMT_BU_DATE_OUT',
+                'SCORE_TFR_IND_OUT',
+                'FWD_HSE_UNIT_KEY_OUT',
+                'TNCY_CNCL_CODE_OUT',
+                'CNCL_STS_CODE_OUT',
+                'DOG_TFR_IND_OUT',
+                'FWD_ADDR_TEXT_OUT',
+                'CNCL_WTHDRW_IND_OUT',
+                'TNCY_CNCL_TEXT_OUT',
+                'HSE_UNIT_KEY_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'TNCY_CNCL_RSN_CODE_OUT',
+                'LAST_CNCL_STS_UPD_DATE_OUT',
+                'DUMMY',
+            ],
+            target_columns=[
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'CNCL_CRE_DATE',
+                'TRMT_DATE',
+                'TNCY_TRMT_BU_DATE',
+                'SCORE_TFR_IND',
+                'FWD_HSE_UNIT_KEY',
+                'TNCY_CNCL_CODE',
+                'CNCL_STS_CODE',
+                'DOG_TFR_IND',
+                'FWD_ADDR_TEXT',
+                'CNCL_WTHDRW_IND',
+                'TNCY_CNCL_TEXT',
+                'HSE_UNIT_KEY',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'TNCY_CNCL_RSN_CODE',
+                'LAST_CNCL_STS_UPD_DATE',
+                'DUMMY',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_TAM_TNCY_CNCL1 write completed")
         

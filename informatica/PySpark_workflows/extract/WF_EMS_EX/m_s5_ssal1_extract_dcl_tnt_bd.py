@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_DCL_TNT_BD")
@@ -79,77 +64,141 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_DCL_TNT_BD")
         # Source Qualifier: apply_SQ_DCL_TNT_BD
         df_SQ_DCL_TNT_BD = df_DCL_TNT_BD
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_DCL_TNT_BD = df_SQ_DCL_TNT_BD.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["CUST_KEY", "HSE_SRVC_APLY_KEY", "BD_CRE_DATE", "BD_FORM_ISS_DATE", "BD_FORM_LAST_ISS_DATE", "BD_FORM_RTN_DATE", "BD_CMPLT_DATE", "HOME_INSP_DATE", "BD_RSLT_CODE", "BD_RMK_TEXT", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "BD_FORM_ISS_CNT"]
-        df_SQ_DCL_TNT_BD = df_SQ_DCL_TNT_BD.select([col(c) if c.lower() in [x.lower() for x in df_SQ_DCL_TNT_BD.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_DCL_TNT_BD = lib.sq_output(
+            input_df=df_SQ_DCL_TNT_BD,
+            port_cols={
+                'CUST_KEY': 'string',
+                'HSE_SRVC_APLY_KEY': 'string',
+                'BD_CRE_DATE': 'date/time',
+                'BD_FORM_ISS_DATE': 'date/time',
+                'BD_FORM_LAST_ISS_DATE': 'date/time',
+                'BD_FORM_RTN_DATE': 'date/time',
+                'BD_CMPLT_DATE': 'date/time',
+                'HOME_INSP_DATE': 'date/time',
+                'BD_RSLT_CODE': 'string',
+                'BD_RMK_TEXT': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'string',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'BD_FORM_ISS_CNT': 'decimal',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_DCL_TNT_BD", df_SQ_DCL_TNT_BD)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_DCL_TNT_BD
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_KEY_OUT", expr("ltrim(rtrim(CUST_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_SRVC_APLY_KEY_OUT", expr("ltrim(rtrim(HSE_SRVC_APLY_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("BD_CRE_DATE_OUT", expr("BD_CRE_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("BD_FORM_ISS_DATE_OUT", expr("BD_FORM_ISS_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("BD_FORM_LAST_ISS_DATE_OUT", expr("BD_FORM_LAST_ISS_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("BD_FORM_RTN_DATE_OUT", expr("BD_FORM_RTN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("BD_CMPLT_DATE_OUT", expr("BD_CMPLT_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOME_INSP_DATE_OUT", expr("HOME_INSP_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("BD_RSLT_CODE_OUT", expr("ltrim(rtrim(BD_RSLT_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("BD_RMK_TEXT_OUT", expr("ltrim(rtrim(BD_RMK_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE_OUT", expr("LAST_REC_TXN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("BD_FORM_ISS_CNT_OUT", expr("BD_FORM_ISS_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("'|'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_DCL_TNT_BD,
+            computed_columns=[
+                {'name': 'CUST_KEY_OUT', 'expr': 'ltrim(rtrim(CUST_KEY))'},
+                {'name': 'HSE_SRVC_APLY_KEY_OUT', 'expr': 'ltrim(rtrim(HSE_SRVC_APLY_KEY))'},
+                {'name': 'BD_CRE_DATE_OUT', 'expr': 'BD_CRE_DATE'},
+                {'name': 'BD_FORM_ISS_DATE_OUT', 'expr': 'BD_FORM_ISS_DATE'},
+                {'name': 'BD_FORM_LAST_ISS_DATE_OUT', 'expr': 'BD_FORM_LAST_ISS_DATE'},
+                {'name': 'BD_FORM_RTN_DATE_OUT', 'expr': 'BD_FORM_RTN_DATE'},
+                {'name': 'BD_CMPLT_DATE_OUT', 'expr': 'BD_CMPLT_DATE'},
+                {'name': 'HOME_INSP_DATE_OUT', 'expr': 'HOME_INSP_DATE'},
+                {'name': 'BD_RSLT_CODE_OUT', 'expr': 'ltrim(rtrim(BD_RSLT_CODE))'},
+                {'name': 'BD_RMK_TEXT_OUT', 'expr': 'ltrim(rtrim(BD_RMK_TEXT))'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_DATE_OUT', 'expr': 'LAST_REC_TXN_DATE'},
+                {'name': 'LAST_REC_TXN_USER_ID_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID))'},
+                {'name': 'BD_FORM_ISS_CNT_OUT', 'expr': 'BD_FORM_ISS_CNT'},
+                {'name': 'DUMMY', 'expr': "'|'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EMS_DCL_TNT_BD1")
         # Write to Target: write_EMS_DCL_TNT_BD1
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BD_CMPLT_DATE": "BD_CMPLT_DATE_OUT", "BD_CRE_DATE": "BD_CRE_DATE_OUT", "BD_FORM_ISS_CNT": "BD_FORM_ISS_CNT_OUT", "BD_FORM_ISS_DATE": "BD_FORM_ISS_DATE_OUT", "BD_FORM_LAST_ISS_DATE": "BD_FORM_LAST_ISS_DATE_OUT", "BD_FORM_RTN_DATE": "BD_FORM_RTN_DATE_OUT", "BD_RMK_TEXT": "BD_RMK_TEXT_OUT", "BD_RSLT_CODE": "BD_RSLT_CODE_OUT", "CUST_KEY": "CUST_KEY_OUT", "DUMMY": "DUMMY", "HOME_INSP_DATE": "HOME_INSP_DATE_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['CUST_KEY', 'HSE_SRVC_APLY_KEY', 'BD_CRE_DATE', 'BD_FORM_ISS_DATE', 'BD_FORM_LAST_ISS_DATE', 'BD_FORM_RTN_DATE', 'BD_CMPLT_DATE', 'HOME_INSP_DATE', 'BD_RSLT_CODE', 'BD_RMK_TEXT', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'BD_FORM_ISS_CNT', 'DUMMY']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_DCL_TNT_BD1", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_DCL_TNT_BD1',
+            mode='append',
+            source_columns=[
+                'CUST_KEY_OUT',
+                'HSE_SRVC_APLY_KEY_OUT',
+                'BD_CRE_DATE_OUT',
+                'BD_FORM_ISS_DATE_OUT',
+                'BD_FORM_LAST_ISS_DATE_OUT',
+                'BD_FORM_RTN_DATE_OUT',
+                'BD_CMPLT_DATE_OUT',
+                'HOME_INSP_DATE_OUT',
+                'BD_RSLT_CODE_OUT',
+                'BD_RMK_TEXT_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'BD_FORM_ISS_CNT_OUT',
+                'DUMMY',
+            ],
+            target_columns=[
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'BD_CRE_DATE',
+                'BD_FORM_ISS_DATE',
+                'BD_FORM_LAST_ISS_DATE',
+                'BD_FORM_RTN_DATE',
+                'BD_CMPLT_DATE',
+                'HOME_INSP_DATE',
+                'BD_RSLT_CODE',
+                'BD_RMK_TEXT',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'BD_FORM_ISS_CNT',
+                'DUMMY',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_DCL_TNT_BD1 write completed")
         logger.info("Step: write_EMS_DCL_TNT_BD")
         # Write to Target: write_EMS_DCL_TNT_BD
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BD_CMPLT_DATE": "BD_CMPLT_DATE_OUT", "BD_CRE_DATE": "BD_CRE_DATE_OUT", "BD_FORM_ISS_CNT": "BD_FORM_ISS_CNT_OUT", "BD_FORM_ISS_DATE": "BD_FORM_ISS_DATE_OUT", "BD_FORM_LAST_ISS_DATE": "BD_FORM_LAST_ISS_DATE_OUT", "BD_FORM_RTN_DATE": "BD_FORM_RTN_DATE_OUT", "BD_RMK_TEXT": "BD_RMK_TEXT_OUT", "BD_RSLT_CODE": "BD_RSLT_CODE_OUT", "CUST_KEY": "CUST_KEY_OUT", "HOME_INSP_DATE": "HOME_INSP_DATE_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['CUST_KEY', 'HSE_SRVC_APLY_KEY', 'BD_CRE_DATE', 'BD_FORM_ISS_DATE', 'BD_FORM_LAST_ISS_DATE', 'BD_FORM_RTN_DATE', 'BD_CMPLT_DATE', 'HOME_INSP_DATE', 'BD_RSLT_CODE', 'BD_RMK_TEXT', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'BD_FORM_ISS_CNT']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_DCL_TNT_BD", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_DCL_TNT_BD',
+            mode='append',
+            source_columns=[
+                'CUST_KEY_OUT',
+                'HSE_SRVC_APLY_KEY_OUT',
+                'BD_CRE_DATE_OUT',
+                'BD_FORM_ISS_DATE_OUT',
+                'BD_FORM_LAST_ISS_DATE_OUT',
+                'BD_FORM_RTN_DATE_OUT',
+                'BD_CMPLT_DATE_OUT',
+                'HOME_INSP_DATE_OUT',
+                'BD_RSLT_CODE_OUT',
+                'BD_RMK_TEXT_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'BD_FORM_ISS_CNT_OUT',
+            ],
+            target_columns=[
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'BD_CRE_DATE',
+                'BD_FORM_ISS_DATE',
+                'BD_FORM_LAST_ISS_DATE',
+                'BD_FORM_RTN_DATE',
+                'BD_CMPLT_DATE',
+                'HOME_INSP_DATE',
+                'BD_RSLT_CODE',
+                'BD_RMK_TEXT',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'BD_FORM_ISS_CNT',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_DCL_TNT_BD write completed")
         

@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_HPL_LOAN_V")
@@ -79,149 +64,567 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_HPL_LOAN_V")
         # Source Qualifier: apply_SQ_HPL_LOAN_V
         df_SQ_HPL_LOAN_V = df_HPL_LOAN_V
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_HPL_LOAN_V = df_SQ_HPL_LOAN_V.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HPLS_CE_NUM", "HPLS_APLY_NUM", "LOAN_HIDE_FLAG_IND", "BANK_LOAN_IND", "PRIOR_NUM", "HSHLD_INCM_AMT", "FMLY_SIZE_NUM", "HPLS_AIP_ISS_DATE", "HPLS_CE_ISS_DATE", "LOAN_AGRMT_DATE", "LOAN_STS_CODE", "LOAN_AMT_PYMT_MTHD_CODE", "LOAN_AMT", "RPYMT_AMT", "FRST_INSTLM_DATE", "LAST_INSTLM_DATE", "INSTLM_NUM", "SBSDY_AMT", "SBSDY_TIMES_NUM", "SBSDY_BGN_DATE", "SBSDY_END_DATE", "BLDG_AGE", "PRPTY_FLR_AREA", "PRPTY_TYPE_CODE", "PRPTY_SALE_PRC_AMT", "PRPTY_OCPY_DATE", "MRTG_AMT", "MRTG_DATE", "EQTBL_MRTG_DATE", "LEGAL_CHRG_DATE", "OSTD_MRTG_AMT", "MRTG_INSTLM_NUM", "BKNG_FEE_AMT", "PAY_BKNG_FEE_DATE", "SIGN_ASP_DATE", "ASGN_DATE", "HPLS_BANK_ABBR_CODE", "LOAN_STL_DATE", "LOAN_CNCL_DATE", "LOAN_CNCL_RCPT_TEXT", "LOAN_CNCL_CHRG_AMT", "LOAN_RSCN_DATE", "LOAN_RSCN_RCPT_TEXT", "LOAN_RSCN_CHRG_AMT", "LOAN_RDM_APLY_DATE", "ORIG_UNIT_CODE_ADDR", "GF_CERT_NUM", "PRPTY_FLAT_NUM", "PRPTY_BLK_NUM", "PRPTY_FLR_NUM", "PRPTY_BLDG_NAME", "PRPTY_STRT_NAME", "PRPTY_DSTR_NAME", "HOME_FLAT_NUM", "HOME_BLK_NUM", "HOME_FLR_NUM", "HOME_BLDG_NAME", "HOME_STRT_NAME", "HOME_DSTR_NAME", "HPLS_CE_PRN_CNT", "LOAN_AGRMT_PRN_CNT", "LTR_SEND_BANK_PRN_CNT", "LTR_SEND_SLCTR_PRN_CNT", "LOAN_PYMT_DATE", "LTR_SEND_BANK_SLCTR_PRN_CNT", "HSHLD_AST_AMT", "PRIOR_CODE", "QTA_CATG_CODE", "HPLS_SCHM_CODE", "PND_ACT_TYPE_CODE", "PND_ACT_DUE_DATE", "PND_ACT_RMK_TEXT", "LOAN_RMK_TEXT", "PND_ACT_CMPLT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "LOAN_RDM_CODE", "LOAN_CNCL_CODE", "LOAN_RSCN_CODE", "LAST_REC_TXN_USER_ID_TYPE_CODE", "LAST_RPT_PARM_UPD_DATE"]
-        df_SQ_HPL_LOAN_V = df_SQ_HPL_LOAN_V.select([col(c) if c.lower() in [x.lower() for x in df_SQ_HPL_LOAN_V.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_HPL_LOAN_V = lib.sq_output(
+            input_df=df_SQ_HPL_LOAN_V,
+            port_cols={
+                'HPLS_CE_NUM': 'string',
+                'HPLS_APLY_NUM': 'string',
+                'LOAN_HIDE_FLAG_IND': 'string',
+                'BANK_LOAN_IND': 'string',
+                'PRIOR_NUM': 'string',
+                'HSHLD_INCM_AMT': 'decimal',
+                'FMLY_SIZE_NUM': 'decimal',
+                'HPLS_AIP_ISS_DATE': 'date/time',
+                'HPLS_CE_ISS_DATE': 'date/time',
+                'LOAN_AGRMT_DATE': 'date/time',
+                'LOAN_STS_CODE': 'string',
+                'LOAN_AMT_PYMT_MTHD_CODE': 'string',
+                'LOAN_AMT': 'decimal',
+                'RPYMT_AMT': 'decimal',
+                'FRST_INSTLM_DATE': 'date/time',
+                'LAST_INSTLM_DATE': 'date/time',
+                'INSTLM_NUM': 'decimal',
+                'SBSDY_AMT': 'decimal',
+                'SBSDY_TIMES_NUM': 'decimal',
+                'SBSDY_BGN_DATE': 'date/time',
+                'SBSDY_END_DATE': 'date/time',
+                'BLDG_AGE': 'decimal',
+                'PRPTY_FLR_AREA': 'decimal',
+                'PRPTY_TYPE_CODE': 'string',
+                'PRPTY_SALE_PRC_AMT': 'decimal',
+                'PRPTY_OCPY_DATE': 'date/time',
+                'MRTG_AMT': 'decimal',
+                'MRTG_DATE': 'date/time',
+                'EQTBL_MRTG_DATE': 'date/time',
+                'LEGAL_CHRG_DATE': 'date/time',
+                'OSTD_MRTG_AMT': 'decimal',
+                'MRTG_INSTLM_NUM': 'decimal',
+                'BKNG_FEE_AMT': 'decimal',
+                'PAY_BKNG_FEE_DATE': 'date/time',
+                'SIGN_ASP_DATE': 'date/time',
+                'ASGN_DATE': 'date/time',
+                'HPLS_BANK_ABBR_CODE': 'string',
+                'LOAN_STL_DATE': 'date/time',
+                'LOAN_CNCL_DATE': 'date/time',
+                'LOAN_CNCL_RCPT_TEXT': 'string',
+                'LOAN_CNCL_CHRG_AMT': 'decimal',
+                'LOAN_RSCN_DATE': 'date/time',
+                'LOAN_RSCN_RCPT_TEXT': 'string',
+                'LOAN_RSCN_CHRG_AMT': 'decimal',
+                'LOAN_RDM_APLY_DATE': 'date/time',
+                'ORIG_UNIT_CODE_ADDR': 'string',
+                'GF_CERT_NUM': 'string',
+                'PRPTY_FLAT_NUM': 'string',
+                'PRPTY_BLK_NUM': 'string',
+                'PRPTY_FLR_NUM': 'string',
+                'PRPTY_BLDG_NAME': 'string',
+                'PRPTY_STRT_NAME': 'string',
+                'PRPTY_DSTR_NAME': 'string',
+                'HOME_FLAT_NUM': 'string',
+                'HOME_BLK_NUM': 'string',
+                'HOME_FLR_NUM': 'string',
+                'HOME_BLDG_NAME': 'string',
+                'HOME_STRT_NAME': 'string',
+                'HOME_DSTR_NAME': 'string',
+                'HPLS_CE_PRN_CNT': 'decimal',
+                'LOAN_AGRMT_PRN_CNT': 'decimal',
+                'LTR_SEND_BANK_PRN_CNT': 'decimal',
+                'LTR_SEND_SLCTR_PRN_CNT': 'decimal',
+                'LOAN_PYMT_DATE': 'date/time',
+                'LTR_SEND_BANK_SLCTR_PRN_CNT': 'decimal',
+                'HSHLD_AST_AMT': 'decimal',
+                'PRIOR_CODE': 'string',
+                'QTA_CATG_CODE': 'string',
+                'HPLS_SCHM_CODE': 'string',
+                'PND_ACT_TYPE_CODE': 'string',
+                'PND_ACT_DUE_DATE': 'date/time',
+                'PND_ACT_RMK_TEXT': 'string',
+                'LOAN_RMK_TEXT': 'string',
+                'PND_ACT_CMPLT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'string',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'LOAN_RDM_CODE': 'decimal',
+                'LOAN_CNCL_CODE': 'decimal',
+                'LOAN_RSCN_CODE': 'decimal',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE': 'string',
+                'LAST_RPT_PARM_UPD_DATE': 'date/time',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_HPL_LOAN_V", df_SQ_HPL_LOAN_V)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_HPL_LOAN_V
-        df_EXPTRANS = df_EXPTRANS.withColumn("HPLS_CE_NUM_OUT", expr("ltrim(rtrim(HPLS_CE_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HPLS_APLY_NUM_OUT", expr("ltrim(rtrim(HPLS_APLY_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LOAN_HIDE_FLAG_IND_OUT", expr("ltrim(rtrim(LOAN_HIDE_FLAG_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("BANK_LOAN_IND_OUT", expr("ltrim(rtrim(BANK_LOAN_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PRIOR_NUM_OUT", expr("ltrim(rtrim(PRIOR_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSHLD_INCM_AMT_OUT", expr("HSHLD_INCM_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("FMLY_SIZE_NUM_OUT", expr("FMLY_SIZE_NUM"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HPLS_AIP_ISS_DATE_OUT", expr("HPLS_AIP_ISS_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HPLS_CE_ISS_DATE_OUT", expr("HPLS_CE_ISS_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LOAN_AGRMT_DATE_OUT", expr("LOAN_AGRMT_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LOAN_STS_CODE_OUT", expr("ltrim(rtrim(LOAN_STS_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LOAN_AMT_PYMT_MTHD_CODE_OUT", expr("ltrim(rtrim(LOAN_AMT_PYMT_MTHD_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LOAN_AMT_OUT", expr("LOAN_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RPYMT_AMT_OUT", expr("RPYMT_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("FRST_INSTLM_DATE_OUT", expr("FRST_INSTLM_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_INSTLM_DATE_OUT", expr("LAST_INSTLM_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("INSTLM_NUM_OUT", expr("INSTLM_NUM"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("SBSDY_AMT_OUT", expr("SBSDY_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("SBSDY_TIMES_NUM_OUT", expr("SBSDY_TIMES_NUM"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("SBSDY_BGN_DATE_OUT", expr("SBSDY_BGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("SBSDY_END_DATE_OUT", expr("SBSDY_END_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("BANK_ACCT_NUM_OUT", expr("NULL"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("BLDG_AGE_OUT", expr("BLDG_AGE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PRPTY_FLR_AREA_OUT", expr("PRPTY_FLR_AREA"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PRPTY_TYPE_CODE_OUT", expr("ltrim(rtrim(PRPTY_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PRPTY_SALE_PRC_AMT_OUT", expr("PRPTY_SALE_PRC_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PRPTY_OCPY_DATE_OUT", expr("PRPTY_OCPY_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("MRTG_AMT_OUT", expr("MRTG_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("MRTG_DATE_OUT", expr("MRTG_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("EQTBL_MRTG_DATE_OUT", expr("EQTBL_MRTG_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LEGAL_CHRG_DATE_OUT", expr("LEGAL_CHRG_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OSTD_MRTG_AMT_OUT", expr("OSTD_MRTG_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("MRTG_INSTLM_NUM_OUT", expr("MRTG_INSTLM_NUM"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("MRTG_ACCT_NUM_OUT", expr("NULL"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("BKNG_FEE_AMT_OUT", expr("BKNG_FEE_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PAY_BKNG_FEE_DATE_OUT", expr("PAY_BKNG_FEE_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("SIGN_ASP_DATE_OUT", expr("SIGN_ASP_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ASGN_DATE_OUT", expr("ASGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HPLS_BANK_ABBR_CODE_OUT", expr("ltrim(rtrim(HPLS_BANK_ABBR_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LOAN_STL_DATE_OUT", expr("LOAN_STL_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LOAN_CNCL_DATE_OUT", expr("LOAN_CNCL_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LOAN_CNCL_RCPT_TEXT_OUT", expr("ltrim(rtrim(LOAN_CNCL_RCPT_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LOAN_CNCL_CHRG_AMT_OUT", expr("LOAN_CNCL_CHRG_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LOAN_RSCN_DATE_OUT", expr("LOAN_RSCN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LOAN_RSCN_RCPT_TEXT_OUT", expr("ltrim(rtrim(LOAN_RSCN_RCPT_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LOAN_RSCN_CHRG_AMT_OUT", expr("LOAN_RSCN_CHRG_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LOAN_RDM_APLY_DATE_OUT", expr("LOAN_RDM_APLY_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ORIG_UNIT_CODE_ADDR_OUT", expr("ltrim(rtrim(ORIG_UNIT_CODE_ADDR))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("GF_CERT_NUM_OUT", expr("ltrim(rtrim(GF_CERT_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PRPTY_FLAT_NUM_OUT", expr("ltrim(rtrim(PRPTY_FLAT_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PRPTY_BLK_NUM_OUT", expr("ltrim(rtrim(PRPTY_BLK_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PRPTY_FLR_NUM_OUT", expr("ltrim(rtrim(PRPTY_FLR_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PRPTY_BLDG_NAME_OUT", expr("ltrim(rtrim(PRPTY_BLDG_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PRPTY_STRT_NAME_OUT", expr("ltrim(rtrim(PRPTY_STRT_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PRPTY_DSTR_NAME_OUT", expr("ltrim(rtrim(PRPTY_DSTR_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOME_FLAT_NUM_OUT", expr("ltrim(rtrim(HOME_FLAT_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOME_BLK_NUM_OUT", expr("ltrim(rtrim(HOME_BLK_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOME_FLR_NUM_OUT", expr("ltrim(rtrim(HOME_FLR_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOME_BLDG_NAME_OUT", expr("ltrim(rtrim(HOME_BLDG_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOME_STRT_NAME_OUT", expr("ltrim(rtrim(HOME_STRT_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOME_DSTR_NAME_OUT", expr("ltrim(rtrim(HOME_DSTR_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HOME_PHONE_NUM_OUT", expr("NULL"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OFFC_PHONE_NUM_OUT", expr("NULL"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HPLS_CE_PRN_CNT_OUT", expr("HPLS_CE_PRN_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LOAN_AGRMT_PRN_CNT_OUT", expr("LOAN_AGRMT_PRN_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LTR_SEND_BANK_PRN_CNT_OUT", expr("LTR_SEND_BANK_PRN_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LTR_SEND_SLCTR_PRN_CNT_OUT", expr("LTR_SEND_SLCTR_PRN_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LOAN_PYMT_DATE_OUT", expr("LOAN_PYMT_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LTR_SEND_BANK_SLCTR_PRN_CNT_OUT", expr("LTR_SEND_BANK_SLCTR_PRN_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSHLD_AST_AMT_OUT", expr("HSHLD_AST_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PRIOR_CODE_OUT", expr("ltrim(rtrim(PRIOR_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("QTA_CATG_CODE_OUT", expr("ltrim(rtrim(QTA_CATG_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HPLS_SCHM_CODE_OUT", expr("ltrim(rtrim(HPLS_SCHM_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PND_ACT_TYPE_CODE_OUT", expr("ltrim(rtrim(PND_ACT_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PND_ACT_DUE_DATE_OUT", expr("PND_ACT_DUE_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PND_ACT_RMK_TEXT_OUT", expr("ltrim(rtrim(PND_ACT_RMK_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LOAN_RMK_TEXT_OUT", expr("ltrim(rtrim(LOAN_RMK_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PND_ACT_CMPLT_IND_OUT", expr("ltrim(rtrim(PND_ACT_CMPLT_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE_OUT", expr("LAST_REC_TXN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LOAN_RDM_CODE_OUT", expr("LOAN_RDM_CODE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LOAN_CNCL_CODE_OUT", expr("LOAN_CNCL_CODE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LOAN_RSCN_CODE_OUT", expr("LOAN_RSCN_CODE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_RPT_PARM_UPD_DATE_OUT", expr("LAST_RPT_PARM_UPD_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("'|'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_HPL_LOAN_V,
+            computed_columns=[
+                {'name': 'HPLS_CE_NUM_OUT', 'expr': 'ltrim(rtrim(HPLS_CE_NUM))'},
+                {'name': 'HPLS_APLY_NUM_OUT', 'expr': 'ltrim(rtrim(HPLS_APLY_NUM))'},
+                {'name': 'LOAN_HIDE_FLAG_IND_OUT', 'expr': 'ltrim(rtrim(LOAN_HIDE_FLAG_IND))'},
+                {'name': 'BANK_LOAN_IND_OUT', 'expr': 'ltrim(rtrim(BANK_LOAN_IND))'},
+                {'name': 'PRIOR_NUM_OUT', 'expr': 'ltrim(rtrim(PRIOR_NUM))'},
+                {'name': 'HSHLD_INCM_AMT_OUT', 'expr': 'HSHLD_INCM_AMT'},
+                {'name': 'FMLY_SIZE_NUM_OUT', 'expr': 'FMLY_SIZE_NUM'},
+                {'name': 'HPLS_AIP_ISS_DATE_OUT', 'expr': 'HPLS_AIP_ISS_DATE'},
+                {'name': 'HPLS_CE_ISS_DATE_OUT', 'expr': 'HPLS_CE_ISS_DATE'},
+                {'name': 'LOAN_AGRMT_DATE_OUT', 'expr': 'LOAN_AGRMT_DATE'},
+                {'name': 'LOAN_STS_CODE_OUT', 'expr': 'ltrim(rtrim(LOAN_STS_CODE))'},
+                {'name': 'LOAN_AMT_PYMT_MTHD_CODE_OUT', 'expr': 'ltrim(rtrim(LOAN_AMT_PYMT_MTHD_CODE))'},
+                {'name': 'LOAN_AMT_OUT', 'expr': 'LOAN_AMT'},
+                {'name': 'RPYMT_AMT_OUT', 'expr': 'RPYMT_AMT'},
+                {'name': 'FRST_INSTLM_DATE_OUT', 'expr': 'FRST_INSTLM_DATE'},
+                {'name': 'LAST_INSTLM_DATE_OUT', 'expr': 'LAST_INSTLM_DATE'},
+                {'name': 'INSTLM_NUM_OUT', 'expr': 'INSTLM_NUM'},
+                {'name': 'SBSDY_AMT_OUT', 'expr': 'SBSDY_AMT'},
+                {'name': 'SBSDY_TIMES_NUM_OUT', 'expr': 'SBSDY_TIMES_NUM'},
+                {'name': 'SBSDY_BGN_DATE_OUT', 'expr': 'SBSDY_BGN_DATE'},
+                {'name': 'SBSDY_END_DATE_OUT', 'expr': 'SBSDY_END_DATE'},
+                {'name': 'BANK_ACCT_NUM_OUT', 'expr': 'NULL'},
+                {'name': 'BLDG_AGE_OUT', 'expr': 'BLDG_AGE'},
+                {'name': 'PRPTY_FLR_AREA_OUT', 'expr': 'PRPTY_FLR_AREA'},
+                {'name': 'PRPTY_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(PRPTY_TYPE_CODE))'},
+                {'name': 'PRPTY_SALE_PRC_AMT_OUT', 'expr': 'PRPTY_SALE_PRC_AMT'},
+                {'name': 'PRPTY_OCPY_DATE_OUT', 'expr': 'PRPTY_OCPY_DATE'},
+                {'name': 'MRTG_AMT_OUT', 'expr': 'MRTG_AMT'},
+                {'name': 'MRTG_DATE_OUT', 'expr': 'MRTG_DATE'},
+                {'name': 'EQTBL_MRTG_DATE_OUT', 'expr': 'EQTBL_MRTG_DATE'},
+                {'name': 'LEGAL_CHRG_DATE_OUT', 'expr': 'LEGAL_CHRG_DATE'},
+                {'name': 'OSTD_MRTG_AMT_OUT', 'expr': 'OSTD_MRTG_AMT'},
+                {'name': 'MRTG_INSTLM_NUM_OUT', 'expr': 'MRTG_INSTLM_NUM'},
+                {'name': 'MRTG_ACCT_NUM_OUT', 'expr': 'NULL'},
+                {'name': 'BKNG_FEE_AMT_OUT', 'expr': 'BKNG_FEE_AMT'},
+                {'name': 'PAY_BKNG_FEE_DATE_OUT', 'expr': 'PAY_BKNG_FEE_DATE'},
+                {'name': 'SIGN_ASP_DATE_OUT', 'expr': 'SIGN_ASP_DATE'},
+                {'name': 'ASGN_DATE_OUT', 'expr': 'ASGN_DATE'},
+                {'name': 'HPLS_BANK_ABBR_CODE_OUT', 'expr': 'ltrim(rtrim(HPLS_BANK_ABBR_CODE))'},
+                {'name': 'LOAN_STL_DATE_OUT', 'expr': 'LOAN_STL_DATE'},
+                {'name': 'LOAN_CNCL_DATE_OUT', 'expr': 'LOAN_CNCL_DATE'},
+                {'name': 'LOAN_CNCL_RCPT_TEXT_OUT', 'expr': 'ltrim(rtrim(LOAN_CNCL_RCPT_TEXT))'},
+                {'name': 'LOAN_CNCL_CHRG_AMT_OUT', 'expr': 'LOAN_CNCL_CHRG_AMT'},
+                {'name': 'LOAN_RSCN_DATE_OUT', 'expr': 'LOAN_RSCN_DATE'},
+                {'name': 'LOAN_RSCN_RCPT_TEXT_OUT', 'expr': 'ltrim(rtrim(LOAN_RSCN_RCPT_TEXT))'},
+                {'name': 'LOAN_RSCN_CHRG_AMT_OUT', 'expr': 'LOAN_RSCN_CHRG_AMT'},
+                {'name': 'LOAN_RDM_APLY_DATE_OUT', 'expr': 'LOAN_RDM_APLY_DATE'},
+                {'name': 'ORIG_UNIT_CODE_ADDR_OUT', 'expr': 'ltrim(rtrim(ORIG_UNIT_CODE_ADDR))'},
+                {'name': 'GF_CERT_NUM_OUT', 'expr': 'ltrim(rtrim(GF_CERT_NUM))'},
+                {'name': 'PRPTY_FLAT_NUM_OUT', 'expr': 'ltrim(rtrim(PRPTY_FLAT_NUM))'},
+                {'name': 'PRPTY_BLK_NUM_OUT', 'expr': 'ltrim(rtrim(PRPTY_BLK_NUM))'},
+                {'name': 'PRPTY_FLR_NUM_OUT', 'expr': 'ltrim(rtrim(PRPTY_FLR_NUM))'},
+                {'name': 'PRPTY_BLDG_NAME_OUT', 'expr': 'ltrim(rtrim(PRPTY_BLDG_NAME))'},
+                {'name': 'PRPTY_STRT_NAME_OUT', 'expr': 'ltrim(rtrim(PRPTY_STRT_NAME))'},
+                {'name': 'PRPTY_DSTR_NAME_OUT', 'expr': 'ltrim(rtrim(PRPTY_DSTR_NAME))'},
+                {'name': 'HOME_FLAT_NUM_OUT', 'expr': 'ltrim(rtrim(HOME_FLAT_NUM))'},
+                {'name': 'HOME_BLK_NUM_OUT', 'expr': 'ltrim(rtrim(HOME_BLK_NUM))'},
+                {'name': 'HOME_FLR_NUM_OUT', 'expr': 'ltrim(rtrim(HOME_FLR_NUM))'},
+                {'name': 'HOME_BLDG_NAME_OUT', 'expr': 'ltrim(rtrim(HOME_BLDG_NAME))'},
+                {'name': 'HOME_STRT_NAME_OUT', 'expr': 'ltrim(rtrim(HOME_STRT_NAME))'},
+                {'name': 'HOME_DSTR_NAME_OUT', 'expr': 'ltrim(rtrim(HOME_DSTR_NAME))'},
+                {'name': 'HOME_PHONE_NUM_OUT', 'expr': 'NULL'},
+                {'name': 'OFFC_PHONE_NUM_OUT', 'expr': 'NULL'},
+                {'name': 'HPLS_CE_PRN_CNT_OUT', 'expr': 'HPLS_CE_PRN_CNT'},
+                {'name': 'LOAN_AGRMT_PRN_CNT_OUT', 'expr': 'LOAN_AGRMT_PRN_CNT'},
+                {'name': 'LTR_SEND_BANK_PRN_CNT_OUT', 'expr': 'LTR_SEND_BANK_PRN_CNT'},
+                {'name': 'LTR_SEND_SLCTR_PRN_CNT_OUT', 'expr': 'LTR_SEND_SLCTR_PRN_CNT'},
+                {'name': 'LOAN_PYMT_DATE_OUT', 'expr': 'LOAN_PYMT_DATE'},
+                {'name': 'LTR_SEND_BANK_SLCTR_PRN_CNT_OUT', 'expr': 'LTR_SEND_BANK_SLCTR_PRN_CNT'},
+                {'name': 'HSHLD_AST_AMT_OUT', 'expr': 'HSHLD_AST_AMT'},
+                {'name': 'PRIOR_CODE_OUT', 'expr': 'ltrim(rtrim(PRIOR_CODE))'},
+                {'name': 'QTA_CATG_CODE_OUT', 'expr': 'ltrim(rtrim(QTA_CATG_CODE))'},
+                {'name': 'HPLS_SCHM_CODE_OUT', 'expr': 'ltrim(rtrim(HPLS_SCHM_CODE))'},
+                {'name': 'PND_ACT_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(PND_ACT_TYPE_CODE))'},
+                {'name': 'PND_ACT_DUE_DATE_OUT', 'expr': 'PND_ACT_DUE_DATE'},
+                {'name': 'PND_ACT_RMK_TEXT_OUT', 'expr': 'ltrim(rtrim(PND_ACT_RMK_TEXT))'},
+                {'name': 'LOAN_RMK_TEXT_OUT', 'expr': 'ltrim(rtrim(LOAN_RMK_TEXT))'},
+                {'name': 'PND_ACT_CMPLT_IND_OUT', 'expr': 'ltrim(rtrim(PND_ACT_CMPLT_IND))'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_DATE_OUT', 'expr': 'LAST_REC_TXN_DATE'},
+                {'name': 'LAST_REC_TXN_USER_ID_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID))'},
+                {'name': 'LOAN_RDM_CODE_OUT', 'expr': 'LOAN_RDM_CODE'},
+                {'name': 'LOAN_CNCL_CODE_OUT', 'expr': 'LOAN_CNCL_CODE'},
+                {'name': 'LOAN_RSCN_CODE_OUT', 'expr': 'LOAN_RSCN_CODE'},
+                {'name': 'LAST_REC_TXN_USER_ID_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID_TYPE_CODE))'},
+                {'name': 'LAST_RPT_PARM_UPD_DATE_OUT', 'expr': 'LAST_RPT_PARM_UPD_DATE'},
+                {'name': 'DUMMY', 'expr': "'|'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EMS_HPL_LOAN")
         # Write to Target: write_EMS_HPL_LOAN
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"ASGN_DATE": "ASGN_DATE_OUT", "BANK_ACCT_NUM": "BANK_ACCT_NUM_OUT", "BANK_LOAN_IND": "BANK_LOAN_IND_OUT", "BKNG_FEE_AMT": "BKNG_FEE_AMT_OUT", "BLDG_AGE": "BLDG_AGE_OUT", "EQTBL_MRTG_DATE": "EQTBL_MRTG_DATE_OUT", "FMLY_SIZE_NUM": "FMLY_SIZE_NUM_OUT", "FRST_INSTLM_DATE": "FRST_INSTLM_DATE_OUT", "GF_CERT_NUM": "GF_CERT_NUM_OUT", "HOME_BLDG_NAME": "HOME_BLDG_NAME_OUT", "HOME_BLK_NUM": "HOME_BLK_NUM_OUT", "HOME_DSTR_NAME": "HOME_DSTR_NAME_OUT", "HOME_FLAT_NUM": "HOME_FLAT_NUM_OUT", "HOME_FLR_NUM": "HOME_FLR_NUM_OUT", "HOME_PHONE_NUM": "HOME_PHONE_NUM_OUT", "HOME_STRT_NAME": "HOME_STRT_NAME_OUT", "HPLS_AIP_ISS_DATE": "HPLS_AIP_ISS_DATE_OUT", "HPLS_APLY_NUM": "HPLS_APLY_NUM_OUT", "HPLS_BANK_ABBR_CODE": "HPLS_BANK_ABBR_CODE_OUT", "HPLS_CE_ISS_DATE": "HPLS_CE_ISS_DATE_OUT", "HPLS_CE_NUM": "HPLS_CE_NUM_OUT", "HPLS_CE_PRN_CNT": "HPLS_CE_PRN_CNT_OUT", "HPLS_SCHM_CODE": "HPLS_SCHM_CODE_OUT", "HSHLD_AST_AMT": "HSHLD_AST_AMT_OUT", "HSHLD_INCM_AMT": "HSHLD_INCM_AMT_OUT", "INSTLM_NUM": "INSTLM_NUM_OUT", "LAST_INSTLM_DATE": "LAST_INSTLM_DATE_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "LAST_REC_TXN_USER_ID_TYPE_CODE": "LAST_REC_TXN_USER_ID_TYPE_CODE_OUT", "LAST_RPT_PARM_UPD_DATE": "LAST_RPT_PARM_UPD_DATE_OUT", "LEGAL_CHRG_DATE": "LEGAL_CHRG_DATE_OUT", "LOAN_AGRMT_DATE": "LOAN_AGRMT_DATE_OUT", "LOAN_AGRMT_PRN_CNT": "LOAN_AGRMT_PRN_CNT_OUT", "LOAN_AMT": "LOAN_AMT_OUT", "LOAN_AMT_PYMT_MTHD_CODE": "LOAN_AMT_PYMT_MTHD_CODE_OUT", "LOAN_CNCL_CHRG_AMT": "LOAN_CNCL_CHRG_AMT_OUT", "LOAN_CNCL_CODE": "LOAN_CNCL_CODE_OUT", "LOAN_CNCL_DATE": "LOAN_CNCL_DATE_OUT", "LOAN_CNCL_RCPT_TEXT": "LOAN_CNCL_RCPT_TEXT_OUT", "LOAN_HIDE_FLAG_IND": "LOAN_HIDE_FLAG_IND_OUT", "LOAN_PYMT_DATE": "LOAN_PYMT_DATE_OUT", "LOAN_RDM_APLY_DATE": "LOAN_RDM_APLY_DATE_OUT", "LOAN_RDM_CODE": "LOAN_RDM_CODE_OUT", "LOAN_RMK_TEXT": "LOAN_RMK_TEXT_OUT", "LOAN_RSCN_CHRG_AMT": "LOAN_RSCN_CHRG_AMT_OUT", "LOAN_RSCN_CODE": "LOAN_RSCN_CODE_OUT", "LOAN_RSCN_DATE": "LOAN_RSCN_DATE_OUT", "LOAN_RSCN_RCPT_TEXT": "LOAN_RSCN_RCPT_TEXT_OUT", "LOAN_STL_DATE": "LOAN_STL_DATE_OUT", "LOAN_STS_CODE": "LOAN_STS_CODE_OUT", "LTR_SEND_BANK_PRN_CNT": "LTR_SEND_BANK_PRN_CNT_OUT", "LTR_SEND_BANK_SLCTR_PRN_CNT": "LTR_SEND_BANK_SLCTR_PRN_CNT_OUT", "LTR_SEND_SLCTR_PRN_CNT": "LTR_SEND_SLCTR_PRN_CNT_OUT", "MRTG_ACCT_NUM": "MRTG_ACCT_NUM_OUT", "MRTG_AMT": "MRTG_AMT_OUT", "MRTG_DATE": "MRTG_DATE_OUT", "MRTG_INSTLM_NUM": "MRTG_INSTLM_NUM_OUT", "OFFC_PHONE_NUM": "OFFC_PHONE_NUM_OUT", "ORIG_UNIT_CODE_ADDR": "ORIG_UNIT_CODE_ADDR_OUT", "OSTD_MRTG_AMT": "OSTD_MRTG_AMT_OUT", "PAY_BKNG_FEE_DATE": "PAY_BKNG_FEE_DATE_OUT", "PND_ACT_CMPLT_IND": "PND_ACT_CMPLT_IND_OUT", "PND_ACT_DUE_DATE": "PND_ACT_DUE_DATE_OUT", "PND_ACT_RMK_TEXT": "PND_ACT_RMK_TEXT_OUT", "PND_ACT_TYPE_CODE": "PND_ACT_TYPE_CODE_OUT", "PRIOR_CODE": "PRIOR_CODE_OUT", "PRIOR_NUM": "PRIOR_NUM_OUT", "PRPTY_BLDG_NAME": "PRPTY_BLDG_NAME_OUT", "PRPTY_BLK_NUM": "PRPTY_BLK_NUM_OUT", "PRPTY_DSTR_NAME": "PRPTY_DSTR_NAME_OUT", "PRPTY_FLAT_NUM": "PRPTY_FLAT_NUM_OUT", "PRPTY_FLR_AREA": "PRPTY_FLR_AREA_OUT", "PRPTY_FLR_NUM": "PRPTY_FLR_NUM_OUT", "PRPTY_OCPY_DATE": "PRPTY_OCPY_DATE_OUT", "PRPTY_SALE_PRC_AMT": "PRPTY_SALE_PRC_AMT_OUT", "PRPTY_STRT_NAME": "PRPTY_STRT_NAME_OUT", "PRPTY_TYPE_CODE": "PRPTY_TYPE_CODE_OUT", "QTA_CATG_CODE": "QTA_CATG_CODE_OUT", "RPYMT_AMT": "RPYMT_AMT_OUT", "SBSDY_AMT": "SBSDY_AMT_OUT", "SBSDY_BGN_DATE": "SBSDY_BGN_DATE_OUT", "SBSDY_END_DATE": "SBSDY_END_DATE_OUT", "SBSDY_TIMES_NUM": "SBSDY_TIMES_NUM_OUT", "SIGN_ASP_DATE": "SIGN_ASP_DATE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HPLS_CE_NUM', 'HPLS_APLY_NUM', 'LOAN_HIDE_FLAG_IND', 'BANK_LOAN_IND', 'PRIOR_NUM', 'HSHLD_INCM_AMT', 'FMLY_SIZE_NUM', 'HPLS_AIP_ISS_DATE', 'HPLS_CE_ISS_DATE', 'LOAN_AGRMT_DATE', 'LOAN_STS_CODE', 'LOAN_AMT_PYMT_MTHD_CODE', 'LOAN_AMT', 'RPYMT_AMT', 'FRST_INSTLM_DATE', 'LAST_INSTLM_DATE', 'INSTLM_NUM', 'SBSDY_AMT', 'SBSDY_TIMES_NUM', 'SBSDY_BGN_DATE', 'SBSDY_END_DATE', 'BANK_ACCT_NUM', 'BLDG_AGE', 'PRPTY_FLR_AREA', 'PRPTY_TYPE_CODE', 'PRPTY_SALE_PRC_AMT', 'PRPTY_OCPY_DATE', 'MRTG_AMT', 'MRTG_DATE', 'EQTBL_MRTG_DATE', 'LEGAL_CHRG_DATE', 'OSTD_MRTG_AMT', 'MRTG_INSTLM_NUM', 'MRTG_ACCT_NUM', 'BKNG_FEE_AMT', 'PAY_BKNG_FEE_DATE', 'SIGN_ASP_DATE', 'ASGN_DATE', 'HPLS_BANK_ABBR_CODE', 'LOAN_STL_DATE', 'LOAN_CNCL_DATE', 'LOAN_CNCL_RCPT_TEXT', 'LOAN_CNCL_CHRG_AMT', 'LOAN_RSCN_DATE', 'LOAN_RSCN_RCPT_TEXT', 'LOAN_RSCN_CHRG_AMT', 'LOAN_RDM_APLY_DATE', 'ORIG_UNIT_CODE_ADDR', 'GF_CERT_NUM', 'PRPTY_FLAT_NUM', 'PRPTY_BLK_NUM', 'PRPTY_FLR_NUM', 'PRPTY_BLDG_NAME', 'PRPTY_STRT_NAME', 'PRPTY_DSTR_NAME', 'HOME_FLAT_NUM', 'HOME_BLK_NUM', 'HOME_FLR_NUM', 'HOME_BLDG_NAME', 'HOME_STRT_NAME', 'HOME_DSTR_NAME', 'HOME_PHONE_NUM', 'OFFC_PHONE_NUM', 'HPLS_CE_PRN_CNT', 'LOAN_AGRMT_PRN_CNT', 'LTR_SEND_BANK_PRN_CNT', 'LTR_SEND_SLCTR_PRN_CNT', 'LOAN_PYMT_DATE', 'LTR_SEND_BANK_SLCTR_PRN_CNT', 'HSHLD_AST_AMT', 'PRIOR_CODE', 'QTA_CATG_CODE', 'HPLS_SCHM_CODE', 'PND_ACT_TYPE_CODE', 'PND_ACT_DUE_DATE', 'PND_ACT_RMK_TEXT', 'LOAN_RMK_TEXT', 'PND_ACT_CMPLT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'LOAN_RDM_CODE', 'LOAN_CNCL_CODE', 'LOAN_RSCN_CODE', 'LAST_REC_TXN_USER_ID_TYPE_CODE', 'LAST_RPT_PARM_UPD_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_HPL_LOAN", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_HPL_LOAN',
+            mode='append',
+            source_columns=[
+                'HPLS_CE_NUM_OUT',
+                'HPLS_APLY_NUM_OUT',
+                'LOAN_HIDE_FLAG_IND_OUT',
+                'BANK_LOAN_IND_OUT',
+                'PRIOR_NUM_OUT',
+                'HSHLD_INCM_AMT_OUT',
+                'FMLY_SIZE_NUM_OUT',
+                'HPLS_AIP_ISS_DATE_OUT',
+                'HPLS_CE_ISS_DATE_OUT',
+                'LOAN_AGRMT_DATE_OUT',
+                'LOAN_STS_CODE_OUT',
+                'LOAN_AMT_PYMT_MTHD_CODE_OUT',
+                'LOAN_AMT_OUT',
+                'RPYMT_AMT_OUT',
+                'FRST_INSTLM_DATE_OUT',
+                'LAST_INSTLM_DATE_OUT',
+                'INSTLM_NUM_OUT',
+                'SBSDY_AMT_OUT',
+                'SBSDY_TIMES_NUM_OUT',
+                'SBSDY_BGN_DATE_OUT',
+                'SBSDY_END_DATE_OUT',
+                'BANK_ACCT_NUM_OUT',
+                'BLDG_AGE_OUT',
+                'PRPTY_FLR_AREA_OUT',
+                'PRPTY_TYPE_CODE_OUT',
+                'PRPTY_SALE_PRC_AMT_OUT',
+                'PRPTY_OCPY_DATE_OUT',
+                'MRTG_AMT_OUT',
+                'MRTG_DATE_OUT',
+                'EQTBL_MRTG_DATE_OUT',
+                'LEGAL_CHRG_DATE_OUT',
+                'OSTD_MRTG_AMT_OUT',
+                'MRTG_INSTLM_NUM_OUT',
+                'MRTG_ACCT_NUM_OUT',
+                'BKNG_FEE_AMT_OUT',
+                'PAY_BKNG_FEE_DATE_OUT',
+                'SIGN_ASP_DATE_OUT',
+                'ASGN_DATE_OUT',
+                'HPLS_BANK_ABBR_CODE_OUT',
+                'LOAN_STL_DATE_OUT',
+                'LOAN_CNCL_DATE_OUT',
+                'LOAN_CNCL_RCPT_TEXT_OUT',
+                'LOAN_CNCL_CHRG_AMT_OUT',
+                'LOAN_RSCN_DATE_OUT',
+                'LOAN_RSCN_RCPT_TEXT_OUT',
+                'LOAN_RSCN_CHRG_AMT_OUT',
+                'LOAN_RDM_APLY_DATE_OUT',
+                'ORIG_UNIT_CODE_ADDR_OUT',
+                'GF_CERT_NUM_OUT',
+                'PRPTY_FLAT_NUM_OUT',
+                'PRPTY_BLK_NUM_OUT',
+                'PRPTY_FLR_NUM_OUT',
+                'PRPTY_BLDG_NAME_OUT',
+                'PRPTY_STRT_NAME_OUT',
+                'PRPTY_DSTR_NAME_OUT',
+                'HOME_FLAT_NUM_OUT',
+                'HOME_BLK_NUM_OUT',
+                'HOME_FLR_NUM_OUT',
+                'HOME_BLDG_NAME_OUT',
+                'HOME_STRT_NAME_OUT',
+                'HOME_DSTR_NAME_OUT',
+                'HOME_PHONE_NUM_OUT',
+                'OFFC_PHONE_NUM_OUT',
+                'HPLS_CE_PRN_CNT_OUT',
+                'LOAN_AGRMT_PRN_CNT_OUT',
+                'LTR_SEND_BANK_PRN_CNT_OUT',
+                'LTR_SEND_SLCTR_PRN_CNT_OUT',
+                'LOAN_PYMT_DATE_OUT',
+                'LTR_SEND_BANK_SLCTR_PRN_CNT_OUT',
+                'HSHLD_AST_AMT_OUT',
+                'PRIOR_CODE_OUT',
+                'QTA_CATG_CODE_OUT',
+                'HPLS_SCHM_CODE_OUT',
+                'PND_ACT_TYPE_CODE_OUT',
+                'PND_ACT_DUE_DATE_OUT',
+                'PND_ACT_RMK_TEXT_OUT',
+                'LOAN_RMK_TEXT_OUT',
+                'PND_ACT_CMPLT_IND_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'LOAN_RDM_CODE_OUT',
+                'LOAN_CNCL_CODE_OUT',
+                'LOAN_RSCN_CODE_OUT',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE_OUT',
+                'LAST_RPT_PARM_UPD_DATE_OUT',
+            ],
+            target_columns=[
+                'HPLS_CE_NUM',
+                'HPLS_APLY_NUM',
+                'LOAN_HIDE_FLAG_IND',
+                'BANK_LOAN_IND',
+                'PRIOR_NUM',
+                'HSHLD_INCM_AMT',
+                'FMLY_SIZE_NUM',
+                'HPLS_AIP_ISS_DATE',
+                'HPLS_CE_ISS_DATE',
+                'LOAN_AGRMT_DATE',
+                'LOAN_STS_CODE',
+                'LOAN_AMT_PYMT_MTHD_CODE',
+                'LOAN_AMT',
+                'RPYMT_AMT',
+                'FRST_INSTLM_DATE',
+                'LAST_INSTLM_DATE',
+                'INSTLM_NUM',
+                'SBSDY_AMT',
+                'SBSDY_TIMES_NUM',
+                'SBSDY_BGN_DATE',
+                'SBSDY_END_DATE',
+                'BANK_ACCT_NUM',
+                'BLDG_AGE',
+                'PRPTY_FLR_AREA',
+                'PRPTY_TYPE_CODE',
+                'PRPTY_SALE_PRC_AMT',
+                'PRPTY_OCPY_DATE',
+                'MRTG_AMT',
+                'MRTG_DATE',
+                'EQTBL_MRTG_DATE',
+                'LEGAL_CHRG_DATE',
+                'OSTD_MRTG_AMT',
+                'MRTG_INSTLM_NUM',
+                'MRTG_ACCT_NUM',
+                'BKNG_FEE_AMT',
+                'PAY_BKNG_FEE_DATE',
+                'SIGN_ASP_DATE',
+                'ASGN_DATE',
+                'HPLS_BANK_ABBR_CODE',
+                'LOAN_STL_DATE',
+                'LOAN_CNCL_DATE',
+                'LOAN_CNCL_RCPT_TEXT',
+                'LOAN_CNCL_CHRG_AMT',
+                'LOAN_RSCN_DATE',
+                'LOAN_RSCN_RCPT_TEXT',
+                'LOAN_RSCN_CHRG_AMT',
+                'LOAN_RDM_APLY_DATE',
+                'ORIG_UNIT_CODE_ADDR',
+                'GF_CERT_NUM',
+                'PRPTY_FLAT_NUM',
+                'PRPTY_BLK_NUM',
+                'PRPTY_FLR_NUM',
+                'PRPTY_BLDG_NAME',
+                'PRPTY_STRT_NAME',
+                'PRPTY_DSTR_NAME',
+                'HOME_FLAT_NUM',
+                'HOME_BLK_NUM',
+                'HOME_FLR_NUM',
+                'HOME_BLDG_NAME',
+                'HOME_STRT_NAME',
+                'HOME_DSTR_NAME',
+                'HOME_PHONE_NUM',
+                'OFFC_PHONE_NUM',
+                'HPLS_CE_PRN_CNT',
+                'LOAN_AGRMT_PRN_CNT',
+                'LTR_SEND_BANK_PRN_CNT',
+                'LTR_SEND_SLCTR_PRN_CNT',
+                'LOAN_PYMT_DATE',
+                'LTR_SEND_BANK_SLCTR_PRN_CNT',
+                'HSHLD_AST_AMT',
+                'PRIOR_CODE',
+                'QTA_CATG_CODE',
+                'HPLS_SCHM_CODE',
+                'PND_ACT_TYPE_CODE',
+                'PND_ACT_DUE_DATE',
+                'PND_ACT_RMK_TEXT',
+                'LOAN_RMK_TEXT',
+                'PND_ACT_CMPLT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'LOAN_RDM_CODE',
+                'LOAN_CNCL_CODE',
+                'LOAN_RSCN_CODE',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE',
+                'LAST_RPT_PARM_UPD_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_HPL_LOAN write completed")
         logger.info("Step: write_EMS_HPL_LOAN1")
         # Write to Target: write_EMS_HPL_LOAN1
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"ASGN_DATE": "ASGN_DATE_OUT", "BANK_ACCT_NUM": "BANK_ACCT_NUM_OUT", "BANK_LOAN_IND": "BANK_LOAN_IND_OUT", "BKNG_FEE_AMT": "BKNG_FEE_AMT_OUT", "BLDG_AGE": "BLDG_AGE_OUT", "DUMMY": "DUMMY", "EQTBL_MRTG_DATE": "EQTBL_MRTG_DATE_OUT", "FMLY_SIZE_NUM": "FMLY_SIZE_NUM_OUT", "FRST_INSTLM_DATE": "FRST_INSTLM_DATE_OUT", "GF_CERT_NUM": "GF_CERT_NUM_OUT", "HOME_BLDG_NAME": "HOME_BLDG_NAME_OUT", "HOME_BLK_NUM": "HOME_BLK_NUM_OUT", "HOME_DSTR_NAME": "HOME_DSTR_NAME_OUT", "HOME_FLAT_NUM": "HOME_FLAT_NUM_OUT", "HOME_FLR_NUM": "HOME_FLR_NUM_OUT", "HOME_PHONE_NUM": "HOME_PHONE_NUM_OUT", "HOME_STRT_NAME": "HOME_STRT_NAME_OUT", "HPLS_AIP_ISS_DATE": "HPLS_AIP_ISS_DATE_OUT", "HPLS_APLY_NUM": "HPLS_APLY_NUM_OUT", "HPLS_BANK_ABBR_CODE": "HPLS_BANK_ABBR_CODE_OUT", "HPLS_CE_ISS_DATE": "HPLS_CE_ISS_DATE_OUT", "HPLS_CE_NUM": "HPLS_CE_NUM_OUT", "HPLS_CE_PRN_CNT": "HPLS_CE_PRN_CNT_OUT", "HPLS_SCHM_CODE": "HPLS_SCHM_CODE_OUT", "HSHLD_AST_AMT": "HSHLD_AST_AMT_OUT", "HSHLD_INCM_AMT": "HSHLD_INCM_AMT_OUT", "INSTLM_NUM": "INSTLM_NUM_OUT", "LAST_INSTLM_DATE": "LAST_INSTLM_DATE_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "LAST_REC_TXN_USER_ID_TYPE_CODE": "LAST_REC_TXN_USER_ID_TYPE_CODE_OUT", "LAST_RPT_PARM_UPD_DATE": "LAST_RPT_PARM_UPD_DATE_OUT", "LEGAL_CHRG_DATE": "LEGAL_CHRG_DATE_OUT", "LOAN_AGRMT_DATE": "LOAN_AGRMT_DATE_OUT", "LOAN_AGRMT_PRN_CNT": "LOAN_AGRMT_PRN_CNT_OUT", "LOAN_AMT": "LOAN_AMT_OUT", "LOAN_AMT_PYMT_MTHD_CODE": "LOAN_AMT_PYMT_MTHD_CODE_OUT", "LOAN_CNCL_CHRG_AMT": "LOAN_CNCL_CHRG_AMT_OUT", "LOAN_CNCL_CODE": "LOAN_CNCL_CODE_OUT", "LOAN_CNCL_DATE": "LOAN_CNCL_DATE_OUT", "LOAN_CNCL_RCPT_TEXT": "LOAN_CNCL_RCPT_TEXT_OUT", "LOAN_HIDE_FLAG_IND": "LOAN_HIDE_FLAG_IND_OUT", "LOAN_PYMT_DATE": "LOAN_PYMT_DATE_OUT", "LOAN_RDM_APLY_DATE": "LOAN_RDM_APLY_DATE_OUT", "LOAN_RDM_CODE": "LOAN_RDM_CODE_OUT", "LOAN_RMK_TEXT": "LOAN_RMK_TEXT_OUT", "LOAN_RSCN_CHRG_AMT": "LOAN_RSCN_CHRG_AMT_OUT", "LOAN_RSCN_CODE": "LOAN_RSCN_CODE_OUT", "LOAN_RSCN_DATE": "LOAN_RSCN_DATE_OUT", "LOAN_RSCN_RCPT_TEXT": "LOAN_RSCN_RCPT_TEXT_OUT", "LOAN_STL_DATE": "LOAN_STL_DATE_OUT", "LOAN_STS_CODE": "LOAN_STS_CODE_OUT", "LTR_SEND_BANK_PRN_CNT": "LTR_SEND_BANK_PRN_CNT_OUT", "LTR_SEND_BANK_SLCTR_PRN_CNT": "LTR_SEND_BANK_SLCTR_PRN_CNT_OUT", "LTR_SEND_SLCTR_PRN_CNT": "LTR_SEND_SLCTR_PRN_CNT_OUT", "MRTG_ACCT_NUM": "MRTG_ACCT_NUM_OUT", "MRTG_AMT": "MRTG_AMT_OUT", "MRTG_DATE": "MRTG_DATE_OUT", "MRTG_INSTLM_NUM": "MRTG_INSTLM_NUM_OUT", "OFFC_PHONE_NUM": "OFFC_PHONE_NUM_OUT", "ORIG_UNIT_CODE_ADDR": "ORIG_UNIT_CODE_ADDR_OUT", "OSTD_MRTG_AMT": "OSTD_MRTG_AMT_OUT", "PAY_BKNG_FEE_DATE": "PAY_BKNG_FEE_DATE_OUT", "PND_ACT_CMPLT_IND": "PND_ACT_CMPLT_IND_OUT", "PND_ACT_DUE_DATE": "PND_ACT_DUE_DATE_OUT", "PND_ACT_RMK_TEXT": "PND_ACT_RMK_TEXT_OUT", "PND_ACT_TYPE_CODE": "PND_ACT_TYPE_CODE_OUT", "PRIOR_CODE": "PRIOR_CODE_OUT", "PRIOR_NUM": "PRIOR_NUM_OUT", "PRPTY_BLDG_NAME": "PRPTY_BLDG_NAME_OUT", "PRPTY_BLK_NUM": "PRPTY_BLK_NUM_OUT", "PRPTY_DSTR_NAME": "PRPTY_DSTR_NAME_OUT", "PRPTY_FLAT_NUM": "PRPTY_FLAT_NUM_OUT", "PRPTY_FLR_AREA": "PRPTY_FLR_AREA_OUT", "PRPTY_FLR_NUM": "PRPTY_FLR_NUM_OUT", "PRPTY_OCPY_DATE": "PRPTY_OCPY_DATE_OUT", "PRPTY_SALE_PRC_AMT": "PRPTY_SALE_PRC_AMT_OUT", "PRPTY_STRT_NAME": "PRPTY_STRT_NAME_OUT", "PRPTY_TYPE_CODE": "PRPTY_TYPE_CODE_OUT", "QTA_CATG_CODE": "QTA_CATG_CODE_OUT", "RPYMT_AMT": "RPYMT_AMT_OUT", "SBSDY_AMT": "SBSDY_AMT_OUT", "SBSDY_BGN_DATE": "SBSDY_BGN_DATE_OUT", "SBSDY_END_DATE": "SBSDY_END_DATE_OUT", "SBSDY_TIMES_NUM": "SBSDY_TIMES_NUM_OUT", "SIGN_ASP_DATE": "SIGN_ASP_DATE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HPLS_CE_NUM', 'HPLS_APLY_NUM', 'LOAN_HIDE_FLAG_IND', 'BANK_LOAN_IND', 'PRIOR_NUM', 'HSHLD_INCM_AMT', 'FMLY_SIZE_NUM', 'HPLS_AIP_ISS_DATE', 'HPLS_CE_ISS_DATE', 'LOAN_AGRMT_DATE', 'LOAN_STS_CODE', 'LOAN_AMT_PYMT_MTHD_CODE', 'LOAN_AMT', 'RPYMT_AMT', 'FRST_INSTLM_DATE', 'LAST_INSTLM_DATE', 'INSTLM_NUM', 'SBSDY_AMT', 'SBSDY_TIMES_NUM', 'SBSDY_BGN_DATE', 'SBSDY_END_DATE', 'BANK_ACCT_NUM', 'BLDG_AGE', 'PRPTY_FLR_AREA', 'PRPTY_TYPE_CODE', 'PRPTY_SALE_PRC_AMT', 'PRPTY_OCPY_DATE', 'MRTG_AMT', 'MRTG_DATE', 'EQTBL_MRTG_DATE', 'LEGAL_CHRG_DATE', 'OSTD_MRTG_AMT', 'MRTG_INSTLM_NUM', 'MRTG_ACCT_NUM', 'BKNG_FEE_AMT', 'PAY_BKNG_FEE_DATE', 'SIGN_ASP_DATE', 'ASGN_DATE', 'HPLS_BANK_ABBR_CODE', 'LOAN_STL_DATE', 'LOAN_CNCL_DATE', 'LOAN_CNCL_RCPT_TEXT', 'LOAN_CNCL_CHRG_AMT', 'LOAN_RSCN_DATE', 'LOAN_RSCN_RCPT_TEXT', 'LOAN_RSCN_CHRG_AMT', 'LOAN_RDM_APLY_DATE', 'ORIG_UNIT_CODE_ADDR', 'GF_CERT_NUM', 'PRPTY_FLAT_NUM', 'PRPTY_BLK_NUM', 'PRPTY_FLR_NUM', 'PRPTY_BLDG_NAME', 'PRPTY_STRT_NAME', 'PRPTY_DSTR_NAME', 'HOME_FLAT_NUM', 'HOME_BLK_NUM', 'HOME_FLR_NUM', 'HOME_BLDG_NAME', 'HOME_STRT_NAME', 'HOME_DSTR_NAME', 'HOME_PHONE_NUM', 'OFFC_PHONE_NUM', 'HPLS_CE_PRN_CNT', 'LOAN_AGRMT_PRN_CNT', 'LTR_SEND_BANK_PRN_CNT', 'LTR_SEND_SLCTR_PRN_CNT', 'LOAN_PYMT_DATE', 'LTR_SEND_BANK_SLCTR_PRN_CNT', 'HSHLD_AST_AMT', 'PRIOR_CODE', 'QTA_CATG_CODE', 'HPLS_SCHM_CODE', 'PND_ACT_TYPE_CODE', 'PND_ACT_DUE_DATE', 'PND_ACT_RMK_TEXT', 'LOAN_RMK_TEXT', 'PND_ACT_CMPLT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'LOAN_RDM_CODE', 'LOAN_CNCL_CODE', 'LOAN_RSCN_CODE', 'LAST_REC_TXN_USER_ID_TYPE_CODE', 'LAST_RPT_PARM_UPD_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_HPL_LOAN", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_HPL_LOAN',
+            mode='append',
+            source_columns=[
+                'HPLS_CE_NUM_OUT',
+                'HPLS_APLY_NUM_OUT',
+                'LOAN_HIDE_FLAG_IND_OUT',
+                'BANK_LOAN_IND_OUT',
+                'PRIOR_NUM_OUT',
+                'HSHLD_INCM_AMT_OUT',
+                'FMLY_SIZE_NUM_OUT',
+                'HPLS_AIP_ISS_DATE_OUT',
+                'HPLS_CE_ISS_DATE_OUT',
+                'LOAN_AGRMT_DATE_OUT',
+                'LOAN_STS_CODE_OUT',
+                'LOAN_AMT_PYMT_MTHD_CODE_OUT',
+                'LOAN_AMT_OUT',
+                'RPYMT_AMT_OUT',
+                'FRST_INSTLM_DATE_OUT',
+                'LAST_INSTLM_DATE_OUT',
+                'INSTLM_NUM_OUT',
+                'SBSDY_AMT_OUT',
+                'SBSDY_TIMES_NUM_OUT',
+                'SBSDY_BGN_DATE_OUT',
+                'SBSDY_END_DATE_OUT',
+                'BANK_ACCT_NUM_OUT',
+                'BLDG_AGE_OUT',
+                'PRPTY_FLR_AREA_OUT',
+                'PRPTY_TYPE_CODE_OUT',
+                'PRPTY_SALE_PRC_AMT_OUT',
+                'PRPTY_OCPY_DATE_OUT',
+                'MRTG_AMT_OUT',
+                'MRTG_DATE_OUT',
+                'EQTBL_MRTG_DATE_OUT',
+                'LEGAL_CHRG_DATE_OUT',
+                'OSTD_MRTG_AMT_OUT',
+                'MRTG_INSTLM_NUM_OUT',
+                'MRTG_ACCT_NUM_OUT',
+                'BKNG_FEE_AMT_OUT',
+                'PAY_BKNG_FEE_DATE_OUT',
+                'SIGN_ASP_DATE_OUT',
+                'ASGN_DATE_OUT',
+                'HPLS_BANK_ABBR_CODE_OUT',
+                'LOAN_STL_DATE_OUT',
+                'LOAN_CNCL_DATE_OUT',
+                'LOAN_CNCL_RCPT_TEXT_OUT',
+                'LOAN_CNCL_CHRG_AMT_OUT',
+                'LOAN_RSCN_DATE_OUT',
+                'LOAN_RSCN_RCPT_TEXT_OUT',
+                'LOAN_RSCN_CHRG_AMT_OUT',
+                'LOAN_RDM_APLY_DATE_OUT',
+                'ORIG_UNIT_CODE_ADDR_OUT',
+                'GF_CERT_NUM_OUT',
+                'PRPTY_FLAT_NUM_OUT',
+                'PRPTY_BLK_NUM_OUT',
+                'PRPTY_FLR_NUM_OUT',
+                'PRPTY_BLDG_NAME_OUT',
+                'PRPTY_STRT_NAME_OUT',
+                'PRPTY_DSTR_NAME_OUT',
+                'HOME_FLAT_NUM_OUT',
+                'HOME_BLK_NUM_OUT',
+                'HOME_FLR_NUM_OUT',
+                'HOME_BLDG_NAME_OUT',
+                'HOME_STRT_NAME_OUT',
+                'HOME_DSTR_NAME_OUT',
+                'HOME_PHONE_NUM_OUT',
+                'OFFC_PHONE_NUM_OUT',
+                'HPLS_CE_PRN_CNT_OUT',
+                'LOAN_AGRMT_PRN_CNT_OUT',
+                'LTR_SEND_BANK_PRN_CNT_OUT',
+                'LTR_SEND_SLCTR_PRN_CNT_OUT',
+                'LOAN_PYMT_DATE_OUT',
+                'LTR_SEND_BANK_SLCTR_PRN_CNT_OUT',
+                'HSHLD_AST_AMT_OUT',
+                'PRIOR_CODE_OUT',
+                'QTA_CATG_CODE_OUT',
+                'HPLS_SCHM_CODE_OUT',
+                'PND_ACT_TYPE_CODE_OUT',
+                'PND_ACT_DUE_DATE_OUT',
+                'PND_ACT_RMK_TEXT_OUT',
+                'LOAN_RMK_TEXT_OUT',
+                'PND_ACT_CMPLT_IND_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'LOAN_RDM_CODE_OUT',
+                'LOAN_CNCL_CODE_OUT',
+                'LOAN_RSCN_CODE_OUT',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE_OUT',
+                'LAST_RPT_PARM_UPD_DATE_OUT',
+            ],
+            target_columns=[
+                'HPLS_CE_NUM',
+                'HPLS_APLY_NUM',
+                'LOAN_HIDE_FLAG_IND',
+                'BANK_LOAN_IND',
+                'PRIOR_NUM',
+                'HSHLD_INCM_AMT',
+                'FMLY_SIZE_NUM',
+                'HPLS_AIP_ISS_DATE',
+                'HPLS_CE_ISS_DATE',
+                'LOAN_AGRMT_DATE',
+                'LOAN_STS_CODE',
+                'LOAN_AMT_PYMT_MTHD_CODE',
+                'LOAN_AMT',
+                'RPYMT_AMT',
+                'FRST_INSTLM_DATE',
+                'LAST_INSTLM_DATE',
+                'INSTLM_NUM',
+                'SBSDY_AMT',
+                'SBSDY_TIMES_NUM',
+                'SBSDY_BGN_DATE',
+                'SBSDY_END_DATE',
+                'BANK_ACCT_NUM',
+                'BLDG_AGE',
+                'PRPTY_FLR_AREA',
+                'PRPTY_TYPE_CODE',
+                'PRPTY_SALE_PRC_AMT',
+                'PRPTY_OCPY_DATE',
+                'MRTG_AMT',
+                'MRTG_DATE',
+                'EQTBL_MRTG_DATE',
+                'LEGAL_CHRG_DATE',
+                'OSTD_MRTG_AMT',
+                'MRTG_INSTLM_NUM',
+                'MRTG_ACCT_NUM',
+                'BKNG_FEE_AMT',
+                'PAY_BKNG_FEE_DATE',
+                'SIGN_ASP_DATE',
+                'ASGN_DATE',
+                'HPLS_BANK_ABBR_CODE',
+                'LOAN_STL_DATE',
+                'LOAN_CNCL_DATE',
+                'LOAN_CNCL_RCPT_TEXT',
+                'LOAN_CNCL_CHRG_AMT',
+                'LOAN_RSCN_DATE',
+                'LOAN_RSCN_RCPT_TEXT',
+                'LOAN_RSCN_CHRG_AMT',
+                'LOAN_RDM_APLY_DATE',
+                'ORIG_UNIT_CODE_ADDR',
+                'GF_CERT_NUM',
+                'PRPTY_FLAT_NUM',
+                'PRPTY_BLK_NUM',
+                'PRPTY_FLR_NUM',
+                'PRPTY_BLDG_NAME',
+                'PRPTY_STRT_NAME',
+                'PRPTY_DSTR_NAME',
+                'HOME_FLAT_NUM',
+                'HOME_BLK_NUM',
+                'HOME_FLR_NUM',
+                'HOME_BLDG_NAME',
+                'HOME_STRT_NAME',
+                'HOME_DSTR_NAME',
+                'HOME_PHONE_NUM',
+                'OFFC_PHONE_NUM',
+                'HPLS_CE_PRN_CNT',
+                'LOAN_AGRMT_PRN_CNT',
+                'LTR_SEND_BANK_PRN_CNT',
+                'LTR_SEND_SLCTR_PRN_CNT',
+                'LOAN_PYMT_DATE',
+                'LTR_SEND_BANK_SLCTR_PRN_CNT',
+                'HSHLD_AST_AMT',
+                'PRIOR_CODE',
+                'QTA_CATG_CODE',
+                'HPLS_SCHM_CODE',
+                'PND_ACT_TYPE_CODE',
+                'PND_ACT_DUE_DATE',
+                'PND_ACT_RMK_TEXT',
+                'LOAN_RMK_TEXT',
+                'PND_ACT_CMPLT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'LOAN_RDM_CODE',
+                'LOAN_CNCL_CODE',
+                'LOAN_RSCN_CODE',
+                'LAST_REC_TXN_USER_ID_TYPE_CODE',
+                'LAST_RPT_PARM_UPD_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_HPL_LOAN1 write completed")
         

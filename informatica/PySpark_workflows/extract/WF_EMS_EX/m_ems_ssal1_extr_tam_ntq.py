@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_TAM_NTQ")
@@ -79,120 +64,364 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_TAM_NTQ")
         # Source Qualifier: apply_SQ_TAM_NTQ
         df_SQ_TAM_NTQ = df_TAM_NTQ
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_TAM_NTQ = df_SQ_TAM_NTQ.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["CUST_KEY", "HSE_SRVC_APLY_KEY", "NTQ_LTR_DATE", "NTQ_STS_CODE", "NTQ_END_DATE", "NTQ_CRE_DATE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "NTQ_END_RMDR_SBMT_DATE", "LAST_NTQ_STS_UPD_DATE", "ABU_REF_NUM", "ACT_IND", "APL_DATE", "APL_HEAR_DATE", "APL_INTT_USER_CODE", "APL_PNL_RSLT_DATE", "APL_RMK_TEXT", "APL_RSLT_CODE", "LIC_FEE_END_DATE", "NTQ_BU_DATE", "NTQ_ISS_DATE", "NTQ_ISS_RSN_TEXT", "NTQ_PRLNG_STYPT_RSN_TEXT", "NTQ_PRN_IND", "NTQ_PRN_RMK_TEXT", "NTQ_STL_RSN_CODE", "NTQ_STL_RSN_TEXT", "ORIG_NEXT_RENT_BGN_DATE", "ORIG_NEXT_RENT_CHNG_RSN_CODE", "ORIG_NEXT_RENT_CHNG_RSN_TEXT", "ORIG_NEXT_RENT_END_DATE", "ORIG_NEXT_RENT_FCTR_CODE", "ORIG_NEXT_RENT_RVW_CATG_CODE", "ORIG_NEXT_RENT_RVW_CATG_DATE", "ORIG_PYMT_MTHD_CODE", "ORIG_RENT_BGN_DATE", "ORIG_RENT_END_DATE", "ORIG_RENT_FCTR_CODE", "PYMT_MTHD_CODE", "RENT_FCTR_CODE", "NTQ_ISS_RSN_CODE", "NTQ_STS_UPD_DATE", "NTQ_WTHDRW_IND", "APL_MEMO_CNFRM_DATE", "APL_PNL_PPR_SBMT_DATE", "APL_DATE_UPD_DATE", "MISC_HSE_BNFT_GNRT_IND", "LAST_SBMT_USER_ID", "LAST_SBMT_DATE", "LAST_APRV_USER_ID", "LAST_APRV_DATE", "ORIG_RENT_EXMPT_IND"]
-        df_SQ_TAM_NTQ = df_SQ_TAM_NTQ.select([col(c) if c.lower() in [x.lower() for x in df_SQ_TAM_NTQ.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_TAM_NTQ = lib.sq_output(
+            input_df=df_SQ_TAM_NTQ,
+            port_cols={
+                'CUST_KEY': 'string',
+                'HSE_SRVC_APLY_KEY': 'string',
+                'NTQ_LTR_DATE': 'date/time',
+                'NTQ_STS_CODE': 'string',
+                'NTQ_END_DATE': 'date/time',
+                'NTQ_CRE_DATE': 'date/time',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'string',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'NTQ_END_RMDR_SBMT_DATE': 'date/time',
+                'LAST_NTQ_STS_UPD_DATE': 'date/time',
+                'ABU_REF_NUM': 'string',
+                'ACT_IND': 'string',
+                'APL_DATE': 'date/time',
+                'APL_HEAR_DATE': 'date/time',
+                'APL_INTT_USER_CODE': 'string',
+                'APL_PNL_RSLT_DATE': 'date/time',
+                'APL_RMK_TEXT': 'string',
+                'APL_RSLT_CODE': 'string',
+                'LIC_FEE_END_DATE': 'date/time',
+                'NTQ_BU_DATE': 'date/time',
+                'NTQ_ISS_DATE': 'date/time',
+                'NTQ_ISS_RSN_TEXT': 'string',
+                'NTQ_PRLNG_STYPT_RSN_TEXT': 'string',
+                'NTQ_PRN_IND': 'string',
+                'NTQ_PRN_RMK_TEXT': 'string',
+                'NTQ_STL_RSN_CODE': 'string',
+                'NTQ_STL_RSN_TEXT': 'string',
+                'ORIG_NEXT_RENT_BGN_DATE': 'date/time',
+                'ORIG_NEXT_RENT_CHNG_RSN_CODE': 'string',
+                'ORIG_NEXT_RENT_CHNG_RSN_TEXT': 'string',
+                'ORIG_NEXT_RENT_END_DATE': 'date/time',
+                'ORIG_NEXT_RENT_FCTR_CODE': 'decimal',
+                'ORIG_NEXT_RENT_RVW_CATG_CODE': 'string',
+                'ORIG_NEXT_RENT_RVW_CATG_DATE': 'date/time',
+                'ORIG_PYMT_MTHD_CODE': 'string',
+                'ORIG_RENT_BGN_DATE': 'date/time',
+                'ORIG_RENT_END_DATE': 'date/time',
+                'ORIG_RENT_FCTR_CODE': 'decimal',
+                'PYMT_MTHD_CODE': 'string',
+                'RENT_FCTR_CODE': 'decimal',
+                'NTQ_ISS_RSN_CODE': 'string',
+                'NTQ_STS_UPD_DATE': 'date/time',
+                'NTQ_WTHDRW_IND': 'string',
+                'APL_MEMO_CNFRM_DATE': 'date/time',
+                'APL_PNL_PPR_SBMT_DATE': 'date/time',
+                'APL_DATE_UPD_DATE': 'date/time',
+                'MISC_HSE_BNFT_GNRT_IND': 'string',
+                'LAST_SBMT_USER_ID': 'string',
+                'LAST_SBMT_DATE': 'date/time',
+                'LAST_APRV_USER_ID': 'string',
+                'LAST_APRV_DATE': 'date/time',
+                'ORIG_RENT_EXMPT_IND': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_TAM_NTQ", df_SQ_TAM_NTQ)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_TAM_NTQ
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_KEY_OUT", expr("ltrim(CUST_KEY)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_SRVC_APLY_KEY_OUT", expr("ltrim(HSE_SRVC_APLY_KEY)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NTQ_LTR_DATE_OUT", expr("NTQ_LTR_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NTQ_STS_CODE_OUT", expr("ltrim(NTQ_STS_CODE)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NTQ_END_DATE_OUT", expr("NTQ_END_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NTQ_CRE_DATE_OUT", expr("NTQ_CRE_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE_OUT", expr("ltrim(LAST_REC_TXN_TYPE_CODE)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE_OUT", expr("LAST_REC_TXN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_OUT", expr("ltrim(LAST_REC_TXN_USER_ID)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NTQ_END_RMDR_SBMT_DATE_OUT", expr("NTQ_END_RMDR_SBMT_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_NTQ_STS_UPD_DATE_OUT", expr("LAST_NTQ_STS_UPD_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ABU_REF_NUM_OUT", expr("ltrim(ABU_REF_NUM)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ACT_IND_OUT", expr("ltrim(ACT_IND)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APL_DATE_OUT", expr("APL_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APL_HEAR_DATE_OUT", expr("APL_HEAR_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APL_INTT_USER_CODE_OUT", expr("ltrim(APL_INTT_USER_CODE)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APL_PNL_RSLT_DATE_OUT", expr("APL_PNL_RSLT_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APL_RMK_TEXT_OUT", expr("ltrim(APL_RMK_TEXT)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APL_RSLT_CODE_OUT", expr("ltrim(APL_RSLT_CODE)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LIC_FEE_END_DATE_OUT", expr("LIC_FEE_END_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NTQ_BU_DATE_OUT", expr("NTQ_BU_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NTQ_ISS_DATE_OUT", expr("NTQ_ISS_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NTQ_ISS_RSN_TEXT_OUT", expr("ltrim(NTQ_ISS_RSN_TEXT)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NTQ_PRLNG_STYPT_RSN_TEXT_OUT", expr("ltrim(NTQ_PRLNG_STYPT_RSN_TEXT)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NTQ_PRN_IND_OUT", expr("ltrim(NTQ_PRN_IND)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NTQ_PRN_RMK_TEXT_OUT", expr("ltrim(NTQ_PRN_RMK_TEXT)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NTQ_STL_RSN_CODE_OUT", expr("ltrim(NTQ_STL_RSN_CODE)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NTQ_STL_RSN_TEXT_OUT", expr("ltrim(NTQ_STL_RSN_TEXT)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ORIG_NEXT_RENT_BGN_DATE_OUT", expr("ORIG_NEXT_RENT_BGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ORIG_NEXT_RENT_CHNG_RSN_CODE_OUT", expr("ltrim(ORIG_NEXT_RENT_CHNG_RSN_CODE)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ORIG_NEXT_RENT_CHNG_RSN_TEXT_OUT", expr("ltrim(ORIG_NEXT_RENT_CHNG_RSN_TEXT)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ORIG_NEXT_RENT_END_DATE_OUT", expr("ORIG_NEXT_RENT_END_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ORIG_NEXT_RENT_FCTR_CODE_OUT", expr("ORIG_NEXT_RENT_FCTR_CODE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ORIG_NEXT_RENT_RVW_CATG_CODE_OUT", expr("ltrim(ORIG_NEXT_RENT_RVW_CATG_CODE)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ORIG_NEXT_RENT_RVW_CATG_DATE_OUT", expr("ORIG_NEXT_RENT_RVW_CATG_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ORIG_PYMT_MTHD_CODE_OUT", expr("ltrim(ORIG_PYMT_MTHD_CODE)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ORIG_RENT_BGN_DATE_OUT", expr("ORIG_RENT_BGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ORIG_RENT_END_DATE_OUT", expr("ORIG_RENT_END_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ORIG_RENT_FCTR_CODE_OUT", expr("ORIG_RENT_FCTR_CODE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PYMT_MTHD_CODE_OUT", expr("ltrim(PYMT_MTHD_CODE)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RENT_FCTR_CODE_OUT", expr("RENT_FCTR_CODE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NTQ_ISS_RSN_CODE_OUT", expr("ltrim(NTQ_ISS_RSN_CODE)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NTQ_STS_UPD_DATE_OUT", expr("NTQ_STS_UPD_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("NTQ_WTHDRW_IND_OUT", expr("ltrim(NTQ_WTHDRW_IND)"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("'|'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["APL_MEMO_CNFRM_DATE", "APL_PNL_PPR_SBMT_DATE", "APL_DATE_UPD_DATE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_TAM_NTQ,
+            computed_columns=[
+                {'name': 'CUST_KEY_OUT', 'expr': 'ltrim(CUST_KEY)'},
+                {'name': 'HSE_SRVC_APLY_KEY_OUT', 'expr': 'ltrim(HSE_SRVC_APLY_KEY)'},
+                {'name': 'NTQ_LTR_DATE_OUT', 'expr': 'NTQ_LTR_DATE'},
+                {'name': 'NTQ_STS_CODE_OUT', 'expr': 'ltrim(NTQ_STS_CODE)'},
+                {'name': 'NTQ_END_DATE_OUT', 'expr': 'NTQ_END_DATE'},
+                {'name': 'NTQ_CRE_DATE_OUT', 'expr': 'NTQ_CRE_DATE'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE_OUT', 'expr': 'ltrim(LAST_REC_TXN_TYPE_CODE)'},
+                {'name': 'LAST_REC_TXN_DATE_OUT', 'expr': 'LAST_REC_TXN_DATE'},
+                {'name': 'LAST_REC_TXN_USER_ID_OUT', 'expr': 'ltrim(LAST_REC_TXN_USER_ID)'},
+                {'name': 'NTQ_END_RMDR_SBMT_DATE_OUT', 'expr': 'NTQ_END_RMDR_SBMT_DATE'},
+                {'name': 'LAST_NTQ_STS_UPD_DATE_OUT', 'expr': 'LAST_NTQ_STS_UPD_DATE'},
+                {'name': 'ABU_REF_NUM_OUT', 'expr': 'ltrim(ABU_REF_NUM)'},
+                {'name': 'ACT_IND_OUT', 'expr': 'ltrim(ACT_IND)'},
+                {'name': 'APL_DATE_OUT', 'expr': 'APL_DATE'},
+                {'name': 'APL_HEAR_DATE_OUT', 'expr': 'APL_HEAR_DATE'},
+                {'name': 'APL_INTT_USER_CODE_OUT', 'expr': 'ltrim(APL_INTT_USER_CODE)'},
+                {'name': 'APL_PNL_RSLT_DATE_OUT', 'expr': 'APL_PNL_RSLT_DATE'},
+                {'name': 'APL_RMK_TEXT_OUT', 'expr': 'ltrim(APL_RMK_TEXT)'},
+                {'name': 'APL_RSLT_CODE_OUT', 'expr': 'ltrim(APL_RSLT_CODE)'},
+                {'name': 'LIC_FEE_END_DATE_OUT', 'expr': 'LIC_FEE_END_DATE'},
+                {'name': 'NTQ_BU_DATE_OUT', 'expr': 'NTQ_BU_DATE'},
+                {'name': 'NTQ_ISS_DATE_OUT', 'expr': 'NTQ_ISS_DATE'},
+                {'name': 'NTQ_ISS_RSN_TEXT_OUT', 'expr': 'ltrim(NTQ_ISS_RSN_TEXT)'},
+                {'name': 'NTQ_PRLNG_STYPT_RSN_TEXT_OUT', 'expr': 'ltrim(NTQ_PRLNG_STYPT_RSN_TEXT)'},
+                {'name': 'NTQ_PRN_IND_OUT', 'expr': 'ltrim(NTQ_PRN_IND)'},
+                {'name': 'NTQ_PRN_RMK_TEXT_OUT', 'expr': 'ltrim(NTQ_PRN_RMK_TEXT)'},
+                {'name': 'NTQ_STL_RSN_CODE_OUT', 'expr': 'ltrim(NTQ_STL_RSN_CODE)'},
+                {'name': 'NTQ_STL_RSN_TEXT_OUT', 'expr': 'ltrim(NTQ_STL_RSN_TEXT)'},
+                {'name': 'ORIG_NEXT_RENT_BGN_DATE_OUT', 'expr': 'ORIG_NEXT_RENT_BGN_DATE'},
+                {'name': 'ORIG_NEXT_RENT_CHNG_RSN_CODE_OUT', 'expr': 'ltrim(ORIG_NEXT_RENT_CHNG_RSN_CODE)'},
+                {'name': 'ORIG_NEXT_RENT_CHNG_RSN_TEXT_OUT', 'expr': 'ltrim(ORIG_NEXT_RENT_CHNG_RSN_TEXT)'},
+                {'name': 'ORIG_NEXT_RENT_END_DATE_OUT', 'expr': 'ORIG_NEXT_RENT_END_DATE'},
+                {'name': 'ORIG_NEXT_RENT_FCTR_CODE_OUT', 'expr': 'ORIG_NEXT_RENT_FCTR_CODE'},
+                {'name': 'ORIG_NEXT_RENT_RVW_CATG_CODE_OUT', 'expr': 'ltrim(ORIG_NEXT_RENT_RVW_CATG_CODE)'},
+                {'name': 'ORIG_NEXT_RENT_RVW_CATG_DATE_OUT', 'expr': 'ORIG_NEXT_RENT_RVW_CATG_DATE'},
+                {'name': 'ORIG_PYMT_MTHD_CODE_OUT', 'expr': 'ltrim(ORIG_PYMT_MTHD_CODE)'},
+                {'name': 'ORIG_RENT_BGN_DATE_OUT', 'expr': 'ORIG_RENT_BGN_DATE'},
+                {'name': 'ORIG_RENT_END_DATE_OUT', 'expr': 'ORIG_RENT_END_DATE'},
+                {'name': 'ORIG_RENT_FCTR_CODE_OUT', 'expr': 'ORIG_RENT_FCTR_CODE'},
+                {'name': 'PYMT_MTHD_CODE_OUT', 'expr': 'ltrim(PYMT_MTHD_CODE)'},
+                {'name': 'RENT_FCTR_CODE_OUT', 'expr': 'RENT_FCTR_CODE'},
+                {'name': 'NTQ_ISS_RSN_CODE_OUT', 'expr': 'ltrim(NTQ_ISS_RSN_CODE)'},
+                {'name': 'NTQ_STS_UPD_DATE_OUT', 'expr': 'NTQ_STS_UPD_DATE'},
+                {'name': 'NTQ_WTHDRW_IND_OUT', 'expr': 'ltrim(NTQ_WTHDRW_IND)'},
+                {'name': 'DUMMY', 'expr': "'|'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EMS_TAM_NTQ1")
         # Write to Target: write_EMS_TAM_NTQ1
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"ABU_REF_NUM": "ABU_REF_NUM_OUT", "ACT_IND": "ACT_IND_OUT", "APL_DATE": "APL_DATE_OUT", "APL_HEAR_DATE": "APL_HEAR_DATE_OUT", "APL_INTT_USER_CODE": "APL_INTT_USER_CODE_OUT", "APL_PNL_RSLT_DATE": "APL_PNL_RSLT_DATE_OUT", "APL_RMK_TEXT": "APL_RMK_TEXT_OUT", "APL_RSLT_CODE": "APL_RSLT_CODE_OUT", "CUST_KEY": "CUST_KEY_OUT", "DUMMY": "DUMMY", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "LAST_NTQ_STS_UPD_DATE": "LAST_NTQ_STS_UPD_DATE_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "LIC_FEE_END_DATE": "LIC_FEE_END_DATE_OUT", "NTQ_BU_DATE": "NTQ_BU_DATE_OUT", "NTQ_CRE_DATE": "NTQ_CRE_DATE_OUT", "NTQ_END_DATE": "NTQ_END_DATE_OUT", "NTQ_END_RMDR_SBMT_DATE": "NTQ_END_RMDR_SBMT_DATE_OUT", "NTQ_ISS_DATE": "NTQ_ISS_DATE_OUT", "NTQ_ISS_RSN_CODE": "NTQ_ISS_RSN_CODE_OUT", "NTQ_ISS_RSN_TEXT": "NTQ_ISS_RSN_TEXT_OUT", "NTQ_LTR_DATE": "NTQ_LTR_DATE_OUT", "NTQ_PRLNG_STYPT_RSN_TEXT": "NTQ_PRLNG_STYPT_RSN_TEXT_OUT", "NTQ_PRN_IND": "NTQ_PRN_IND_OUT", "NTQ_PRN_RMK_TEXT": "NTQ_PRN_RMK_TEXT_OUT", "NTQ_STL_RSN_CODE": "NTQ_STL_RSN_CODE_OUT", "NTQ_STL_RSN_TEXT": "NTQ_STL_RSN_TEXT_OUT", "NTQ_STS_CODE": "NTQ_STS_CODE_OUT", "NTQ_STS_UPD_DATE": "NTQ_STS_UPD_DATE_OUT", "NTQ_WTHDRW_IND": "NTQ_WTHDRW_IND_OUT", "ORIG_NEXT_RENT_BGN_DATE": "ORIG_NEXT_RENT_BGN_DATE_OUT", "ORIG_NEXT_RENT_CHNG_RSN_CODE": "ORIG_NEXT_RENT_CHNG_RSN_CODE_OUT", "ORIG_NEXT_RENT_CHNG_RSN_TEXT": "ORIG_NEXT_RENT_CHNG_RSN_TEXT_OUT", "ORIG_NEXT_RENT_END_DATE": "ORIG_NEXT_RENT_END_DATE_OUT", "ORIG_NEXT_RENT_FCTR_CODE": "ORIG_NEXT_RENT_FCTR_CODE_OUT", "ORIG_NEXT_RENT_RVW_CATG_CODE": "ORIG_NEXT_RENT_RVW_CATG_CODE_OUT", "ORIG_NEXT_RENT_RVW_CATG_DATE": "ORIG_NEXT_RENT_RVW_CATG_DATE_OUT", "ORIG_PYMT_MTHD_CODE": "ORIG_PYMT_MTHD_CODE_OUT", "ORIG_RENT_BGN_DATE": "ORIG_RENT_BGN_DATE_OUT", "ORIG_RENT_END_DATE": "ORIG_RENT_END_DATE_OUT", "ORIG_RENT_FCTR_CODE": "ORIG_RENT_FCTR_CODE_OUT", "PYMT_MTHD_CODE": "PYMT_MTHD_CODE_OUT", "RENT_FCTR_CODE": "RENT_FCTR_CODE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("APL_MEMO_CNFRM_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APL_PNL_PPR_SBMT_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APL_DATE_UPD_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("MISC_HSE_BNFT_GNRT_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_SBMT_USER_ID", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_SBMT_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_APRV_USER_ID", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_APRV_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ORIG_RENT_EXMPT_IND", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['CUST_KEY', 'HSE_SRVC_APLY_KEY', 'NTQ_LTR_DATE', 'NTQ_STS_CODE', 'NTQ_END_DATE', 'NTQ_CRE_DATE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'NTQ_END_RMDR_SBMT_DATE', 'LAST_NTQ_STS_UPD_DATE', 'ABU_REF_NUM', 'ACT_IND', 'APL_DATE', 'APL_HEAR_DATE', 'APL_INTT_USER_CODE', 'APL_PNL_RSLT_DATE', 'APL_RMK_TEXT', 'APL_RSLT_CODE', 'LIC_FEE_END_DATE', 'NTQ_BU_DATE', 'NTQ_ISS_DATE', 'NTQ_ISS_RSN_TEXT', 'NTQ_PRLNG_STYPT_RSN_TEXT', 'NTQ_PRN_IND', 'NTQ_PRN_RMK_TEXT', 'NTQ_STL_RSN_CODE', 'NTQ_STL_RSN_TEXT', 'ORIG_NEXT_RENT_BGN_DATE', 'ORIG_NEXT_RENT_CHNG_RSN_CODE', 'ORIG_NEXT_RENT_CHNG_RSN_TEXT', 'ORIG_NEXT_RENT_END_DATE', 'ORIG_NEXT_RENT_FCTR_CODE', 'ORIG_NEXT_RENT_RVW_CATG_CODE', 'ORIG_NEXT_RENT_RVW_CATG_DATE', 'ORIG_PYMT_MTHD_CODE', 'ORIG_RENT_BGN_DATE', 'ORIG_RENT_END_DATE', 'ORIG_RENT_FCTR_CODE', 'PYMT_MTHD_CODE', 'RENT_FCTR_CODE', 'NTQ_ISS_RSN_CODE', 'NTQ_STS_UPD_DATE', 'NTQ_WTHDRW_IND', 'APL_MEMO_CNFRM_DATE', 'APL_PNL_PPR_SBMT_DATE', 'APL_DATE_UPD_DATE', 'MISC_HSE_BNFT_GNRT_IND', 'LAST_SBMT_USER_ID', 'LAST_SBMT_DATE', 'LAST_APRV_USER_ID', 'LAST_APRV_DATE', 'ORIG_RENT_EXMPT_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_TAM_NTQ", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_TAM_NTQ',
+            mode='append',
+            source_columns=[
+                'CUST_KEY_OUT',
+                'HSE_SRVC_APLY_KEY_OUT',
+                'NTQ_LTR_DATE_OUT',
+                'NTQ_STS_CODE_OUT',
+                'NTQ_END_DATE_OUT',
+                'NTQ_CRE_DATE_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'NTQ_END_RMDR_SBMT_DATE_OUT',
+                'LAST_NTQ_STS_UPD_DATE_OUT',
+                'ABU_REF_NUM_OUT',
+                'ACT_IND_OUT',
+                'APL_DATE_OUT',
+                'APL_HEAR_DATE_OUT',
+                'APL_INTT_USER_CODE_OUT',
+                'APL_PNL_RSLT_DATE_OUT',
+                'APL_RMK_TEXT_OUT',
+                'APL_RSLT_CODE_OUT',
+                'LIC_FEE_END_DATE_OUT',
+                'NTQ_BU_DATE_OUT',
+                'NTQ_ISS_DATE_OUT',
+                'NTQ_ISS_RSN_TEXT_OUT',
+                'NTQ_PRLNG_STYPT_RSN_TEXT_OUT',
+                'NTQ_PRN_IND_OUT',
+                'NTQ_PRN_RMK_TEXT_OUT',
+                'NTQ_STL_RSN_CODE_OUT',
+                'NTQ_STL_RSN_TEXT_OUT',
+                'ORIG_NEXT_RENT_BGN_DATE_OUT',
+                'ORIG_NEXT_RENT_CHNG_RSN_CODE_OUT',
+                'ORIG_NEXT_RENT_CHNG_RSN_TEXT_OUT',
+                'ORIG_NEXT_RENT_END_DATE_OUT',
+                'ORIG_NEXT_RENT_FCTR_CODE_OUT',
+                'ORIG_NEXT_RENT_RVW_CATG_CODE_OUT',
+                'ORIG_NEXT_RENT_RVW_CATG_DATE_OUT',
+                'ORIG_PYMT_MTHD_CODE_OUT',
+                'ORIG_RENT_BGN_DATE_OUT',
+                'ORIG_RENT_END_DATE_OUT',
+                'ORIG_RENT_FCTR_CODE_OUT',
+                'PYMT_MTHD_CODE_OUT',
+                'RENT_FCTR_CODE_OUT',
+                'NTQ_ISS_RSN_CODE_OUT',
+                'NTQ_STS_UPD_DATE_OUT',
+                'NTQ_WTHDRW_IND_OUT',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ],
+            target_columns=[
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'NTQ_LTR_DATE',
+                'NTQ_STS_CODE',
+                'NTQ_END_DATE',
+                'NTQ_CRE_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'NTQ_END_RMDR_SBMT_DATE',
+                'LAST_NTQ_STS_UPD_DATE',
+                'ABU_REF_NUM',
+                'ACT_IND',
+                'APL_DATE',
+                'APL_HEAR_DATE',
+                'APL_INTT_USER_CODE',
+                'APL_PNL_RSLT_DATE',
+                'APL_RMK_TEXT',
+                'APL_RSLT_CODE',
+                'LIC_FEE_END_DATE',
+                'NTQ_BU_DATE',
+                'NTQ_ISS_DATE',
+                'NTQ_ISS_RSN_TEXT',
+                'NTQ_PRLNG_STYPT_RSN_TEXT',
+                'NTQ_PRN_IND',
+                'NTQ_PRN_RMK_TEXT',
+                'NTQ_STL_RSN_CODE',
+                'NTQ_STL_RSN_TEXT',
+                'ORIG_NEXT_RENT_BGN_DATE',
+                'ORIG_NEXT_RENT_CHNG_RSN_CODE',
+                'ORIG_NEXT_RENT_CHNG_RSN_TEXT',
+                'ORIG_NEXT_RENT_END_DATE',
+                'ORIG_NEXT_RENT_FCTR_CODE',
+                'ORIG_NEXT_RENT_RVW_CATG_CODE',
+                'ORIG_NEXT_RENT_RVW_CATG_DATE',
+                'ORIG_PYMT_MTHD_CODE',
+                'ORIG_RENT_BGN_DATE',
+                'ORIG_RENT_END_DATE',
+                'ORIG_RENT_FCTR_CODE',
+                'PYMT_MTHD_CODE',
+                'RENT_FCTR_CODE',
+                'NTQ_ISS_RSN_CODE',
+                'NTQ_STS_UPD_DATE',
+                'NTQ_WTHDRW_IND',
+                'APL_MEMO_CNFRM_DATE',
+                'APL_PNL_PPR_SBMT_DATE',
+                'APL_DATE_UPD_DATE',
+                'MISC_HSE_BNFT_GNRT_IND',
+                'LAST_SBMT_USER_ID',
+                'LAST_SBMT_DATE',
+                'LAST_APRV_USER_ID',
+                'LAST_APRV_DATE',
+                'ORIG_RENT_EXMPT_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_TAM_NTQ1 write completed")
         logger.info("Step: write_EMS_TAM_NTQ")
         # Write to Target: write_EMS_TAM_NTQ
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"ABU_REF_NUM": "ABU_REF_NUM_OUT", "ACT_IND": "ACT_IND_OUT", "APL_DATE": "APL_DATE_OUT", "APL_DATE_UPD_DATE": "APL_DATE_UPD_DATE", "APL_HEAR_DATE": "APL_HEAR_DATE_OUT", "APL_INTT_USER_CODE": "APL_INTT_USER_CODE_OUT", "APL_MEMO_CNFRM_DATE": "APL_MEMO_CNFRM_DATE", "APL_PNL_PPR_SBMT_DATE": "APL_PNL_PPR_SBMT_DATE", "APL_PNL_RSLT_DATE": "APL_PNL_RSLT_DATE_OUT", "APL_RMK_TEXT": "APL_RMK_TEXT_OUT", "APL_RSLT_CODE": "APL_RSLT_CODE_OUT", "CUST_KEY": "CUST_KEY_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "LAST_APRV_DATE": "LAST_APRV_DATE", "LAST_APRV_USER_ID": "LAST_APRV_USER_ID", "LAST_NTQ_STS_UPD_DATE": "LAST_NTQ_STS_UPD_DATE_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "LAST_SBMT_DATE": "LAST_SBMT_DATE", "LAST_SBMT_USER_ID": "LAST_SBMT_USER_ID", "LIC_FEE_END_DATE": "LIC_FEE_END_DATE_OUT", "MISC_HSE_BNFT_GNRT_IND": "MISC_HSE_BNFT_GNRT_IND", "NTQ_BU_DATE": "NTQ_BU_DATE_OUT", "NTQ_CRE_DATE": "NTQ_CRE_DATE_OUT", "NTQ_END_DATE": "NTQ_END_DATE_OUT", "NTQ_END_RMDR_SBMT_DATE": "NTQ_END_RMDR_SBMT_DATE_OUT", "NTQ_ISS_DATE": "NTQ_ISS_DATE_OUT", "NTQ_ISS_RSN_CODE": "NTQ_ISS_RSN_CODE_OUT", "NTQ_ISS_RSN_TEXT": "NTQ_ISS_RSN_TEXT_OUT", "NTQ_LTR_DATE": "NTQ_LTR_DATE_OUT", "NTQ_PRLNG_STYPT_RSN_TEXT": "NTQ_PRLNG_STYPT_RSN_TEXT_OUT", "NTQ_PRN_IND": "NTQ_PRN_IND_OUT", "NTQ_PRN_RMK_TEXT": "NTQ_PRN_RMK_TEXT_OUT", "NTQ_STL_RSN_CODE": "NTQ_STL_RSN_CODE_OUT", "NTQ_STL_RSN_TEXT": "NTQ_STL_RSN_TEXT_OUT", "NTQ_STS_CODE": "NTQ_STS_CODE_OUT", "NTQ_STS_UPD_DATE": "NTQ_STS_UPD_DATE_OUT", "NTQ_WTHDRW_IND": "NTQ_WTHDRW_IND_OUT", "ORIG_NEXT_RENT_BGN_DATE": "ORIG_NEXT_RENT_BGN_DATE_OUT", "ORIG_NEXT_RENT_CHNG_RSN_CODE": "ORIG_NEXT_RENT_CHNG_RSN_CODE_OUT", "ORIG_NEXT_RENT_CHNG_RSN_TEXT": "ORIG_NEXT_RENT_CHNG_RSN_TEXT_OUT", "ORIG_NEXT_RENT_END_DATE": "ORIG_NEXT_RENT_END_DATE_OUT", "ORIG_NEXT_RENT_FCTR_CODE": "ORIG_NEXT_RENT_FCTR_CODE_OUT", "ORIG_NEXT_RENT_RVW_CATG_CODE": "ORIG_NEXT_RENT_RVW_CATG_CODE_OUT", "ORIG_NEXT_RENT_RVW_CATG_DATE": "ORIG_NEXT_RENT_RVW_CATG_DATE_OUT", "ORIG_PYMT_MTHD_CODE": "ORIG_PYMT_MTHD_CODE_OUT", "ORIG_RENT_BGN_DATE": "ORIG_RENT_BGN_DATE_OUT", "ORIG_RENT_END_DATE": "ORIG_RENT_END_DATE_OUT", "ORIG_RENT_EXMPT_IND": "ORIG_RENT_EXMPT_IND", "ORIG_RENT_FCTR_CODE": "ORIG_RENT_FCTR_CODE_OUT", "PYMT_MTHD_CODE": "PYMT_MTHD_CODE_OUT", "RENT_FCTR_CODE": "RENT_FCTR_CODE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['CUST_KEY', 'HSE_SRVC_APLY_KEY', 'NTQ_LTR_DATE', 'NTQ_STS_CODE', 'NTQ_END_DATE', 'NTQ_CRE_DATE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'NTQ_END_RMDR_SBMT_DATE', 'LAST_NTQ_STS_UPD_DATE', 'ABU_REF_NUM', 'ACT_IND', 'APL_DATE', 'APL_HEAR_DATE', 'APL_INTT_USER_CODE', 'APL_PNL_RSLT_DATE', 'APL_RMK_TEXT', 'APL_RSLT_CODE', 'LIC_FEE_END_DATE', 'NTQ_BU_DATE', 'NTQ_ISS_DATE', 'NTQ_ISS_RSN_TEXT', 'NTQ_PRLNG_STYPT_RSN_TEXT', 'NTQ_PRN_IND', 'NTQ_PRN_RMK_TEXT', 'NTQ_STL_RSN_CODE', 'NTQ_STL_RSN_TEXT', 'ORIG_NEXT_RENT_BGN_DATE', 'ORIG_NEXT_RENT_CHNG_RSN_CODE', 'ORIG_NEXT_RENT_CHNG_RSN_TEXT', 'ORIG_NEXT_RENT_END_DATE', 'ORIG_NEXT_RENT_FCTR_CODE', 'ORIG_NEXT_RENT_RVW_CATG_CODE', 'ORIG_NEXT_RENT_RVW_CATG_DATE', 'ORIG_PYMT_MTHD_CODE', 'ORIG_RENT_BGN_DATE', 'ORIG_RENT_END_DATE', 'ORIG_RENT_FCTR_CODE', 'PYMT_MTHD_CODE', 'RENT_FCTR_CODE', 'NTQ_ISS_RSN_CODE', 'NTQ_STS_UPD_DATE', 'NTQ_WTHDRW_IND', 'APL_MEMO_CNFRM_DATE', 'APL_PNL_PPR_SBMT_DATE', 'APL_DATE_UPD_DATE', 'MISC_HSE_BNFT_GNRT_IND', 'LAST_SBMT_USER_ID', 'LAST_SBMT_DATE', 'LAST_APRV_USER_ID', 'LAST_APRV_DATE', 'ORIG_RENT_EXMPT_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_TAM_NTQ", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_TAM_NTQ',
+            mode='append',
+            source_columns=[
+                'CUST_KEY_OUT',
+                'HSE_SRVC_APLY_KEY_OUT',
+                'NTQ_LTR_DATE_OUT',
+                'NTQ_STS_CODE_OUT',
+                'NTQ_END_DATE_OUT',
+                'NTQ_CRE_DATE_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'NTQ_END_RMDR_SBMT_DATE_OUT',
+                'LAST_NTQ_STS_UPD_DATE_OUT',
+                'ABU_REF_NUM_OUT',
+                'ACT_IND_OUT',
+                'APL_DATE_OUT',
+                'APL_HEAR_DATE_OUT',
+                'APL_INTT_USER_CODE_OUT',
+                'APL_PNL_RSLT_DATE_OUT',
+                'APL_RMK_TEXT_OUT',
+                'APL_RSLT_CODE_OUT',
+                'LIC_FEE_END_DATE_OUT',
+                'NTQ_BU_DATE_OUT',
+                'NTQ_ISS_DATE_OUT',
+                'NTQ_ISS_RSN_TEXT_OUT',
+                'NTQ_PRLNG_STYPT_RSN_TEXT_OUT',
+                'NTQ_PRN_IND_OUT',
+                'NTQ_PRN_RMK_TEXT_OUT',
+                'NTQ_STL_RSN_CODE_OUT',
+                'NTQ_STL_RSN_TEXT_OUT',
+                'ORIG_NEXT_RENT_BGN_DATE_OUT',
+                'ORIG_NEXT_RENT_CHNG_RSN_CODE_OUT',
+                'ORIG_NEXT_RENT_CHNG_RSN_TEXT_OUT',
+                'ORIG_NEXT_RENT_END_DATE_OUT',
+                'ORIG_NEXT_RENT_FCTR_CODE_OUT',
+                'ORIG_NEXT_RENT_RVW_CATG_CODE_OUT',
+                'ORIG_NEXT_RENT_RVW_CATG_DATE_OUT',
+                'ORIG_PYMT_MTHD_CODE_OUT',
+                'ORIG_RENT_BGN_DATE_OUT',
+                'ORIG_RENT_END_DATE_OUT',
+                'ORIG_RENT_FCTR_CODE_OUT',
+                'PYMT_MTHD_CODE_OUT',
+                'RENT_FCTR_CODE_OUT',
+                'NTQ_ISS_RSN_CODE_OUT',
+                'NTQ_STS_UPD_DATE_OUT',
+                'NTQ_WTHDRW_IND_OUT',
+                'APL_MEMO_CNFRM_DATE',
+                'APL_PNL_PPR_SBMT_DATE',
+                'APL_DATE_UPD_DATE',
+                'MISC_HSE_BNFT_GNRT_IND',
+                'LAST_SBMT_USER_ID',
+                'LAST_SBMT_DATE',
+                'LAST_APRV_USER_ID',
+                'LAST_APRV_DATE',
+                'ORIG_RENT_EXMPT_IND',
+            ],
+            target_columns=[
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'NTQ_LTR_DATE',
+                'NTQ_STS_CODE',
+                'NTQ_END_DATE',
+                'NTQ_CRE_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'NTQ_END_RMDR_SBMT_DATE',
+                'LAST_NTQ_STS_UPD_DATE',
+                'ABU_REF_NUM',
+                'ACT_IND',
+                'APL_DATE',
+                'APL_HEAR_DATE',
+                'APL_INTT_USER_CODE',
+                'APL_PNL_RSLT_DATE',
+                'APL_RMK_TEXT',
+                'APL_RSLT_CODE',
+                'LIC_FEE_END_DATE',
+                'NTQ_BU_DATE',
+                'NTQ_ISS_DATE',
+                'NTQ_ISS_RSN_TEXT',
+                'NTQ_PRLNG_STYPT_RSN_TEXT',
+                'NTQ_PRN_IND',
+                'NTQ_PRN_RMK_TEXT',
+                'NTQ_STL_RSN_CODE',
+                'NTQ_STL_RSN_TEXT',
+                'ORIG_NEXT_RENT_BGN_DATE',
+                'ORIG_NEXT_RENT_CHNG_RSN_CODE',
+                'ORIG_NEXT_RENT_CHNG_RSN_TEXT',
+                'ORIG_NEXT_RENT_END_DATE',
+                'ORIG_NEXT_RENT_FCTR_CODE',
+                'ORIG_NEXT_RENT_RVW_CATG_CODE',
+                'ORIG_NEXT_RENT_RVW_CATG_DATE',
+                'ORIG_PYMT_MTHD_CODE',
+                'ORIG_RENT_BGN_DATE',
+                'ORIG_RENT_END_DATE',
+                'ORIG_RENT_FCTR_CODE',
+                'PYMT_MTHD_CODE',
+                'RENT_FCTR_CODE',
+                'NTQ_ISS_RSN_CODE',
+                'NTQ_STS_UPD_DATE',
+                'NTQ_WTHDRW_IND',
+                'APL_MEMO_CNFRM_DATE',
+                'APL_PNL_PPR_SBMT_DATE',
+                'APL_DATE_UPD_DATE',
+                'MISC_HSE_BNFT_GNRT_IND',
+                'LAST_SBMT_USER_ID',
+                'LAST_SBMT_DATE',
+                'LAST_APRV_USER_ID',
+                'LAST_APRV_DATE',
+                'ORIG_RENT_EXMPT_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_TAM_NTQ write completed")
         

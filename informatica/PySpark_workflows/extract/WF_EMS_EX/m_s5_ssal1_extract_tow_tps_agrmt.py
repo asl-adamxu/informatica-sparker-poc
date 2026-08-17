@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_TOW_TPS_AGRMT")
@@ -79,99 +64,246 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_TOW_TPS_AGRMT")
         # Source Qualifier: apply_SQ_TOW_TPS_AGRMT
         df_SQ_TOW_TPS_AGRMT = df_TOW_TPS_AGRMT
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_TOW_TPS_AGRMT = df_SQ_TOW_TPS_AGRMT.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HSE_SRVC_APLY_KEY", "TPS_HSE_UNIT_KEY", "TPS_AGRMT_SEQ_NUM", "CUST_KEY", "TPS_AGRMT_ASGN_DATE", "TPS_AGRMT_TRMT_DATE", "TPS_PCHS_FROM_CODE", "TPS_TRMT_TYPE_CODE", "TPS_AGRMT_EXOWNR_REF_CODE", "TPS_AGRMT_HOME_PHONE_NUM_1", "TPS_AGRMT_HOME_PHONE_NUM_2", "TPS_AGRMT_OFFC_PHONE_NUM_1", "TPS_AGRMT_OFFC_PHONE_NUM_2", "TPS_AGRMT_MBL_PHONE_NUM_1", "TPS_AGRMT_MBL_PHONE_NUM_2", "TPS_AGRMT_RMK_TEXT", "TPS_CHNG_OWNR_RMK_TEXT", "TPS_MGT_FEE_DPST_AMT", "ORIG_CUST_KEY", "ORIG_HSE_SRVC_APLY_KEY", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "TPS_APLY_TYPE_CODE", "APLY_MBR_TYPE_CODE", "APLY_MBR_REF_NUM", "TPS_AGRMT_CRE_DATE", "TPS_AGRMT_PHASE_CODE", "TPS_AGRMT_FRST_ASGN_DATE", "MBR_ACT_IND", "ORIG_HSE_UNIT_TOT_IFA_AREA", "CAS_DBR_END_DATE"]
-        df_SQ_TOW_TPS_AGRMT = df_SQ_TOW_TPS_AGRMT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_TOW_TPS_AGRMT.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_TOW_TPS_AGRMT = lib.sq_output(
+            input_df=df_SQ_TOW_TPS_AGRMT,
+            port_cols={
+                'HSE_SRVC_APLY_KEY': 'string',
+                'TPS_HSE_UNIT_KEY': 'string',
+                'TPS_AGRMT_SEQ_NUM': 'decimal',
+                'CUST_KEY': 'string',
+                'TPS_AGRMT_ASGN_DATE': 'date/time',
+                'TPS_AGRMT_TRMT_DATE': 'date/time',
+                'TPS_PCHS_FROM_CODE': 'string',
+                'TPS_TRMT_TYPE_CODE': 'string',
+                'TPS_AGRMT_EXOWNR_REF_CODE': 'string',
+                'TPS_AGRMT_HOME_PHONE_NUM_1': 'string',
+                'TPS_AGRMT_HOME_PHONE_NUM_2': 'string',
+                'TPS_AGRMT_OFFC_PHONE_NUM_1': 'string',
+                'TPS_AGRMT_OFFC_PHONE_NUM_2': 'string',
+                'TPS_AGRMT_MBL_PHONE_NUM_1': 'string',
+                'TPS_AGRMT_MBL_PHONE_NUM_2': 'string',
+                'TPS_AGRMT_RMK_TEXT': 'string',
+                'TPS_CHNG_OWNR_RMK_TEXT': 'string',
+                'TPS_MGT_FEE_DPST_AMT': 'decimal',
+                'ORIG_CUST_KEY': 'string',
+                'ORIG_HSE_SRVC_APLY_KEY': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'string',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'TPS_APLY_TYPE_CODE': 'string',
+                'APLY_MBR_TYPE_CODE': 'string',
+                'APLY_MBR_REF_NUM': 'string',
+                'TPS_AGRMT_CRE_DATE': 'date/time',
+                'TPS_AGRMT_PHASE_CODE': 'string',
+                'TPS_AGRMT_FRST_ASGN_DATE': 'date/time',
+                'MBR_ACT_IND': 'string',
+                'ORIG_HSE_UNIT_TOT_IFA_AREA': 'string',
+                'CAS_DBR_END_DATE': 'date/time',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_TOW_TPS_AGRMT", df_SQ_TOW_TPS_AGRMT)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_TOW_TPS_AGRMT
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_SRVC_APLY_KEY_OUT", expr("ltrim(rtrim(HSE_SRVC_APLY_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_HSE_UNIT_KEY_OUT", expr("ltrim(rtrim(TPS_HSE_UNIT_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_AGRMT_SEQ_NUM_OUT", expr("TPS_AGRMT_SEQ_NUM"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_KEY_OUT", expr("ltrim(rtrim(CUST_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_AGRMT_ASGN_DATE_OUT", expr("TPS_AGRMT_ASGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_AGRMT_TRMT_DATE_OUT", expr("TPS_AGRMT_TRMT_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_PCHS_FROM_CODE_OUT", expr("ltrim(rtrim(TPS_PCHS_FROM_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_TRMT_TYPE_CODE_OUT", expr("ltrim(rtrim(TPS_TRMT_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_AGRMT_EXOWNR_REF_CODE_OUT", expr("ltrim(rtrim(TPS_AGRMT_EXOWNR_REF_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_AGRMT_HOME_PHONE_NUM_1_OUT", expr("ltrim(rtrim(TPS_AGRMT_HOME_PHONE_NUM_1))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_AGRMT_HOME_PHONE_NUM_2_OUT", expr("ltrim(rtrim(TPS_AGRMT_HOME_PHONE_NUM_2))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_AGRMT_OFFC_PHONE_NUM_1_OUT", expr("ltrim(rtrim(TPS_AGRMT_OFFC_PHONE_NUM_1))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_AGRMT_OFFC_PHONE_NUM_2_OUT", expr("ltrim(rtrim(TPS_AGRMT_OFFC_PHONE_NUM_2))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_AGRMT_MBL_PHONE_NUM_1_OUT", expr("ltrim(rtrim(TPS_AGRMT_MBL_PHONE_NUM_1))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_AGRMT_MBL_PHONE_NUM_2_OUT", expr("ltrim(rtrim(TPS_AGRMT_MBL_PHONE_NUM_2))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_AGRMT_RMK_TEXT_OUT", expr("ltrim(rtrim(TPS_AGRMT_RMK_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_CHNG_OWNR_RMK_TEXT_OUT", expr("ltrim(rtrim(TPS_CHNG_OWNR_RMK_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_MGT_FEE_DPST_AMT_OUT", expr("TPS_MGT_FEE_DPST_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ORIG_CUST_KEY_OUT", expr("ltrim(rtrim(ORIG_CUST_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ORIG_HSE_SRVC_APLY_KEY_OUT", expr("ltrim(rtrim(ORIG_HSE_SRVC_APLY_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE_OUT", expr("LAST_REC_TXN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_APLY_TYPE_CODE_OUT", expr("ltrim(rtrim(TPS_APLY_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APLY_MBR_TYPE_CODE_OUT", expr("ltrim(rtrim(APLY_MBR_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APLY_MBR_REF_NUM_OUT", expr("ltrim(rtrim(APLY_MBR_REF_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_AGRMT_CRE_DATE_OUT", expr("TPS_AGRMT_CRE_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_AGRMT_PHASE_CODE_OUT", expr("ltrim(rtrim(TPS_AGRMT_PHASE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TPS_AGRMT_FRST_ASGN_DATE_OUT", expr("TPS_AGRMT_FRST_ASGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("MBR_ACT_IND_OUT", expr("ltrim(rtrim(MBR_ACT_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ORIG_HSE_UNIT_TOT_IFA_AREA_OUT", expr("ltrim(rtrim(ORIG_HSE_UNIT_TOT_IFA_AREA))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("'|'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["CAS_DBR_END_DATE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_TOW_TPS_AGRMT,
+            computed_columns=[
+                {'name': 'HSE_SRVC_APLY_KEY_OUT', 'expr': 'ltrim(rtrim(HSE_SRVC_APLY_KEY))'},
+                {'name': 'TPS_HSE_UNIT_KEY_OUT', 'expr': 'ltrim(rtrim(TPS_HSE_UNIT_KEY))'},
+                {'name': 'TPS_AGRMT_SEQ_NUM_OUT', 'expr': 'TPS_AGRMT_SEQ_NUM'},
+                {'name': 'CUST_KEY_OUT', 'expr': 'ltrim(rtrim(CUST_KEY))'},
+                {'name': 'TPS_AGRMT_ASGN_DATE_OUT', 'expr': 'TPS_AGRMT_ASGN_DATE'},
+                {'name': 'TPS_AGRMT_TRMT_DATE_OUT', 'expr': 'TPS_AGRMT_TRMT_DATE'},
+                {'name': 'TPS_PCHS_FROM_CODE_OUT', 'expr': 'ltrim(rtrim(TPS_PCHS_FROM_CODE))'},
+                {'name': 'TPS_TRMT_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(TPS_TRMT_TYPE_CODE))'},
+                {'name': 'TPS_AGRMT_EXOWNR_REF_CODE_OUT', 'expr': 'ltrim(rtrim(TPS_AGRMT_EXOWNR_REF_CODE))'},
+                {'name': 'TPS_AGRMT_HOME_PHONE_NUM_1_OUT', 'expr': 'ltrim(rtrim(TPS_AGRMT_HOME_PHONE_NUM_1))'},
+                {'name': 'TPS_AGRMT_HOME_PHONE_NUM_2_OUT', 'expr': 'ltrim(rtrim(TPS_AGRMT_HOME_PHONE_NUM_2))'},
+                {'name': 'TPS_AGRMT_OFFC_PHONE_NUM_1_OUT', 'expr': 'ltrim(rtrim(TPS_AGRMT_OFFC_PHONE_NUM_1))'},
+                {'name': 'TPS_AGRMT_OFFC_PHONE_NUM_2_OUT', 'expr': 'ltrim(rtrim(TPS_AGRMT_OFFC_PHONE_NUM_2))'},
+                {'name': 'TPS_AGRMT_MBL_PHONE_NUM_1_OUT', 'expr': 'ltrim(rtrim(TPS_AGRMT_MBL_PHONE_NUM_1))'},
+                {'name': 'TPS_AGRMT_MBL_PHONE_NUM_2_OUT', 'expr': 'ltrim(rtrim(TPS_AGRMT_MBL_PHONE_NUM_2))'},
+                {'name': 'TPS_AGRMT_RMK_TEXT_OUT', 'expr': 'ltrim(rtrim(TPS_AGRMT_RMK_TEXT))'},
+                {'name': 'TPS_CHNG_OWNR_RMK_TEXT_OUT', 'expr': 'ltrim(rtrim(TPS_CHNG_OWNR_RMK_TEXT))'},
+                {'name': 'TPS_MGT_FEE_DPST_AMT_OUT', 'expr': 'TPS_MGT_FEE_DPST_AMT'},
+                {'name': 'ORIG_CUST_KEY_OUT', 'expr': 'ltrim(rtrim(ORIG_CUST_KEY))'},
+                {'name': 'ORIG_HSE_SRVC_APLY_KEY_OUT', 'expr': 'ltrim(rtrim(ORIG_HSE_SRVC_APLY_KEY))'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_DATE_OUT', 'expr': 'LAST_REC_TXN_DATE'},
+                {'name': 'LAST_REC_TXN_USER_ID_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID))'},
+                {'name': 'TPS_APLY_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(TPS_APLY_TYPE_CODE))'},
+                {'name': 'APLY_MBR_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(APLY_MBR_TYPE_CODE))'},
+                {'name': 'APLY_MBR_REF_NUM_OUT', 'expr': 'ltrim(rtrim(APLY_MBR_REF_NUM))'},
+                {'name': 'TPS_AGRMT_CRE_DATE_OUT', 'expr': 'TPS_AGRMT_CRE_DATE'},
+                {'name': 'TPS_AGRMT_PHASE_CODE_OUT', 'expr': 'ltrim(rtrim(TPS_AGRMT_PHASE_CODE))'},
+                {'name': 'TPS_AGRMT_FRST_ASGN_DATE_OUT', 'expr': 'TPS_AGRMT_FRST_ASGN_DATE'},
+                {'name': 'MBR_ACT_IND_OUT', 'expr': 'ltrim(rtrim(MBR_ACT_IND))'},
+                {'name': 'ORIG_HSE_UNIT_TOT_IFA_AREA_OUT', 'expr': 'ltrim(rtrim(ORIG_HSE_UNIT_TOT_IFA_AREA))'},
+                {'name': 'DUMMY', 'expr': "'|'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EMS_TOW_TPS_AGRMT1")
         # Write to Target: write_EMS_TOW_TPS_AGRMT1
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"APLY_MBR_REF_NUM": "APLY_MBR_REF_NUM_OUT", "APLY_MBR_TYPE_CODE": "APLY_MBR_TYPE_CODE_OUT", "CUST_KEY": "CUST_KEY_OUT", "DUMMY": "DUMMY", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "MBR_ACT_IND": "MBR_ACT_IND_OUT", "ORIG_CUST_KEY": "ORIG_CUST_KEY_OUT", "ORIG_HSE_SRVC_APLY_KEY": "ORIG_HSE_SRVC_APLY_KEY_OUT", "ORIG_HSE_UNIT_TOT_IFA_AREA": "ORIG_HSE_UNIT_TOT_IFA_AREA_OUT", "TPS_AGRMT_ASGN_DATE": "TPS_AGRMT_ASGN_DATE_OUT", "TPS_AGRMT_CRE_DATE": "TPS_AGRMT_CRE_DATE_OUT", "TPS_AGRMT_EXOWNR_REF_CODE": "TPS_AGRMT_EXOWNR_REF_CODE_OUT", "TPS_AGRMT_FRST_ASGN_DATE": "TPS_AGRMT_FRST_ASGN_DATE_OUT", "TPS_AGRMT_HOME_PHONE_NUM_1": "TPS_AGRMT_HOME_PHONE_NUM_1_OUT", "TPS_AGRMT_HOME_PHONE_NUM_2": "TPS_AGRMT_HOME_PHONE_NUM_2_OUT", "TPS_AGRMT_MBL_PHONE_NUM_1": "TPS_AGRMT_MBL_PHONE_NUM_1_OUT", "TPS_AGRMT_MBL_PHONE_NUM_2": "TPS_AGRMT_MBL_PHONE_NUM_2_OUT", "TPS_AGRMT_OFFC_PHONE_NUM_1": "TPS_AGRMT_OFFC_PHONE_NUM_1_OUT", "TPS_AGRMT_OFFC_PHONE_NUM_2": "TPS_AGRMT_OFFC_PHONE_NUM_2_OUT", "TPS_AGRMT_PHASE_CODE": "TPS_AGRMT_PHASE_CODE_OUT", "TPS_AGRMT_RMK_TEXT": "TPS_AGRMT_RMK_TEXT_OUT", "TPS_AGRMT_SEQ_NUM": "TPS_AGRMT_SEQ_NUM_OUT", "TPS_AGRMT_TRMT_DATE": "TPS_AGRMT_TRMT_DATE_OUT", "TPS_APLY_TYPE_CODE": "TPS_APLY_TYPE_CODE_OUT", "TPS_CHNG_OWNR_RMK_TEXT": "TPS_CHNG_OWNR_RMK_TEXT_OUT", "TPS_HSE_UNIT_KEY": "TPS_HSE_UNIT_KEY_OUT", "TPS_MGT_FEE_DPST_AMT": "TPS_MGT_FEE_DPST_AMT_OUT", "TPS_PCHS_FROM_CODE": "TPS_PCHS_FROM_CODE_OUT", "TPS_TRMT_TYPE_CODE": "TPS_TRMT_TYPE_CODE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("CAS_DBR_END_DATE", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HSE_SRVC_APLY_KEY', 'TPS_HSE_UNIT_KEY', 'TPS_AGRMT_SEQ_NUM', 'CUST_KEY', 'TPS_AGRMT_ASGN_DATE', 'TPS_AGRMT_TRMT_DATE', 'TPS_PCHS_FROM_CODE', 'TPS_TRMT_TYPE_CODE', 'TPS_AGRMT_EXOWNR_REF_CODE', 'TPS_AGRMT_HOME_PHONE_NUM_1', 'TPS_AGRMT_HOME_PHONE_NUM_2', 'TPS_AGRMT_OFFC_PHONE_NUM_1', 'TPS_AGRMT_OFFC_PHONE_NUM_2', 'TPS_AGRMT_MBL_PHONE_NUM_1', 'TPS_AGRMT_MBL_PHONE_NUM_2', 'TPS_AGRMT_RMK_TEXT', 'TPS_CHNG_OWNR_RMK_TEXT', 'TPS_MGT_FEE_DPST_AMT', 'ORIG_CUST_KEY', 'ORIG_HSE_SRVC_APLY_KEY', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'TPS_APLY_TYPE_CODE', 'APLY_MBR_TYPE_CODE', 'APLY_MBR_REF_NUM', 'TPS_AGRMT_CRE_DATE', 'TPS_AGRMT_PHASE_CODE', 'TPS_AGRMT_FRST_ASGN_DATE', 'MBR_ACT_IND', 'ORIG_HSE_UNIT_TOT_IFA_AREA', 'CAS_DBR_END_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_TOW_TPS_AGRMT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_TOW_TPS_AGRMT',
+            mode='append',
+            source_columns=[
+                'HSE_SRVC_APLY_KEY_OUT',
+                'TPS_HSE_UNIT_KEY_OUT',
+                'TPS_AGRMT_SEQ_NUM_OUT',
+                'CUST_KEY_OUT',
+                'TPS_AGRMT_ASGN_DATE_OUT',
+                'TPS_AGRMT_TRMT_DATE_OUT',
+                'TPS_PCHS_FROM_CODE_OUT',
+                'TPS_TRMT_TYPE_CODE_OUT',
+                'TPS_AGRMT_EXOWNR_REF_CODE_OUT',
+                'TPS_AGRMT_HOME_PHONE_NUM_1_OUT',
+                'TPS_AGRMT_HOME_PHONE_NUM_2_OUT',
+                'TPS_AGRMT_OFFC_PHONE_NUM_1_OUT',
+                'TPS_AGRMT_OFFC_PHONE_NUM_2_OUT',
+                'TPS_AGRMT_MBL_PHONE_NUM_1_OUT',
+                'TPS_AGRMT_MBL_PHONE_NUM_2_OUT',
+                'TPS_AGRMT_RMK_TEXT_OUT',
+                'TPS_CHNG_OWNR_RMK_TEXT_OUT',
+                'TPS_MGT_FEE_DPST_AMT_OUT',
+                'ORIG_CUST_KEY_OUT',
+                'ORIG_HSE_SRVC_APLY_KEY_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'TPS_APLY_TYPE_CODE_OUT',
+                'APLY_MBR_TYPE_CODE_OUT',
+                'APLY_MBR_REF_NUM_OUT',
+                'TPS_AGRMT_CRE_DATE_OUT',
+                'TPS_AGRMT_PHASE_CODE_OUT',
+                'TPS_AGRMT_FRST_ASGN_DATE_OUT',
+                'MBR_ACT_IND_OUT',
+                'ORIG_HSE_UNIT_TOT_IFA_AREA_OUT',
+                None,
+            ],
+            target_columns=[
+                'HSE_SRVC_APLY_KEY',
+                'TPS_HSE_UNIT_KEY',
+                'TPS_AGRMT_SEQ_NUM',
+                'CUST_KEY',
+                'TPS_AGRMT_ASGN_DATE',
+                'TPS_AGRMT_TRMT_DATE',
+                'TPS_PCHS_FROM_CODE',
+                'TPS_TRMT_TYPE_CODE',
+                'TPS_AGRMT_EXOWNR_REF_CODE',
+                'TPS_AGRMT_HOME_PHONE_NUM_1',
+                'TPS_AGRMT_HOME_PHONE_NUM_2',
+                'TPS_AGRMT_OFFC_PHONE_NUM_1',
+                'TPS_AGRMT_OFFC_PHONE_NUM_2',
+                'TPS_AGRMT_MBL_PHONE_NUM_1',
+                'TPS_AGRMT_MBL_PHONE_NUM_2',
+                'TPS_AGRMT_RMK_TEXT',
+                'TPS_CHNG_OWNR_RMK_TEXT',
+                'TPS_MGT_FEE_DPST_AMT',
+                'ORIG_CUST_KEY',
+                'ORIG_HSE_SRVC_APLY_KEY',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'TPS_APLY_TYPE_CODE',
+                'APLY_MBR_TYPE_CODE',
+                'APLY_MBR_REF_NUM',
+                'TPS_AGRMT_CRE_DATE',
+                'TPS_AGRMT_PHASE_CODE',
+                'TPS_AGRMT_FRST_ASGN_DATE',
+                'MBR_ACT_IND',
+                'ORIG_HSE_UNIT_TOT_IFA_AREA',
+                'CAS_DBR_END_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_TOW_TPS_AGRMT1 write completed")
         logger.info("Step: write_EMS_TOW_TPS_AGRMT")
         # Write to Target: write_EMS_TOW_TPS_AGRMT
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"APLY_MBR_REF_NUM": "APLY_MBR_REF_NUM_OUT", "APLY_MBR_TYPE_CODE": "APLY_MBR_TYPE_CODE_OUT", "CAS_DBR_END_DATE": "CAS_DBR_END_DATE", "CUST_KEY": "CUST_KEY_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "MBR_ACT_IND": "MBR_ACT_IND_OUT", "ORIG_CUST_KEY": "ORIG_CUST_KEY_OUT", "ORIG_HSE_SRVC_APLY_KEY": "ORIG_HSE_SRVC_APLY_KEY_OUT", "ORIG_HSE_UNIT_TOT_IFA_AREA": "ORIG_HSE_UNIT_TOT_IFA_AREA_OUT", "TPS_AGRMT_ASGN_DATE": "TPS_AGRMT_ASGN_DATE_OUT", "TPS_AGRMT_CRE_DATE": "TPS_AGRMT_CRE_DATE_OUT", "TPS_AGRMT_EXOWNR_REF_CODE": "TPS_AGRMT_EXOWNR_REF_CODE_OUT", "TPS_AGRMT_FRST_ASGN_DATE": "TPS_AGRMT_FRST_ASGN_DATE_OUT", "TPS_AGRMT_HOME_PHONE_NUM_1": "TPS_AGRMT_HOME_PHONE_NUM_1_OUT", "TPS_AGRMT_HOME_PHONE_NUM_2": "TPS_AGRMT_HOME_PHONE_NUM_2_OUT", "TPS_AGRMT_MBL_PHONE_NUM_1": "TPS_AGRMT_MBL_PHONE_NUM_1_OUT", "TPS_AGRMT_MBL_PHONE_NUM_2": "TPS_AGRMT_MBL_PHONE_NUM_2_OUT", "TPS_AGRMT_OFFC_PHONE_NUM_1": "TPS_AGRMT_OFFC_PHONE_NUM_1_OUT", "TPS_AGRMT_OFFC_PHONE_NUM_2": "TPS_AGRMT_OFFC_PHONE_NUM_2_OUT", "TPS_AGRMT_PHASE_CODE": "TPS_AGRMT_PHASE_CODE_OUT", "TPS_AGRMT_RMK_TEXT": "TPS_AGRMT_RMK_TEXT_OUT", "TPS_AGRMT_SEQ_NUM": "TPS_AGRMT_SEQ_NUM_OUT", "TPS_AGRMT_TRMT_DATE": "TPS_AGRMT_TRMT_DATE_OUT", "TPS_APLY_TYPE_CODE": "TPS_APLY_TYPE_CODE_OUT", "TPS_CHNG_OWNR_RMK_TEXT": "TPS_CHNG_OWNR_RMK_TEXT_OUT", "TPS_HSE_UNIT_KEY": "TPS_HSE_UNIT_KEY_OUT", "TPS_MGT_FEE_DPST_AMT": "TPS_MGT_FEE_DPST_AMT_OUT", "TPS_PCHS_FROM_CODE": "TPS_PCHS_FROM_CODE_OUT", "TPS_TRMT_TYPE_CODE": "TPS_TRMT_TYPE_CODE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HSE_SRVC_APLY_KEY', 'TPS_HSE_UNIT_KEY', 'TPS_AGRMT_SEQ_NUM', 'CUST_KEY', 'TPS_AGRMT_ASGN_DATE', 'TPS_AGRMT_TRMT_DATE', 'TPS_PCHS_FROM_CODE', 'TPS_TRMT_TYPE_CODE', 'TPS_AGRMT_EXOWNR_REF_CODE', 'TPS_AGRMT_HOME_PHONE_NUM_1', 'TPS_AGRMT_HOME_PHONE_NUM_2', 'TPS_AGRMT_OFFC_PHONE_NUM_1', 'TPS_AGRMT_OFFC_PHONE_NUM_2', 'TPS_AGRMT_MBL_PHONE_NUM_1', 'TPS_AGRMT_MBL_PHONE_NUM_2', 'TPS_AGRMT_RMK_TEXT', 'TPS_CHNG_OWNR_RMK_TEXT', 'TPS_MGT_FEE_DPST_AMT', 'ORIG_CUST_KEY', 'ORIG_HSE_SRVC_APLY_KEY', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'TPS_APLY_TYPE_CODE', 'APLY_MBR_TYPE_CODE', 'APLY_MBR_REF_NUM', 'TPS_AGRMT_CRE_DATE', 'TPS_AGRMT_PHASE_CODE', 'TPS_AGRMT_FRST_ASGN_DATE', 'MBR_ACT_IND', 'ORIG_HSE_UNIT_TOT_IFA_AREA', 'CAS_DBR_END_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_TOW_TPS_AGRMT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_TOW_TPS_AGRMT',
+            mode='append',
+            source_columns=[
+                'HSE_SRVC_APLY_KEY_OUT',
+                'TPS_HSE_UNIT_KEY_OUT',
+                'TPS_AGRMT_SEQ_NUM_OUT',
+                'CUST_KEY_OUT',
+                'TPS_AGRMT_ASGN_DATE_OUT',
+                'TPS_AGRMT_TRMT_DATE_OUT',
+                'TPS_PCHS_FROM_CODE_OUT',
+                'TPS_TRMT_TYPE_CODE_OUT',
+                'TPS_AGRMT_EXOWNR_REF_CODE_OUT',
+                'TPS_AGRMT_HOME_PHONE_NUM_1_OUT',
+                'TPS_AGRMT_HOME_PHONE_NUM_2_OUT',
+                'TPS_AGRMT_OFFC_PHONE_NUM_1_OUT',
+                'TPS_AGRMT_OFFC_PHONE_NUM_2_OUT',
+                'TPS_AGRMT_MBL_PHONE_NUM_1_OUT',
+                'TPS_AGRMT_MBL_PHONE_NUM_2_OUT',
+                'TPS_AGRMT_RMK_TEXT_OUT',
+                'TPS_CHNG_OWNR_RMK_TEXT_OUT',
+                'TPS_MGT_FEE_DPST_AMT_OUT',
+                'ORIG_CUST_KEY_OUT',
+                'ORIG_HSE_SRVC_APLY_KEY_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'TPS_APLY_TYPE_CODE_OUT',
+                'APLY_MBR_TYPE_CODE_OUT',
+                'APLY_MBR_REF_NUM_OUT',
+                'TPS_AGRMT_CRE_DATE_OUT',
+                'TPS_AGRMT_PHASE_CODE_OUT',
+                'TPS_AGRMT_FRST_ASGN_DATE_OUT',
+                'MBR_ACT_IND_OUT',
+                'ORIG_HSE_UNIT_TOT_IFA_AREA_OUT',
+                'CAS_DBR_END_DATE',
+            ],
+            target_columns=[
+                'HSE_SRVC_APLY_KEY',
+                'TPS_HSE_UNIT_KEY',
+                'TPS_AGRMT_SEQ_NUM',
+                'CUST_KEY',
+                'TPS_AGRMT_ASGN_DATE',
+                'TPS_AGRMT_TRMT_DATE',
+                'TPS_PCHS_FROM_CODE',
+                'TPS_TRMT_TYPE_CODE',
+                'TPS_AGRMT_EXOWNR_REF_CODE',
+                'TPS_AGRMT_HOME_PHONE_NUM_1',
+                'TPS_AGRMT_HOME_PHONE_NUM_2',
+                'TPS_AGRMT_OFFC_PHONE_NUM_1',
+                'TPS_AGRMT_OFFC_PHONE_NUM_2',
+                'TPS_AGRMT_MBL_PHONE_NUM_1',
+                'TPS_AGRMT_MBL_PHONE_NUM_2',
+                'TPS_AGRMT_RMK_TEXT',
+                'TPS_CHNG_OWNR_RMK_TEXT',
+                'TPS_MGT_FEE_DPST_AMT',
+                'ORIG_CUST_KEY',
+                'ORIG_HSE_SRVC_APLY_KEY',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'TPS_APLY_TYPE_CODE',
+                'APLY_MBR_TYPE_CODE',
+                'APLY_MBR_REF_NUM',
+                'TPS_AGRMT_CRE_DATE',
+                'TPS_AGRMT_PHASE_CODE',
+                'TPS_AGRMT_FRST_ASGN_DATE',
+                'MBR_ACT_IND',
+                'ORIG_HSE_UNIT_TOT_IFA_AREA',
+                'CAS_DBR_END_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_TOW_TPS_AGRMT write completed")
         

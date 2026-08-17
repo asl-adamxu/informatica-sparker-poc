@@ -46,28 +46,8 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_RVN_TXN_PYMT",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_RVN_TXN_PYMT"
-          },
-          {
-            "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_EST_BANK_ITEM",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_EST_BANK_ITEM"
-          },
-          {
-            "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_RVN_ITEM_TYPE",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_RVN_ITEM_TYPE"
-          },
-          {
-            "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_FLAT_SLCT_QUE",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_FLAT_SLCT_QUE"
-          },
-          {
-            "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_RVN_CLCT_OFFC",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_RVN_CLCT_OFFC"
+            "name": "S_NHS_SSAL1_EXTR_NHS_HSE_RGN",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_HSE_RGN"
           },
           {
             "type": "session",
@@ -76,13 +56,43 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_HOS_APLY",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_HOS_APLY"
+            "name": "S_NHS_SSAL1_EXTR_NHS_PCHS_STL",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_PCHS_STL"
           },
           {
             "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_ADTN_APLY_INFO",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_ADTN_APLY_INFO"
+            "name": "S_NHS_SSAL1_EXTR_NHS_RSCN_PCHS_STL",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_RSCN_PCHS_STL"
+          },
+          {
+            "type": "session",
+            "name": "S_NHS_SSAL1_EXTR_NHS_FLAT_SLCT_QUE",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_FLAT_SLCT_QUE"
+          },
+          {
+            "type": "session",
+            "name": "S_NHS_SSAL1_EXTR_NHS_PHASE_FLAT_ORNT",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_PHASE_FLAT_ORNT"
+          },
+          {
+            "type": "session",
+            "name": "S_NHS_SSAL1_EXTR_NHS_FLAT_SLCT_SSN",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_FLAT_SLCT_SSN"
+          },
+          {
+            "type": "session",
+            "name": "S_NHS_SSAL1_EXTR_NHS_HOS_APLY_BLT",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_HOS_APLY_BLT"
+          },
+          {
+            "type": "session",
+            "name": "S_NHS_SSAL1_EXTR_NHS_FLAT_SLCT_SSN_ASGN",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_FLAT_SLCT_SSN_ASGN"
+          },
+          {
+            "type": "session",
+            "name": "S_NHS_SSAL1_EXTR_NHS_RVN_TXN",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_RVN_TXN"
           },
           {
             "type": "session",
@@ -91,23 +101,18 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_HOS_OWN_MBR_PTCL",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_HOS_OWN_MBR_PTCL"
+            "name": "S_NHS_SSAL1_EXTR_NHS_FLAT_SLCT_STMT",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_FLAT_SLCT_STMT"
           },
           {
             "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_HOS_APLY_REJ_RSN",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_HOS_APLY_REJ_RSN"
+            "name": "S_NHS_SSAL1_EXTR_NHS_ADTN_APLY_INFO",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_ADTN_APLY_INFO"
           },
           {
             "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_EST_BANK",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_EST_BANK"
-          },
-          {
-            "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_HOS_APLY_CATG_PRIOR",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_HOS_APLY_CATG_PRIOR"
+            "name": "S_NHS_SSAL1_EXTR_NHS_RVN_TXN_ITEM",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_RVN_TXN_ITEM"
           },
           {
             "type": "session",
@@ -116,33 +121,18 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_HOS_FLAT",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_HOS_FLAT"
+            "name": "S_NHS_SSAL1_EXTR_NHS_EST_BANK",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_EST_BANK"
           },
           {
             "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_PCHS_STL_WVE_INTRST",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_PCHS_STL_WVE_INTRST"
+            "name": "S_NHS_SSAL1_EXTR_NHS_EST_BANK_ITEM",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_EST_BANK_ITEM"
           },
           {
             "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_APLY_VET_RSLT",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_APLY_VET_RSLT"
-          },
-          {
-            "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_PHASE_FLAT",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_PHASE_FLAT"
-          },
-          {
-            "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_FLAT_SLCT",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_FLAT_SLCT"
-          },
-          {
-            "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_FLAT_SLCT_SSN_ASGN",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_FLAT_SLCT_SSN_ASGN"
+            "name": "S_NHS_SSAL1_EXTR_NHS_HOS_APLY_REJ_RSN",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_HOS_APLY_REJ_RSN"
           },
           {
             "type": "session",
@@ -156,28 +146,8 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_PRIOR_CATG_GRP",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_PRIOR_CATG_GRP"
-          },
-          {
-            "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_PHASE_FLAT_ORNT",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_PHASE_FLAT_ORNT"
-          },
-          {
-            "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_PCHS_STL",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_PCHS_STL"
-          },
-          {
-            "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_HSE_RGN",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_HSE_RGN"
-          },
-          {
-            "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_REF_CODE_TYPE",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_REF_CODE_TYPE"
+            "name": "S_NHS_SSAL1_EXTR_NHS_HOS_CRT",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_HOS_CRT"
           },
           {
             "type": "session",
@@ -186,38 +156,8 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_HSE_DSTR",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_HSE_DSTR"
-          },
-          {
-            "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_HOS_OWN",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_HOS_OWN"
-          },
-          {
-            "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_PHASE_CRT",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_PHASE_CRT"
-          },
-          {
-            "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_HOS_BLK",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_HOS_BLK"
-          },
-          {
-            "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_REF_CODE",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_REF_CODE"
-          },
-          {
-            "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_RVN_TXN",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_RVN_TXN"
-          },
-          {
-            "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_HOS_APLY_BLT",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_HOS_APLY_BLT"
+            "name": "S_NHS_SSAL1_EXTR_NHS_RSRV_FLAT",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_RSRV_FLAT"
           },
           {
             "type": "session",
@@ -226,23 +166,28 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_RSRV_FLAT",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_RSRV_FLAT"
+            "name": "S_NHS_SSAL1_EXTR_NHS_HSE_DSTR",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_HSE_DSTR"
           },
           {
             "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_HOS_CRT",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_HOS_CRT"
+            "name": "S_NHS_SSAL1_EXTR_NHS_HOS_OWN_MBR_PTCL",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_HOS_OWN_MBR_PTCL"
           },
           {
             "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_RSCN_PCHS_STL",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_RSCN_PCHS_STL"
+            "name": "S_NHS_SSAL1_EXTR_NHS_APLY_VET_RSLT",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_APLY_VET_RSLT"
           },
           {
             "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_FLAT_SLCT_STMT",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_FLAT_SLCT_STMT"
+            "name": "S_NHS_SSAL1_EXTR_NHS_HOS_APLY_CATG_PRIOR",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_HOS_APLY_CATG_PRIOR"
+          },
+          {
+            "type": "session",
+            "name": "S_NHS_SSAL1_EXTR_NHS_PHASE_FLAT",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_PHASE_FLAT"
           },
           {
             "type": "session",
@@ -251,13 +196,68 @@ EXECUTION_PLAN = [
           },
           {
             "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_FLAT_SLCT_SSN",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_FLAT_SLCT_SSN"
+            "name": "S_NHS_SSAL1_EXTR_NHS_RVN_TXN_PYMT",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_RVN_TXN_PYMT"
           },
           {
             "type": "session",
-            "name": "S_NHS_SSAL1_EXTR_NHS_RVN_TXN_ITEM",
-            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_RVN_TXN_ITEM"
+            "name": "S_NHS_SSAL1_EXTR_NHS_PRIOR_CATG_GRP",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_PRIOR_CATG_GRP"
+          },
+          {
+            "type": "session",
+            "name": "S_NHS_SSAL1_EXTR_NHS_HOS_OWN",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_HOS_OWN"
+          },
+          {
+            "type": "session",
+            "name": "S_NHS_SSAL1_EXTR_NHS_HOS_BLK",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_HOS_BLK"
+          },
+          {
+            "type": "session",
+            "name": "S_NHS_SSAL1_EXTR_NHS_PCHS_STL_WVE_INTRST",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_PCHS_STL_WVE_INTRST"
+          },
+          {
+            "type": "session",
+            "name": "S_NHS_SSAL1_EXTR_NHS_RVN_CLCT_OFFC",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_RVN_CLCT_OFFC"
+          },
+          {
+            "type": "session",
+            "name": "S_NHS_SSAL1_EXTR_NHS_HOS_APLY",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_HOS_APLY"
+          },
+          {
+            "type": "session",
+            "name": "S_NHS_SSAL1_EXTR_NHS_HOS_FLAT",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_HOS_FLAT"
+          },
+          {
+            "type": "session",
+            "name": "S_NHS_SSAL1_EXTR_NHS_REF_CODE",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_REF_CODE"
+          },
+          {
+            "type": "session",
+            "name": "S_NHS_SSAL1_EXTR_NHS_REF_CODE_TYPE",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_REF_CODE_TYPE"
+          },
+          {
+            "type": "session",
+            "name": "S_NHS_SSAL1_EXTR_NHS_FLAT_SLCT",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_FLAT_SLCT"
+          },
+          {
+            "type": "session",
+            "name": "S_NHS_SSAL1_EXTR_NHS_PHASE_CRT",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_PHASE_CRT"
+          },
+          {
+            "type": "session",
+            "name": "S_NHS_SSAL1_EXTR_NHS_RVN_ITEM_TYPE",
+            "mapping_name": "M_NHS_SSAL1_EXTR_NHS_RVN_ITEM_TYPE"
           }
         ]
       }

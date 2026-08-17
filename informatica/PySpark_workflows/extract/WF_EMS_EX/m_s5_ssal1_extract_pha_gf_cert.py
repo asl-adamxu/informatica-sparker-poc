@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_PHA_GF_CERT")
@@ -79,77 +64,139 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_PHA_GF_CERT")
         # Source Qualifier: apply_SQ_PHA_GF_CERT
         df_SQ_PHA_GF_CERT = df_PHA_GF_CERT
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_PHA_GF_CERT = df_SQ_PHA_GF_CERT.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["GF_CERT_KEY", "HSE_SRVC_APLY_KEY", "GF_CERT_RNTL_ELGBL_IND", "GF_CERT_STS_CODE", "GF_CERT_STS_UPD_DATE", "GF_CERT_REISS_IND", "GF_CERT_APRV_DATE", "GF_CERT_CNCL_DATE", "GF_CERT_EXTN_CNT", "ORIG_PRH_APLY_STS_CODE", "ORIG_PRH_APLY_STG_CODE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID"]
-        df_SQ_PHA_GF_CERT = df_SQ_PHA_GF_CERT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_PHA_GF_CERT.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_PHA_GF_CERT = lib.sq_output(
+            input_df=df_SQ_PHA_GF_CERT,
+            port_cols={
+                'GF_CERT_KEY': 'decimal',
+                'HSE_SRVC_APLY_KEY': 'string',
+                'GF_CERT_RNTL_ELGBL_IND': 'string',
+                'GF_CERT_STS_CODE': 'string',
+                'GF_CERT_STS_UPD_DATE': 'date/time',
+                'GF_CERT_REISS_IND': 'string',
+                'GF_CERT_APRV_DATE': 'date/time',
+                'GF_CERT_CNCL_DATE': 'date/time',
+                'GF_CERT_EXTN_CNT': 'decimal',
+                'ORIG_PRH_APLY_STS_CODE': 'string',
+                'ORIG_PRH_APLY_STG_CODE': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'string',
+                'LAST_REC_TXN_USER_ID': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_PHA_GF_CERT", df_SQ_PHA_GF_CERT)
         
         logger.info("Step: apply_S_S5_SSAL1_EXTRACT_PHA_GF_CERT")
         # Expression: apply_S_S5_SSAL1_EXTRACT_PHA_GF_CERT
-        df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT = df_SQ_PHA_GF_CERT
-        df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT = df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT.withColumn("GF_CERT_KEY_OUT", expr("GF_CERT_KEY"))
-        df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT = df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT.withColumn("HSE_SRVC_APLY_KEY_OUT", expr("ltrim(rtrim(HSE_SRVC_APLY_KEY))"))
-        df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT = df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT.withColumn("GF_CERT_RNTL_ELGBL_IND_OUT", expr("ltrim(rtrim(GF_CERT_RNTL_ELGBL_IND))"))
-        df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT = df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT.withColumn("GF_CERT_STS_CODE_OUT", expr("ltrim(rtrim(GF_CERT_STS_CODE))"))
-        df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT = df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT.withColumn("GF_CERT_STS_UPD_DATE_OUT", expr("GF_CERT_STS_UPD_DATE"))
-        df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT = df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT.withColumn("GF_CERT_REISS_IND_OUT", expr("ltrim(rtrim(GF_CERT_REISS_IND))"))
-        df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT = df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT.withColumn("GF_CERT_APRV_DATE_OUT", expr("GF_CERT_APRV_DATE"))
-        df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT = df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT.withColumn("GF_CERT_CNCL_DATE_OUT", expr("GF_CERT_CNCL_DATE"))
-        df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT = df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT.withColumn("GF_CERT_EXTN_CNT_OUT", expr("GF_CERT_EXTN_CNT"))
-        df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT = df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT.withColumn("ORIG_PRH_APLY_STS_CODE_OUT", expr("ltrim(rtrim(ORIG_PRH_APLY_STS_CODE))"))
-        df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT = df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT.withColumn("ORIG_PRH_APLY_STG_CODE_OUT", expr("ltrim(rtrim(ORIG_PRH_APLY_STG_CODE))"))
-        df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT = df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT.withColumn("LAST_REC_TXN_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))"))
-        df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT = df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT.withColumn("LAST_REC_TXN_DATE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_DATE))"))
-        df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT = df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT.withColumn("LAST_REC_TXN_USER_ID1", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID))"))
-        df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT = df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT.withColumn("DUMMY", expr("'|'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT = lib.expression(
+            input_df=df_SQ_PHA_GF_CERT,
+            computed_columns=[
+                {'name': 'GF_CERT_KEY_OUT', 'expr': 'GF_CERT_KEY'},
+                {'name': 'HSE_SRVC_APLY_KEY_OUT', 'expr': 'ltrim(rtrim(HSE_SRVC_APLY_KEY))'},
+                {'name': 'GF_CERT_RNTL_ELGBL_IND_OUT', 'expr': 'ltrim(rtrim(GF_CERT_RNTL_ELGBL_IND))'},
+                {'name': 'GF_CERT_STS_CODE_OUT', 'expr': 'ltrim(rtrim(GF_CERT_STS_CODE))'},
+                {'name': 'GF_CERT_STS_UPD_DATE_OUT', 'expr': 'GF_CERT_STS_UPD_DATE'},
+                {'name': 'GF_CERT_REISS_IND_OUT', 'expr': 'ltrim(rtrim(GF_CERT_REISS_IND))'},
+                {'name': 'GF_CERT_APRV_DATE_OUT', 'expr': 'GF_CERT_APRV_DATE'},
+                {'name': 'GF_CERT_CNCL_DATE_OUT', 'expr': 'GF_CERT_CNCL_DATE'},
+                {'name': 'GF_CERT_EXTN_CNT_OUT', 'expr': 'GF_CERT_EXTN_CNT'},
+                {'name': 'ORIG_PRH_APLY_STS_CODE_OUT', 'expr': 'ltrim(rtrim(ORIG_PRH_APLY_STS_CODE))'},
+                {'name': 'ORIG_PRH_APLY_STG_CODE_OUT', 'expr': 'ltrim(rtrim(ORIG_PRH_APLY_STG_CODE))'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_DATE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_DATE))'},
+                {'name': 'LAST_REC_TXN_USER_ID1', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID))'},
+                {'name': 'DUMMY', 'expr': "'|'"}
+            ],
+        )
         ctx.register_df("df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT", df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT)
         
         logger.info("Step: write_EMS_PHA_GF_CERT")
         # Write to Target: write_EMS_PHA_GF_CERT
-        df_write = df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"GF_CERT_APRV_DATE": "GF_CERT_APRV_DATE_OUT", "GF_CERT_CNCL_DATE": "GF_CERT_CNCL_DATE_OUT", "GF_CERT_EXTN_CNT": "GF_CERT_EXTN_CNT_OUT", "GF_CERT_KEY": "GF_CERT_KEY_OUT", "GF_CERT_REISS_IND": "GF_CERT_REISS_IND_OUT", "GF_CERT_RNTL_ELGBL_IND": "GF_CERT_RNTL_ELGBL_IND_OUT", "GF_CERT_STS_CODE": "GF_CERT_STS_CODE_OUT", "GF_CERT_STS_UPD_DATE": "GF_CERT_STS_UPD_DATE_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID1", "ORIG_PRH_APLY_STG_CODE": "ORIG_PRH_APLY_STG_CODE_OUT", "ORIG_PRH_APLY_STS_CODE": "ORIG_PRH_APLY_STS_CODE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['GF_CERT_KEY', 'HSE_SRVC_APLY_KEY', 'GF_CERT_RNTL_ELGBL_IND', 'GF_CERT_STS_CODE', 'GF_CERT_STS_UPD_DATE', 'GF_CERT_REISS_IND', 'GF_CERT_APRV_DATE', 'GF_CERT_CNCL_DATE', 'GF_CERT_EXTN_CNT', 'ORIG_PRH_APLY_STS_CODE', 'ORIG_PRH_APLY_STG_CODE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_PHA_GF_CERT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT,
+            conn=conn_target,
+            table='EMS_PHA_GF_CERT',
+            mode='append',
+            source_columns=[
+                'GF_CERT_KEY_OUT',
+                'HSE_SRVC_APLY_KEY_OUT',
+                'GF_CERT_RNTL_ELGBL_IND_OUT',
+                'GF_CERT_STS_CODE_OUT',
+                'GF_CERT_STS_UPD_DATE_OUT',
+                'GF_CERT_REISS_IND_OUT',
+                'GF_CERT_APRV_DATE_OUT',
+                'GF_CERT_CNCL_DATE_OUT',
+                'GF_CERT_EXTN_CNT_OUT',
+                'ORIG_PRH_APLY_STS_CODE_OUT',
+                'ORIG_PRH_APLY_STG_CODE_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID1',
+            ],
+            target_columns=[
+                'GF_CERT_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'GF_CERT_RNTL_ELGBL_IND',
+                'GF_CERT_STS_CODE',
+                'GF_CERT_STS_UPD_DATE',
+                'GF_CERT_REISS_IND',
+                'GF_CERT_APRV_DATE',
+                'GF_CERT_CNCL_DATE',
+                'GF_CERT_EXTN_CNT',
+                'ORIG_PRH_APLY_STS_CODE',
+                'ORIG_PRH_APLY_STG_CODE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_PHA_GF_CERT write completed")
         logger.info("Step: write_EMS_PHA_GF_CERT1")
         # Write to Target: write_EMS_PHA_GF_CERT1
-        df_write = df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"DUMMY": "DUMMY", "GF_CERT_APRV_DATE": "GF_CERT_APRV_DATE_OUT", "GF_CERT_CNCL_DATE": "GF_CERT_CNCL_DATE_OUT", "GF_CERT_EXTN_CNT": "GF_CERT_EXTN_CNT_OUT", "GF_CERT_KEY": "GF_CERT_KEY_OUT", "GF_CERT_REISS_IND": "GF_CERT_REISS_IND_OUT", "GF_CERT_RNTL_ELGBL_IND": "GF_CERT_RNTL_ELGBL_IND_OUT", "GF_CERT_STS_CODE": "GF_CERT_STS_CODE_OUT", "GF_CERT_STS_UPD_DATE": "GF_CERT_STS_UPD_DATE_OUT", "HSE_SRVC_APLY_KEY": "HSE_SRVC_APLY_KEY_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID1", "ORIG_PRH_APLY_STG_CODE": "ORIG_PRH_APLY_STG_CODE_OUT", "ORIG_PRH_APLY_STS_CODE": "ORIG_PRH_APLY_STS_CODE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['GF_CERT_KEY', 'HSE_SRVC_APLY_KEY', 'GF_CERT_RNTL_ELGBL_IND', 'GF_CERT_STS_CODE', 'GF_CERT_STS_UPD_DATE', 'GF_CERT_REISS_IND', 'GF_CERT_APRV_DATE', 'GF_CERT_CNCL_DATE', 'GF_CERT_EXTN_CNT', 'ORIG_PRH_APLY_STS_CODE', 'ORIG_PRH_APLY_STG_CODE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_PHA_GF_CERT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_S_S5_SSAL1_EXTRACT_PHA_GF_CERT,
+            conn=conn_target,
+            table='EMS_PHA_GF_CERT',
+            mode='append',
+            source_columns=[
+                'GF_CERT_KEY_OUT',
+                'HSE_SRVC_APLY_KEY_OUT',
+                'GF_CERT_RNTL_ELGBL_IND_OUT',
+                'GF_CERT_STS_CODE_OUT',
+                'GF_CERT_STS_UPD_DATE_OUT',
+                'GF_CERT_REISS_IND_OUT',
+                'GF_CERT_APRV_DATE_OUT',
+                'GF_CERT_CNCL_DATE_OUT',
+                'GF_CERT_EXTN_CNT_OUT',
+                'ORIG_PRH_APLY_STS_CODE_OUT',
+                'ORIG_PRH_APLY_STG_CODE_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID1',
+            ],
+            target_columns=[
+                'GF_CERT_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'GF_CERT_RNTL_ELGBL_IND',
+                'GF_CERT_STS_CODE',
+                'GF_CERT_STS_UPD_DATE',
+                'GF_CERT_REISS_IND',
+                'GF_CERT_APRV_DATE',
+                'GF_CERT_CNCL_DATE',
+                'GF_CERT_EXTN_CNT',
+                'ORIG_PRH_APLY_STS_CODE',
+                'ORIG_PRH_APLY_STG_CODE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_PHA_GF_CERT1 write completed")
         

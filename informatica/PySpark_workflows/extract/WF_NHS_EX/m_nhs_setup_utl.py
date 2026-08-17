@@ -57,36 +57,52 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SOR_SYS_PRPTY")
         # Source Qualifier: apply_SQ_SOR_SYS_PRPTY
         df_SQ_SOR_SYS_PRPTY = df_SOR_SYS_PRPTY
-        df_SQ_SOR_SYS_PRPTY = df_SQ_SOR_SYS_PRPTY.filter(expr("PRPTY = 'NHS_EXTRACT_END_TIME'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["PRPTY", "VAL", "PRPTY_DESP"]
-        df_SQ_SOR_SYS_PRPTY = df_SQ_SOR_SYS_PRPTY.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SOR_SYS_PRPTY.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SOR_SYS_PRPTY = lib.sq_output(
+            input_df=df_SQ_SOR_SYS_PRPTY,
+            port_cols={
+                'PRPTY': 'string',
+                'VAL': 'string',
+                'PRPTY_DESP': 'string',
+            },
+            filter_condition="PRPTY = 'NHS_EXTRACT_END_TIME'",
+        )
         ctx.register_df("df_SQ_SOR_SYS_PRPTY", df_SQ_SOR_SYS_PRPTY)
         
         logger.info("Step: apply_EXP_DATE")
         # Expression: apply_EXP_DATE
-        df_EXP_DATE = df_SQ_SOR_SYS_PRPTY
-        df_EXP_DATE = df_EXP_DATE.withColumn("SNSH_DATE", expr("'NHS_SNAPSHOT_DATE'"))
-        df_EXP_DATE = df_EXP_DATE.withColumn("SNSH_DATE_VAL", expr("date_format(date_add(current_timestamp(), CAST(-1 AS INT)), 'yyyyMMdd')"))
-        df_EXP_DATE = df_EXP_DATE.withColumn("BGN_TIME", expr("'NHS_EXTRACT_BGN_TIME'"))
-        df_EXP_DATE = df_EXP_DATE.withColumn("END_TIME", expr("'NHS_EXTRACT_END_TIME'"))
-        df_EXP_DATE = df_EXP_DATE.withColumn("END_TIME_VAL", expr("date_format(current_timestamp(), 'yyyy-MM-dd HH:mm:ss')"))
-        df_EXP_DATE = df_EXP_DATE.withColumn("BGN_TIME_VAL", expr("VAL"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["VAL"]:
-            if _col.lower() not in [x.lower() for x in df_EXP_DATE.columns]:
-                df_EXP_DATE = df_EXP_DATE.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_DATE = lib.expression(
+            input_df=df_SQ_SOR_SYS_PRPTY,
+            computed_columns=[
+                {'name': 'SNSH_DATE', 'expr': "'NHS_SNAPSHOT_DATE'"},
+                {'name': 'SNSH_DATE_VAL', 'expr': "date_format(date_add(current_timestamp(), CAST(-1 AS INT)), 'yyyyMMdd')"},
+                {'name': 'BGN_TIME', 'expr': "'NHS_EXTRACT_BGN_TIME'"},
+                {'name': 'END_TIME', 'expr': "'NHS_EXTRACT_END_TIME'"},
+                {'name': 'END_TIME_VAL', 'expr': "date_format(current_timestamp(), 'yyyy-MM-dd HH:mm:ss')"},
+                {'name': 'BGN_TIME_VAL', 'expr': 'VAL'}
+            ],
+        )
         ctx.register_df("df_EXP_DATE", df_EXP_DATE)
         
         logger.info("Step: apply_UNI_PRPTY")
         # Union: apply_UNI_PRPTY
-        df_UNI_PRPTY = df_EXP_DATE
-        # Select only union output columns (add lit(None) for any missing)
-        for _col in ["PRPTY", "VAL"]:
-            if _col.lower() not in [x.lower() for x in df_UNI_PRPTY.columns]:
-                df_UNI_PRPTY = df_UNI_PRPTY.withColumn(_col, lit(None))
-        df_UNI_PRPTY = df_UNI_PRPTY.select("PRPTY", "VAL")
+        df_UNI_PRPTY = lib.union(
+            input_df=df_EXP_DATE,
+            union_selects=[
+                {'df_input': df_EXP_DATE, 'selects': [
+                    'SNSH_DATE',
+                    'SNSH_DATE_VAL'
+                ]},
+                {'df_input': df_EXP_DATE, 'selects': [
+                    'BGN_TIME',
+                    'BGN_TIME_VAL'
+                ]},
+                {'df_input': df_EXP_DATE, 'selects': [
+                    'END_TIME',
+                    'END_TIME_VAL'
+                ]},
+            ],
+            output_columns=['PRPTY', 'VAL'],
+        )
         ctx.register_df("df_UNI_PRPTY", df_UNI_PRPTY)
         
         

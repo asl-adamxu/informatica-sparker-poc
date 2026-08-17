@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_POR_CRP_ALL_PYMT_STAT")
@@ -79,76 +64,135 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_POR_CRP_ALL_PYMT_STAT")
         # Source Qualifier: apply_SQ_POR_CRP_ALL_PYMT_STAT
         df_SQ_POR_CRP_ALL_PYMT_STAT = df_POR_CRP_ALL_PYMT_STAT
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_POR_CRP_ALL_PYMT_STAT = df_SQ_POR_CRP_ALL_PYMT_STAT.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["OPR_CODE", "CRP_PYMT_SCHD_CODE", "CRP_ALWN_TYPE_CODE", "CRP_FMLY_SIZE_NUM", "CRP_PYMT_STAT_LAST_EXTRC_DATE", "CRP_PYMT_STAT_EXTRC_DATE", "CRP_PYMT_TOT_BF_AMT", "CRP_PYMT_TOT_AMT", "CRP_PYMT_INVLV_FMLY_BF_CNT", "CRP_PYMT_INVLV_FMLY_CNT", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID"]
-        df_SQ_POR_CRP_ALL_PYMT_STAT = df_SQ_POR_CRP_ALL_PYMT_STAT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_POR_CRP_ALL_PYMT_STAT.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_POR_CRP_ALL_PYMT_STAT = lib.sq_output(
+            input_df=df_SQ_POR_CRP_ALL_PYMT_STAT,
+            port_cols={
+                'OPR_CODE': 'string',
+                'CRP_PYMT_SCHD_CODE': 'string',
+                'CRP_ALWN_TYPE_CODE': 'string',
+                'CRP_FMLY_SIZE_NUM': 'decimal',
+                'CRP_PYMT_STAT_LAST_EXTRC_DATE': 'string',
+                'CRP_PYMT_STAT_EXTRC_DATE': 'string',
+                'CRP_PYMT_TOT_BF_AMT': 'decimal',
+                'CRP_PYMT_TOT_AMT': 'decimal',
+                'CRP_PYMT_INVLV_FMLY_BF_CNT': 'decimal',
+                'CRP_PYMT_INVLV_FMLY_CNT': 'decimal',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'string',
+                'LAST_REC_TXN_USER_ID': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_POR_CRP_ALL_PYMT_STAT", df_SQ_POR_CRP_ALL_PYMT_STAT)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_POR_CRP_ALL_PYMT_STAT
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_CODE_OUT", expr("ltrim(rtrim(OPR_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_PYMT_SCHD_CODE_OUT", expr("ltrim(rtrim(CRP_PYMT_SCHD_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_ALWN_TYPE_CODE_OUT", expr("ltrim(rtrim(CRP_ALWN_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_FMLY_SIZE_NUM_OUT", expr("CRP_FMLY_SIZE_NUM"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_PYMT_STAT_LAST_EXTRC_DATE_OUT", expr("CRP_PYMT_STAT_LAST_EXTRC_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_PYMT_STAT_EXTRC_DATE_OUT", expr("CRP_PYMT_STAT_EXTRC_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_PYMT_TOT_BF_AMT_OUT", expr("CRP_PYMT_TOT_BF_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_PYMT_TOT_AMT_OUT", expr("CRP_PYMT_TOT_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_PYMT_INVLV_FMLY_BF_CNT_OUT", expr("CRP_PYMT_INVLV_FMLY_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_PYMT_INVLV_FMLY_CNT_OUT", expr("CRP_PYMT_INVLV_FMLY_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE_OUT", expr("LAST_REC_TXN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("'|'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_POR_CRP_ALL_PYMT_STAT,
+            computed_columns=[
+                {'name': 'OPR_CODE_OUT', 'expr': 'ltrim(rtrim(OPR_CODE))'},
+                {'name': 'CRP_PYMT_SCHD_CODE_OUT', 'expr': 'ltrim(rtrim(CRP_PYMT_SCHD_CODE))'},
+                {'name': 'CRP_ALWN_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(CRP_ALWN_TYPE_CODE))'},
+                {'name': 'CRP_FMLY_SIZE_NUM_OUT', 'expr': 'CRP_FMLY_SIZE_NUM'},
+                {'name': 'CRP_PYMT_STAT_LAST_EXTRC_DATE_OUT', 'expr': 'CRP_PYMT_STAT_LAST_EXTRC_DATE'},
+                {'name': 'CRP_PYMT_STAT_EXTRC_DATE_OUT', 'expr': 'CRP_PYMT_STAT_EXTRC_DATE'},
+                {'name': 'CRP_PYMT_TOT_BF_AMT_OUT', 'expr': 'CRP_PYMT_TOT_BF_AMT'},
+                {'name': 'CRP_PYMT_TOT_AMT_OUT', 'expr': 'CRP_PYMT_TOT_AMT'},
+                {'name': 'CRP_PYMT_INVLV_FMLY_BF_CNT_OUT', 'expr': 'CRP_PYMT_INVLV_FMLY_BF_CNT'},
+                {'name': 'CRP_PYMT_INVLV_FMLY_CNT_OUT', 'expr': 'CRP_PYMT_INVLV_FMLY_CNT'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_DATE_OUT', 'expr': 'LAST_REC_TXN_DATE'},
+                {'name': 'LAST_REC_TXN_USER_ID_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID))'},
+                {'name': 'DUMMY', 'expr': "'|'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EMS_POR_CRP_ALL_PYMT_STAT")
         # Write to Target: write_EMS_POR_CRP_ALL_PYMT_STAT
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"CRP_ALWN_TYPE_CODE": "CRP_ALWN_TYPE_CODE_OUT", "CRP_FMLY_SIZE_NUM": "CRP_FMLY_SIZE_NUM_OUT", "CRP_PYMT_INVLV_FMLY_BF_CNT": "CRP_PYMT_INVLV_FMLY_BF_CNT_OUT", "CRP_PYMT_INVLV_FMLY_CNT": "CRP_PYMT_INVLV_FMLY_CNT_OUT", "CRP_PYMT_SCHD_CODE": "CRP_PYMT_SCHD_CODE_OUT", "CRP_PYMT_STAT_EXTRC_DATE": "CRP_PYMT_STAT_EXTRC_DATE_OUT", "CRP_PYMT_STAT_LAST_EXTRC_DATE": "CRP_PYMT_STAT_LAST_EXTRC_DATE_OUT", "CRP_PYMT_TOT_AMT": "CRP_PYMT_TOT_AMT_OUT", "CRP_PYMT_TOT_BF_AMT": "CRP_PYMT_TOT_BF_AMT_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "OPR_CODE": "OPR_CODE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['OPR_CODE', 'CRP_PYMT_SCHD_CODE', 'CRP_ALWN_TYPE_CODE', 'CRP_FMLY_SIZE_NUM', 'CRP_PYMT_STAT_LAST_EXTRC_DATE', 'CRP_PYMT_STAT_EXTRC_DATE', 'CRP_PYMT_TOT_BF_AMT', 'CRP_PYMT_TOT_AMT', 'CRP_PYMT_INVLV_FMLY_BF_CNT', 'CRP_PYMT_INVLV_FMLY_CNT', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_POR_CRP_ALL_PYMT_STAT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_POR_CRP_ALL_PYMT_STAT',
+            mode='append',
+            source_columns=[
+                'OPR_CODE_OUT',
+                'CRP_PYMT_SCHD_CODE_OUT',
+                'CRP_ALWN_TYPE_CODE_OUT',
+                'CRP_FMLY_SIZE_NUM_OUT',
+                'CRP_PYMT_STAT_LAST_EXTRC_DATE_OUT',
+                'CRP_PYMT_STAT_EXTRC_DATE_OUT',
+                'CRP_PYMT_TOT_BF_AMT_OUT',
+                'CRP_PYMT_TOT_AMT_OUT',
+                'CRP_PYMT_INVLV_FMLY_BF_CNT_OUT',
+                'CRP_PYMT_INVLV_FMLY_CNT_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+            ],
+            target_columns=[
+                'OPR_CODE',
+                'CRP_PYMT_SCHD_CODE',
+                'CRP_ALWN_TYPE_CODE',
+                'CRP_FMLY_SIZE_NUM',
+                'CRP_PYMT_STAT_LAST_EXTRC_DATE',
+                'CRP_PYMT_STAT_EXTRC_DATE',
+                'CRP_PYMT_TOT_BF_AMT',
+                'CRP_PYMT_TOT_AMT',
+                'CRP_PYMT_INVLV_FMLY_BF_CNT',
+                'CRP_PYMT_INVLV_FMLY_CNT',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_POR_CRP_ALL_PYMT_STAT write completed")
         logger.info("Step: write_EMS_POR_CRP_ALL_PYMT_STAT1")
         # Write to Target: write_EMS_POR_CRP_ALL_PYMT_STAT1
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"CRP_ALWN_TYPE_CODE": "CRP_ALWN_TYPE_CODE_OUT", "CRP_FMLY_SIZE_NUM": "CRP_FMLY_SIZE_NUM_OUT", "CRP_PYMT_INVLV_FMLY_BF_CNT": "CRP_PYMT_INVLV_FMLY_BF_CNT_OUT", "CRP_PYMT_INVLV_FMLY_CNT": "CRP_PYMT_INVLV_FMLY_CNT_OUT", "CRP_PYMT_SCHD_CODE": "CRP_PYMT_SCHD_CODE_OUT", "CRP_PYMT_STAT_EXTRC_DATE": "CRP_PYMT_STAT_EXTRC_DATE_OUT", "CRP_PYMT_STAT_LAST_EXTRC_DATE": "CRP_PYMT_STAT_LAST_EXTRC_DATE_OUT", "CRP_PYMT_TOT_AMT": "CRP_PYMT_TOT_AMT_OUT", "CRP_PYMT_TOT_BF_AMT": "CRP_PYMT_TOT_BF_AMT_OUT", "DUMMY": "DUMMY", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "OPR_CODE": "OPR_CODE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['OPR_CODE', 'CRP_PYMT_SCHD_CODE', 'CRP_ALWN_TYPE_CODE', 'CRP_FMLY_SIZE_NUM', 'CRP_PYMT_STAT_LAST_EXTRC_DATE', 'CRP_PYMT_STAT_EXTRC_DATE', 'CRP_PYMT_TOT_BF_AMT', 'CRP_PYMT_TOT_AMT', 'CRP_PYMT_INVLV_FMLY_BF_CNT', 'CRP_PYMT_INVLV_FMLY_CNT', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'DUMMY']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_POR_CRP_ALL_PYMT_STAT1", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_POR_CRP_ALL_PYMT_STAT1',
+            mode='append',
+            source_columns=[
+                'OPR_CODE_OUT',
+                'CRP_PYMT_SCHD_CODE_OUT',
+                'CRP_ALWN_TYPE_CODE_OUT',
+                'CRP_FMLY_SIZE_NUM_OUT',
+                'CRP_PYMT_STAT_LAST_EXTRC_DATE_OUT',
+                'CRP_PYMT_STAT_EXTRC_DATE_OUT',
+                'CRP_PYMT_TOT_BF_AMT_OUT',
+                'CRP_PYMT_TOT_AMT_OUT',
+                'CRP_PYMT_INVLV_FMLY_BF_CNT_OUT',
+                'CRP_PYMT_INVLV_FMLY_CNT_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'DUMMY',
+            ],
+            target_columns=[
+                'OPR_CODE',
+                'CRP_PYMT_SCHD_CODE',
+                'CRP_ALWN_TYPE_CODE',
+                'CRP_FMLY_SIZE_NUM',
+                'CRP_PYMT_STAT_LAST_EXTRC_DATE',
+                'CRP_PYMT_STAT_EXTRC_DATE',
+                'CRP_PYMT_TOT_BF_AMT',
+                'CRP_PYMT_TOT_AMT',
+                'CRP_PYMT_INVLV_FMLY_BF_CNT',
+                'CRP_PYMT_INVLV_FMLY_CNT',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'DUMMY',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_POR_CRP_ALL_PYMT_STAT1 write completed")
         

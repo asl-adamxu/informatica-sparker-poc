@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_POR_CRP_STAT")
@@ -79,160 +64,639 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_POR_CRP_STAT")
         # Source Qualifier: apply_SQ_POR_CRP_STAT
         df_SQ_POR_CRP_STAT = df_POR_CRP_STAT
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_POR_CRP_STAT = df_SQ_POR_CRP_STAT.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HSE_EST_KEY", "HSE_BLK_KEY", "CRP_FMLY_SIZE_NUM", "CRP_LAST_EXTRC_DATE", "CRP_EXTRC_DATE", "CRP_INVLV_FMLY_BF_CNT", "CRP_INVLV_FMLY_CNT", "CRP_INVLV_FMLY_MBR_BF_CNT", "CRP_INVLV_FMLY_MBR_CNT", "CRP_APLY_RCV_BF_CNT", "CRP_APLY_RCV_CNT", "CRP_APLY_MBR_RCV_BF_CNT", "CRP_APLY_MBR_RCV_CNT", "CRP_APLY_ACPT_BF_CNT", "CRP_APLY_ACPT_CNT", "CRP_APLY_MBR_ACPT_BF_CNT", "CRP_APLY_MBR_ACPT_CNT", "CRP_APLY_OFR_BF_CNT", "CRP_APLY_OFR_CNT", "CRP_APLY_MBR_OFR_BF_CNT", "CRP_APLY_MBR_OFR_CNT", "CRP_REHSE_FLAT_BF_CNT", "CRP_REHSE_FLAT_CNT", "CRP_REHSE_FLAT_MBR_BF_CNT", "CRP_REHSE_FLAT_MBR_CNT", "CRP_CSL_VCNCY_BF_CNT", "CRP_CSL_VCNCY_CNT", "CRP_CSL_VCNCY_MBR_BF_CNT", "CRP_CSL_VCNCY_MBR_CNT", "CRP_HOS_WHL_FMLY_BF_CNT", "CRP_HOS_WHL_FMLY_CNT", "CRP_HOS_WHL_FMLY_MBR_BF_CNT", "CRP_HOS_WHL_FMLY_MBR_CNT", "CRP_HOS_PART_FMLY_BF_CNT", "CRP_HOS_PART_FMLY_CNT", "CRP_HOS_PART_FMLY_MBR_BF_CNT", "CRP_HOS_PART_FMLY_MBR_CNT", "CRP_HPLS_WHL_FMLY_BF_CNT", "CRP_HPLS_WHL_FMLY_CNT", "CRP_HPLS_WHL_FMLY_MBR_BF_CNT", "CRP_HPLS_WHL_FMLY_MBR_CNT", "CRP_HPLS_PART_FMLY_BF_CNT", "CRP_HPLS_PART_FMLY_CNT", "CRP_HPLS_PART_FMLY_MBR_BF_CNT", "CRP_HPLS_PART_FMLY_MBR_CNT", "CRP_EXA_SGTN_BF_CNT", "CRP_EXA_SGTN_CNT", "CRP_EXA_SGTN_MBR_BF_CNT", "CRP_EXA_SGTN_MBR_CNT", "CRP_EXA_DBLTN_BF_CNT", "CRP_EXA_DBLTN_CNT", "CRP_EXA_DBLTN_MBR_BF_CNT", "CRP_EXA_DBLTN_MBR_CNT", "CRP_FMLY_NTQ_BF_CNT", "CRP_FMLY_NTQ_CNT", "CRP_FMLY_MBR_NTQ_BF_CNT", "CRP_FMLY_MBR_NTQ_CNT", "CRP_FMLY_STL_OTHR_BF_CNT", "CRP_FMLY_STL_OTHR_CNT", "CRP_FMLY_MBR_STL_OTHR_BF_CNT", "CRP_FMLY_MBR_STL_OTHR_CNT", "CRP_OFR_MADE_BF_CNT", "CRP_OFR_MADE_CNT", "CRP_LAST_MTH_EXTRC_DATE", "CRP_INVLV_FMLY_MTH_BF_CNT", "CRP_INVLV_FMLY_MBR_MTH_BF_CNT", "CRP_APLY_RCV_MTH_BF_CNT", "CRP_APLY_MBR_RCV_MTH_BF_CNT", "CRP_APLY_ACPT_MTH_BF_CNT", "CRP_APLY_MBR_ACPT_MTH_BF_CNT", "CRP_APLY_OFR_MTH_BF_CNT", "CRP_APLY_MBR_OFR_MTH_BF_CNT", "CRP_REHSE_FLAT_MTH_BF_CNT", "CRP_REHSE_FLAT_MBR_MTH_BF_CNT", "CRP_CSL_VCNCY_MTH_BF_CNT", "CRP_CSL_VCNCY_MBR_MTH_BF_CNT", "CRP_HOS_WHL_FMLY_MTH_BF_CNT", "CRP_HOS_WHL_MBR_MTH_BF_CNT", "CRP_HOS_PART_FMLY_MTH_BF_CNT", "CRP_HOS_PART_MBR_MTH_BF_CNT", "CRP_HPLS_WHL_FMLY_MTH_BF_CNT", "CRP_HPLS_WHL_MBR_MTH_BF_CNT", "CRP_HPLS_PART_FMLY_MTH_BF_CNT", "CRP_HPLS_PART_MBR_MTH_BF_CNT", "CRP_EXA_SGTN_MTH_BF_CNT", "CRP_EXA_SGTN_MBR_MTH_BF_CNT", "CRP_EXA_DBLTN_MTH_BF_CNT", "CRP_EXA_DBLTN_MBR_MTH_BF_CNT", "CRP_FMLY_NTQ_MTH_BF_CNT", "CRP_FMLY_MBR_NTQ_MTH_BF_CNT", "CRP_FMLY_STL_OTHR_MTH_BF_CNT", "CRP_MBR_STL_OTHR_MTH_BF_CNT", "CRP_OFR_MADE_MTH_BF_CNT", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "OPR_CODE"]
-        df_SQ_POR_CRP_STAT = df_SQ_POR_CRP_STAT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_POR_CRP_STAT.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_POR_CRP_STAT = lib.sq_output(
+            input_df=df_SQ_POR_CRP_STAT,
+            port_cols={
+                'HSE_EST_KEY': 'string',
+                'HSE_BLK_KEY': 'string',
+                'CRP_FMLY_SIZE_NUM': 'decimal',
+                'CRP_LAST_EXTRC_DATE': 'date/time',
+                'CRP_EXTRC_DATE': 'date/time',
+                'CRP_INVLV_FMLY_BF_CNT': 'decimal',
+                'CRP_INVLV_FMLY_CNT': 'decimal',
+                'CRP_INVLV_FMLY_MBR_BF_CNT': 'decimal',
+                'CRP_INVLV_FMLY_MBR_CNT': 'decimal',
+                'CRP_APLY_RCV_BF_CNT': 'decimal',
+                'CRP_APLY_RCV_CNT': 'decimal',
+                'CRP_APLY_MBR_RCV_BF_CNT': 'decimal',
+                'CRP_APLY_MBR_RCV_CNT': 'decimal',
+                'CRP_APLY_ACPT_BF_CNT': 'decimal',
+                'CRP_APLY_ACPT_CNT': 'decimal',
+                'CRP_APLY_MBR_ACPT_BF_CNT': 'decimal',
+                'CRP_APLY_MBR_ACPT_CNT': 'decimal',
+                'CRP_APLY_OFR_BF_CNT': 'decimal',
+                'CRP_APLY_OFR_CNT': 'decimal',
+                'CRP_APLY_MBR_OFR_BF_CNT': 'decimal',
+                'CRP_APLY_MBR_OFR_CNT': 'decimal',
+                'CRP_REHSE_FLAT_BF_CNT': 'decimal',
+                'CRP_REHSE_FLAT_CNT': 'decimal',
+                'CRP_REHSE_FLAT_MBR_BF_CNT': 'decimal',
+                'CRP_REHSE_FLAT_MBR_CNT': 'decimal',
+                'CRP_CSL_VCNCY_BF_CNT': 'decimal',
+                'CRP_CSL_VCNCY_CNT': 'decimal',
+                'CRP_CSL_VCNCY_MBR_BF_CNT': 'decimal',
+                'CRP_CSL_VCNCY_MBR_CNT': 'decimal',
+                'CRP_HOS_WHL_FMLY_BF_CNT': 'decimal',
+                'CRP_HOS_WHL_FMLY_CNT': 'decimal',
+                'CRP_HOS_WHL_FMLY_MBR_BF_CNT': 'decimal',
+                'CRP_HOS_WHL_FMLY_MBR_CNT': 'decimal',
+                'CRP_HOS_PART_FMLY_BF_CNT': 'decimal',
+                'CRP_HOS_PART_FMLY_CNT': 'decimal',
+                'CRP_HOS_PART_FMLY_MBR_BF_CNT': 'decimal',
+                'CRP_HOS_PART_FMLY_MBR_CNT': 'decimal',
+                'CRP_HPLS_WHL_FMLY_BF_CNT': 'decimal',
+                'CRP_HPLS_WHL_FMLY_CNT': 'decimal',
+                'CRP_HPLS_WHL_FMLY_MBR_BF_CNT': 'decimal',
+                'CRP_HPLS_WHL_FMLY_MBR_CNT': 'decimal',
+                'CRP_HPLS_PART_FMLY_BF_CNT': 'decimal',
+                'CRP_HPLS_PART_FMLY_CNT': 'decimal',
+                'CRP_HPLS_PART_FMLY_MBR_BF_CNT': 'decimal',
+                'CRP_HPLS_PART_FMLY_MBR_CNT': 'decimal',
+                'CRP_EXA_SGTN_BF_CNT': 'decimal',
+                'CRP_EXA_SGTN_CNT': 'decimal',
+                'CRP_EXA_SGTN_MBR_BF_CNT': 'decimal',
+                'CRP_EXA_SGTN_MBR_CNT': 'decimal',
+                'CRP_EXA_DBLTN_BF_CNT': 'decimal',
+                'CRP_EXA_DBLTN_CNT': 'decimal',
+                'CRP_EXA_DBLTN_MBR_BF_CNT': 'decimal',
+                'CRP_EXA_DBLTN_MBR_CNT': 'decimal',
+                'CRP_FMLY_NTQ_BF_CNT': 'decimal',
+                'CRP_FMLY_NTQ_CNT': 'decimal',
+                'CRP_FMLY_MBR_NTQ_BF_CNT': 'decimal',
+                'CRP_FMLY_MBR_NTQ_CNT': 'decimal',
+                'CRP_FMLY_STL_OTHR_BF_CNT': 'decimal',
+                'CRP_FMLY_STL_OTHR_CNT': 'decimal',
+                'CRP_FMLY_MBR_STL_OTHR_BF_CNT': 'decimal',
+                'CRP_FMLY_MBR_STL_OTHR_CNT': 'decimal',
+                'CRP_OFR_MADE_BF_CNT': 'decimal',
+                'CRP_OFR_MADE_CNT': 'decimal',
+                'CRP_LAST_MTH_EXTRC_DATE': 'date/time',
+                'CRP_INVLV_FMLY_MTH_BF_CNT': 'decimal',
+                'CRP_INVLV_FMLY_MBR_MTH_BF_CNT': 'decimal',
+                'CRP_APLY_RCV_MTH_BF_CNT': 'decimal',
+                'CRP_APLY_MBR_RCV_MTH_BF_CNT': 'decimal',
+                'CRP_APLY_ACPT_MTH_BF_CNT': 'decimal',
+                'CRP_APLY_MBR_ACPT_MTH_BF_CNT': 'decimal',
+                'CRP_APLY_OFR_MTH_BF_CNT': 'decimal',
+                'CRP_APLY_MBR_OFR_MTH_BF_CNT': 'decimal',
+                'CRP_REHSE_FLAT_MTH_BF_CNT': 'decimal',
+                'CRP_REHSE_FLAT_MBR_MTH_BF_CNT': 'decimal',
+                'CRP_CSL_VCNCY_MTH_BF_CNT': 'decimal',
+                'CRP_CSL_VCNCY_MBR_MTH_BF_CNT': 'decimal',
+                'CRP_HOS_WHL_FMLY_MTH_BF_CNT': 'decimal',
+                'CRP_HOS_WHL_MBR_MTH_BF_CNT': 'decimal',
+                'CRP_HOS_PART_FMLY_MTH_BF_CNT': 'decimal',
+                'CRP_HOS_PART_MBR_MTH_BF_CNT': 'decimal',
+                'CRP_HPLS_WHL_FMLY_MTH_BF_CNT': 'decimal',
+                'CRP_HPLS_WHL_MBR_MTH_BF_CNT': 'decimal',
+                'CRP_HPLS_PART_FMLY_MTH_BF_CNT': 'decimal',
+                'CRP_HPLS_PART_MBR_MTH_BF_CNT': 'decimal',
+                'CRP_EXA_SGTN_MTH_BF_CNT': 'decimal',
+                'CRP_EXA_SGTN_MBR_MTH_BF_CNT': 'decimal',
+                'CRP_EXA_DBLTN_MTH_BF_CNT': 'decimal',
+                'CRP_EXA_DBLTN_MBR_MTH_BF_CNT': 'decimal',
+                'CRP_FMLY_NTQ_MTH_BF_CNT': 'decimal',
+                'CRP_FMLY_MBR_NTQ_MTH_BF_CNT': 'decimal',
+                'CRP_FMLY_STL_OTHR_MTH_BF_CNT': 'decimal',
+                'CRP_MBR_STL_OTHR_MTH_BF_CNT': 'decimal',
+                'CRP_OFR_MADE_MTH_BF_CNT': 'decimal',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'string',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'OPR_CODE': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_POR_CRP_STAT", df_SQ_POR_CRP_STAT)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_POR_CRP_STAT
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_EST_KEY_OUT", expr("ltrim(rtrim(HSE_EST_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_BLK_KEY_OUT", expr("ltrim(rtrim(HSE_BLK_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_FMLY_SIZE_NUM_OUT", expr("CRP_FMLY_SIZE_NUM"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_LAST_EXTRC_DATE_OUT", expr("CRP_LAST_EXTRC_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_EXTRC_DATE_OUT", expr("CRP_EXTRC_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_INVLV_FMLY_BF_CNT_OUT", expr("CRP_INVLV_FMLY_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_INVLV_FMLY_CNT_OUT", expr("CRP_INVLV_FMLY_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_INVLV_FMLY_MBR_BF_CNT_OUT", expr("CRP_INVLV_FMLY_MBR_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_INVLV_FMLY_MBR_CNT_OUT", expr("CRP_INVLV_FMLY_MBR_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_APLY_RCV_BF_CNT_OUT", expr("CRP_APLY_RCV_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_APLY_RCV_CNT_OUT", expr("CRP_APLY_RCV_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_APLY_MBR_RCV_BF_CNT_OUT", expr("CRP_APLY_MBR_RCV_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_APLY_MBR_RCV_CNT_OUT", expr("CRP_APLY_MBR_RCV_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_APLY_ACPT_BF_CNT_OUT", expr("CRP_APLY_ACPT_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_APLY_ACPT_CNT_OUT", expr("CRP_APLY_ACPT_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_APLY_MBR_ACPT_BF_CNT_OUT", expr("CRP_APLY_MBR_ACPT_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_APLY_MBR_ACPT_CNT_OUT", expr("CRP_APLY_MBR_ACPT_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_APLY_OFR_BF_CNT_OUT", expr("CRP_APLY_OFR_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_APLY_OFR_CNT_OUT", expr("CRP_APLY_OFR_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_APLY_MBR_OFR_BF_CNT_OUT", expr("CRP_APLY_MBR_OFR_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_APLY_MBR_OFR_CNT_OUT", expr("CRP_APLY_MBR_OFR_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_REHSE_FLAT_BF_CNT_OUT", expr("CRP_REHSE_FLAT_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_REHSE_FLAT_CNT_OUT", expr("CRP_REHSE_FLAT_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_REHSE_FLAT_MBR_BF_CNT_OUT", expr("CRP_REHSE_FLAT_MBR_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_REHSE_FLAT_MBR_CNT_OUT", expr("CRP_REHSE_FLAT_MBR_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_CSL_VCNCY_BF_CNT_OUT", expr("CRP_CSL_VCNCY_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_CSL_VCNCY_CNT_OUT", expr("CRP_CSL_VCNCY_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_CSL_VCNCY_MBR_BF_CNT_OUT", expr("CRP_CSL_VCNCY_MBR_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_CSL_VCNCY_MBR_CNT_OUT", expr("CRP_CSL_VCNCY_MBR_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_HOS_WHL_FMLY_BF_CNT_OUT", expr("CRP_HOS_WHL_FMLY_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_HOS_WHL_FMLY_CNT_OUT", expr("CRP_HOS_WHL_FMLY_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_HOS_WHL_FMLY_MBR_BF_CNT_OUT", expr("CRP_HOS_WHL_FMLY_MBR_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_HOS_WHL_FMLY_MBR_CNT_OUT", expr("CRP_HOS_WHL_FMLY_MBR_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_HOS_PART_FMLY_BF_CNT_OUT", expr("CRP_HOS_PART_FMLY_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_HOS_PART_FMLY_CNT_OUT", expr("CRP_HOS_PART_FMLY_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_HOS_PART_FMLY_MBR_BF_CNT_OUT", expr("CRP_HOS_PART_FMLY_MBR_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_HOS_PART_FMLY_MBR_CNT_OUT", expr("CRP_HOS_PART_FMLY_MBR_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_HPLS_WHL_FMLY_BF_CNT_OUT", expr("CRP_HPLS_WHL_FMLY_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_HPLS_WHL_FMLY_CNT_OUT", expr("CRP_HPLS_WHL_FMLY_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_HPLS_WHL_FMLY_MBR_BF_CNT_OUT", expr("CRP_HPLS_WHL_FMLY_MBR_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_HPLS_WHL_FMLY_MBR_CNT_OUT", expr("CRP_HPLS_WHL_FMLY_MBR_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_HPLS_PART_FMLY_BF_CNT_OUT", expr("CRP_HPLS_PART_FMLY_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_HPLS_PART_FMLY_CNT_OUT", expr("CRP_HPLS_PART_FMLY_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_HPLS_PART_FMLY_MBR_BF_CNT_OUT", expr("CRP_HPLS_PART_FMLY_MBR_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_HPLS_PART_FMLY_MBR_CNT_OUT", expr("CRP_HPLS_PART_FMLY_MBR_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_EXA_SGTN_BF_CNT_OUT", expr("CRP_EXA_SGTN_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_EXA_SGTN_CNT_OUT", expr("CRP_EXA_SGTN_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_EXA_SGTN_MBR_BF_CNT_OUT", expr("CRP_EXA_SGTN_MBR_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_EXA_SGTN_MBR_CNT_OUT", expr("CRP_EXA_SGTN_MBR_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_EXA_DBLTN_BF_CNT_OUT", expr("CRP_EXA_DBLTN_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_EXA_DBLTN_CNT_OUT", expr("CRP_EXA_DBLTN_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_EXA_DBLTN_MBR_BF_CNT_OUT", expr("CRP_EXA_DBLTN_MBR_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_EXA_DBLTN_MBR_CNT_OUT", expr("CRP_EXA_DBLTN_MBR_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_FMLY_NTQ_BF_CNT_OUT", expr("CRP_FMLY_NTQ_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_FMLY_NTQ_CNT_OUT", expr("CRP_FMLY_NTQ_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_FMLY_MBR_NTQ_BF_CNT_OUT", expr("CRP_FMLY_MBR_NTQ_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_FMLY_MBR_NTQ_CNT_OUT", expr("CRP_FMLY_MBR_NTQ_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_FMLY_STL_OTHR_BF_CNT_OUT", expr("CRP_FMLY_STL_OTHR_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_FMLY_STL_OTHR_CNT_OUT", expr("CRP_FMLY_STL_OTHR_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_FMLY_MBR_STL_OTHR_BF_CNT_OUT", expr("CRP_FMLY_MBR_STL_OTHR_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_FMLY_MBR_STL_OTHR_CNT_OUT", expr("CRP_FMLY_MBR_STL_OTHR_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_OFR_MADE_BF_CNT_OUT", expr("CRP_OFR_MADE_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_OFR_MADE_CNT_OUT", expr("CRP_OFR_MADE_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_LAST_MTH_EXTRC_DATE_OUT", expr("CRP_LAST_MTH_EXTRC_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_INVLV_FMLY_MTH_BF_CNT_OUT", expr("CRP_INVLV_FMLY_MTH_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_INVLV_FMLY_MBR_MTH_BF_CNT_OUT", expr("CRP_INVLV_FMLY_MBR_MTH_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_APLY_RCV_MTH_BF_CNT_OUT", expr("CRP_APLY_RCV_MTH_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_APLY_MBR_RCV_MTH_BF_CNT_OUT", expr("CRP_APLY_MBR_RCV_MTH_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_APLY_ACPT_MTH_BF_CNT_OUT", expr("CRP_APLY_ACPT_MTH_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_APLY_MBR_ACPT_MTH_BF_CNT_OUT", expr("CRP_APLY_MBR_ACPT_MTH_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_APLY_OFR_MTH_BF_CNT_OUT", expr("CRP_APLY_OFR_MTH_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_APLY_MBR_OFR_MTH_BF_CNT_OUT", expr("CRP_APLY_MBR_OFR_MTH_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_REHSE_FLAT_MTH_BF_CNT_OUT", expr("CRP_REHSE_FLAT_MTH_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_REHSE_FLAT_MBR_MTH_BF_CNT_OUT", expr("CRP_REHSE_FLAT_MBR_MTH_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_CSL_VCNCY_MTH_BF_CNT_OUT", expr("CRP_CSL_VCNCY_MTH_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_CSL_VCNCY_MBR_MTH_BF_CNT_OUT", expr("CRP_CSL_VCNCY_MBR_MTH_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_HOS_WHL_FMLY_MTH_BF_CNT_OUT", expr("CRP_HOS_WHL_FMLY_MTH_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_HOS_WHL_MBR_MTH_BF_CNT_OUT", expr("CRP_HOS_WHL_MBR_MTH_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_HOS_PART_FMLY_MTH_BF_CNT_OUT", expr("CRP_HOS_PART_FMLY_MTH_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_HOS_PART_MBR_MTH_BF_CNT_OUT", expr("CRP_HOS_PART_MBR_MTH_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_HPLS_WHL_FMLY_MTH_BF_CNT_OUT", expr("CRP_HPLS_WHL_FMLY_MTH_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_HPLS_WHL_MBR_MTH_BF_CNT_OUT", expr("CRP_HPLS_WHL_MBR_MTH_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_HPLS_PART_FMLY_MTH_BF_CNT_OUT", expr("CRP_HPLS_PART_FMLY_MTH_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_HPLS_PART_MBR_MTH_BF_CNT_OUT", expr("CRP_HPLS_PART_MBR_MTH_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_EXA_SGTN_MTH_BF_CNT_OUT", expr("CRP_EXA_SGTN_MTH_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_EXA_SGTN_MBR_MTH_BF_CNT_OUT", expr("CRP_EXA_SGTN_MBR_MTH_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_EXA_DBLTN_MTH_BF_CNT_OUT", expr("CRP_EXA_DBLTN_MTH_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_EXA_DBLTN_MBR_MTH_BF_CNT_OUT", expr("CRP_EXA_DBLTN_MBR_MTH_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_FMLY_NTQ_MTH_BF_CNT_OUT", expr("CRP_FMLY_NTQ_MTH_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_FMLY_MBR_NTQ_MTH_BF_CNT_OUT", expr("CRP_FMLY_MBR_NTQ_MTH_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_FMLY_STL_OTHR_MTH_BF_CNT_OUT", expr("CRP_FMLY_STL_OTHR_MTH_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_MBR_STL_OTHR_MTH_BF_CNT_OUT", expr("CRP_MBR_STL_OTHR_MTH_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CRP_OFR_MADE_MTH_BF_CNT_OUT", expr("CRP_OFR_MADE_MTH_BF_CNT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE_OUT", expr("LAST_REC_TXN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_CODE_OUT", expr("ltrim(rtrim(OPR_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("'|'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_POR_CRP_STAT,
+            computed_columns=[
+                {'name': 'HSE_EST_KEY_OUT', 'expr': 'ltrim(rtrim(HSE_EST_KEY))'},
+                {'name': 'HSE_BLK_KEY_OUT', 'expr': 'ltrim(rtrim(HSE_BLK_KEY))'},
+                {'name': 'CRP_FMLY_SIZE_NUM_OUT', 'expr': 'CRP_FMLY_SIZE_NUM'},
+                {'name': 'CRP_LAST_EXTRC_DATE_OUT', 'expr': 'CRP_LAST_EXTRC_DATE'},
+                {'name': 'CRP_EXTRC_DATE_OUT', 'expr': 'CRP_EXTRC_DATE'},
+                {'name': 'CRP_INVLV_FMLY_BF_CNT_OUT', 'expr': 'CRP_INVLV_FMLY_BF_CNT'},
+                {'name': 'CRP_INVLV_FMLY_CNT_OUT', 'expr': 'CRP_INVLV_FMLY_CNT'},
+                {'name': 'CRP_INVLV_FMLY_MBR_BF_CNT_OUT', 'expr': 'CRP_INVLV_FMLY_MBR_BF_CNT'},
+                {'name': 'CRP_INVLV_FMLY_MBR_CNT_OUT', 'expr': 'CRP_INVLV_FMLY_MBR_CNT'},
+                {'name': 'CRP_APLY_RCV_BF_CNT_OUT', 'expr': 'CRP_APLY_RCV_BF_CNT'},
+                {'name': 'CRP_APLY_RCV_CNT_OUT', 'expr': 'CRP_APLY_RCV_CNT'},
+                {'name': 'CRP_APLY_MBR_RCV_BF_CNT_OUT', 'expr': 'CRP_APLY_MBR_RCV_BF_CNT'},
+                {'name': 'CRP_APLY_MBR_RCV_CNT_OUT', 'expr': 'CRP_APLY_MBR_RCV_CNT'},
+                {'name': 'CRP_APLY_ACPT_BF_CNT_OUT', 'expr': 'CRP_APLY_ACPT_BF_CNT'},
+                {'name': 'CRP_APLY_ACPT_CNT_OUT', 'expr': 'CRP_APLY_ACPT_CNT'},
+                {'name': 'CRP_APLY_MBR_ACPT_BF_CNT_OUT', 'expr': 'CRP_APLY_MBR_ACPT_BF_CNT'},
+                {'name': 'CRP_APLY_MBR_ACPT_CNT_OUT', 'expr': 'CRP_APLY_MBR_ACPT_CNT'},
+                {'name': 'CRP_APLY_OFR_BF_CNT_OUT', 'expr': 'CRP_APLY_OFR_BF_CNT'},
+                {'name': 'CRP_APLY_OFR_CNT_OUT', 'expr': 'CRP_APLY_OFR_CNT'},
+                {'name': 'CRP_APLY_MBR_OFR_BF_CNT_OUT', 'expr': 'CRP_APLY_MBR_OFR_BF_CNT'},
+                {'name': 'CRP_APLY_MBR_OFR_CNT_OUT', 'expr': 'CRP_APLY_MBR_OFR_CNT'},
+                {'name': 'CRP_REHSE_FLAT_BF_CNT_OUT', 'expr': 'CRP_REHSE_FLAT_BF_CNT'},
+                {'name': 'CRP_REHSE_FLAT_CNT_OUT', 'expr': 'CRP_REHSE_FLAT_CNT'},
+                {'name': 'CRP_REHSE_FLAT_MBR_BF_CNT_OUT', 'expr': 'CRP_REHSE_FLAT_MBR_BF_CNT'},
+                {'name': 'CRP_REHSE_FLAT_MBR_CNT_OUT', 'expr': 'CRP_REHSE_FLAT_MBR_CNT'},
+                {'name': 'CRP_CSL_VCNCY_BF_CNT_OUT', 'expr': 'CRP_CSL_VCNCY_BF_CNT'},
+                {'name': 'CRP_CSL_VCNCY_CNT_OUT', 'expr': 'CRP_CSL_VCNCY_CNT'},
+                {'name': 'CRP_CSL_VCNCY_MBR_BF_CNT_OUT', 'expr': 'CRP_CSL_VCNCY_MBR_BF_CNT'},
+                {'name': 'CRP_CSL_VCNCY_MBR_CNT_OUT', 'expr': 'CRP_CSL_VCNCY_MBR_CNT'},
+                {'name': 'CRP_HOS_WHL_FMLY_BF_CNT_OUT', 'expr': 'CRP_HOS_WHL_FMLY_BF_CNT'},
+                {'name': 'CRP_HOS_WHL_FMLY_CNT_OUT', 'expr': 'CRP_HOS_WHL_FMLY_CNT'},
+                {'name': 'CRP_HOS_WHL_FMLY_MBR_BF_CNT_OUT', 'expr': 'CRP_HOS_WHL_FMLY_MBR_BF_CNT'},
+                {'name': 'CRP_HOS_WHL_FMLY_MBR_CNT_OUT', 'expr': 'CRP_HOS_WHL_FMLY_MBR_CNT'},
+                {'name': 'CRP_HOS_PART_FMLY_BF_CNT_OUT', 'expr': 'CRP_HOS_PART_FMLY_BF_CNT'},
+                {'name': 'CRP_HOS_PART_FMLY_CNT_OUT', 'expr': 'CRP_HOS_PART_FMLY_CNT'},
+                {'name': 'CRP_HOS_PART_FMLY_MBR_BF_CNT_OUT', 'expr': 'CRP_HOS_PART_FMLY_MBR_BF_CNT'},
+                {'name': 'CRP_HOS_PART_FMLY_MBR_CNT_OUT', 'expr': 'CRP_HOS_PART_FMLY_MBR_CNT'},
+                {'name': 'CRP_HPLS_WHL_FMLY_BF_CNT_OUT', 'expr': 'CRP_HPLS_WHL_FMLY_BF_CNT'},
+                {'name': 'CRP_HPLS_WHL_FMLY_CNT_OUT', 'expr': 'CRP_HPLS_WHL_FMLY_CNT'},
+                {'name': 'CRP_HPLS_WHL_FMLY_MBR_BF_CNT_OUT', 'expr': 'CRP_HPLS_WHL_FMLY_MBR_BF_CNT'},
+                {'name': 'CRP_HPLS_WHL_FMLY_MBR_CNT_OUT', 'expr': 'CRP_HPLS_WHL_FMLY_MBR_CNT'},
+                {'name': 'CRP_HPLS_PART_FMLY_BF_CNT_OUT', 'expr': 'CRP_HPLS_PART_FMLY_BF_CNT'},
+                {'name': 'CRP_HPLS_PART_FMLY_CNT_OUT', 'expr': 'CRP_HPLS_PART_FMLY_CNT'},
+                {'name': 'CRP_HPLS_PART_FMLY_MBR_BF_CNT_OUT', 'expr': 'CRP_HPLS_PART_FMLY_MBR_BF_CNT'},
+                {'name': 'CRP_HPLS_PART_FMLY_MBR_CNT_OUT', 'expr': 'CRP_HPLS_PART_FMLY_MBR_CNT'},
+                {'name': 'CRP_EXA_SGTN_BF_CNT_OUT', 'expr': 'CRP_EXA_SGTN_BF_CNT'},
+                {'name': 'CRP_EXA_SGTN_CNT_OUT', 'expr': 'CRP_EXA_SGTN_CNT'},
+                {'name': 'CRP_EXA_SGTN_MBR_BF_CNT_OUT', 'expr': 'CRP_EXA_SGTN_MBR_BF_CNT'},
+                {'name': 'CRP_EXA_SGTN_MBR_CNT_OUT', 'expr': 'CRP_EXA_SGTN_MBR_CNT'},
+                {'name': 'CRP_EXA_DBLTN_BF_CNT_OUT', 'expr': 'CRP_EXA_DBLTN_BF_CNT'},
+                {'name': 'CRP_EXA_DBLTN_CNT_OUT', 'expr': 'CRP_EXA_DBLTN_CNT'},
+                {'name': 'CRP_EXA_DBLTN_MBR_BF_CNT_OUT', 'expr': 'CRP_EXA_DBLTN_MBR_BF_CNT'},
+                {'name': 'CRP_EXA_DBLTN_MBR_CNT_OUT', 'expr': 'CRP_EXA_DBLTN_MBR_CNT'},
+                {'name': 'CRP_FMLY_NTQ_BF_CNT_OUT', 'expr': 'CRP_FMLY_NTQ_BF_CNT'},
+                {'name': 'CRP_FMLY_NTQ_CNT_OUT', 'expr': 'CRP_FMLY_NTQ_CNT'},
+                {'name': 'CRP_FMLY_MBR_NTQ_BF_CNT_OUT', 'expr': 'CRP_FMLY_MBR_NTQ_BF_CNT'},
+                {'name': 'CRP_FMLY_MBR_NTQ_CNT_OUT', 'expr': 'CRP_FMLY_MBR_NTQ_CNT'},
+                {'name': 'CRP_FMLY_STL_OTHR_BF_CNT_OUT', 'expr': 'CRP_FMLY_STL_OTHR_BF_CNT'},
+                {'name': 'CRP_FMLY_STL_OTHR_CNT_OUT', 'expr': 'CRP_FMLY_STL_OTHR_CNT'},
+                {'name': 'CRP_FMLY_MBR_STL_OTHR_BF_CNT_OUT', 'expr': 'CRP_FMLY_MBR_STL_OTHR_BF_CNT'},
+                {'name': 'CRP_FMLY_MBR_STL_OTHR_CNT_OUT', 'expr': 'CRP_FMLY_MBR_STL_OTHR_CNT'},
+                {'name': 'CRP_OFR_MADE_BF_CNT_OUT', 'expr': 'CRP_OFR_MADE_BF_CNT'},
+                {'name': 'CRP_OFR_MADE_CNT_OUT', 'expr': 'CRP_OFR_MADE_CNT'},
+                {'name': 'CRP_LAST_MTH_EXTRC_DATE_OUT', 'expr': 'CRP_LAST_MTH_EXTRC_DATE'},
+                {'name': 'CRP_INVLV_FMLY_MTH_BF_CNT_OUT', 'expr': 'CRP_INVLV_FMLY_MTH_BF_CNT'},
+                {'name': 'CRP_INVLV_FMLY_MBR_MTH_BF_CNT_OUT', 'expr': 'CRP_INVLV_FMLY_MBR_MTH_BF_CNT'},
+                {'name': 'CRP_APLY_RCV_MTH_BF_CNT_OUT', 'expr': 'CRP_APLY_RCV_MTH_BF_CNT'},
+                {'name': 'CRP_APLY_MBR_RCV_MTH_BF_CNT_OUT', 'expr': 'CRP_APLY_MBR_RCV_MTH_BF_CNT'},
+                {'name': 'CRP_APLY_ACPT_MTH_BF_CNT_OUT', 'expr': 'CRP_APLY_ACPT_MTH_BF_CNT'},
+                {'name': 'CRP_APLY_MBR_ACPT_MTH_BF_CNT_OUT', 'expr': 'CRP_APLY_MBR_ACPT_MTH_BF_CNT'},
+                {'name': 'CRP_APLY_OFR_MTH_BF_CNT_OUT', 'expr': 'CRP_APLY_OFR_MTH_BF_CNT'},
+                {'name': 'CRP_APLY_MBR_OFR_MTH_BF_CNT_OUT', 'expr': 'CRP_APLY_MBR_OFR_MTH_BF_CNT'},
+                {'name': 'CRP_REHSE_FLAT_MTH_BF_CNT_OUT', 'expr': 'CRP_REHSE_FLAT_MTH_BF_CNT'},
+                {'name': 'CRP_REHSE_FLAT_MBR_MTH_BF_CNT_OUT', 'expr': 'CRP_REHSE_FLAT_MBR_MTH_BF_CNT'},
+                {'name': 'CRP_CSL_VCNCY_MTH_BF_CNT_OUT', 'expr': 'CRP_CSL_VCNCY_MTH_BF_CNT'},
+                {'name': 'CRP_CSL_VCNCY_MBR_MTH_BF_CNT_OUT', 'expr': 'CRP_CSL_VCNCY_MBR_MTH_BF_CNT'},
+                {'name': 'CRP_HOS_WHL_FMLY_MTH_BF_CNT_OUT', 'expr': 'CRP_HOS_WHL_FMLY_MTH_BF_CNT'},
+                {'name': 'CRP_HOS_WHL_MBR_MTH_BF_CNT_OUT', 'expr': 'CRP_HOS_WHL_MBR_MTH_BF_CNT'},
+                {'name': 'CRP_HOS_PART_FMLY_MTH_BF_CNT_OUT', 'expr': 'CRP_HOS_PART_FMLY_MTH_BF_CNT'},
+                {'name': 'CRP_HOS_PART_MBR_MTH_BF_CNT_OUT', 'expr': 'CRP_HOS_PART_MBR_MTH_BF_CNT'},
+                {'name': 'CRP_HPLS_WHL_FMLY_MTH_BF_CNT_OUT', 'expr': 'CRP_HPLS_WHL_FMLY_MTH_BF_CNT'},
+                {'name': 'CRP_HPLS_WHL_MBR_MTH_BF_CNT_OUT', 'expr': 'CRP_HPLS_WHL_MBR_MTH_BF_CNT'},
+                {'name': 'CRP_HPLS_PART_FMLY_MTH_BF_CNT_OUT', 'expr': 'CRP_HPLS_PART_FMLY_MTH_BF_CNT'},
+                {'name': 'CRP_HPLS_PART_MBR_MTH_BF_CNT_OUT', 'expr': 'CRP_HPLS_PART_MBR_MTH_BF_CNT'},
+                {'name': 'CRP_EXA_SGTN_MTH_BF_CNT_OUT', 'expr': 'CRP_EXA_SGTN_MTH_BF_CNT'},
+                {'name': 'CRP_EXA_SGTN_MBR_MTH_BF_CNT_OUT', 'expr': 'CRP_EXA_SGTN_MBR_MTH_BF_CNT'},
+                {'name': 'CRP_EXA_DBLTN_MTH_BF_CNT_OUT', 'expr': 'CRP_EXA_DBLTN_MTH_BF_CNT'},
+                {'name': 'CRP_EXA_DBLTN_MBR_MTH_BF_CNT_OUT', 'expr': 'CRP_EXA_DBLTN_MBR_MTH_BF_CNT'},
+                {'name': 'CRP_FMLY_NTQ_MTH_BF_CNT_OUT', 'expr': 'CRP_FMLY_NTQ_MTH_BF_CNT'},
+                {'name': 'CRP_FMLY_MBR_NTQ_MTH_BF_CNT_OUT', 'expr': 'CRP_FMLY_MBR_NTQ_MTH_BF_CNT'},
+                {'name': 'CRP_FMLY_STL_OTHR_MTH_BF_CNT_OUT', 'expr': 'CRP_FMLY_STL_OTHR_MTH_BF_CNT'},
+                {'name': 'CRP_MBR_STL_OTHR_MTH_BF_CNT_OUT', 'expr': 'CRP_MBR_STL_OTHR_MTH_BF_CNT'},
+                {'name': 'CRP_OFR_MADE_MTH_BF_CNT_OUT', 'expr': 'CRP_OFR_MADE_MTH_BF_CNT'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_DATE_OUT', 'expr': 'LAST_REC_TXN_DATE'},
+                {'name': 'LAST_REC_TXN_USER_ID_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID))'},
+                {'name': 'OPR_CODE_OUT', 'expr': 'ltrim(rtrim(OPR_CODE))'},
+                {'name': 'DUMMY', 'expr': "'|'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EMS_POR_CRP_STAT")
         # Write to Target: write_EMS_POR_CRP_STAT
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"CRP_APLY_ACPT_BF_CNT": "CRP_APLY_ACPT_BF_CNT_OUT", "CRP_APLY_ACPT_CNT": "CRP_APLY_ACPT_CNT_OUT", "CRP_APLY_ACPT_MTH_BF_CNT": "CRP_APLY_ACPT_MTH_BF_CNT_OUT", "CRP_APLY_MBR_ACPT_BF_CNT": "CRP_APLY_MBR_ACPT_BF_CNT_OUT", "CRP_APLY_MBR_ACPT_CNT": "CRP_APLY_MBR_ACPT_CNT_OUT", "CRP_APLY_MBR_ACPT_MTH_BF_CNT": "CRP_APLY_MBR_ACPT_MTH_BF_CNT_OUT", "CRP_APLY_MBR_OFR_BF_CNT": "CRP_APLY_MBR_OFR_BF_CNT_OUT", "CRP_APLY_MBR_OFR_CNT": "CRP_APLY_MBR_OFR_CNT_OUT", "CRP_APLY_MBR_OFR_MTH_BF_CNT": "CRP_APLY_MBR_OFR_MTH_BF_CNT_OUT", "CRP_APLY_MBR_RCV_BF_CNT": "CRP_APLY_MBR_RCV_BF_CNT_OUT", "CRP_APLY_MBR_RCV_CNT": "CRP_APLY_MBR_RCV_CNT_OUT", "CRP_APLY_MBR_RCV_MTH_BF_CNT": "CRP_APLY_MBR_RCV_MTH_BF_CNT_OUT", "CRP_APLY_OFR_BF_CNT": "CRP_APLY_OFR_BF_CNT_OUT", "CRP_APLY_OFR_CNT": "CRP_APLY_OFR_CNT_OUT", "CRP_APLY_OFR_MTH_BF_CNT": "CRP_APLY_OFR_MTH_BF_CNT_OUT", "CRP_APLY_RCV_BF_CNT": "CRP_APLY_RCV_BF_CNT_OUT", "CRP_APLY_RCV_CNT": "CRP_APLY_RCV_CNT_OUT", "CRP_APLY_RCV_MTH_BF_CNT": "CRP_APLY_RCV_MTH_BF_CNT_OUT", "CRP_CSL_VCNCY_BF_CNT": "CRP_CSL_VCNCY_BF_CNT_OUT", "CRP_CSL_VCNCY_CNT": "CRP_CSL_VCNCY_CNT_OUT", "CRP_CSL_VCNCY_MBR_BF_CNT": "CRP_CSL_VCNCY_MBR_BF_CNT_OUT", "CRP_CSL_VCNCY_MBR_CNT": "CRP_CSL_VCNCY_MBR_CNT_OUT", "CRP_CSL_VCNCY_MBR_MTH_BF_CNT": "CRP_CSL_VCNCY_MBR_MTH_BF_CNT_OUT", "CRP_CSL_VCNCY_MTH_BF_CNT": "CRP_CSL_VCNCY_MTH_BF_CNT_OUT", "CRP_EXA_DBLTN_BF_CNT": "CRP_EXA_DBLTN_BF_CNT_OUT", "CRP_EXA_DBLTN_CNT": "CRP_EXA_DBLTN_CNT_OUT", "CRP_EXA_DBLTN_MBR_BF_CNT": "CRP_EXA_DBLTN_MBR_BF_CNT_OUT", "CRP_EXA_DBLTN_MBR_CNT": "CRP_EXA_DBLTN_MBR_CNT_OUT", "CRP_EXA_DBLTN_MBR_MTH_BF_CNT": "CRP_EXA_DBLTN_MBR_MTH_BF_CNT_OUT", "CRP_EXA_DBLTN_MTH_BF_CNT": "CRP_EXA_DBLTN_MTH_BF_CNT_OUT", "CRP_EXA_SGTN_BF_CNT": "CRP_EXA_SGTN_BF_CNT_OUT", "CRP_EXA_SGTN_CNT": "CRP_EXA_SGTN_CNT_OUT", "CRP_EXA_SGTN_MBR_BF_CNT": "CRP_EXA_SGTN_MBR_BF_CNT_OUT", "CRP_EXA_SGTN_MBR_CNT": "CRP_EXA_SGTN_MBR_CNT_OUT", "CRP_EXA_SGTN_MBR_MTH_BF_CNT": "CRP_EXA_SGTN_MBR_MTH_BF_CNT_OUT", "CRP_EXA_SGTN_MTH_BF_CNT": "CRP_EXA_SGTN_MTH_BF_CNT_OUT", "CRP_EXTRC_DATE": "CRP_EXTRC_DATE_OUT", "CRP_FMLY_MBR_NTQ_BF_CNT": "CRP_FMLY_MBR_NTQ_BF_CNT_OUT", "CRP_FMLY_MBR_NTQ_CNT": "CRP_FMLY_MBR_NTQ_CNT_OUT", "CRP_FMLY_MBR_NTQ_MTH_BF_CNT": "CRP_FMLY_MBR_NTQ_MTH_BF_CNT_OUT", "CRP_FMLY_MBR_STL_OTHR_BF_CNT": "CRP_FMLY_MBR_STL_OTHR_BF_CNT_OUT", "CRP_FMLY_MBR_STL_OTHR_CNT": "CRP_FMLY_MBR_STL_OTHR_CNT_OUT", "CRP_FMLY_NTQ_BF_CNT": "CRP_FMLY_NTQ_BF_CNT_OUT", "CRP_FMLY_NTQ_CNT": "CRP_FMLY_NTQ_CNT_OUT", "CRP_FMLY_NTQ_MTH_BF_CNT": "CRP_FMLY_NTQ_MTH_BF_CNT_OUT", "CRP_FMLY_SIZE_NUM": "CRP_FMLY_SIZE_NUM_OUT", "CRP_FMLY_STL_OTHR_BF_CNT": "CRP_FMLY_STL_OTHR_BF_CNT_OUT", "CRP_FMLY_STL_OTHR_CNT": "CRP_FMLY_STL_OTHR_CNT_OUT", "CRP_FMLY_STL_OTHR_MTH_BF_CNT": "CRP_FMLY_STL_OTHR_MTH_BF_CNT_OUT", "CRP_HOS_PART_FMLY_BF_CNT": "CRP_HOS_PART_FMLY_BF_CNT_OUT", "CRP_HOS_PART_FMLY_CNT": "CRP_HOS_PART_FMLY_CNT_OUT", "CRP_HOS_PART_FMLY_MBR_BF_CNT": "CRP_HOS_PART_FMLY_MBR_BF_CNT_OUT", "CRP_HOS_PART_FMLY_MBR_CNT": "CRP_HOS_PART_FMLY_MBR_CNT_OUT", "CRP_HOS_PART_FMLY_MTH_BF_CNT": "CRP_HOS_PART_FMLY_MTH_BF_CNT_OUT", "CRP_HOS_PART_MBR_MTH_BF_CNT": "CRP_HOS_PART_MBR_MTH_BF_CNT_OUT", "CRP_HOS_WHL_FMLY_BF_CNT": "CRP_HOS_WHL_FMLY_BF_CNT_OUT", "CRP_HOS_WHL_FMLY_CNT": "CRP_HOS_WHL_FMLY_CNT_OUT", "CRP_HOS_WHL_FMLY_MBR_BF_CNT": "CRP_HOS_WHL_FMLY_MBR_BF_CNT_OUT", "CRP_HOS_WHL_FMLY_MBR_CNT": "CRP_HOS_WHL_FMLY_MBR_CNT_OUT", "CRP_HOS_WHL_FMLY_MTH_BF_CNT": "CRP_HOS_WHL_FMLY_MTH_BF_CNT_OUT", "CRP_HOS_WHL_MBR_MTH_BF_CNT": "CRP_HOS_WHL_MBR_MTH_BF_CNT_OUT", "CRP_HPLS_PART_FMLY_BF_CNT": "CRP_HPLS_PART_FMLY_BF_CNT_OUT", "CRP_HPLS_PART_FMLY_CNT": "CRP_HPLS_PART_FMLY_CNT_OUT", "CRP_HPLS_PART_FMLY_MBR_BF_CNT": "CRP_HPLS_PART_FMLY_MBR_BF_CNT_OUT", "CRP_HPLS_PART_FMLY_MBR_CNT": "CRP_HPLS_PART_FMLY_MBR_CNT_OUT", "CRP_HPLS_PART_FMLY_MTH_BF_CNT": "CRP_HPLS_PART_FMLY_MTH_BF_CNT_OUT", "CRP_HPLS_PART_MBR_MTH_BF_CNT": "CRP_HPLS_PART_MBR_MTH_BF_CNT_OUT", "CRP_HPLS_WHL_FMLY_BF_CNT": "CRP_HPLS_WHL_FMLY_BF_CNT_OUT", "CRP_HPLS_WHL_FMLY_CNT": "CRP_HPLS_WHL_FMLY_CNT_OUT", "CRP_HPLS_WHL_FMLY_MBR_BF_CNT": "CRP_HPLS_WHL_FMLY_MBR_BF_CNT_OUT", "CRP_HPLS_WHL_FMLY_MBR_CNT": "CRP_HPLS_WHL_FMLY_MBR_CNT_OUT", "CRP_HPLS_WHL_FMLY_MTH_BF_CNT": "CRP_HPLS_WHL_FMLY_MTH_BF_CNT_OUT", "CRP_HPLS_WHL_MBR_MTH_BF_CNT": "CRP_HPLS_WHL_MBR_MTH_BF_CNT_OUT", "CRP_INVLV_FMLY_BF_CNT": "CRP_INVLV_FMLY_BF_CNT_OUT", "CRP_INVLV_FMLY_CNT": "CRP_INVLV_FMLY_CNT_OUT", "CRP_INVLV_FMLY_MBR_BF_CNT": "CRP_INVLV_FMLY_MBR_BF_CNT_OUT", "CRP_INVLV_FMLY_MBR_CNT": "CRP_INVLV_FMLY_MBR_CNT_OUT", "CRP_INVLV_FMLY_MBR_MTH_BF_CNT": "CRP_INVLV_FMLY_MBR_MTH_BF_CNT_OUT", "CRP_INVLV_FMLY_MTH_BF_CNT": "CRP_INVLV_FMLY_MTH_BF_CNT_OUT", "CRP_LAST_EXTRC_DATE": "CRP_LAST_EXTRC_DATE_OUT", "CRP_LAST_MTH_EXTRC_DATE": "CRP_LAST_MTH_EXTRC_DATE_OUT", "CRP_MBR_STL_OTHR_MTH_BF_CNT": "CRP_MBR_STL_OTHR_MTH_BF_CNT_OUT", "CRP_OFR_MADE_BF_CNT": "CRP_OFR_MADE_BF_CNT_OUT", "CRP_OFR_MADE_CNT": "CRP_OFR_MADE_CNT_OUT", "CRP_OFR_MADE_MTH_BF_CNT": "CRP_OFR_MADE_MTH_BF_CNT_OUT", "CRP_REHSE_FLAT_BF_CNT": "CRP_REHSE_FLAT_BF_CNT_OUT", "CRP_REHSE_FLAT_CNT": "CRP_REHSE_FLAT_CNT_OUT", "CRP_REHSE_FLAT_MBR_BF_CNT": "CRP_REHSE_FLAT_MBR_BF_CNT_OUT", "CRP_REHSE_FLAT_MBR_CNT": "CRP_REHSE_FLAT_MBR_CNT_OUT", "CRP_REHSE_FLAT_MBR_MTH_BF_CNT": "CRP_REHSE_FLAT_MBR_MTH_BF_CNT_OUT", "CRP_REHSE_FLAT_MTH_BF_CNT": "CRP_REHSE_FLAT_MTH_BF_CNT_OUT", "HSE_BLK_KEY": "HSE_BLK_KEY_OUT", "HSE_EST_KEY": "HSE_EST_KEY_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "OPR_CODE": "OPR_CODE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HSE_EST_KEY', 'HSE_BLK_KEY', 'CRP_FMLY_SIZE_NUM', 'CRP_LAST_EXTRC_DATE', 'CRP_EXTRC_DATE', 'CRP_INVLV_FMLY_BF_CNT', 'CRP_INVLV_FMLY_CNT', 'CRP_INVLV_FMLY_MBR_BF_CNT', 'CRP_INVLV_FMLY_MBR_CNT', 'CRP_APLY_RCV_BF_CNT', 'CRP_APLY_RCV_CNT', 'CRP_APLY_MBR_RCV_BF_CNT', 'CRP_APLY_MBR_RCV_CNT', 'CRP_APLY_ACPT_BF_CNT', 'CRP_APLY_ACPT_CNT', 'CRP_APLY_MBR_ACPT_BF_CNT', 'CRP_APLY_MBR_ACPT_CNT', 'CRP_APLY_OFR_BF_CNT', 'CRP_APLY_OFR_CNT', 'CRP_APLY_MBR_OFR_BF_CNT', 'CRP_APLY_MBR_OFR_CNT', 'CRP_REHSE_FLAT_BF_CNT', 'CRP_REHSE_FLAT_CNT', 'CRP_REHSE_FLAT_MBR_BF_CNT', 'CRP_REHSE_FLAT_MBR_CNT', 'CRP_CSL_VCNCY_BF_CNT', 'CRP_CSL_VCNCY_CNT', 'CRP_CSL_VCNCY_MBR_BF_CNT', 'CRP_CSL_VCNCY_MBR_CNT', 'CRP_HOS_WHL_FMLY_BF_CNT', 'CRP_HOS_WHL_FMLY_CNT', 'CRP_HOS_WHL_FMLY_MBR_BF_CNT', 'CRP_HOS_WHL_FMLY_MBR_CNT', 'CRP_HOS_PART_FMLY_BF_CNT', 'CRP_HOS_PART_FMLY_CNT', 'CRP_HOS_PART_FMLY_MBR_BF_CNT', 'CRP_HOS_PART_FMLY_MBR_CNT', 'CRP_HPLS_WHL_FMLY_BF_CNT', 'CRP_HPLS_WHL_FMLY_CNT', 'CRP_HPLS_WHL_FMLY_MBR_BF_CNT', 'CRP_HPLS_WHL_FMLY_MBR_CNT', 'CRP_HPLS_PART_FMLY_BF_CNT', 'CRP_HPLS_PART_FMLY_CNT', 'CRP_HPLS_PART_FMLY_MBR_BF_CNT', 'CRP_HPLS_PART_FMLY_MBR_CNT', 'CRP_EXA_SGTN_BF_CNT', 'CRP_EXA_SGTN_CNT', 'CRP_EXA_SGTN_MBR_BF_CNT', 'CRP_EXA_SGTN_MBR_CNT', 'CRP_EXA_DBLTN_BF_CNT', 'CRP_EXA_DBLTN_CNT', 'CRP_EXA_DBLTN_MBR_BF_CNT', 'CRP_EXA_DBLTN_MBR_CNT', 'CRP_FMLY_NTQ_BF_CNT', 'CRP_FMLY_NTQ_CNT', 'CRP_FMLY_MBR_NTQ_BF_CNT', 'CRP_FMLY_MBR_NTQ_CNT', 'CRP_FMLY_STL_OTHR_BF_CNT', 'CRP_FMLY_STL_OTHR_CNT', 'CRP_FMLY_MBR_STL_OTHR_BF_CNT', 'CRP_FMLY_MBR_STL_OTHR_CNT', 'CRP_OFR_MADE_BF_CNT', 'CRP_OFR_MADE_CNT', 'CRP_LAST_MTH_EXTRC_DATE', 'CRP_INVLV_FMLY_MTH_BF_CNT', 'CRP_INVLV_FMLY_MBR_MTH_BF_CNT', 'CRP_APLY_RCV_MTH_BF_CNT', 'CRP_APLY_MBR_RCV_MTH_BF_CNT', 'CRP_APLY_ACPT_MTH_BF_CNT', 'CRP_APLY_MBR_ACPT_MTH_BF_CNT', 'CRP_APLY_OFR_MTH_BF_CNT', 'CRP_APLY_MBR_OFR_MTH_BF_CNT', 'CRP_REHSE_FLAT_MTH_BF_CNT', 'CRP_REHSE_FLAT_MBR_MTH_BF_CNT', 'CRP_CSL_VCNCY_MTH_BF_CNT', 'CRP_CSL_VCNCY_MBR_MTH_BF_CNT', 'CRP_HOS_WHL_FMLY_MTH_BF_CNT', 'CRP_HOS_WHL_MBR_MTH_BF_CNT', 'CRP_HOS_PART_FMLY_MTH_BF_CNT', 'CRP_HOS_PART_MBR_MTH_BF_CNT', 'CRP_HPLS_WHL_FMLY_MTH_BF_CNT', 'CRP_HPLS_WHL_MBR_MTH_BF_CNT', 'CRP_HPLS_PART_FMLY_MTH_BF_CNT', 'CRP_HPLS_PART_MBR_MTH_BF_CNT', 'CRP_EXA_SGTN_MTH_BF_CNT', 'CRP_EXA_SGTN_MBR_MTH_BF_CNT', 'CRP_EXA_DBLTN_MTH_BF_CNT', 'CRP_EXA_DBLTN_MBR_MTH_BF_CNT', 'CRP_FMLY_NTQ_MTH_BF_CNT', 'CRP_FMLY_MBR_NTQ_MTH_BF_CNT', 'CRP_FMLY_STL_OTHR_MTH_BF_CNT', 'CRP_MBR_STL_OTHR_MTH_BF_CNT', 'CRP_OFR_MADE_MTH_BF_CNT', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'OPR_CODE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_POR_CRP_STAT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_POR_CRP_STAT',
+            mode='append',
+            source_columns=[
+                'HSE_EST_KEY_OUT',
+                'HSE_BLK_KEY_OUT',
+                'CRP_FMLY_SIZE_NUM_OUT',
+                'CRP_LAST_EXTRC_DATE_OUT',
+                'CRP_EXTRC_DATE_OUT',
+                'CRP_INVLV_FMLY_BF_CNT_OUT',
+                'CRP_INVLV_FMLY_CNT_OUT',
+                'CRP_INVLV_FMLY_MBR_BF_CNT_OUT',
+                'CRP_INVLV_FMLY_MBR_CNT_OUT',
+                'CRP_APLY_RCV_BF_CNT_OUT',
+                'CRP_APLY_RCV_CNT_OUT',
+                'CRP_APLY_MBR_RCV_BF_CNT_OUT',
+                'CRP_APLY_MBR_RCV_CNT_OUT',
+                'CRP_APLY_ACPT_BF_CNT_OUT',
+                'CRP_APLY_ACPT_CNT_OUT',
+                'CRP_APLY_MBR_ACPT_BF_CNT_OUT',
+                'CRP_APLY_MBR_ACPT_CNT_OUT',
+                'CRP_APLY_OFR_BF_CNT_OUT',
+                'CRP_APLY_OFR_CNT_OUT',
+                'CRP_APLY_MBR_OFR_BF_CNT_OUT',
+                'CRP_APLY_MBR_OFR_CNT_OUT',
+                'CRP_REHSE_FLAT_BF_CNT_OUT',
+                'CRP_REHSE_FLAT_CNT_OUT',
+                'CRP_REHSE_FLAT_MBR_BF_CNT_OUT',
+                'CRP_REHSE_FLAT_MBR_CNT_OUT',
+                'CRP_CSL_VCNCY_BF_CNT_OUT',
+                'CRP_CSL_VCNCY_CNT_OUT',
+                'CRP_CSL_VCNCY_MBR_BF_CNT_OUT',
+                'CRP_CSL_VCNCY_MBR_CNT_OUT',
+                'CRP_HOS_WHL_FMLY_BF_CNT_OUT',
+                'CRP_HOS_WHL_FMLY_CNT_OUT',
+                'CRP_HOS_WHL_FMLY_MBR_BF_CNT_OUT',
+                'CRP_HOS_WHL_FMLY_MBR_CNT_OUT',
+                'CRP_HOS_PART_FMLY_BF_CNT_OUT',
+                'CRP_HOS_PART_FMLY_CNT_OUT',
+                'CRP_HOS_PART_FMLY_MBR_BF_CNT_OUT',
+                'CRP_HOS_PART_FMLY_MBR_CNT_OUT',
+                'CRP_HPLS_WHL_FMLY_BF_CNT_OUT',
+                'CRP_HPLS_WHL_FMLY_CNT_OUT',
+                'CRP_HPLS_WHL_FMLY_MBR_BF_CNT_OUT',
+                'CRP_HPLS_WHL_FMLY_MBR_CNT_OUT',
+                'CRP_HPLS_PART_FMLY_BF_CNT_OUT',
+                'CRP_HPLS_PART_FMLY_CNT_OUT',
+                'CRP_HPLS_PART_FMLY_MBR_BF_CNT_OUT',
+                'CRP_HPLS_PART_FMLY_MBR_CNT_OUT',
+                'CRP_EXA_SGTN_BF_CNT_OUT',
+                'CRP_EXA_SGTN_CNT_OUT',
+                'CRP_EXA_SGTN_MBR_BF_CNT_OUT',
+                'CRP_EXA_SGTN_MBR_CNT_OUT',
+                'CRP_EXA_DBLTN_BF_CNT_OUT',
+                'CRP_EXA_DBLTN_CNT_OUT',
+                'CRP_EXA_DBLTN_MBR_BF_CNT_OUT',
+                'CRP_EXA_DBLTN_MBR_CNT_OUT',
+                'CRP_FMLY_NTQ_BF_CNT_OUT',
+                'CRP_FMLY_NTQ_CNT_OUT',
+                'CRP_FMLY_MBR_NTQ_BF_CNT_OUT',
+                'CRP_FMLY_MBR_NTQ_CNT_OUT',
+                'CRP_FMLY_STL_OTHR_BF_CNT_OUT',
+                'CRP_FMLY_STL_OTHR_CNT_OUT',
+                'CRP_FMLY_MBR_STL_OTHR_BF_CNT_OUT',
+                'CRP_FMLY_MBR_STL_OTHR_CNT_OUT',
+                'CRP_OFR_MADE_BF_CNT_OUT',
+                'CRP_OFR_MADE_CNT_OUT',
+                'CRP_LAST_MTH_EXTRC_DATE_OUT',
+                'CRP_INVLV_FMLY_MTH_BF_CNT_OUT',
+                'CRP_INVLV_FMLY_MBR_MTH_BF_CNT_OUT',
+                'CRP_APLY_RCV_MTH_BF_CNT_OUT',
+                'CRP_APLY_MBR_RCV_MTH_BF_CNT_OUT',
+                'CRP_APLY_ACPT_MTH_BF_CNT_OUT',
+                'CRP_APLY_MBR_ACPT_MTH_BF_CNT_OUT',
+                'CRP_APLY_OFR_MTH_BF_CNT_OUT',
+                'CRP_APLY_MBR_OFR_MTH_BF_CNT_OUT',
+                'CRP_REHSE_FLAT_MTH_BF_CNT_OUT',
+                'CRP_REHSE_FLAT_MBR_MTH_BF_CNT_OUT',
+                'CRP_CSL_VCNCY_MTH_BF_CNT_OUT',
+                'CRP_CSL_VCNCY_MBR_MTH_BF_CNT_OUT',
+                'CRP_HOS_WHL_FMLY_MTH_BF_CNT_OUT',
+                'CRP_HOS_WHL_MBR_MTH_BF_CNT_OUT',
+                'CRP_HOS_PART_FMLY_MTH_BF_CNT_OUT',
+                'CRP_HOS_PART_MBR_MTH_BF_CNT_OUT',
+                'CRP_HPLS_WHL_FMLY_MTH_BF_CNT_OUT',
+                'CRP_HPLS_WHL_MBR_MTH_BF_CNT_OUT',
+                'CRP_HPLS_PART_FMLY_MTH_BF_CNT_OUT',
+                'CRP_HPLS_PART_MBR_MTH_BF_CNT_OUT',
+                'CRP_EXA_SGTN_MTH_BF_CNT_OUT',
+                'CRP_EXA_SGTN_MBR_MTH_BF_CNT_OUT',
+                'CRP_EXA_DBLTN_MTH_BF_CNT_OUT',
+                'CRP_EXA_DBLTN_MBR_MTH_BF_CNT_OUT',
+                'CRP_FMLY_NTQ_MTH_BF_CNT_OUT',
+                'CRP_FMLY_MBR_NTQ_MTH_BF_CNT_OUT',
+                'CRP_FMLY_STL_OTHR_MTH_BF_CNT_OUT',
+                'CRP_MBR_STL_OTHR_MTH_BF_CNT_OUT',
+                'CRP_OFR_MADE_MTH_BF_CNT_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'OPR_CODE_OUT',
+            ],
+            target_columns=[
+                'HSE_EST_KEY',
+                'HSE_BLK_KEY',
+                'CRP_FMLY_SIZE_NUM',
+                'CRP_LAST_EXTRC_DATE',
+                'CRP_EXTRC_DATE',
+                'CRP_INVLV_FMLY_BF_CNT',
+                'CRP_INVLV_FMLY_CNT',
+                'CRP_INVLV_FMLY_MBR_BF_CNT',
+                'CRP_INVLV_FMLY_MBR_CNT',
+                'CRP_APLY_RCV_BF_CNT',
+                'CRP_APLY_RCV_CNT',
+                'CRP_APLY_MBR_RCV_BF_CNT',
+                'CRP_APLY_MBR_RCV_CNT',
+                'CRP_APLY_ACPT_BF_CNT',
+                'CRP_APLY_ACPT_CNT',
+                'CRP_APLY_MBR_ACPT_BF_CNT',
+                'CRP_APLY_MBR_ACPT_CNT',
+                'CRP_APLY_OFR_BF_CNT',
+                'CRP_APLY_OFR_CNT',
+                'CRP_APLY_MBR_OFR_BF_CNT',
+                'CRP_APLY_MBR_OFR_CNT',
+                'CRP_REHSE_FLAT_BF_CNT',
+                'CRP_REHSE_FLAT_CNT',
+                'CRP_REHSE_FLAT_MBR_BF_CNT',
+                'CRP_REHSE_FLAT_MBR_CNT',
+                'CRP_CSL_VCNCY_BF_CNT',
+                'CRP_CSL_VCNCY_CNT',
+                'CRP_CSL_VCNCY_MBR_BF_CNT',
+                'CRP_CSL_VCNCY_MBR_CNT',
+                'CRP_HOS_WHL_FMLY_BF_CNT',
+                'CRP_HOS_WHL_FMLY_CNT',
+                'CRP_HOS_WHL_FMLY_MBR_BF_CNT',
+                'CRP_HOS_WHL_FMLY_MBR_CNT',
+                'CRP_HOS_PART_FMLY_BF_CNT',
+                'CRP_HOS_PART_FMLY_CNT',
+                'CRP_HOS_PART_FMLY_MBR_BF_CNT',
+                'CRP_HOS_PART_FMLY_MBR_CNT',
+                'CRP_HPLS_WHL_FMLY_BF_CNT',
+                'CRP_HPLS_WHL_FMLY_CNT',
+                'CRP_HPLS_WHL_FMLY_MBR_BF_CNT',
+                'CRP_HPLS_WHL_FMLY_MBR_CNT',
+                'CRP_HPLS_PART_FMLY_BF_CNT',
+                'CRP_HPLS_PART_FMLY_CNT',
+                'CRP_HPLS_PART_FMLY_MBR_BF_CNT',
+                'CRP_HPLS_PART_FMLY_MBR_CNT',
+                'CRP_EXA_SGTN_BF_CNT',
+                'CRP_EXA_SGTN_CNT',
+                'CRP_EXA_SGTN_MBR_BF_CNT',
+                'CRP_EXA_SGTN_MBR_CNT',
+                'CRP_EXA_DBLTN_BF_CNT',
+                'CRP_EXA_DBLTN_CNT',
+                'CRP_EXA_DBLTN_MBR_BF_CNT',
+                'CRP_EXA_DBLTN_MBR_CNT',
+                'CRP_FMLY_NTQ_BF_CNT',
+                'CRP_FMLY_NTQ_CNT',
+                'CRP_FMLY_MBR_NTQ_BF_CNT',
+                'CRP_FMLY_MBR_NTQ_CNT',
+                'CRP_FMLY_STL_OTHR_BF_CNT',
+                'CRP_FMLY_STL_OTHR_CNT',
+                'CRP_FMLY_MBR_STL_OTHR_BF_CNT',
+                'CRP_FMLY_MBR_STL_OTHR_CNT',
+                'CRP_OFR_MADE_BF_CNT',
+                'CRP_OFR_MADE_CNT',
+                'CRP_LAST_MTH_EXTRC_DATE',
+                'CRP_INVLV_FMLY_MTH_BF_CNT',
+                'CRP_INVLV_FMLY_MBR_MTH_BF_CNT',
+                'CRP_APLY_RCV_MTH_BF_CNT',
+                'CRP_APLY_MBR_RCV_MTH_BF_CNT',
+                'CRP_APLY_ACPT_MTH_BF_CNT',
+                'CRP_APLY_MBR_ACPT_MTH_BF_CNT',
+                'CRP_APLY_OFR_MTH_BF_CNT',
+                'CRP_APLY_MBR_OFR_MTH_BF_CNT',
+                'CRP_REHSE_FLAT_MTH_BF_CNT',
+                'CRP_REHSE_FLAT_MBR_MTH_BF_CNT',
+                'CRP_CSL_VCNCY_MTH_BF_CNT',
+                'CRP_CSL_VCNCY_MBR_MTH_BF_CNT',
+                'CRP_HOS_WHL_FMLY_MTH_BF_CNT',
+                'CRP_HOS_WHL_MBR_MTH_BF_CNT',
+                'CRP_HOS_PART_FMLY_MTH_BF_CNT',
+                'CRP_HOS_PART_MBR_MTH_BF_CNT',
+                'CRP_HPLS_WHL_FMLY_MTH_BF_CNT',
+                'CRP_HPLS_WHL_MBR_MTH_BF_CNT',
+                'CRP_HPLS_PART_FMLY_MTH_BF_CNT',
+                'CRP_HPLS_PART_MBR_MTH_BF_CNT',
+                'CRP_EXA_SGTN_MTH_BF_CNT',
+                'CRP_EXA_SGTN_MBR_MTH_BF_CNT',
+                'CRP_EXA_DBLTN_MTH_BF_CNT',
+                'CRP_EXA_DBLTN_MBR_MTH_BF_CNT',
+                'CRP_FMLY_NTQ_MTH_BF_CNT',
+                'CRP_FMLY_MBR_NTQ_MTH_BF_CNT',
+                'CRP_FMLY_STL_OTHR_MTH_BF_CNT',
+                'CRP_MBR_STL_OTHR_MTH_BF_CNT',
+                'CRP_OFR_MADE_MTH_BF_CNT',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'OPR_CODE',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_POR_CRP_STAT write completed")
         logger.info("Step: write_EMS_POR_CRP_STAT1")
         # Write to Target: write_EMS_POR_CRP_STAT1
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"CRP_APLY_ACPT_BF_CNT": "CRP_APLY_ACPT_BF_CNT_OUT", "CRP_APLY_ACPT_CNT": "CRP_APLY_ACPT_CNT_OUT", "CRP_APLY_ACPT_MTH_BF_CNT": "CRP_APLY_ACPT_MTH_BF_CNT_OUT", "CRP_APLY_MBR_ACPT_BF_CNT": "CRP_APLY_MBR_ACPT_BF_CNT_OUT", "CRP_APLY_MBR_ACPT_CNT": "CRP_APLY_MBR_ACPT_CNT_OUT", "CRP_APLY_MBR_ACPT_MTH_BF_CNT": "CRP_APLY_MBR_ACPT_MTH_BF_CNT_OUT", "CRP_APLY_MBR_OFR_BF_CNT": "CRP_APLY_MBR_OFR_BF_CNT_OUT", "CRP_APLY_MBR_OFR_CNT": "CRP_APLY_MBR_OFR_CNT_OUT", "CRP_APLY_MBR_OFR_MTH_BF_CNT": "CRP_APLY_MBR_OFR_MTH_BF_CNT_OUT", "CRP_APLY_MBR_RCV_BF_CNT": "CRP_APLY_MBR_RCV_BF_CNT_OUT", "CRP_APLY_MBR_RCV_CNT": "CRP_APLY_MBR_RCV_CNT_OUT", "CRP_APLY_MBR_RCV_MTH_BF_CNT": "CRP_APLY_MBR_RCV_MTH_BF_CNT_OUT", "CRP_APLY_OFR_BF_CNT": "CRP_APLY_OFR_BF_CNT_OUT", "CRP_APLY_OFR_CNT": "CRP_APLY_OFR_CNT_OUT", "CRP_APLY_OFR_MTH_BF_CNT": "CRP_APLY_OFR_MTH_BF_CNT_OUT", "CRP_APLY_RCV_BF_CNT": "CRP_APLY_RCV_BF_CNT_OUT", "CRP_APLY_RCV_CNT": "CRP_APLY_RCV_CNT_OUT", "CRP_APLY_RCV_MTH_BF_CNT": "CRP_APLY_RCV_MTH_BF_CNT_OUT", "CRP_CSL_VCNCY_BF_CNT": "CRP_CSL_VCNCY_BF_CNT_OUT", "CRP_CSL_VCNCY_CNT": "CRP_CSL_VCNCY_CNT_OUT", "CRP_CSL_VCNCY_MBR_BF_CNT": "CRP_CSL_VCNCY_MBR_BF_CNT_OUT", "CRP_CSL_VCNCY_MBR_CNT": "CRP_CSL_VCNCY_MBR_CNT_OUT", "CRP_CSL_VCNCY_MBR_MTH_BF_CNT": "CRP_CSL_VCNCY_MBR_MTH_BF_CNT_OUT", "CRP_CSL_VCNCY_MTH_BF_CNT": "CRP_CSL_VCNCY_MTH_BF_CNT_OUT", "CRP_EXA_DBLTN_BF_CNT": "CRP_EXA_DBLTN_BF_CNT_OUT", "CRP_EXA_DBLTN_CNT": "CRP_EXA_DBLTN_CNT_OUT", "CRP_EXA_DBLTN_MBR_BF_CNT": "CRP_EXA_DBLTN_MBR_BF_CNT_OUT", "CRP_EXA_DBLTN_MBR_CNT": "CRP_EXA_DBLTN_MBR_CNT_OUT", "CRP_EXA_DBLTN_MBR_MTH_BF_CNT": "CRP_EXA_DBLTN_MBR_MTH_BF_CNT_OUT", "CRP_EXA_DBLTN_MTH_BF_CNT": "CRP_EXA_DBLTN_MTH_BF_CNT_OUT", "CRP_EXA_SGTN_BF_CNT": "CRP_EXA_SGTN_BF_CNT_OUT", "CRP_EXA_SGTN_CNT": "CRP_EXA_SGTN_CNT_OUT", "CRP_EXA_SGTN_MBR_BF_CNT": "CRP_EXA_SGTN_MBR_BF_CNT_OUT", "CRP_EXA_SGTN_MBR_CNT": "CRP_EXA_SGTN_MBR_CNT_OUT", "CRP_EXA_SGTN_MBR_MTH_BF_CNT": "CRP_EXA_SGTN_MBR_MTH_BF_CNT_OUT", "CRP_EXA_SGTN_MTH_BF_CNT": "CRP_EXA_SGTN_MTH_BF_CNT_OUT", "CRP_EXTRC_DATE": "CRP_EXTRC_DATE_OUT", "CRP_FMLY_MBR_NTQ_BF_CNT": "CRP_FMLY_MBR_NTQ_BF_CNT_OUT", "CRP_FMLY_MBR_NTQ_CNT": "CRP_FMLY_MBR_NTQ_CNT_OUT", "CRP_FMLY_MBR_NTQ_MTH_BF_CNT": "CRP_FMLY_MBR_NTQ_MTH_BF_CNT_OUT", "CRP_FMLY_MBR_STL_OTHR_BF_CNT": "CRP_FMLY_MBR_STL_OTHR_BF_CNT_OUT", "CRP_FMLY_MBR_STL_OTHR_CNT": "CRP_FMLY_MBR_STL_OTHR_CNT_OUT", "CRP_FMLY_NTQ_BF_CNT": "CRP_FMLY_NTQ_BF_CNT_OUT", "CRP_FMLY_NTQ_CNT": "CRP_FMLY_NTQ_CNT_OUT", "CRP_FMLY_NTQ_MTH_BF_CNT": "CRP_FMLY_NTQ_MTH_BF_CNT_OUT", "CRP_FMLY_SIZE_NUM": "CRP_FMLY_SIZE_NUM_OUT", "CRP_FMLY_STL_OTHR_BF_CNT": "CRP_FMLY_STL_OTHR_BF_CNT_OUT", "CRP_FMLY_STL_OTHR_CNT": "CRP_FMLY_STL_OTHR_CNT_OUT", "CRP_FMLY_STL_OTHR_MTH_BF_CNT": "CRP_FMLY_STL_OTHR_MTH_BF_CNT_OUT", "CRP_HOS_PART_FMLY_BF_CNT": "CRP_HOS_PART_FMLY_BF_CNT_OUT", "CRP_HOS_PART_FMLY_CNT": "CRP_HOS_PART_FMLY_CNT_OUT", "CRP_HOS_PART_FMLY_MBR_BF_CNT": "CRP_HOS_PART_FMLY_MBR_BF_CNT_OUT", "CRP_HOS_PART_FMLY_MBR_CNT": "CRP_HOS_PART_FMLY_MBR_CNT_OUT", "CRP_HOS_PART_FMLY_MTH_BF_CNT": "CRP_HOS_PART_FMLY_MTH_BF_CNT_OUT", "CRP_HOS_PART_MBR_MTH_BF_CNT": "CRP_HOS_PART_MBR_MTH_BF_CNT_OUT", "CRP_HOS_WHL_FMLY_BF_CNT": "CRP_HOS_WHL_FMLY_BF_CNT_OUT", "CRP_HOS_WHL_FMLY_CNT": "CRP_HOS_WHL_FMLY_CNT_OUT", "CRP_HOS_WHL_FMLY_MBR_BF_CNT": "CRP_HOS_WHL_FMLY_MBR_BF_CNT_OUT", "CRP_HOS_WHL_FMLY_MBR_CNT": "CRP_HOS_WHL_FMLY_MBR_CNT_OUT", "CRP_HOS_WHL_FMLY_MTH_BF_CNT": "CRP_HOS_WHL_FMLY_MTH_BF_CNT_OUT", "CRP_HOS_WHL_MBR_MTH_BF_CNT": "CRP_HOS_WHL_MBR_MTH_BF_CNT_OUT", "CRP_HPLS_PART_FMLY_BF_CNT": "CRP_HPLS_PART_FMLY_BF_CNT_OUT", "CRP_HPLS_PART_FMLY_CNT": "CRP_HPLS_PART_FMLY_CNT_OUT", "CRP_HPLS_PART_FMLY_MBR_BF_CNT": "CRP_HPLS_PART_FMLY_MBR_BF_CNT_OUT", "CRP_HPLS_PART_FMLY_MBR_CNT": "CRP_HPLS_PART_FMLY_MBR_CNT_OUT", "CRP_HPLS_PART_FMLY_MTH_BF_CNT": "CRP_HPLS_PART_FMLY_MTH_BF_CNT_OUT", "CRP_HPLS_PART_MBR_MTH_BF_CNT": "CRP_HPLS_PART_MBR_MTH_BF_CNT_OUT", "CRP_HPLS_WHL_FMLY_BF_CNT": "CRP_HPLS_WHL_FMLY_BF_CNT_OUT", "CRP_HPLS_WHL_FMLY_CNT": "CRP_HPLS_WHL_FMLY_CNT_OUT", "CRP_HPLS_WHL_FMLY_MBR_BF_CNT": "CRP_HPLS_WHL_FMLY_MBR_BF_CNT_OUT", "CRP_HPLS_WHL_FMLY_MBR_CNT": "CRP_HPLS_WHL_FMLY_MBR_CNT_OUT", "CRP_HPLS_WHL_FMLY_MTH_BF_CNT": "CRP_HPLS_WHL_FMLY_MTH_BF_CNT_OUT", "CRP_HPLS_WHL_MBR_MTH_BF_CNT": "CRP_HPLS_WHL_MBR_MTH_BF_CNT_OUT", "CRP_INVLV_FMLY_BF_CNT": "CRP_INVLV_FMLY_BF_CNT_OUT", "CRP_INVLV_FMLY_CNT": "CRP_INVLV_FMLY_CNT_OUT", "CRP_INVLV_FMLY_MBR_BF_CNT": "CRP_INVLV_FMLY_MBR_BF_CNT_OUT", "CRP_INVLV_FMLY_MBR_CNT": "CRP_INVLV_FMLY_MBR_CNT_OUT", "CRP_INVLV_FMLY_MBR_MTH_BF_CNT": "CRP_INVLV_FMLY_MBR_MTH_BF_CNT_OUT", "CRP_INVLV_FMLY_MTH_BF_CNT": "CRP_INVLV_FMLY_MTH_BF_CNT_OUT", "CRP_LAST_EXTRC_DATE": "CRP_LAST_EXTRC_DATE_OUT", "CRP_LAST_MTH_EXTRC_DATE": "CRP_LAST_MTH_EXTRC_DATE_OUT", "CRP_MBR_STL_OTHR_MTH_BF_CNT": "CRP_MBR_STL_OTHR_MTH_BF_CNT_OUT", "CRP_OFR_MADE_BF_CNT": "CRP_OFR_MADE_BF_CNT_OUT", "CRP_OFR_MADE_CNT": "CRP_OFR_MADE_CNT_OUT", "CRP_OFR_MADE_MTH_BF_CNT": "CRP_OFR_MADE_MTH_BF_CNT_OUT", "CRP_REHSE_FLAT_BF_CNT": "CRP_REHSE_FLAT_BF_CNT_OUT", "CRP_REHSE_FLAT_CNT": "CRP_REHSE_FLAT_CNT_OUT", "CRP_REHSE_FLAT_MBR_BF_CNT": "CRP_REHSE_FLAT_MBR_BF_CNT_OUT", "CRP_REHSE_FLAT_MBR_CNT": "CRP_REHSE_FLAT_MBR_CNT_OUT", "CRP_REHSE_FLAT_MBR_MTH_BF_CNT": "CRP_REHSE_FLAT_MBR_MTH_BF_CNT_OUT", "CRP_REHSE_FLAT_MTH_BF_CNT": "CRP_REHSE_FLAT_MTH_BF_CNT_OUT", "DUMMY": "DUMMY", "HSE_BLK_KEY": "HSE_BLK_KEY_OUT", "HSE_EST_KEY": "HSE_EST_KEY_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "OPR_CODE": "OPR_CODE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HSE_EST_KEY', 'HSE_BLK_KEY', 'CRP_FMLY_SIZE_NUM', 'CRP_LAST_EXTRC_DATE', 'CRP_EXTRC_DATE', 'CRP_INVLV_FMLY_BF_CNT', 'CRP_INVLV_FMLY_CNT', 'CRP_INVLV_FMLY_MBR_BF_CNT', 'CRP_INVLV_FMLY_MBR_CNT', 'CRP_APLY_RCV_BF_CNT', 'CRP_APLY_RCV_CNT', 'CRP_APLY_MBR_RCV_BF_CNT', 'CRP_APLY_MBR_RCV_CNT', 'CRP_APLY_ACPT_BF_CNT', 'CRP_APLY_ACPT_CNT', 'CRP_APLY_MBR_ACPT_BF_CNT', 'CRP_APLY_MBR_ACPT_CNT', 'CRP_APLY_OFR_BF_CNT', 'CRP_APLY_OFR_CNT', 'CRP_APLY_MBR_OFR_BF_CNT', 'CRP_APLY_MBR_OFR_CNT', 'CRP_REHSE_FLAT_BF_CNT', 'CRP_REHSE_FLAT_CNT', 'CRP_REHSE_FLAT_MBR_BF_CNT', 'CRP_REHSE_FLAT_MBR_CNT', 'CRP_CSL_VCNCY_BF_CNT', 'CRP_CSL_VCNCY_CNT', 'CRP_CSL_VCNCY_MBR_BF_CNT', 'CRP_CSL_VCNCY_MBR_CNT', 'CRP_HOS_WHL_FMLY_BF_CNT', 'CRP_HOS_WHL_FMLY_CNT', 'CRP_HOS_WHL_FMLY_MBR_BF_CNT', 'CRP_HOS_WHL_FMLY_MBR_CNT', 'CRP_HOS_PART_FMLY_BF_CNT', 'CRP_HOS_PART_FMLY_CNT', 'CRP_HOS_PART_FMLY_MBR_BF_CNT', 'CRP_HOS_PART_FMLY_MBR_CNT', 'CRP_HPLS_WHL_FMLY_BF_CNT', 'CRP_HPLS_WHL_FMLY_CNT', 'CRP_HPLS_WHL_FMLY_MBR_BF_CNT', 'CRP_HPLS_WHL_FMLY_MBR_CNT', 'CRP_HPLS_PART_FMLY_BF_CNT', 'CRP_HPLS_PART_FMLY_CNT', 'CRP_HPLS_PART_FMLY_MBR_BF_CNT', 'CRP_HPLS_PART_FMLY_MBR_CNT', 'CRP_EXA_SGTN_BF_CNT', 'CRP_EXA_SGTN_CNT', 'CRP_EXA_SGTN_MBR_BF_CNT', 'CRP_EXA_SGTN_MBR_CNT', 'CRP_EXA_DBLTN_BF_CNT', 'CRP_EXA_DBLTN_CNT', 'CRP_EXA_DBLTN_MBR_BF_CNT', 'CRP_EXA_DBLTN_MBR_CNT', 'CRP_FMLY_NTQ_BF_CNT', 'CRP_FMLY_NTQ_CNT', 'CRP_FMLY_MBR_NTQ_BF_CNT', 'CRP_FMLY_MBR_NTQ_CNT', 'CRP_FMLY_STL_OTHR_BF_CNT', 'CRP_FMLY_STL_OTHR_CNT', 'CRP_FMLY_MBR_STL_OTHR_BF_CNT', 'CRP_FMLY_MBR_STL_OTHR_CNT', 'CRP_OFR_MADE_BF_CNT', 'CRP_OFR_MADE_CNT', 'CRP_LAST_MTH_EXTRC_DATE', 'CRP_INVLV_FMLY_MTH_BF_CNT', 'CRP_INVLV_FMLY_MBR_MTH_BF_CNT', 'CRP_APLY_RCV_MTH_BF_CNT', 'CRP_APLY_MBR_RCV_MTH_BF_CNT', 'CRP_APLY_ACPT_MTH_BF_CNT', 'CRP_APLY_MBR_ACPT_MTH_BF_CNT', 'CRP_APLY_OFR_MTH_BF_CNT', 'CRP_APLY_MBR_OFR_MTH_BF_CNT', 'CRP_REHSE_FLAT_MTH_BF_CNT', 'CRP_REHSE_FLAT_MBR_MTH_BF_CNT', 'CRP_CSL_VCNCY_MTH_BF_CNT', 'CRP_CSL_VCNCY_MBR_MTH_BF_CNT', 'CRP_HOS_WHL_FMLY_MTH_BF_CNT', 'CRP_HOS_WHL_MBR_MTH_BF_CNT', 'CRP_HOS_PART_FMLY_MTH_BF_CNT', 'CRP_HOS_PART_MBR_MTH_BF_CNT', 'CRP_HPLS_WHL_FMLY_MTH_BF_CNT', 'CRP_HPLS_WHL_MBR_MTH_BF_CNT', 'CRP_HPLS_PART_FMLY_MTH_BF_CNT', 'CRP_HPLS_PART_MBR_MTH_BF_CNT', 'CRP_EXA_SGTN_MTH_BF_CNT', 'CRP_EXA_SGTN_MBR_MTH_BF_CNT', 'CRP_EXA_DBLTN_MTH_BF_CNT', 'CRP_EXA_DBLTN_MBR_MTH_BF_CNT', 'CRP_FMLY_NTQ_MTH_BF_CNT', 'CRP_FMLY_MBR_NTQ_MTH_BF_CNT', 'CRP_FMLY_STL_OTHR_MTH_BF_CNT', 'CRP_MBR_STL_OTHR_MTH_BF_CNT', 'CRP_OFR_MADE_MTH_BF_CNT', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'OPR_CODE', 'DUMMY']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_POR_CRP_STAT1", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_POR_CRP_STAT1',
+            mode='append',
+            source_columns=[
+                'HSE_EST_KEY_OUT',
+                'HSE_BLK_KEY_OUT',
+                'CRP_FMLY_SIZE_NUM_OUT',
+                'CRP_LAST_EXTRC_DATE_OUT',
+                'CRP_EXTRC_DATE_OUT',
+                'CRP_INVLV_FMLY_BF_CNT_OUT',
+                'CRP_INVLV_FMLY_CNT_OUT',
+                'CRP_INVLV_FMLY_MBR_BF_CNT_OUT',
+                'CRP_INVLV_FMLY_MBR_CNT_OUT',
+                'CRP_APLY_RCV_BF_CNT_OUT',
+                'CRP_APLY_RCV_CNT_OUT',
+                'CRP_APLY_MBR_RCV_BF_CNT_OUT',
+                'CRP_APLY_MBR_RCV_CNT_OUT',
+                'CRP_APLY_ACPT_BF_CNT_OUT',
+                'CRP_APLY_ACPT_CNT_OUT',
+                'CRP_APLY_MBR_ACPT_BF_CNT_OUT',
+                'CRP_APLY_MBR_ACPT_CNT_OUT',
+                'CRP_APLY_OFR_BF_CNT_OUT',
+                'CRP_APLY_OFR_CNT_OUT',
+                'CRP_APLY_MBR_OFR_BF_CNT_OUT',
+                'CRP_APLY_MBR_OFR_CNT_OUT',
+                'CRP_REHSE_FLAT_BF_CNT_OUT',
+                'CRP_REHSE_FLAT_CNT_OUT',
+                'CRP_REHSE_FLAT_MBR_BF_CNT_OUT',
+                'CRP_REHSE_FLAT_MBR_CNT_OUT',
+                'CRP_CSL_VCNCY_BF_CNT_OUT',
+                'CRP_CSL_VCNCY_CNT_OUT',
+                'CRP_CSL_VCNCY_MBR_BF_CNT_OUT',
+                'CRP_CSL_VCNCY_MBR_CNT_OUT',
+                'CRP_HOS_WHL_FMLY_BF_CNT_OUT',
+                'CRP_HOS_WHL_FMLY_CNT_OUT',
+                'CRP_HOS_WHL_FMLY_MBR_BF_CNT_OUT',
+                'CRP_HOS_WHL_FMLY_MBR_CNT_OUT',
+                'CRP_HOS_PART_FMLY_BF_CNT_OUT',
+                'CRP_HOS_PART_FMLY_CNT_OUT',
+                'CRP_HOS_PART_FMLY_MBR_BF_CNT_OUT',
+                'CRP_HOS_PART_FMLY_MBR_CNT_OUT',
+                'CRP_HPLS_WHL_FMLY_BF_CNT_OUT',
+                'CRP_HPLS_WHL_FMLY_CNT_OUT',
+                'CRP_HPLS_WHL_FMLY_MBR_BF_CNT_OUT',
+                'CRP_HPLS_WHL_FMLY_MBR_CNT_OUT',
+                'CRP_HPLS_PART_FMLY_BF_CNT_OUT',
+                'CRP_HPLS_PART_FMLY_CNT_OUT',
+                'CRP_HPLS_PART_FMLY_MBR_BF_CNT_OUT',
+                'CRP_HPLS_PART_FMLY_MBR_CNT_OUT',
+                'CRP_EXA_SGTN_BF_CNT_OUT',
+                'CRP_EXA_SGTN_CNT_OUT',
+                'CRP_EXA_SGTN_MBR_BF_CNT_OUT',
+                'CRP_EXA_SGTN_MBR_CNT_OUT',
+                'CRP_EXA_DBLTN_BF_CNT_OUT',
+                'CRP_EXA_DBLTN_CNT_OUT',
+                'CRP_EXA_DBLTN_MBR_BF_CNT_OUT',
+                'CRP_EXA_DBLTN_MBR_CNT_OUT',
+                'CRP_FMLY_NTQ_BF_CNT_OUT',
+                'CRP_FMLY_NTQ_CNT_OUT',
+                'CRP_FMLY_MBR_NTQ_BF_CNT_OUT',
+                'CRP_FMLY_MBR_NTQ_CNT_OUT',
+                'CRP_FMLY_STL_OTHR_BF_CNT_OUT',
+                'CRP_FMLY_STL_OTHR_CNT_OUT',
+                'CRP_FMLY_MBR_STL_OTHR_BF_CNT_OUT',
+                'CRP_FMLY_MBR_STL_OTHR_CNT_OUT',
+                'CRP_OFR_MADE_BF_CNT_OUT',
+                'CRP_OFR_MADE_CNT_OUT',
+                'CRP_LAST_MTH_EXTRC_DATE_OUT',
+                'CRP_INVLV_FMLY_MTH_BF_CNT_OUT',
+                'CRP_INVLV_FMLY_MBR_MTH_BF_CNT_OUT',
+                'CRP_APLY_RCV_MTH_BF_CNT_OUT',
+                'CRP_APLY_MBR_RCV_MTH_BF_CNT_OUT',
+                'CRP_APLY_ACPT_MTH_BF_CNT_OUT',
+                'CRP_APLY_MBR_ACPT_MTH_BF_CNT_OUT',
+                'CRP_APLY_OFR_MTH_BF_CNT_OUT',
+                'CRP_APLY_MBR_OFR_MTH_BF_CNT_OUT',
+                'CRP_REHSE_FLAT_MTH_BF_CNT_OUT',
+                'CRP_REHSE_FLAT_MBR_MTH_BF_CNT_OUT',
+                'CRP_CSL_VCNCY_MTH_BF_CNT_OUT',
+                'CRP_CSL_VCNCY_MBR_MTH_BF_CNT_OUT',
+                'CRP_HOS_WHL_FMLY_MTH_BF_CNT_OUT',
+                'CRP_HOS_WHL_MBR_MTH_BF_CNT_OUT',
+                'CRP_HOS_PART_FMLY_MTH_BF_CNT_OUT',
+                'CRP_HOS_PART_MBR_MTH_BF_CNT_OUT',
+                'CRP_HPLS_WHL_FMLY_MTH_BF_CNT_OUT',
+                'CRP_HPLS_WHL_MBR_MTH_BF_CNT_OUT',
+                'CRP_HPLS_PART_FMLY_MTH_BF_CNT_OUT',
+                'CRP_HPLS_PART_MBR_MTH_BF_CNT_OUT',
+                'CRP_EXA_SGTN_MTH_BF_CNT_OUT',
+                'CRP_EXA_SGTN_MBR_MTH_BF_CNT_OUT',
+                'CRP_EXA_DBLTN_MTH_BF_CNT_OUT',
+                'CRP_EXA_DBLTN_MBR_MTH_BF_CNT_OUT',
+                'CRP_FMLY_NTQ_MTH_BF_CNT_OUT',
+                'CRP_FMLY_MBR_NTQ_MTH_BF_CNT_OUT',
+                'CRP_FMLY_STL_OTHR_MTH_BF_CNT_OUT',
+                'CRP_MBR_STL_OTHR_MTH_BF_CNT_OUT',
+                'CRP_OFR_MADE_MTH_BF_CNT_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'OPR_CODE_OUT',
+                'DUMMY',
+            ],
+            target_columns=[
+                'HSE_EST_KEY',
+                'HSE_BLK_KEY',
+                'CRP_FMLY_SIZE_NUM',
+                'CRP_LAST_EXTRC_DATE',
+                'CRP_EXTRC_DATE',
+                'CRP_INVLV_FMLY_BF_CNT',
+                'CRP_INVLV_FMLY_CNT',
+                'CRP_INVLV_FMLY_MBR_BF_CNT',
+                'CRP_INVLV_FMLY_MBR_CNT',
+                'CRP_APLY_RCV_BF_CNT',
+                'CRP_APLY_RCV_CNT',
+                'CRP_APLY_MBR_RCV_BF_CNT',
+                'CRP_APLY_MBR_RCV_CNT',
+                'CRP_APLY_ACPT_BF_CNT',
+                'CRP_APLY_ACPT_CNT',
+                'CRP_APLY_MBR_ACPT_BF_CNT',
+                'CRP_APLY_MBR_ACPT_CNT',
+                'CRP_APLY_OFR_BF_CNT',
+                'CRP_APLY_OFR_CNT',
+                'CRP_APLY_MBR_OFR_BF_CNT',
+                'CRP_APLY_MBR_OFR_CNT',
+                'CRP_REHSE_FLAT_BF_CNT',
+                'CRP_REHSE_FLAT_CNT',
+                'CRP_REHSE_FLAT_MBR_BF_CNT',
+                'CRP_REHSE_FLAT_MBR_CNT',
+                'CRP_CSL_VCNCY_BF_CNT',
+                'CRP_CSL_VCNCY_CNT',
+                'CRP_CSL_VCNCY_MBR_BF_CNT',
+                'CRP_CSL_VCNCY_MBR_CNT',
+                'CRP_HOS_WHL_FMLY_BF_CNT',
+                'CRP_HOS_WHL_FMLY_CNT',
+                'CRP_HOS_WHL_FMLY_MBR_BF_CNT',
+                'CRP_HOS_WHL_FMLY_MBR_CNT',
+                'CRP_HOS_PART_FMLY_BF_CNT',
+                'CRP_HOS_PART_FMLY_CNT',
+                'CRP_HOS_PART_FMLY_MBR_BF_CNT',
+                'CRP_HOS_PART_FMLY_MBR_CNT',
+                'CRP_HPLS_WHL_FMLY_BF_CNT',
+                'CRP_HPLS_WHL_FMLY_CNT',
+                'CRP_HPLS_WHL_FMLY_MBR_BF_CNT',
+                'CRP_HPLS_WHL_FMLY_MBR_CNT',
+                'CRP_HPLS_PART_FMLY_BF_CNT',
+                'CRP_HPLS_PART_FMLY_CNT',
+                'CRP_HPLS_PART_FMLY_MBR_BF_CNT',
+                'CRP_HPLS_PART_FMLY_MBR_CNT',
+                'CRP_EXA_SGTN_BF_CNT',
+                'CRP_EXA_SGTN_CNT',
+                'CRP_EXA_SGTN_MBR_BF_CNT',
+                'CRP_EXA_SGTN_MBR_CNT',
+                'CRP_EXA_DBLTN_BF_CNT',
+                'CRP_EXA_DBLTN_CNT',
+                'CRP_EXA_DBLTN_MBR_BF_CNT',
+                'CRP_EXA_DBLTN_MBR_CNT',
+                'CRP_FMLY_NTQ_BF_CNT',
+                'CRP_FMLY_NTQ_CNT',
+                'CRP_FMLY_MBR_NTQ_BF_CNT',
+                'CRP_FMLY_MBR_NTQ_CNT',
+                'CRP_FMLY_STL_OTHR_BF_CNT',
+                'CRP_FMLY_STL_OTHR_CNT',
+                'CRP_FMLY_MBR_STL_OTHR_BF_CNT',
+                'CRP_FMLY_MBR_STL_OTHR_CNT',
+                'CRP_OFR_MADE_BF_CNT',
+                'CRP_OFR_MADE_CNT',
+                'CRP_LAST_MTH_EXTRC_DATE',
+                'CRP_INVLV_FMLY_MTH_BF_CNT',
+                'CRP_INVLV_FMLY_MBR_MTH_BF_CNT',
+                'CRP_APLY_RCV_MTH_BF_CNT',
+                'CRP_APLY_MBR_RCV_MTH_BF_CNT',
+                'CRP_APLY_ACPT_MTH_BF_CNT',
+                'CRP_APLY_MBR_ACPT_MTH_BF_CNT',
+                'CRP_APLY_OFR_MTH_BF_CNT',
+                'CRP_APLY_MBR_OFR_MTH_BF_CNT',
+                'CRP_REHSE_FLAT_MTH_BF_CNT',
+                'CRP_REHSE_FLAT_MBR_MTH_BF_CNT',
+                'CRP_CSL_VCNCY_MTH_BF_CNT',
+                'CRP_CSL_VCNCY_MBR_MTH_BF_CNT',
+                'CRP_HOS_WHL_FMLY_MTH_BF_CNT',
+                'CRP_HOS_WHL_MBR_MTH_BF_CNT',
+                'CRP_HOS_PART_FMLY_MTH_BF_CNT',
+                'CRP_HOS_PART_MBR_MTH_BF_CNT',
+                'CRP_HPLS_WHL_FMLY_MTH_BF_CNT',
+                'CRP_HPLS_WHL_MBR_MTH_BF_CNT',
+                'CRP_HPLS_PART_FMLY_MTH_BF_CNT',
+                'CRP_HPLS_PART_MBR_MTH_BF_CNT',
+                'CRP_EXA_SGTN_MTH_BF_CNT',
+                'CRP_EXA_SGTN_MBR_MTH_BF_CNT',
+                'CRP_EXA_DBLTN_MTH_BF_CNT',
+                'CRP_EXA_DBLTN_MBR_MTH_BF_CNT',
+                'CRP_FMLY_NTQ_MTH_BF_CNT',
+                'CRP_FMLY_MBR_NTQ_MTH_BF_CNT',
+                'CRP_FMLY_STL_OTHR_MTH_BF_CNT',
+                'CRP_MBR_STL_OTHR_MTH_BF_CNT',
+                'CRP_OFR_MADE_MTH_BF_CNT',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'OPR_CODE',
+                'DUMMY',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_POR_CRP_STAT1 write completed")
         

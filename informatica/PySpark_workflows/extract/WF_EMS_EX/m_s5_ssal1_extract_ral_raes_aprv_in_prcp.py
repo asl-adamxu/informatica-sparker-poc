@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_RAL_RAES_APRV_IN_PRCP")
@@ -79,113 +64,357 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_RAL_RAES_APRV_IN_PRCP")
         # Source Qualifier: apply_SQ_RAL_RAES_APRV_IN_PRCP
         df_SQ_RAL_RAES_APRV_IN_PRCP = df_RAL_RAES_APRV_IN_PRCP
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_RAL_RAES_APRV_IN_PRCP = df_SQ_RAL_RAES_APRV_IN_PRCP.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HSE_SRVC_APLY_NUM", "RAES_APRV_DATE", "RAES_APRV_STS_CODE", "ALWN_BGN_DATE", "ALWN_END_DATE", "AIP_REF_NUM", "AIP_ISS_DATE", "AIP_END_DATE", "TA_CMNC_DATE", "TA_TRMT_DATE", "LES_APRV_DATE", "PYMT_APRV_DATE", "PRH_OPT_DATE", "RMDR_LTR_BU_DATE", "RNW_BU_DATE", "SHR_NUM", "TOT_RENT_AMT", "HA_ALWN_AMT", "SPCL_GRNT_IND", "SPCL_GRNT_ALWN_AMT", "CSSA_IND", "CSSA_REF_NUM", "CSSA_RNTL_SPLM_AMT", "TA_AGNT_FEE_AMT", "TA_DPST_AMT", "TA_STMP_DUTY_AMT", "BANK_BRCH_CODE", "BANK_CODE", "BANK_ACCT_NUM", "PYMT_MTHD_TYPE_CODE", "RAES_APRV_HOME_FLAT_NUM", "RAES_APRV_HOME_FLR_NUM", "RAES_APRV_HOME_BLK_NUM", "RAES_APRV_HOME_BLDG_NAME", "RAES_APRV_HOME_STRT_NAME", "RAES_APRV_HOME_DSTR_CODE", "RAES_APRV_HOME_DSTR_NAME", "RAES_APRV_HOME_CODE_ADDR", "RAES_APRV_HOME_PHONE_NUM", "RAES_APRV_PRH_BU_DATE", "RAES_APRV_EAS_IND", "RAES_APRV_EAS_ALWN_AMT", "RAES_APRV_APLY_RENT_PYMT_AMT", "RAES_APRV_ACCT_HLDR_NAME_1", "RAES_APRV_ACCT_HLDR_NAME_2", "RAES_APRV_ACCT_HLDR_NAME_3", "RAES_APRV_ACCT_HLDR_NAME_4", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID"]
-        df_SQ_RAL_RAES_APRV_IN_PRCP = df_SQ_RAL_RAES_APRV_IN_PRCP.select([col(c) if c.lower() in [x.lower() for x in df_SQ_RAL_RAES_APRV_IN_PRCP.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_RAL_RAES_APRV_IN_PRCP = lib.sq_output(
+            input_df=df_SQ_RAL_RAES_APRV_IN_PRCP,
+            port_cols={
+                'HSE_SRVC_APLY_NUM': 'string',
+                'RAES_APRV_DATE': 'date/time',
+                'RAES_APRV_STS_CODE': 'string',
+                'ALWN_BGN_DATE': 'date/time',
+                'ALWN_END_DATE': 'date/time',
+                'AIP_REF_NUM': 'string',
+                'AIP_ISS_DATE': 'date/time',
+                'AIP_END_DATE': 'date/time',
+                'TA_CMNC_DATE': 'date/time',
+                'TA_TRMT_DATE': 'date/time',
+                'LES_APRV_DATE': 'date/time',
+                'PYMT_APRV_DATE': 'date/time',
+                'PRH_OPT_DATE': 'date/time',
+                'RMDR_LTR_BU_DATE': 'date/time',
+                'RNW_BU_DATE': 'date/time',
+                'SHR_NUM': 'decimal',
+                'TOT_RENT_AMT': 'decimal',
+                'HA_ALWN_AMT': 'decimal',
+                'SPCL_GRNT_IND': 'string',
+                'SPCL_GRNT_ALWN_AMT': 'decimal',
+                'CSSA_IND': 'string',
+                'CSSA_REF_NUM': 'string',
+                'CSSA_RNTL_SPLM_AMT': 'decimal',
+                'TA_AGNT_FEE_AMT': 'decimal',
+                'TA_DPST_AMT': 'decimal',
+                'TA_STMP_DUTY_AMT': 'decimal',
+                'BANK_BRCH_CODE': 'string',
+                'BANK_CODE': 'string',
+                'BANK_ACCT_NUM': 'string',
+                'PYMT_MTHD_TYPE_CODE': 'string',
+                'RAES_APRV_HOME_FLAT_NUM': 'string',
+                'RAES_APRV_HOME_FLR_NUM': 'string',
+                'RAES_APRV_HOME_BLK_NUM': 'string',
+                'RAES_APRV_HOME_BLDG_NAME': 'string',
+                'RAES_APRV_HOME_STRT_NAME': 'string',
+                'RAES_APRV_HOME_DSTR_CODE': 'string',
+                'RAES_APRV_HOME_DSTR_NAME': 'string',
+                'RAES_APRV_HOME_CODE_ADDR': 'string',
+                'RAES_APRV_HOME_PHONE_NUM': 'string',
+                'RAES_APRV_PRH_BU_DATE': 'date/time',
+                'RAES_APRV_EAS_IND': 'string',
+                'RAES_APRV_EAS_ALWN_AMT': 'decimal',
+                'RAES_APRV_APLY_RENT_PYMT_AMT': 'decimal',
+                'RAES_APRV_ACCT_HLDR_NAME_1': 'string',
+                'RAES_APRV_ACCT_HLDR_NAME_2': 'string',
+                'RAES_APRV_ACCT_HLDR_NAME_3': 'string',
+                'RAES_APRV_ACCT_HLDR_NAME_4': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'string',
+                'LAST_REC_TXN_USER_ID': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_RAL_RAES_APRV_IN_PRCP", df_SQ_RAL_RAES_APRV_IN_PRCP)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_RAL_RAES_APRV_IN_PRCP
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_SRVC_APLY_NUM_OUT", expr("ltrim(rtrim(HSE_SRVC_APLY_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APRV_DATE_OUT", expr("RAES_APRV_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APRV_STS_CODE_OUT", expr("ltrim(rtrim(RAES_APRV_STS_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ALWN_BGN_DATE_OUT", expr("ALWN_BGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ALWN_END_DATE_OUT", expr("ALWN_END_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("AIP_REF_NUM_OUT", expr("ltrim(rtrim(AIP_REF_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("AIP_ISS_DATE_OUT", expr("AIP_ISS_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("AIP_END_DATE_OUT", expr("AIP_END_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TA_CMNC_DATE_OUT", expr("TA_CMNC_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TA_TRMT_DATE_OUT", expr("TA_TRMT_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LES_APRV_DATE_OUT", expr("LES_APRV_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PYMT_APRV_DATE_OUT", expr("PYMT_APRV_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PRH_OPT_DATE_OUT", expr("PRH_OPT_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RMDR_LTR_BU_DATE_OUT", expr("RMDR_LTR_BU_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RNW_BU_DATE_OUT", expr("RNW_BU_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("SHR_NUM_OUT", expr("SHR_NUM"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TOT_RENT_AMT_OUT", expr("TOT_RENT_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HA_ALWN_AMT_OUT", expr("HA_ALWN_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("SPCL_GRNT_IND_OUT", expr("ltrim(rtrim(SPCL_GRNT_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("SPCL_GRNT_ALWN_AMT_OUT", expr("SPCL_GRNT_ALWN_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CSSA_IND_OUT", expr("ltrim(rtrim(CSSA_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CSSA_REF_NUM_OUT", expr("ltrim(rtrim(CSSA_REF_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CSSA_RNTL_SPLM_AMT_OUT", expr("CSSA_RNTL_SPLM_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TA_AGNT_FEE_AMT_OUT", expr("TA_AGNT_FEE_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TA_DPST_AMT_OUT", expr("TA_DPST_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TA_STMP_DUTY_AMT_OUT", expr("TA_STMP_DUTY_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("BANK_BRCH_CODE_OUT", expr("ltrim(rtrim(BANK_BRCH_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("BANK_CODE_OUT", expr("ltrim(rtrim(BANK_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("BANK_ACCT_NUM_OUT", expr("ltrim(rtrim(BANK_ACCT_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PYMT_MTHD_TYPE_CODE_OUT", expr("ltrim(rtrim(PYMT_MTHD_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APRV_HOME_FLAT_NUM_OUT", expr("ltrim(rtrim(RAES_APRV_HOME_FLAT_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APRV_HOME_FLR_NUM_OUT", expr("ltrim(rtrim(RAES_APRV_HOME_FLR_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APRV_HOME_BLK_NUM_OUT", expr("ltrim(rtrim(RAES_APRV_HOME_BLK_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APRV_HOME_BLDG_NAME_OUT", expr("ltrim(rtrim(RAES_APRV_HOME_BLDG_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APRV_HOME_STRT_NAME_OUT", expr("ltrim(rtrim(RAES_APRV_HOME_STRT_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APRV_HOME_DSTR_CODE_OUT", expr("ltrim(rtrim(RAES_APRV_HOME_DSTR_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APRV_HOME_DSTR_NAME_OUT", expr("ltrim(rtrim(RAES_APRV_HOME_DSTR_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APRV_HOME_CODE_ADDR_OUT", expr("ltrim(rtrim(RAES_APRV_HOME_CODE_ADDR))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APRV_HOME_PHONE_NUM_OUT", expr("ltrim(rtrim(RAES_APRV_HOME_PHONE_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APRV_PRH_BU_DATE_OUT", expr("RAES_APRV_PRH_BU_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APRV_EAS_IND_OUT", expr("ltrim(rtrim(RAES_APRV_EAS_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APRV_EAS_ALWN_AMT_OUT", expr("RAES_APRV_EAS_ALWN_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APRV_APLY_RENT_PYMT_AMT_OUT", expr("RAES_APRV_APLY_RENT_PYMT_AMT"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APRV_ACCT_HLDR_NAME_1_OUT", expr("ltrim(rtrim(RAES_APRV_ACCT_HLDR_NAME_1))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APRV_ACCT_HLDR_NAME_2_OUT", expr("ltrim(rtrim(RAES_APRV_ACCT_HLDR_NAME_2))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APRV_ACCT_HLDR_NAME_3_OUT", expr("ltrim(rtrim(RAES_APRV_ACCT_HLDR_NAME_3))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RAES_APRV_ACCT_HLDR_NAME_4_OUT", expr("ltrim(rtrim(RAES_APRV_ACCT_HLDR_NAME_4))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE_OUT", expr("LAST_REC_TXN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("'|'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_RAL_RAES_APRV_IN_PRCP,
+            computed_columns=[
+                {'name': 'HSE_SRVC_APLY_NUM_OUT', 'expr': 'ltrim(rtrim(HSE_SRVC_APLY_NUM))'},
+                {'name': 'RAES_APRV_DATE_OUT', 'expr': 'RAES_APRV_DATE'},
+                {'name': 'RAES_APRV_STS_CODE_OUT', 'expr': 'ltrim(rtrim(RAES_APRV_STS_CODE))'},
+                {'name': 'ALWN_BGN_DATE_OUT', 'expr': 'ALWN_BGN_DATE'},
+                {'name': 'ALWN_END_DATE_OUT', 'expr': 'ALWN_END_DATE'},
+                {'name': 'AIP_REF_NUM_OUT', 'expr': 'ltrim(rtrim(AIP_REF_NUM))'},
+                {'name': 'AIP_ISS_DATE_OUT', 'expr': 'AIP_ISS_DATE'},
+                {'name': 'AIP_END_DATE_OUT', 'expr': 'AIP_END_DATE'},
+                {'name': 'TA_CMNC_DATE_OUT', 'expr': 'TA_CMNC_DATE'},
+                {'name': 'TA_TRMT_DATE_OUT', 'expr': 'TA_TRMT_DATE'},
+                {'name': 'LES_APRV_DATE_OUT', 'expr': 'LES_APRV_DATE'},
+                {'name': 'PYMT_APRV_DATE_OUT', 'expr': 'PYMT_APRV_DATE'},
+                {'name': 'PRH_OPT_DATE_OUT', 'expr': 'PRH_OPT_DATE'},
+                {'name': 'RMDR_LTR_BU_DATE_OUT', 'expr': 'RMDR_LTR_BU_DATE'},
+                {'name': 'RNW_BU_DATE_OUT', 'expr': 'RNW_BU_DATE'},
+                {'name': 'SHR_NUM_OUT', 'expr': 'SHR_NUM'},
+                {'name': 'TOT_RENT_AMT_OUT', 'expr': 'TOT_RENT_AMT'},
+                {'name': 'HA_ALWN_AMT_OUT', 'expr': 'HA_ALWN_AMT'},
+                {'name': 'SPCL_GRNT_IND_OUT', 'expr': 'ltrim(rtrim(SPCL_GRNT_IND))'},
+                {'name': 'SPCL_GRNT_ALWN_AMT_OUT', 'expr': 'SPCL_GRNT_ALWN_AMT'},
+                {'name': 'CSSA_IND_OUT', 'expr': 'ltrim(rtrim(CSSA_IND))'},
+                {'name': 'CSSA_REF_NUM_OUT', 'expr': 'ltrim(rtrim(CSSA_REF_NUM))'},
+                {'name': 'CSSA_RNTL_SPLM_AMT_OUT', 'expr': 'CSSA_RNTL_SPLM_AMT'},
+                {'name': 'TA_AGNT_FEE_AMT_OUT', 'expr': 'TA_AGNT_FEE_AMT'},
+                {'name': 'TA_DPST_AMT_OUT', 'expr': 'TA_DPST_AMT'},
+                {'name': 'TA_STMP_DUTY_AMT_OUT', 'expr': 'TA_STMP_DUTY_AMT'},
+                {'name': 'BANK_BRCH_CODE_OUT', 'expr': 'ltrim(rtrim(BANK_BRCH_CODE))'},
+                {'name': 'BANK_CODE_OUT', 'expr': 'ltrim(rtrim(BANK_CODE))'},
+                {'name': 'BANK_ACCT_NUM_OUT', 'expr': 'ltrim(rtrim(BANK_ACCT_NUM))'},
+                {'name': 'PYMT_MTHD_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(PYMT_MTHD_TYPE_CODE))'},
+                {'name': 'RAES_APRV_HOME_FLAT_NUM_OUT', 'expr': 'ltrim(rtrim(RAES_APRV_HOME_FLAT_NUM))'},
+                {'name': 'RAES_APRV_HOME_FLR_NUM_OUT', 'expr': 'ltrim(rtrim(RAES_APRV_HOME_FLR_NUM))'},
+                {'name': 'RAES_APRV_HOME_BLK_NUM_OUT', 'expr': 'ltrim(rtrim(RAES_APRV_HOME_BLK_NUM))'},
+                {'name': 'RAES_APRV_HOME_BLDG_NAME_OUT', 'expr': 'ltrim(rtrim(RAES_APRV_HOME_BLDG_NAME))'},
+                {'name': 'RAES_APRV_HOME_STRT_NAME_OUT', 'expr': 'ltrim(rtrim(RAES_APRV_HOME_STRT_NAME))'},
+                {'name': 'RAES_APRV_HOME_DSTR_CODE_OUT', 'expr': 'ltrim(rtrim(RAES_APRV_HOME_DSTR_CODE))'},
+                {'name': 'RAES_APRV_HOME_DSTR_NAME_OUT', 'expr': 'ltrim(rtrim(RAES_APRV_HOME_DSTR_NAME))'},
+                {'name': 'RAES_APRV_HOME_CODE_ADDR_OUT', 'expr': 'ltrim(rtrim(RAES_APRV_HOME_CODE_ADDR))'},
+                {'name': 'RAES_APRV_HOME_PHONE_NUM_OUT', 'expr': 'ltrim(rtrim(RAES_APRV_HOME_PHONE_NUM))'},
+                {'name': 'RAES_APRV_PRH_BU_DATE_OUT', 'expr': 'RAES_APRV_PRH_BU_DATE'},
+                {'name': 'RAES_APRV_EAS_IND_OUT', 'expr': 'ltrim(rtrim(RAES_APRV_EAS_IND))'},
+                {'name': 'RAES_APRV_EAS_ALWN_AMT_OUT', 'expr': 'RAES_APRV_EAS_ALWN_AMT'},
+                {'name': 'RAES_APRV_APLY_RENT_PYMT_AMT_OUT', 'expr': 'RAES_APRV_APLY_RENT_PYMT_AMT'},
+                {'name': 'RAES_APRV_ACCT_HLDR_NAME_1_OUT', 'expr': 'ltrim(rtrim(RAES_APRV_ACCT_HLDR_NAME_1))'},
+                {'name': 'RAES_APRV_ACCT_HLDR_NAME_2_OUT', 'expr': 'ltrim(rtrim(RAES_APRV_ACCT_HLDR_NAME_2))'},
+                {'name': 'RAES_APRV_ACCT_HLDR_NAME_3_OUT', 'expr': 'ltrim(rtrim(RAES_APRV_ACCT_HLDR_NAME_3))'},
+                {'name': 'RAES_APRV_ACCT_HLDR_NAME_4_OUT', 'expr': 'ltrim(rtrim(RAES_APRV_ACCT_HLDR_NAME_4))'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_DATE_OUT', 'expr': 'LAST_REC_TXN_DATE'},
+                {'name': 'LAST_REC_TXN_USER_ID_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID))'},
+                {'name': 'DUMMY', 'expr': "'|'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EMS_RAL_RAES_APRV_IN_PRCP")
         # Write to Target: write_EMS_RAL_RAES_APRV_IN_PRCP
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AIP_END_DATE": "AIP_END_DATE_OUT", "AIP_ISS_DATE": "AIP_ISS_DATE_OUT", "AIP_REF_NUM": "AIP_REF_NUM_OUT", "ALWN_BGN_DATE": "ALWN_BGN_DATE_OUT", "ALWN_END_DATE": "ALWN_END_DATE_OUT", "BANK_ACCT_NUM": "BANK_ACCT_NUM_OUT", "BANK_BRCH_CODE": "BANK_BRCH_CODE_OUT", "BANK_CODE": "BANK_CODE_OUT", "CSSA_IND": "CSSA_IND_OUT", "CSSA_REF_NUM": "CSSA_REF_NUM_OUT", "CSSA_RNTL_SPLM_AMT": "CSSA_RNTL_SPLM_AMT_OUT", "HA_ALWN_AMT": "HA_ALWN_AMT_OUT", "HSE_SRVC_APLY_NUM": "HSE_SRVC_APLY_NUM_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "LES_APRV_DATE": "LES_APRV_DATE_OUT", "PRH_OPT_DATE": "PRH_OPT_DATE_OUT", "PYMT_APRV_DATE": "PYMT_APRV_DATE_OUT", "PYMT_MTHD_TYPE_CODE": "PYMT_MTHD_TYPE_CODE_OUT", "RAES_APRV_ACCT_HLDR_NAME_1": "RAES_APRV_ACCT_HLDR_NAME_1_OUT", "RAES_APRV_ACCT_HLDR_NAME_2": "RAES_APRV_ACCT_HLDR_NAME_2_OUT", "RAES_APRV_ACCT_HLDR_NAME_3": "RAES_APRV_ACCT_HLDR_NAME_3_OUT", "RAES_APRV_ACCT_HLDR_NAME_4": "RAES_APRV_ACCT_HLDR_NAME_4_OUT", "RAES_APRV_APLY_RENT_PYMT_AMT": "RAES_APRV_APLY_RENT_PYMT_AMT_OUT", "RAES_APRV_DATE": "RAES_APRV_DATE_OUT", "RAES_APRV_EAS_ALWN_AMT": "RAES_APRV_EAS_ALWN_AMT_OUT", "RAES_APRV_EAS_IND": "RAES_APRV_EAS_IND_OUT", "RAES_APRV_HOME_BLDG_NAME": "RAES_APRV_HOME_BLDG_NAME_OUT", "RAES_APRV_HOME_BLK_NUM": "RAES_APRV_HOME_BLK_NUM_OUT", "RAES_APRV_HOME_CODE_ADDR": "RAES_APRV_HOME_CODE_ADDR_OUT", "RAES_APRV_HOME_DSTR_CODE": "RAES_APRV_HOME_DSTR_CODE_OUT", "RAES_APRV_HOME_DSTR_NAME": "RAES_APRV_HOME_DSTR_NAME_OUT", "RAES_APRV_HOME_FLAT_NUM": "RAES_APRV_HOME_FLAT_NUM_OUT", "RAES_APRV_HOME_FLR_NUM": "RAES_APRV_HOME_FLR_NUM_OUT", "RAES_APRV_HOME_PHONE_NUM": "RAES_APRV_HOME_PHONE_NUM_OUT", "RAES_APRV_HOME_STRT_NAME": "RAES_APRV_HOME_STRT_NAME_OUT", "RAES_APRV_PRH_BU_DATE": "RAES_APRV_PRH_BU_DATE_OUT", "RAES_APRV_STS_CODE": "RAES_APRV_STS_CODE_OUT", "RMDR_LTR_BU_DATE": "RMDR_LTR_BU_DATE_OUT", "RNW_BU_DATE": "RNW_BU_DATE_OUT", "SHR_NUM": "SHR_NUM_OUT", "SPCL_GRNT_ALWN_AMT": "SPCL_GRNT_ALWN_AMT_OUT", "SPCL_GRNT_IND": "SPCL_GRNT_IND_OUT", "TA_AGNT_FEE_AMT": "TA_AGNT_FEE_AMT_OUT", "TA_CMNC_DATE": "TA_CMNC_DATE_OUT", "TA_DPST_AMT": "TA_DPST_AMT_OUT", "TA_STMP_DUTY_AMT": "TA_STMP_DUTY_AMT_OUT", "TA_TRMT_DATE": "TA_TRMT_DATE_OUT", "TOT_RENT_AMT": "TOT_RENT_AMT_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HSE_SRVC_APLY_NUM', 'RAES_APRV_DATE', 'RAES_APRV_STS_CODE', 'ALWN_BGN_DATE', 'ALWN_END_DATE', 'AIP_REF_NUM', 'AIP_ISS_DATE', 'AIP_END_DATE', 'TA_CMNC_DATE', 'TA_TRMT_DATE', 'LES_APRV_DATE', 'PYMT_APRV_DATE', 'PRH_OPT_DATE', 'RMDR_LTR_BU_DATE', 'RNW_BU_DATE', 'SHR_NUM', 'TOT_RENT_AMT', 'HA_ALWN_AMT', 'SPCL_GRNT_IND', 'SPCL_GRNT_ALWN_AMT', 'CSSA_IND', 'CSSA_REF_NUM', 'CSSA_RNTL_SPLM_AMT', 'TA_AGNT_FEE_AMT', 'TA_DPST_AMT', 'TA_STMP_DUTY_AMT', 'BANK_BRCH_CODE', 'BANK_CODE', 'BANK_ACCT_NUM', 'PYMT_MTHD_TYPE_CODE', 'RAES_APRV_HOME_FLAT_NUM', 'RAES_APRV_HOME_FLR_NUM', 'RAES_APRV_HOME_BLK_NUM', 'RAES_APRV_HOME_BLDG_NAME', 'RAES_APRV_HOME_STRT_NAME', 'RAES_APRV_HOME_DSTR_CODE', 'RAES_APRV_HOME_DSTR_NAME', 'RAES_APRV_HOME_CODE_ADDR', 'RAES_APRV_HOME_PHONE_NUM', 'RAES_APRV_PRH_BU_DATE', 'RAES_APRV_EAS_IND', 'RAES_APRV_EAS_ALWN_AMT', 'RAES_APRV_APLY_RENT_PYMT_AMT', 'RAES_APRV_ACCT_HLDR_NAME_1', 'RAES_APRV_ACCT_HLDR_NAME_2', 'RAES_APRV_ACCT_HLDR_NAME_3', 'RAES_APRV_ACCT_HLDR_NAME_4', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_RAL_RAES_APRV_IN_PRCP", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_RAL_RAES_APRV_IN_PRCP',
+            mode='append',
+            source_columns=[
+                'HSE_SRVC_APLY_NUM_OUT',
+                'RAES_APRV_DATE_OUT',
+                'RAES_APRV_STS_CODE_OUT',
+                'ALWN_BGN_DATE_OUT',
+                'ALWN_END_DATE_OUT',
+                'AIP_REF_NUM_OUT',
+                'AIP_ISS_DATE_OUT',
+                'AIP_END_DATE_OUT',
+                'TA_CMNC_DATE_OUT',
+                'TA_TRMT_DATE_OUT',
+                'LES_APRV_DATE_OUT',
+                'PYMT_APRV_DATE_OUT',
+                'PRH_OPT_DATE_OUT',
+                'RMDR_LTR_BU_DATE_OUT',
+                'RNW_BU_DATE_OUT',
+                'SHR_NUM_OUT',
+                'TOT_RENT_AMT_OUT',
+                'HA_ALWN_AMT_OUT',
+                'SPCL_GRNT_IND_OUT',
+                'SPCL_GRNT_ALWN_AMT_OUT',
+                'CSSA_IND_OUT',
+                'CSSA_REF_NUM_OUT',
+                'CSSA_RNTL_SPLM_AMT_OUT',
+                'TA_AGNT_FEE_AMT_OUT',
+                'TA_DPST_AMT_OUT',
+                'TA_STMP_DUTY_AMT_OUT',
+                'BANK_BRCH_CODE_OUT',
+                'BANK_CODE_OUT',
+                'BANK_ACCT_NUM_OUT',
+                'PYMT_MTHD_TYPE_CODE_OUT',
+                'RAES_APRV_HOME_FLAT_NUM_OUT',
+                'RAES_APRV_HOME_FLR_NUM_OUT',
+                'RAES_APRV_HOME_BLK_NUM_OUT',
+                'RAES_APRV_HOME_BLDG_NAME_OUT',
+                'RAES_APRV_HOME_STRT_NAME_OUT',
+                'RAES_APRV_HOME_DSTR_CODE_OUT',
+                'RAES_APRV_HOME_DSTR_NAME_OUT',
+                'RAES_APRV_HOME_CODE_ADDR_OUT',
+                'RAES_APRV_HOME_PHONE_NUM_OUT',
+                'RAES_APRV_PRH_BU_DATE_OUT',
+                'RAES_APRV_EAS_IND_OUT',
+                'RAES_APRV_EAS_ALWN_AMT_OUT',
+                'RAES_APRV_APLY_RENT_PYMT_AMT_OUT',
+                'RAES_APRV_ACCT_HLDR_NAME_1_OUT',
+                'RAES_APRV_ACCT_HLDR_NAME_2_OUT',
+                'RAES_APRV_ACCT_HLDR_NAME_3_OUT',
+                'RAES_APRV_ACCT_HLDR_NAME_4_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+            ],
+            target_columns=[
+                'HSE_SRVC_APLY_NUM',
+                'RAES_APRV_DATE',
+                'RAES_APRV_STS_CODE',
+                'ALWN_BGN_DATE',
+                'ALWN_END_DATE',
+                'AIP_REF_NUM',
+                'AIP_ISS_DATE',
+                'AIP_END_DATE',
+                'TA_CMNC_DATE',
+                'TA_TRMT_DATE',
+                'LES_APRV_DATE',
+                'PYMT_APRV_DATE',
+                'PRH_OPT_DATE',
+                'RMDR_LTR_BU_DATE',
+                'RNW_BU_DATE',
+                'SHR_NUM',
+                'TOT_RENT_AMT',
+                'HA_ALWN_AMT',
+                'SPCL_GRNT_IND',
+                'SPCL_GRNT_ALWN_AMT',
+                'CSSA_IND',
+                'CSSA_REF_NUM',
+                'CSSA_RNTL_SPLM_AMT',
+                'TA_AGNT_FEE_AMT',
+                'TA_DPST_AMT',
+                'TA_STMP_DUTY_AMT',
+                'BANK_BRCH_CODE',
+                'BANK_CODE',
+                'BANK_ACCT_NUM',
+                'PYMT_MTHD_TYPE_CODE',
+                'RAES_APRV_HOME_FLAT_NUM',
+                'RAES_APRV_HOME_FLR_NUM',
+                'RAES_APRV_HOME_BLK_NUM',
+                'RAES_APRV_HOME_BLDG_NAME',
+                'RAES_APRV_HOME_STRT_NAME',
+                'RAES_APRV_HOME_DSTR_CODE',
+                'RAES_APRV_HOME_DSTR_NAME',
+                'RAES_APRV_HOME_CODE_ADDR',
+                'RAES_APRV_HOME_PHONE_NUM',
+                'RAES_APRV_PRH_BU_DATE',
+                'RAES_APRV_EAS_IND',
+                'RAES_APRV_EAS_ALWN_AMT',
+                'RAES_APRV_APLY_RENT_PYMT_AMT',
+                'RAES_APRV_ACCT_HLDR_NAME_1',
+                'RAES_APRV_ACCT_HLDR_NAME_2',
+                'RAES_APRV_ACCT_HLDR_NAME_3',
+                'RAES_APRV_ACCT_HLDR_NAME_4',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_RAL_RAES_APRV_IN_PRCP write completed")
         logger.info("Step: write_EMS_RAL_RAES_APRV_IN_PRCP1")
         # Write to Target: write_EMS_RAL_RAES_APRV_IN_PRCP1
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"AIP_END_DATE": "AIP_END_DATE_OUT", "AIP_ISS_DATE": "AIP_ISS_DATE_OUT", "AIP_REF_NUM": "AIP_REF_NUM_OUT", "ALWN_BGN_DATE": "ALWN_BGN_DATE_OUT", "ALWN_END_DATE": "ALWN_END_DATE_OUT", "BANK_ACCT_NUM": "BANK_ACCT_NUM_OUT", "BANK_BRCH_CODE": "BANK_BRCH_CODE_OUT", "BANK_CODE": "BANK_CODE_OUT", "CSSA_IND": "CSSA_IND_OUT", "CSSA_REF_NUM": "CSSA_REF_NUM_OUT", "CSSA_RNTL_SPLM_AMT": "CSSA_RNTL_SPLM_AMT_OUT", "DUMMY": "DUMMY", "HA_ALWN_AMT": "HA_ALWN_AMT_OUT", "HSE_SRVC_APLY_NUM": "HSE_SRVC_APLY_NUM_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "LES_APRV_DATE": "LES_APRV_DATE_OUT", "PRH_OPT_DATE": "PRH_OPT_DATE_OUT", "PYMT_APRV_DATE": "PYMT_APRV_DATE_OUT", "PYMT_MTHD_TYPE_CODE": "PYMT_MTHD_TYPE_CODE_OUT", "RAES_APRV_ACCT_HLDR_NAME_1": "RAES_APRV_ACCT_HLDR_NAME_1_OUT", "RAES_APRV_ACCT_HLDR_NAME_2": "RAES_APRV_ACCT_HLDR_NAME_2_OUT", "RAES_APRV_ACCT_HLDR_NAME_3": "RAES_APRV_ACCT_HLDR_NAME_3_OUT", "RAES_APRV_ACCT_HLDR_NAME_4": "RAES_APRV_ACCT_HLDR_NAME_4_OUT", "RAES_APRV_APLY_RENT_PYMT_AMT": "RAES_APRV_APLY_RENT_PYMT_AMT_OUT", "RAES_APRV_DATE": "RAES_APRV_DATE_OUT", "RAES_APRV_EAS_ALWN_AMT": "RAES_APRV_EAS_ALWN_AMT_OUT", "RAES_APRV_EAS_IND": "RAES_APRV_EAS_IND_OUT", "RAES_APRV_HOME_BLDG_NAME": "RAES_APRV_HOME_BLDG_NAME_OUT", "RAES_APRV_HOME_BLK_NUM": "RAES_APRV_HOME_BLK_NUM_OUT", "RAES_APRV_HOME_CODE_ADDR": "RAES_APRV_HOME_CODE_ADDR_OUT", "RAES_APRV_HOME_DSTR_CODE": "RAES_APRV_HOME_DSTR_CODE_OUT", "RAES_APRV_HOME_DSTR_NAME": "RAES_APRV_HOME_DSTR_NAME_OUT", "RAES_APRV_HOME_FLAT_NUM": "RAES_APRV_HOME_FLAT_NUM_OUT", "RAES_APRV_HOME_FLR_NUM": "RAES_APRV_HOME_FLR_NUM_OUT", "RAES_APRV_HOME_PHONE_NUM": "RAES_APRV_HOME_PHONE_NUM_OUT", "RAES_APRV_HOME_STRT_NAME": "RAES_APRV_HOME_STRT_NAME_OUT", "RAES_APRV_PRH_BU_DATE": "RAES_APRV_PRH_BU_DATE_OUT", "RAES_APRV_STS_CODE": "RAES_APRV_STS_CODE_OUT", "RMDR_LTR_BU_DATE": "RMDR_LTR_BU_DATE_OUT", "RNW_BU_DATE": "RNW_BU_DATE_OUT", "SHR_NUM": "SHR_NUM_OUT", "SPCL_GRNT_ALWN_AMT": "SPCL_GRNT_ALWN_AMT_OUT", "SPCL_GRNT_IND": "SPCL_GRNT_IND_OUT", "TA_AGNT_FEE_AMT": "TA_AGNT_FEE_AMT_OUT", "TA_CMNC_DATE": "TA_CMNC_DATE_OUT", "TA_DPST_AMT": "TA_DPST_AMT_OUT", "TA_STMP_DUTY_AMT": "TA_STMP_DUTY_AMT_OUT", "TA_TRMT_DATE": "TA_TRMT_DATE_OUT", "TOT_RENT_AMT": "TOT_RENT_AMT_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HSE_SRVC_APLY_NUM', 'RAES_APRV_DATE', 'RAES_APRV_STS_CODE', 'ALWN_BGN_DATE', 'ALWN_END_DATE', 'AIP_REF_NUM', 'AIP_ISS_DATE', 'AIP_END_DATE', 'TA_CMNC_DATE', 'TA_TRMT_DATE', 'LES_APRV_DATE', 'PYMT_APRV_DATE', 'PRH_OPT_DATE', 'RMDR_LTR_BU_DATE', 'RNW_BU_DATE', 'SHR_NUM', 'TOT_RENT_AMT', 'HA_ALWN_AMT', 'SPCL_GRNT_IND', 'SPCL_GRNT_ALWN_AMT', 'CSSA_IND', 'CSSA_REF_NUM', 'CSSA_RNTL_SPLM_AMT', 'TA_AGNT_FEE_AMT', 'TA_DPST_AMT', 'TA_STMP_DUTY_AMT', 'BANK_BRCH_CODE', 'BANK_CODE', 'BANK_ACCT_NUM', 'PYMT_MTHD_TYPE_CODE', 'RAES_APRV_HOME_FLAT_NUM', 'RAES_APRV_HOME_FLR_NUM', 'RAES_APRV_HOME_BLK_NUM', 'RAES_APRV_HOME_BLDG_NAME', 'RAES_APRV_HOME_STRT_NAME', 'RAES_APRV_HOME_DSTR_CODE', 'RAES_APRV_HOME_DSTR_NAME', 'RAES_APRV_HOME_CODE_ADDR', 'RAES_APRV_HOME_PHONE_NUM', 'RAES_APRV_PRH_BU_DATE', 'RAES_APRV_EAS_IND', 'RAES_APRV_EAS_ALWN_AMT', 'RAES_APRV_APLY_RENT_PYMT_AMT', 'RAES_APRV_ACCT_HLDR_NAME_1', 'RAES_APRV_ACCT_HLDR_NAME_2', 'RAES_APRV_ACCT_HLDR_NAME_3', 'RAES_APRV_ACCT_HLDR_NAME_4', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'DUMMY']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_RAL_RAES_APRV_IN_PRCP1", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_RAL_RAES_APRV_IN_PRCP1',
+            mode='append',
+            source_columns=[
+                'HSE_SRVC_APLY_NUM_OUT',
+                'RAES_APRV_DATE_OUT',
+                'RAES_APRV_STS_CODE_OUT',
+                'ALWN_BGN_DATE_OUT',
+                'ALWN_END_DATE_OUT',
+                'AIP_REF_NUM_OUT',
+                'AIP_ISS_DATE_OUT',
+                'AIP_END_DATE_OUT',
+                'TA_CMNC_DATE_OUT',
+                'TA_TRMT_DATE_OUT',
+                'LES_APRV_DATE_OUT',
+                'PYMT_APRV_DATE_OUT',
+                'PRH_OPT_DATE_OUT',
+                'RMDR_LTR_BU_DATE_OUT',
+                'RNW_BU_DATE_OUT',
+                'SHR_NUM_OUT',
+                'TOT_RENT_AMT_OUT',
+                'HA_ALWN_AMT_OUT',
+                'SPCL_GRNT_IND_OUT',
+                'SPCL_GRNT_ALWN_AMT_OUT',
+                'CSSA_IND_OUT',
+                'CSSA_REF_NUM_OUT',
+                'CSSA_RNTL_SPLM_AMT_OUT',
+                'TA_AGNT_FEE_AMT_OUT',
+                'TA_DPST_AMT_OUT',
+                'TA_STMP_DUTY_AMT_OUT',
+                'BANK_BRCH_CODE_OUT',
+                'BANK_CODE_OUT',
+                'BANK_ACCT_NUM_OUT',
+                'PYMT_MTHD_TYPE_CODE_OUT',
+                'RAES_APRV_HOME_FLAT_NUM_OUT',
+                'RAES_APRV_HOME_FLR_NUM_OUT',
+                'RAES_APRV_HOME_BLK_NUM_OUT',
+                'RAES_APRV_HOME_BLDG_NAME_OUT',
+                'RAES_APRV_HOME_STRT_NAME_OUT',
+                'RAES_APRV_HOME_DSTR_CODE_OUT',
+                'RAES_APRV_HOME_DSTR_NAME_OUT',
+                'RAES_APRV_HOME_CODE_ADDR_OUT',
+                'RAES_APRV_HOME_PHONE_NUM_OUT',
+                'RAES_APRV_PRH_BU_DATE_OUT',
+                'RAES_APRV_EAS_IND_OUT',
+                'RAES_APRV_EAS_ALWN_AMT_OUT',
+                'RAES_APRV_APLY_RENT_PYMT_AMT_OUT',
+                'RAES_APRV_ACCT_HLDR_NAME_1_OUT',
+                'RAES_APRV_ACCT_HLDR_NAME_2_OUT',
+                'RAES_APRV_ACCT_HLDR_NAME_3_OUT',
+                'RAES_APRV_ACCT_HLDR_NAME_4_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'DUMMY',
+            ],
+            target_columns=[
+                'HSE_SRVC_APLY_NUM',
+                'RAES_APRV_DATE',
+                'RAES_APRV_STS_CODE',
+                'ALWN_BGN_DATE',
+                'ALWN_END_DATE',
+                'AIP_REF_NUM',
+                'AIP_ISS_DATE',
+                'AIP_END_DATE',
+                'TA_CMNC_DATE',
+                'TA_TRMT_DATE',
+                'LES_APRV_DATE',
+                'PYMT_APRV_DATE',
+                'PRH_OPT_DATE',
+                'RMDR_LTR_BU_DATE',
+                'RNW_BU_DATE',
+                'SHR_NUM',
+                'TOT_RENT_AMT',
+                'HA_ALWN_AMT',
+                'SPCL_GRNT_IND',
+                'SPCL_GRNT_ALWN_AMT',
+                'CSSA_IND',
+                'CSSA_REF_NUM',
+                'CSSA_RNTL_SPLM_AMT',
+                'TA_AGNT_FEE_AMT',
+                'TA_DPST_AMT',
+                'TA_STMP_DUTY_AMT',
+                'BANK_BRCH_CODE',
+                'BANK_CODE',
+                'BANK_ACCT_NUM',
+                'PYMT_MTHD_TYPE_CODE',
+                'RAES_APRV_HOME_FLAT_NUM',
+                'RAES_APRV_HOME_FLR_NUM',
+                'RAES_APRV_HOME_BLK_NUM',
+                'RAES_APRV_HOME_BLDG_NAME',
+                'RAES_APRV_HOME_STRT_NAME',
+                'RAES_APRV_HOME_DSTR_CODE',
+                'RAES_APRV_HOME_DSTR_NAME',
+                'RAES_APRV_HOME_CODE_ADDR',
+                'RAES_APRV_HOME_PHONE_NUM',
+                'RAES_APRV_PRH_BU_DATE',
+                'RAES_APRV_EAS_IND',
+                'RAES_APRV_EAS_ALWN_AMT',
+                'RAES_APRV_APLY_RENT_PYMT_AMT',
+                'RAES_APRV_ACCT_HLDR_NAME_1',
+                'RAES_APRV_ACCT_HLDR_NAME_2',
+                'RAES_APRV_ACCT_HLDR_NAME_3',
+                'RAES_APRV_ACCT_HLDR_NAME_4',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'DUMMY',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_RAL_RAES_APRV_IN_PRCP1 write completed")
         

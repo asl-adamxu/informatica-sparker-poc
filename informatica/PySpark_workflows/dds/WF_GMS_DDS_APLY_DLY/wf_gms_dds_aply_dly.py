@@ -41,6 +41,11 @@ EXECUTION_PLAN = [
         "steps": [
           {
             "type": "session",
+            "name": "S_DPA_SUM_FACT_GMS_DLY_MSD_SMRY",
+            "mapping_name": "M_DPA_SUM_FACT_GMS_DLY_MSD_SMRY"
+          },
+          {
+            "type": "session",
             "name": "S_DPA_SUM_FACT_GMS_DLY_MSD_INCDT",
             "mapping_name": "M_DPA_SUM_FACT_GMS_DLY_MSD_INCDT"
           },
@@ -48,11 +53,6 @@ EXECUTION_PLAN = [
             "type": "session",
             "name": "S_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR",
             "mapping_name": "M_DPA_SUM_FACT_GMS_DLY_DOG_RGSTR"
-          },
-          {
-            "type": "session",
-            "name": "S_DPA_SUM_FACT_GMS_DLY_MSD_SMRY",
-            "mapping_name": "M_DPA_SUM_FACT_GMS_DLY_MSD_SMRY"
           }
         ]
       }

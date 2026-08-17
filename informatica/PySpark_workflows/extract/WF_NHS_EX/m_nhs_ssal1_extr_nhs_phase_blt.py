@@ -48,25 +48,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_NHS_PHASE_BLT")
@@ -78,23 +63,29 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_NHS_PHASE_BLT")
         # Source Qualifier: apply_SQ_NHS_PHASE_BLT
         df_SQ_NHS_PHASE_BLT = df_NHS_PHASE_BLT
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_NHS_PHASE_BLT = df_SQ_NHS_PHASE_BLT.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["PHASE_CODE", "LAST_PHASE_CODE_1", "LAST_PHASE_CODE_2", "LAST_PHASE_GF_APLY_NUM", "LAST_PHASE_WF_APLY_NUM", "ROW_VER_NUM", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID"]
-        df_SQ_NHS_PHASE_BLT = df_SQ_NHS_PHASE_BLT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_NHS_PHASE_BLT.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_NHS_PHASE_BLT = lib.sq_output(
+            input_df=df_SQ_NHS_PHASE_BLT,
+            port_cols={
+                'PHASE_CODE': 'string',
+                'LAST_PHASE_CODE_1': 'string',
+                'LAST_PHASE_CODE_2': 'string',
+                'LAST_PHASE_GF_APLY_NUM': 'string',
+                'LAST_PHASE_WF_APLY_NUM': 'string',
+                'ROW_VER_NUM': 'decimal',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_USER_ID': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_NHS_PHASE_BLT", df_SQ_NHS_PHASE_BLT)
         
         logger.info("Step: apply_EXP")
         # Expression: apply_EXP
-        df_EXP = df_SQ_NHS_PHASE_BLT
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["PHASE_CODE", "LAST_PHASE_CODE_1", "LAST_PHASE_CODE_2", "LAST_PHASE_GF_APLY_NUM", "LAST_PHASE_WF_APLY_NUM", "ROW_VER_NUM", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID"]:
-            if _col.lower() not in [x.lower() for x in df_EXP.columns]:
-                df_EXP = df_EXP.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP = lib.expression(
+            input_df=df_SQ_NHS_PHASE_BLT,
+        )
         ctx.register_df("df_EXP", df_EXP)
         
         

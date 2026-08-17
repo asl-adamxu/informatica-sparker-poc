@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_POR_OPR")
@@ -79,116 +64,385 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_POR_OPR")
         # Source Qualifier: apply_SQ_POR_OPR
         df_SQ_POR_OPR = df_POR_OPR
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_POR_OPR = df_SQ_POR_OPR.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["OPR_CODE", "OPR_DESP", "OPR_PHASE_NUM", "PRNT_OPR_CODE", "OPR_ADVRT_BGN_DATE", "OPR_ADVRT_END_DATE", "OPR_TRGT_CMPLT_DATE", "OPR_STRC_PRFX_CODE", "OPR_RMK_TEXT", "OPR_FLAT_SLCT_IND", "OPR_FLAT_SLCT_BGN_DATE", "OPR_FLAT_SLCT_END_DATE", "OPR_ALWN_PRCS_IND", "OPR_ALWN_CALC_CODE", "OPR_DFN_GRP_IND", "OPR_BLT_IND", "OPR_RGSTR_CTF_DATE", "OPR_INCM_EXMPT_IND", "OPR_CHK_USER_NAME", "OPR_CHK_TTL_NAME", "OPR_APRV_USER_NAME", "OPR_APRV_TTL_NAME", "OPR_CTRSGN_USER_NAME", "OPR_CTRSGN_TTL_NAME", "APLY_BGN_DATE", "APLY_END_DATE", "OPR_ANC_DATE", "OPR_TRGT_EVCT_DATE", "APLY_SBMT_DLN_DATE", "QUE_PLAN_ID", "OPR_CRE_DATE", "OPR_ELGBL_CTF_DATE", "OPR_APLY_EQVLN_DATE", "OPR_TYPE_CODE", "QTA_CATG_CODE", "ORG_UNIT_KEY", "OFFC_CODE", "OPR_FLAT_SLCT_RLS_IND", "OPR_SBTYP_CODE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "RTR_DCS_DATE", "LAST_REF_LTNG_DATE", "FLAT_SLCT_SCND_RND_IND", "FLAT_SLCT_SCND_RND_BGN_DATE", "FLAT_SLCT_SCND_RND_END_DATE", "APLY_RAS_IND", "OPR_SBPHS_NUM", "APLY_SCND_RND_BGN_DATE", "APLY_SCND_RND_END_DATE", "LTR_FILE_REF_NUM", "ALCT_SIZE_NUM", "APLY_DEL_GRNT_DATE", "MLTP_COST_CTR_IND", "LAST_REC_TXN_MBR_CODE"]
-        df_SQ_POR_OPR = df_SQ_POR_OPR.select([col(c) if c.lower() in [x.lower() for x in df_SQ_POR_OPR.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_POR_OPR = lib.sq_output(
+            input_df=df_SQ_POR_OPR,
+            port_cols={
+                'OPR_CODE': 'string',
+                'OPR_DESP': 'string',
+                'OPR_PHASE_NUM': 'string',
+                'PRNT_OPR_CODE': 'string',
+                'OPR_ADVRT_BGN_DATE': 'date/time',
+                'OPR_ADVRT_END_DATE': 'date/time',
+                'OPR_TRGT_CMPLT_DATE': 'date/time',
+                'OPR_STRC_PRFX_CODE': 'string',
+                'OPR_RMK_TEXT': 'string',
+                'OPR_FLAT_SLCT_IND': 'string',
+                'OPR_FLAT_SLCT_BGN_DATE': 'date/time',
+                'OPR_FLAT_SLCT_END_DATE': 'date/time',
+                'OPR_ALWN_PRCS_IND': 'string',
+                'OPR_ALWN_CALC_CODE': 'string',
+                'OPR_DFN_GRP_IND': 'string',
+                'OPR_BLT_IND': 'string',
+                'OPR_RGSTR_CTF_DATE': 'date/time',
+                'OPR_INCM_EXMPT_IND': 'string',
+                'OPR_CHK_USER_NAME': 'string',
+                'OPR_CHK_TTL_NAME': 'string',
+                'OPR_APRV_USER_NAME': 'string',
+                'OPR_APRV_TTL_NAME': 'string',
+                'OPR_CTRSGN_USER_NAME': 'string',
+                'OPR_CTRSGN_TTL_NAME': 'string',
+                'APLY_BGN_DATE': 'date/time',
+                'APLY_END_DATE': 'date/time',
+                'OPR_ANC_DATE': 'date/time',
+                'OPR_TRGT_EVCT_DATE': 'date/time',
+                'APLY_SBMT_DLN_DATE': 'date/time',
+                'QUE_PLAN_ID': 'decimal',
+                'OPR_CRE_DATE': 'date/time',
+                'OPR_ELGBL_CTF_DATE': 'date/time',
+                'OPR_APLY_EQVLN_DATE': 'date/time',
+                'OPR_TYPE_CODE': 'string',
+                'QTA_CATG_CODE': 'string',
+                'ORG_UNIT_KEY': 'string',
+                'OFFC_CODE': 'string',
+                'OPR_FLAT_SLCT_RLS_IND': 'string',
+                'OPR_SBTYP_CODE': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'string',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'RTR_DCS_DATE': 'string',
+                'LAST_REF_LTNG_DATE': 'date/time',
+                'FLAT_SLCT_SCND_RND_IND': 'string',
+                'FLAT_SLCT_SCND_RND_BGN_DATE': 'date/time',
+                'FLAT_SLCT_SCND_RND_END_DATE': 'date/time',
+                'APLY_RAS_IND': 'string',
+                'OPR_SBPHS_NUM': 'string',
+                'APLY_SCND_RND_BGN_DATE': 'date/time',
+                'APLY_SCND_RND_END_DATE': 'date/time',
+                'LTR_FILE_REF_NUM': 'string',
+                'ALCT_SIZE_NUM': 'decimal',
+                'APLY_DEL_GRNT_DATE': 'date/time',
+                'MLTP_COST_CTR_IND': 'string',
+                'LAST_REC_TXN_MBR_CODE': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_POR_OPR", df_SQ_POR_OPR)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_POR_OPR
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_CODE_OUT", expr("ltrim(rtrim(OPR_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_DESP_OUT", expr("ltrim(rtrim(OPR_DESP))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_PHASE_NUM_OUT", expr("ltrim(rtrim(OPR_PHASE_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("PRNT_OPR_CODE_OUT", expr("ltrim(rtrim(PRNT_OPR_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_ADVRT_BGN_DATE_OUT", expr("OPR_ADVRT_BGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_ADVRT_END_DATE_OUT", expr("OPR_ADVRT_END_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_TRGT_CMPLT_DATE_OUT", expr("OPR_TRGT_CMPLT_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_STRC_PRFX_CODE_OUT", expr("ltrim(rtrim(OPR_STRC_PRFX_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_RMK_TEXT_OUT", expr("ltrim(rtrim(OPR_RMK_TEXT))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_FLAT_SLCT_IND_OUT", expr("ltrim(rtrim(OPR_FLAT_SLCT_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_FLAT_SLCT_BGN_DATE_OUT", expr("OPR_FLAT_SLCT_BGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_FLAT_SLCT_END_DATE_OUT", expr("OPR_FLAT_SLCT_END_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_ALWN_PRCS_IND_OUT", expr("ltrim(rtrim(OPR_ALWN_PRCS_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_ALWN_CALC_CODE_OUT", expr("ltrim(rtrim(OPR_ALWN_CALC_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_DFN_GRP_IND_OUT", expr("ltrim(rtrim(OPR_DFN_GRP_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_BLT_IND_OUT", expr("ltrim(rtrim(OPR_BLT_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_RGSTR_CTF_DATE_OUT", expr("OPR_RGSTR_CTF_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_INCM_EXMPT_IND_OUT", expr("ltrim(rtrim(OPR_INCM_EXMPT_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_CHK_USER_NAME_OUT", expr("ltrim(rtrim(OPR_CHK_USER_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_CHK_TTL_NAME_OUT", expr("ltrim(rtrim(OPR_CHK_TTL_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_APRV_USER_NAME_OUT", expr("ltrim(rtrim(OPR_APRV_USER_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_APRV_TTL_NAME_OUT", expr("ltrim(rtrim(OPR_APRV_TTL_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_CTRSGN_USER_NAME_OUT", expr("ltrim(rtrim(OPR_CTRSGN_USER_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_CTRSGN_TTL_NAME_OUT", expr("ltrim(rtrim(OPR_CTRSGN_TTL_NAME))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APLY_BGN_DATE_OUT", expr("APLY_BGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APLY_END_DATE_OUT", expr("APLY_END_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_ANC_DATE_OUT", expr("OPR_ANC_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_TRGT_EVCT_DATE_OUT", expr("OPR_TRGT_EVCT_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APLY_SBMT_DLN_DATE_OUT", expr("APLY_SBMT_DLN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("QUE_PLAN_ID_OUT", expr("QUE_PLAN_ID"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_CRE_DATE_OUT", expr("OPR_CRE_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_ELGBL_CTF_DATE_OUT", expr("OPR_ELGBL_CTF_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_APLY_EQVLN_DATE_OUT", expr("OPR_APLY_EQVLN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_TYPE_CODE_OUT", expr("ltrim(rtrim(OPR_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("QTA_CATG_CODE_OUT", expr("ltrim(rtrim(QTA_CATG_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ORG_UNIT_KEY_OUT", expr("ltrim(rtrim(ORG_UNIT_KEY))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OFFC_CODE_OUT", expr("ltrim(rtrim(OFFC_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_FLAT_SLCT_RLS_IND_OUT", expr("ltrim(rtrim(OPR_FLAT_SLCT_RLS_IND))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_SBTYP_CODE_OUT", expr("ltrim(rtrim(OPR_SBTYP_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE_OUT", expr("ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE_OUT", expr("LAST_REC_TXN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_USER_ID_OUT", expr("ltrim(rtrim(LAST_REC_TXN_USER_ID))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RTR_DCS_DATE_OUT", expr("RTR_DCS_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REF_LTNG_DATE_OUT", expr("LAST_REF_LTNG_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("FLAT_SLCT_SCND_RND_IND_OUT", expr("FLAT_SLCT_SCND_RND_IND"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY", expr("'|'"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_SBPHS_NUM_OUT", expr("ltrim(rtrim(OPR_SBPHS_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APLY_SCND_RND_BGN_DATE_OUT", expr("APLY_SCND_RND_BGN_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("APLY_SCND_RND_END_DATE_OUT", expr("APLY_SCND_RND_END_DATE"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LTR_FILE_REF_NUM_OUT", expr("ltrim(rtrim(LTR_FILE_REF_NUM))"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ALCT_SIZE_NUM_OUT", expr("ltrim(rtrim(ALCT_SIZE_NUM))"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["FLAT_SLCT_SCND_RND_BGN_DATE", "FLAT_SLCT_SCND_RND_END_DATE", "APLY_RAS_IND", "APLY_DEL_GRNT_DATE", "MLTP_COST_CTR_IND", "LAST_REC_TXN_MBR_CODE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_POR_OPR,
+            computed_columns=[
+                {'name': 'OPR_CODE_OUT', 'expr': 'ltrim(rtrim(OPR_CODE))'},
+                {'name': 'OPR_DESP_OUT', 'expr': 'ltrim(rtrim(OPR_DESP))'},
+                {'name': 'OPR_PHASE_NUM_OUT', 'expr': 'ltrim(rtrim(OPR_PHASE_NUM))'},
+                {'name': 'PRNT_OPR_CODE_OUT', 'expr': 'ltrim(rtrim(PRNT_OPR_CODE))'},
+                {'name': 'OPR_ADVRT_BGN_DATE_OUT', 'expr': 'OPR_ADVRT_BGN_DATE'},
+                {'name': 'OPR_ADVRT_END_DATE_OUT', 'expr': 'OPR_ADVRT_END_DATE'},
+                {'name': 'OPR_TRGT_CMPLT_DATE_OUT', 'expr': 'OPR_TRGT_CMPLT_DATE'},
+                {'name': 'OPR_STRC_PRFX_CODE_OUT', 'expr': 'ltrim(rtrim(OPR_STRC_PRFX_CODE))'},
+                {'name': 'OPR_RMK_TEXT_OUT', 'expr': 'ltrim(rtrim(OPR_RMK_TEXT))'},
+                {'name': 'OPR_FLAT_SLCT_IND_OUT', 'expr': 'ltrim(rtrim(OPR_FLAT_SLCT_IND))'},
+                {'name': 'OPR_FLAT_SLCT_BGN_DATE_OUT', 'expr': 'OPR_FLAT_SLCT_BGN_DATE'},
+                {'name': 'OPR_FLAT_SLCT_END_DATE_OUT', 'expr': 'OPR_FLAT_SLCT_END_DATE'},
+                {'name': 'OPR_ALWN_PRCS_IND_OUT', 'expr': 'ltrim(rtrim(OPR_ALWN_PRCS_IND))'},
+                {'name': 'OPR_ALWN_CALC_CODE_OUT', 'expr': 'ltrim(rtrim(OPR_ALWN_CALC_CODE))'},
+                {'name': 'OPR_DFN_GRP_IND_OUT', 'expr': 'ltrim(rtrim(OPR_DFN_GRP_IND))'},
+                {'name': 'OPR_BLT_IND_OUT', 'expr': 'ltrim(rtrim(OPR_BLT_IND))'},
+                {'name': 'OPR_RGSTR_CTF_DATE_OUT', 'expr': 'OPR_RGSTR_CTF_DATE'},
+                {'name': 'OPR_INCM_EXMPT_IND_OUT', 'expr': 'ltrim(rtrim(OPR_INCM_EXMPT_IND))'},
+                {'name': 'OPR_CHK_USER_NAME_OUT', 'expr': 'ltrim(rtrim(OPR_CHK_USER_NAME))'},
+                {'name': 'OPR_CHK_TTL_NAME_OUT', 'expr': 'ltrim(rtrim(OPR_CHK_TTL_NAME))'},
+                {'name': 'OPR_APRV_USER_NAME_OUT', 'expr': 'ltrim(rtrim(OPR_APRV_USER_NAME))'},
+                {'name': 'OPR_APRV_TTL_NAME_OUT', 'expr': 'ltrim(rtrim(OPR_APRV_TTL_NAME))'},
+                {'name': 'OPR_CTRSGN_USER_NAME_OUT', 'expr': 'ltrim(rtrim(OPR_CTRSGN_USER_NAME))'},
+                {'name': 'OPR_CTRSGN_TTL_NAME_OUT', 'expr': 'ltrim(rtrim(OPR_CTRSGN_TTL_NAME))'},
+                {'name': 'APLY_BGN_DATE_OUT', 'expr': 'APLY_BGN_DATE'},
+                {'name': 'APLY_END_DATE_OUT', 'expr': 'APLY_END_DATE'},
+                {'name': 'OPR_ANC_DATE_OUT', 'expr': 'OPR_ANC_DATE'},
+                {'name': 'OPR_TRGT_EVCT_DATE_OUT', 'expr': 'OPR_TRGT_EVCT_DATE'},
+                {'name': 'APLY_SBMT_DLN_DATE_OUT', 'expr': 'APLY_SBMT_DLN_DATE'},
+                {'name': 'QUE_PLAN_ID_OUT', 'expr': 'QUE_PLAN_ID'},
+                {'name': 'OPR_CRE_DATE_OUT', 'expr': 'OPR_CRE_DATE'},
+                {'name': 'OPR_ELGBL_CTF_DATE_OUT', 'expr': 'OPR_ELGBL_CTF_DATE'},
+                {'name': 'OPR_APLY_EQVLN_DATE_OUT', 'expr': 'OPR_APLY_EQVLN_DATE'},
+                {'name': 'OPR_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(OPR_TYPE_CODE))'},
+                {'name': 'QTA_CATG_CODE_OUT', 'expr': 'ltrim(rtrim(QTA_CATG_CODE))'},
+                {'name': 'ORG_UNIT_KEY_OUT', 'expr': 'ltrim(rtrim(ORG_UNIT_KEY))'},
+                {'name': 'OFFC_CODE_OUT', 'expr': 'ltrim(rtrim(OFFC_CODE))'},
+                {'name': 'OPR_FLAT_SLCT_RLS_IND_OUT', 'expr': 'ltrim(rtrim(OPR_FLAT_SLCT_RLS_IND))'},
+                {'name': 'OPR_SBTYP_CODE_OUT', 'expr': 'ltrim(rtrim(OPR_SBTYP_CODE))'},
+                {'name': 'LAST_REC_TXN_TYPE_CODE_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_TYPE_CODE))'},
+                {'name': 'LAST_REC_TXN_DATE_OUT', 'expr': 'LAST_REC_TXN_DATE'},
+                {'name': 'LAST_REC_TXN_USER_ID_OUT', 'expr': 'ltrim(rtrim(LAST_REC_TXN_USER_ID))'},
+                {'name': 'RTR_DCS_DATE_OUT', 'expr': 'RTR_DCS_DATE'},
+                {'name': 'LAST_REF_LTNG_DATE_OUT', 'expr': 'LAST_REF_LTNG_DATE'},
+                {'name': 'FLAT_SLCT_SCND_RND_IND_OUT', 'expr': 'FLAT_SLCT_SCND_RND_IND'},
+                {'name': 'DUMMY', 'expr': "'|'"},
+                {'name': 'OPR_SBPHS_NUM_OUT', 'expr': 'ltrim(rtrim(OPR_SBPHS_NUM))'},
+                {'name': 'APLY_SCND_RND_BGN_DATE_OUT', 'expr': 'APLY_SCND_RND_BGN_DATE'},
+                {'name': 'APLY_SCND_RND_END_DATE_OUT', 'expr': 'APLY_SCND_RND_END_DATE'},
+                {'name': 'LTR_FILE_REF_NUM_OUT', 'expr': 'ltrim(rtrim(LTR_FILE_REF_NUM))'},
+                {'name': 'ALCT_SIZE_NUM_OUT', 'expr': 'ltrim(rtrim(ALCT_SIZE_NUM))'}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: write_EMS_POR_OPR")
         # Write to Target: write_EMS_POR_OPR
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"ALCT_SIZE_NUM": "ALCT_SIZE_NUM_OUT", "APLY_BGN_DATE": "APLY_BGN_DATE_OUT", "APLY_DEL_GRNT_DATE": "APLY_DEL_GRNT_DATE", "APLY_END_DATE": "APLY_END_DATE_OUT", "APLY_RAS_IND": "APLY_RAS_IND", "APLY_SBMT_DLN_DATE": "APLY_SBMT_DLN_DATE_OUT", "APLY_SCND_RND_BGN_DATE": "APLY_SCND_RND_BGN_DATE_OUT", "APLY_SCND_RND_END_DATE": "APLY_SCND_RND_END_DATE_OUT", "FLAT_SLCT_SCND_RND_BGN_DATE": "FLAT_SLCT_SCND_RND_BGN_DATE", "FLAT_SLCT_SCND_RND_END_DATE": "FLAT_SLCT_SCND_RND_END_DATE", "FLAT_SLCT_SCND_RND_IND": "FLAT_SLCT_SCND_RND_IND_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_MBR_CODE": "LAST_REC_TXN_MBR_CODE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "LAST_REF_LTNG_DATE": "LAST_REF_LTNG_DATE_OUT", "LTR_FILE_REF_NUM": "LTR_FILE_REF_NUM_OUT", "MLTP_COST_CTR_IND": "MLTP_COST_CTR_IND", "OFFC_CODE": "OFFC_CODE_OUT", "OPR_ADVRT_BGN_DATE": "OPR_ADVRT_BGN_DATE_OUT", "OPR_ADVRT_END_DATE": "OPR_ADVRT_END_DATE_OUT", "OPR_ALWN_CALC_CODE": "OPR_ALWN_CALC_CODE_OUT", "OPR_ALWN_PRCS_IND": "OPR_ALWN_PRCS_IND_OUT", "OPR_ANC_DATE": "OPR_ANC_DATE_OUT", "OPR_APLY_EQVLN_DATE": "OPR_APLY_EQVLN_DATE_OUT", "OPR_APRV_TTL_NAME": "OPR_APRV_TTL_NAME_OUT", "OPR_APRV_USER_NAME": "OPR_APRV_USER_NAME_OUT", "OPR_BLT_IND": "OPR_BLT_IND_OUT", "OPR_CHK_TTL_NAME": "OPR_CHK_TTL_NAME_OUT", "OPR_CHK_USER_NAME": "OPR_CHK_USER_NAME_OUT", "OPR_CODE": "OPR_CODE_OUT", "OPR_CRE_DATE": "OPR_CRE_DATE_OUT", "OPR_CTRSGN_TTL_NAME": "OPR_CTRSGN_TTL_NAME_OUT", "OPR_CTRSGN_USER_NAME": "OPR_CTRSGN_USER_NAME_OUT", "OPR_DESP": "OPR_DESP_OUT", "OPR_DFN_GRP_IND": "OPR_DFN_GRP_IND_OUT", "OPR_ELGBL_CTF_DATE": "OPR_ELGBL_CTF_DATE_OUT", "OPR_FLAT_SLCT_BGN_DATE": "OPR_FLAT_SLCT_BGN_DATE_OUT", "OPR_FLAT_SLCT_END_DATE": "OPR_FLAT_SLCT_END_DATE_OUT", "OPR_FLAT_SLCT_IND": "OPR_FLAT_SLCT_IND_OUT", "OPR_FLAT_SLCT_RLS_IND": "OPR_FLAT_SLCT_RLS_IND_OUT", "OPR_INCM_EXMPT_IND": "OPR_INCM_EXMPT_IND_OUT", "OPR_PHASE_NUM": "OPR_PHASE_NUM_OUT", "OPR_RGSTR_CTF_DATE": "OPR_RGSTR_CTF_DATE_OUT", "OPR_RMK_TEXT": "OPR_RMK_TEXT_OUT", "OPR_SBPHS_NUM": "OPR_SBPHS_NUM_OUT", "OPR_SBTYP_CODE": "OPR_SBTYP_CODE_OUT", "OPR_STRC_PRFX_CODE": "OPR_STRC_PRFX_CODE_OUT", "OPR_TRGT_CMPLT_DATE": "OPR_TRGT_CMPLT_DATE_OUT", "OPR_TRGT_EVCT_DATE": "OPR_TRGT_EVCT_DATE_OUT", "OPR_TYPE_CODE": "OPR_TYPE_CODE_OUT", "ORG_UNIT_KEY": "ORG_UNIT_KEY_OUT", "PRNT_OPR_CODE": "PRNT_OPR_CODE_OUT", "QTA_CATG_CODE": "QTA_CATG_CODE_OUT", "QUE_PLAN_ID": "QUE_PLAN_ID_OUT", "RTR_DCS_DATE": "RTR_DCS_DATE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['OPR_CODE', 'OPR_DESP', 'OPR_PHASE_NUM', 'PRNT_OPR_CODE', 'OPR_ADVRT_BGN_DATE', 'OPR_ADVRT_END_DATE', 'OPR_TRGT_CMPLT_DATE', 'OPR_STRC_PRFX_CODE', 'OPR_RMK_TEXT', 'OPR_FLAT_SLCT_IND', 'OPR_FLAT_SLCT_BGN_DATE', 'OPR_FLAT_SLCT_END_DATE', 'OPR_ALWN_PRCS_IND', 'OPR_ALWN_CALC_CODE', 'OPR_DFN_GRP_IND', 'OPR_BLT_IND', 'OPR_RGSTR_CTF_DATE', 'OPR_INCM_EXMPT_IND', 'OPR_CHK_USER_NAME', 'OPR_CHK_TTL_NAME', 'OPR_APRV_USER_NAME', 'OPR_APRV_TTL_NAME', 'OPR_CTRSGN_USER_NAME', 'OPR_CTRSGN_TTL_NAME', 'APLY_BGN_DATE', 'APLY_END_DATE', 'OPR_ANC_DATE', 'OPR_TRGT_EVCT_DATE', 'APLY_SBMT_DLN_DATE', 'QUE_PLAN_ID', 'OPR_CRE_DATE', 'OPR_ELGBL_CTF_DATE', 'OPR_APLY_EQVLN_DATE', 'OPR_TYPE_CODE', 'QTA_CATG_CODE', 'ORG_UNIT_KEY', 'OFFC_CODE', 'OPR_FLAT_SLCT_RLS_IND', 'OPR_SBTYP_CODE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'RTR_DCS_DATE', 'LAST_REF_LTNG_DATE', 'FLAT_SLCT_SCND_RND_IND', 'FLAT_SLCT_SCND_RND_BGN_DATE', 'FLAT_SLCT_SCND_RND_END_DATE', 'APLY_RAS_IND', 'OPR_SBPHS_NUM', 'APLY_SCND_RND_BGN_DATE', 'APLY_SCND_RND_END_DATE', 'LTR_FILE_REF_NUM', 'ALCT_SIZE_NUM', 'APLY_DEL_GRNT_DATE', 'MLTP_COST_CTR_IND', 'LAST_REC_TXN_MBR_CODE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_POR_OPR", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_POR_OPR',
+            mode='append',
+            source_columns=[
+                'OPR_CODE_OUT',
+                'OPR_DESP_OUT',
+                'OPR_PHASE_NUM_OUT',
+                'PRNT_OPR_CODE_OUT',
+                'OPR_ADVRT_BGN_DATE_OUT',
+                'OPR_ADVRT_END_DATE_OUT',
+                'OPR_TRGT_CMPLT_DATE_OUT',
+                'OPR_STRC_PRFX_CODE_OUT',
+                'OPR_RMK_TEXT_OUT',
+                'OPR_FLAT_SLCT_IND_OUT',
+                'OPR_FLAT_SLCT_BGN_DATE_OUT',
+                'OPR_FLAT_SLCT_END_DATE_OUT',
+                'OPR_ALWN_PRCS_IND_OUT',
+                'OPR_ALWN_CALC_CODE_OUT',
+                'OPR_DFN_GRP_IND_OUT',
+                'OPR_BLT_IND_OUT',
+                'OPR_RGSTR_CTF_DATE_OUT',
+                'OPR_INCM_EXMPT_IND_OUT',
+                'OPR_CHK_USER_NAME_OUT',
+                'OPR_CHK_TTL_NAME_OUT',
+                'OPR_APRV_USER_NAME_OUT',
+                'OPR_APRV_TTL_NAME_OUT',
+                'OPR_CTRSGN_USER_NAME_OUT',
+                'OPR_CTRSGN_TTL_NAME_OUT',
+                'APLY_BGN_DATE_OUT',
+                'APLY_END_DATE_OUT',
+                'OPR_ANC_DATE_OUT',
+                'OPR_TRGT_EVCT_DATE_OUT',
+                'APLY_SBMT_DLN_DATE_OUT',
+                'QUE_PLAN_ID_OUT',
+                'OPR_CRE_DATE_OUT',
+                'OPR_ELGBL_CTF_DATE_OUT',
+                'OPR_APLY_EQVLN_DATE_OUT',
+                'OPR_TYPE_CODE_OUT',
+                'QTA_CATG_CODE_OUT',
+                'ORG_UNIT_KEY_OUT',
+                'OFFC_CODE_OUT',
+                'OPR_FLAT_SLCT_RLS_IND_OUT',
+                'OPR_SBTYP_CODE_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'RTR_DCS_DATE_OUT',
+                'LAST_REF_LTNG_DATE_OUT',
+                'FLAT_SLCT_SCND_RND_IND_OUT',
+                'FLAT_SLCT_SCND_RND_BGN_DATE',
+                'FLAT_SLCT_SCND_RND_END_DATE',
+                'APLY_RAS_IND',
+                'OPR_SBPHS_NUM_OUT',
+                'APLY_SCND_RND_BGN_DATE_OUT',
+                'APLY_SCND_RND_END_DATE_OUT',
+                'LTR_FILE_REF_NUM_OUT',
+                'ALCT_SIZE_NUM_OUT',
+                'APLY_DEL_GRNT_DATE',
+                'MLTP_COST_CTR_IND',
+                'LAST_REC_TXN_MBR_CODE',
+            ],
+            target_columns=[
+                'OPR_CODE',
+                'OPR_DESP',
+                'OPR_PHASE_NUM',
+                'PRNT_OPR_CODE',
+                'OPR_ADVRT_BGN_DATE',
+                'OPR_ADVRT_END_DATE',
+                'OPR_TRGT_CMPLT_DATE',
+                'OPR_STRC_PRFX_CODE',
+                'OPR_RMK_TEXT',
+                'OPR_FLAT_SLCT_IND',
+                'OPR_FLAT_SLCT_BGN_DATE',
+                'OPR_FLAT_SLCT_END_DATE',
+                'OPR_ALWN_PRCS_IND',
+                'OPR_ALWN_CALC_CODE',
+                'OPR_DFN_GRP_IND',
+                'OPR_BLT_IND',
+                'OPR_RGSTR_CTF_DATE',
+                'OPR_INCM_EXMPT_IND',
+                'OPR_CHK_USER_NAME',
+                'OPR_CHK_TTL_NAME',
+                'OPR_APRV_USER_NAME',
+                'OPR_APRV_TTL_NAME',
+                'OPR_CTRSGN_USER_NAME',
+                'OPR_CTRSGN_TTL_NAME',
+                'APLY_BGN_DATE',
+                'APLY_END_DATE',
+                'OPR_ANC_DATE',
+                'OPR_TRGT_EVCT_DATE',
+                'APLY_SBMT_DLN_DATE',
+                'QUE_PLAN_ID',
+                'OPR_CRE_DATE',
+                'OPR_ELGBL_CTF_DATE',
+                'OPR_APLY_EQVLN_DATE',
+                'OPR_TYPE_CODE',
+                'QTA_CATG_CODE',
+                'ORG_UNIT_KEY',
+                'OFFC_CODE',
+                'OPR_FLAT_SLCT_RLS_IND',
+                'OPR_SBTYP_CODE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'RTR_DCS_DATE',
+                'LAST_REF_LTNG_DATE',
+                'FLAT_SLCT_SCND_RND_IND',
+                'FLAT_SLCT_SCND_RND_BGN_DATE',
+                'FLAT_SLCT_SCND_RND_END_DATE',
+                'APLY_RAS_IND',
+                'OPR_SBPHS_NUM',
+                'APLY_SCND_RND_BGN_DATE',
+                'APLY_SCND_RND_END_DATE',
+                'LTR_FILE_REF_NUM',
+                'ALCT_SIZE_NUM',
+                'APLY_DEL_GRNT_DATE',
+                'MLTP_COST_CTR_IND',
+                'LAST_REC_TXN_MBR_CODE',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_POR_OPR write completed")
         logger.info("Step: write_EMS_POR_OPR1")
         # Write to Target: write_EMS_POR_OPR1
-        df_write = df_EXPTRANS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"ALCT_SIZE_NUM": "ALCT_SIZE_NUM_OUT", "APLY_BGN_DATE": "APLY_BGN_DATE_OUT", "APLY_DEL_GRNT_DATE": "APLY_DEL_GRNT_DATE", "APLY_END_DATE": "APLY_END_DATE_OUT", "APLY_RAS_IND": "APLY_RAS_IND", "APLY_SBMT_DLN_DATE": "APLY_SBMT_DLN_DATE_OUT", "APLY_SCND_RND_BGN_DATE": "APLY_SCND_RND_BGN_DATE_OUT", "APLY_SCND_RND_END_DATE": "APLY_SCND_RND_END_DATE_OUT", "DUMMY": "DUMMY", "FLAT_SLCT_SCND_RND_BGN_DATE": "FLAT_SLCT_SCND_RND_BGN_DATE", "FLAT_SLCT_SCND_RND_END_DATE": "FLAT_SLCT_SCND_RND_END_DATE", "FLAT_SLCT_SCND_RND_IND": "FLAT_SLCT_SCND_RND_IND_OUT", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE_OUT", "LAST_REC_TXN_MBR_CODE": "LAST_REC_TXN_MBR_CODE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID_OUT", "LAST_REF_LTNG_DATE": "LAST_REF_LTNG_DATE_OUT", "LTR_FILE_REF_NUM": "LTR_FILE_REF_NUM_OUT", "MLTP_COST_CTR_IND": "MLTP_COST_CTR_IND", "OFFC_CODE": "OFFC_CODE_OUT", "OPR_ADVRT_BGN_DATE": "OPR_ADVRT_BGN_DATE_OUT", "OPR_ADVRT_END_DATE": "OPR_ADVRT_END_DATE_OUT", "OPR_ALWN_CALC_CODE": "OPR_ALWN_CALC_CODE_OUT", "OPR_ALWN_PRCS_IND": "OPR_ALWN_PRCS_IND_OUT", "OPR_ANC_DATE": "OPR_ANC_DATE_OUT", "OPR_APLY_EQVLN_DATE": "OPR_APLY_EQVLN_DATE_OUT", "OPR_APRV_TTL_NAME": "OPR_APRV_TTL_NAME_OUT", "OPR_APRV_USER_NAME": "OPR_APRV_USER_NAME_OUT", "OPR_BLT_IND": "OPR_BLT_IND_OUT", "OPR_CHK_TTL_NAME": "OPR_CHK_TTL_NAME_OUT", "OPR_CHK_USER_NAME": "OPR_CHK_USER_NAME_OUT", "OPR_CODE": "OPR_CODE_OUT", "OPR_CRE_DATE": "OPR_CRE_DATE_OUT", "OPR_CTRSGN_TTL_NAME": "OPR_CTRSGN_TTL_NAME_OUT", "OPR_CTRSGN_USER_NAME": "OPR_CTRSGN_USER_NAME_OUT", "OPR_DESP": "OPR_DESP_OUT", "OPR_DFN_GRP_IND": "OPR_DFN_GRP_IND_OUT", "OPR_ELGBL_CTF_DATE": "OPR_ELGBL_CTF_DATE_OUT", "OPR_FLAT_SLCT_BGN_DATE": "OPR_FLAT_SLCT_BGN_DATE_OUT", "OPR_FLAT_SLCT_END_DATE": "OPR_FLAT_SLCT_END_DATE_OUT", "OPR_FLAT_SLCT_IND": "OPR_FLAT_SLCT_IND_OUT", "OPR_FLAT_SLCT_RLS_IND": "OPR_FLAT_SLCT_RLS_IND_OUT", "OPR_INCM_EXMPT_IND": "OPR_INCM_EXMPT_IND_OUT", "OPR_PHASE_NUM": "OPR_PHASE_NUM_OUT", "OPR_RGSTR_CTF_DATE": "OPR_RGSTR_CTF_DATE_OUT", "OPR_RMK_TEXT": "OPR_RMK_TEXT_OUT", "OPR_SBPHS_NUM": "OPR_SBPHS_NUM_OUT", "OPR_SBTYP_CODE": "OPR_SBTYP_CODE_OUT", "OPR_STRC_PRFX_CODE": "OPR_STRC_PRFX_CODE_OUT", "OPR_TRGT_CMPLT_DATE": "OPR_TRGT_CMPLT_DATE_OUT", "OPR_TRGT_EVCT_DATE": "OPR_TRGT_EVCT_DATE_OUT", "OPR_TYPE_CODE": "OPR_TYPE_CODE_OUT", "ORG_UNIT_KEY": "ORG_UNIT_KEY_OUT", "PRNT_OPR_CODE": "PRNT_OPR_CODE_OUT", "QTA_CATG_CODE": "QTA_CATG_CODE_OUT", "QUE_PLAN_ID": "QUE_PLAN_ID_OUT", "RTR_DCS_DATE": "RTR_DCS_DATE_OUT"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['OPR_CODE', 'OPR_DESP', 'OPR_PHASE_NUM', 'PRNT_OPR_CODE', 'OPR_ADVRT_BGN_DATE', 'OPR_ADVRT_END_DATE', 'OPR_TRGT_CMPLT_DATE', 'OPR_STRC_PRFX_CODE', 'OPR_RMK_TEXT', 'OPR_FLAT_SLCT_IND', 'OPR_FLAT_SLCT_BGN_DATE', 'OPR_FLAT_SLCT_END_DATE', 'OPR_ALWN_PRCS_IND', 'OPR_ALWN_CALC_CODE', 'OPR_DFN_GRP_IND', 'OPR_BLT_IND', 'OPR_RGSTR_CTF_DATE', 'OPR_INCM_EXMPT_IND', 'OPR_CHK_USER_NAME', 'OPR_CHK_TTL_NAME', 'OPR_APRV_USER_NAME', 'OPR_APRV_TTL_NAME', 'OPR_CTRSGN_USER_NAME', 'OPR_CTRSGN_TTL_NAME', 'APLY_BGN_DATE', 'APLY_END_DATE', 'OPR_ANC_DATE', 'OPR_TRGT_EVCT_DATE', 'APLY_SBMT_DLN_DATE', 'QUE_PLAN_ID', 'OPR_CRE_DATE', 'OPR_ELGBL_CTF_DATE', 'OPR_APLY_EQVLN_DATE', 'OPR_TYPE_CODE', 'QTA_CATG_CODE', 'ORG_UNIT_KEY', 'OFFC_CODE', 'OPR_FLAT_SLCT_RLS_IND', 'OPR_SBTYP_CODE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'RTR_DCS_DATE', 'LAST_REF_LTNG_DATE', 'FLAT_SLCT_SCND_RND_IND', 'FLAT_SLCT_SCND_RND_BGN_DATE', 'FLAT_SLCT_SCND_RND_END_DATE', 'APLY_RAS_IND', 'OPR_SBPHS_NUM', 'APLY_SCND_RND_BGN_DATE', 'APLY_SCND_RND_END_DATE', 'LTR_FILE_REF_NUM', 'ALCT_SIZE_NUM', 'APLY_DEL_GRNT_DATE', 'MLTP_COST_CTR_IND', 'LAST_REC_TXN_MBR_CODE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "EMS_POR_OPR", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXPTRANS,
+            conn=conn_target,
+            table='EMS_POR_OPR',
+            mode='append',
+            source_columns=[
+                'OPR_CODE_OUT',
+                'OPR_DESP_OUT',
+                'OPR_PHASE_NUM_OUT',
+                'PRNT_OPR_CODE_OUT',
+                'OPR_ADVRT_BGN_DATE_OUT',
+                'OPR_ADVRT_END_DATE_OUT',
+                'OPR_TRGT_CMPLT_DATE_OUT',
+                'OPR_STRC_PRFX_CODE_OUT',
+                'OPR_RMK_TEXT_OUT',
+                'OPR_FLAT_SLCT_IND_OUT',
+                'OPR_FLAT_SLCT_BGN_DATE_OUT',
+                'OPR_FLAT_SLCT_END_DATE_OUT',
+                'OPR_ALWN_PRCS_IND_OUT',
+                'OPR_ALWN_CALC_CODE_OUT',
+                'OPR_DFN_GRP_IND_OUT',
+                'OPR_BLT_IND_OUT',
+                'OPR_RGSTR_CTF_DATE_OUT',
+                'OPR_INCM_EXMPT_IND_OUT',
+                'OPR_CHK_USER_NAME_OUT',
+                'OPR_CHK_TTL_NAME_OUT',
+                'OPR_APRV_USER_NAME_OUT',
+                'OPR_APRV_TTL_NAME_OUT',
+                'OPR_CTRSGN_USER_NAME_OUT',
+                'OPR_CTRSGN_TTL_NAME_OUT',
+                'APLY_BGN_DATE_OUT',
+                'APLY_END_DATE_OUT',
+                'OPR_ANC_DATE_OUT',
+                'OPR_TRGT_EVCT_DATE_OUT',
+                'APLY_SBMT_DLN_DATE_OUT',
+                'QUE_PLAN_ID_OUT',
+                'OPR_CRE_DATE_OUT',
+                'OPR_ELGBL_CTF_DATE_OUT',
+                'OPR_APLY_EQVLN_DATE_OUT',
+                'OPR_TYPE_CODE_OUT',
+                'QTA_CATG_CODE_OUT',
+                'ORG_UNIT_KEY_OUT',
+                'OFFC_CODE_OUT',
+                'OPR_FLAT_SLCT_RLS_IND_OUT',
+                'OPR_SBTYP_CODE_OUT',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE_OUT',
+                'LAST_REC_TXN_USER_ID_OUT',
+                'RTR_DCS_DATE_OUT',
+                'LAST_REF_LTNG_DATE_OUT',
+                'FLAT_SLCT_SCND_RND_IND_OUT',
+                'FLAT_SLCT_SCND_RND_BGN_DATE',
+                'FLAT_SLCT_SCND_RND_END_DATE',
+                'APLY_RAS_IND',
+                'OPR_SBPHS_NUM_OUT',
+                'APLY_SCND_RND_BGN_DATE_OUT',
+                'APLY_SCND_RND_END_DATE_OUT',
+                'LTR_FILE_REF_NUM_OUT',
+                'ALCT_SIZE_NUM_OUT',
+                'APLY_DEL_GRNT_DATE',
+                'MLTP_COST_CTR_IND',
+                'LAST_REC_TXN_MBR_CODE',
+            ],
+            target_columns=[
+                'OPR_CODE',
+                'OPR_DESP',
+                'OPR_PHASE_NUM',
+                'PRNT_OPR_CODE',
+                'OPR_ADVRT_BGN_DATE',
+                'OPR_ADVRT_END_DATE',
+                'OPR_TRGT_CMPLT_DATE',
+                'OPR_STRC_PRFX_CODE',
+                'OPR_RMK_TEXT',
+                'OPR_FLAT_SLCT_IND',
+                'OPR_FLAT_SLCT_BGN_DATE',
+                'OPR_FLAT_SLCT_END_DATE',
+                'OPR_ALWN_PRCS_IND',
+                'OPR_ALWN_CALC_CODE',
+                'OPR_DFN_GRP_IND',
+                'OPR_BLT_IND',
+                'OPR_RGSTR_CTF_DATE',
+                'OPR_INCM_EXMPT_IND',
+                'OPR_CHK_USER_NAME',
+                'OPR_CHK_TTL_NAME',
+                'OPR_APRV_USER_NAME',
+                'OPR_APRV_TTL_NAME',
+                'OPR_CTRSGN_USER_NAME',
+                'OPR_CTRSGN_TTL_NAME',
+                'APLY_BGN_DATE',
+                'APLY_END_DATE',
+                'OPR_ANC_DATE',
+                'OPR_TRGT_EVCT_DATE',
+                'APLY_SBMT_DLN_DATE',
+                'QUE_PLAN_ID',
+                'OPR_CRE_DATE',
+                'OPR_ELGBL_CTF_DATE',
+                'OPR_APLY_EQVLN_DATE',
+                'OPR_TYPE_CODE',
+                'QTA_CATG_CODE',
+                'ORG_UNIT_KEY',
+                'OFFC_CODE',
+                'OPR_FLAT_SLCT_RLS_IND',
+                'OPR_SBTYP_CODE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'RTR_DCS_DATE',
+                'LAST_REF_LTNG_DATE',
+                'FLAT_SLCT_SCND_RND_IND',
+                'FLAT_SLCT_SCND_RND_BGN_DATE',
+                'FLAT_SLCT_SCND_RND_END_DATE',
+                'APLY_RAS_IND',
+                'OPR_SBPHS_NUM',
+                'APLY_SCND_RND_BGN_DATE',
+                'APLY_SCND_RND_END_DATE',
+                'LTR_FILE_REF_NUM',
+                'ALCT_SIZE_NUM',
+                'APLY_DEL_GRNT_DATE',
+                'MLTP_COST_CTR_IND',
+                'LAST_REC_TXN_MBR_CODE',
+            ],
+            config=config,
+        )
 
         logger.info("write_EMS_POR_OPR1 write completed")
         

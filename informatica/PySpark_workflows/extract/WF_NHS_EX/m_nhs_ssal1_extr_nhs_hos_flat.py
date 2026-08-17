@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_NHS_HOS_FLAT")
@@ -79,44 +64,123 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_NHS_HOS_FLAT")
         # Source Qualifier: apply_SQ_NHS_HOS_FLAT
         df_SQ_NHS_HOS_FLAT = df_NHS_HOS_FLAT
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_NHS_HOS_FLAT = df_SQ_NHS_HOS_FLAT.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HOS_FLAT_ID", "HOS_BLK_ID", "UNIT_CODE_ADDR", "FLR_NUM", "FLAT_NUM", "ORNT_CODE", "SLBL_AREA", "BAY_WNDW_SLBL_AREA", "UNDVD_SHR_NUM", "ORIG_PRC_AMT", "MSHP_INCDT_DESP", "ROW_VER_NUM", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "FRST_SALE_PHASE_CODE", "FLR_SEQ_NUM", "FLAT_STS_CODE", "FRST_ASGN_DATE", "BLCY_SLBL_AREA", "UTL_PLFM_SLBL_AREA", "SHR_UNIT_NAME", "CNV_UNIT_NAME", "LIFT_STOP_IND", "VOID_BGN_DATE", "FLAT_WING_DESP", "FLR_NUM_ENG_DESP", "FLR_NUM_CHI_DESP", "FLAT_NUM_DESP"]
-        df_SQ_NHS_HOS_FLAT = df_SQ_NHS_HOS_FLAT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_NHS_HOS_FLAT.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_NHS_HOS_FLAT = lib.sq_output(
+            input_df=df_SQ_NHS_HOS_FLAT,
+            port_cols={
+                'HOS_FLAT_ID': 'decimal',
+                'HOS_BLK_ID': 'decimal',
+                'UNIT_CODE_ADDR': 'string',
+                'FLR_NUM': 'string',
+                'FLAT_NUM': 'string',
+                'ORNT_CODE': 'string',
+                'SLBL_AREA': 'decimal',
+                'BAY_WNDW_SLBL_AREA': 'decimal',
+                'UNDVD_SHR_NUM': 'decimal',
+                'ORIG_PRC_AMT': 'decimal',
+                'MSHP_INCDT_DESP': 'string',
+                'ROW_VER_NUM': 'decimal',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'FRST_SALE_PHASE_CODE': 'string',
+                'FLR_SEQ_NUM': 'decimal',
+                'FLAT_STS_CODE': 'string',
+                'FRST_ASGN_DATE': 'date/time',
+                'BLCY_SLBL_AREA': 'decimal',
+                'UTL_PLFM_SLBL_AREA': 'decimal',
+                'SHR_UNIT_NAME': 'string',
+                'CNV_UNIT_NAME': 'string',
+                'LIFT_STOP_IND': 'string',
+                'VOID_BGN_DATE': 'date/time',
+                'FLAT_WING_DESP': 'string',
+                'FLR_NUM_ENG_DESP': 'string',
+                'FLR_NUM_CHI_DESP': 'string',
+                'FLAT_NUM_DESP': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_NHS_HOS_FLAT", df_SQ_NHS_HOS_FLAT)
         
         logger.info("Step: apply_EXP_L1")
         # Expression: apply_EXP_L1
-        df_EXP_L1 = df_SQ_NHS_HOS_FLAT
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["HOS_FLAT_ID", "HOS_BLK_ID", "UNIT_CODE_ADDR", "FLR_NUM", "FLAT_NUM", "ORNT_CODE", "SLBL_AREA", "BAY_WNDW_SLBL_AREA", "UNDVD_SHR_NUM", "ORIG_PRC_AMT", "MSHP_INCDT_DESP", "ROW_VER_NUM", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "FRST_SALE_PHASE_CODE", "FLR_SEQ_NUM", "FLAT_STS_CODE", "FRST_ASGN_DATE", "BLCY_SLBL_AREA", "UTL_PLFM_SLBL_AREA", "SHR_UNIT_NAME", "CNV_UNIT_NAME", "LIFT_STOP_IND", "VOID_BGN_DATE", "FLAT_WING_DESP", "FLR_NUM_ENG_DESP", "FLR_NUM_CHI_DESP", "FLAT_NUM_DESP"]:
-            if _col.lower() not in [x.lower() for x in df_EXP_L1.columns]:
-                df_EXP_L1 = df_EXP_L1.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_L1 = lib.expression(
+            input_df=df_SQ_NHS_HOS_FLAT,
+        )
         ctx.register_df("df_EXP_L1", df_EXP_L1)
         
         logger.info("Step: write_NHS_HOS_FLAT1")
         # Write to Target: write_NHS_HOS_FLAT1
-        df_write = df_EXP_L1
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BAY_WNDW_SLBL_AREA": "BAY_WNDW_SLBL_AREA", "BLCY_SLBL_AREA": "BLCY_SLBL_AREA", "CNV_UNIT_NAME": "CNV_UNIT_NAME", "FLAT_NUM": "FLAT_NUM", "FLAT_NUM_DESP": "FLAT_NUM_DESP", "FLAT_STS_CODE": "FLAT_STS_CODE", "FLAT_WING_DESP": "FLAT_WING_DESP", "FLR_NUM": "FLR_NUM", "FLR_NUM_CHI_DESP": "FLR_NUM_CHI_DESP", "FLR_NUM_ENG_DESP": "FLR_NUM_ENG_DESP", "FLR_SEQ_NUM": "FLR_SEQ_NUM", "FRST_ASGN_DATE": "FRST_ASGN_DATE", "FRST_SALE_PHASE_CODE": "FRST_SALE_PHASE_CODE", "HOS_BLK_ID": "HOS_BLK_ID", "HOS_FLAT_ID": "HOS_FLAT_ID", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "LIFT_STOP_IND": "LIFT_STOP_IND", "MSHP_INCDT_DESP": "MSHP_INCDT_DESP", "ORIG_PRC_AMT": "ORIG_PRC_AMT", "ORNT_CODE": "ORNT_CODE", "ROW_VER_NUM": "ROW_VER_NUM", "SHR_UNIT_NAME": "SHR_UNIT_NAME", "SLBL_AREA": "SLBL_AREA", "UNDVD_SHR_NUM": "UNDVD_SHR_NUM", "UNIT_CODE_ADDR": "UNIT_CODE_ADDR", "UTL_PLFM_SLBL_AREA": "UTL_PLFM_SLBL_AREA", "VOID_BGN_DATE": "VOID_BGN_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HOS_FLAT_ID', 'HOS_BLK_ID', 'UNIT_CODE_ADDR', 'FLR_NUM', 'FLAT_NUM', 'ORNT_CODE', 'SLBL_AREA', 'BAY_WNDW_SLBL_AREA', 'UNDVD_SHR_NUM', 'ORIG_PRC_AMT', 'MSHP_INCDT_DESP', 'ROW_VER_NUM', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'FRST_SALE_PHASE_CODE', 'FLR_SEQ_NUM', 'FLAT_STS_CODE', 'FRST_ASGN_DATE', 'BLCY_SLBL_AREA', 'UTL_PLFM_SLBL_AREA', 'SHR_UNIT_NAME', 'CNV_UNIT_NAME', 'LIFT_STOP_IND', 'VOID_BGN_DATE', 'FLAT_WING_DESP', 'FLR_NUM_ENG_DESP', 'FLR_NUM_CHI_DESP', 'FLAT_NUM_DESP']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "NHS_HOS_FLAT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_L1,
+            conn=conn_target,
+            table='NHS_HOS_FLAT',
+            mode='append',
+            source_columns=[
+                'HOS_FLAT_ID',
+                'HOS_BLK_ID',
+                'UNIT_CODE_ADDR',
+                'FLR_NUM',
+                'FLAT_NUM',
+                'ORNT_CODE',
+                'SLBL_AREA',
+                'BAY_WNDW_SLBL_AREA',
+                'UNDVD_SHR_NUM',
+                'ORIG_PRC_AMT',
+                'MSHP_INCDT_DESP',
+                'ROW_VER_NUM',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'FRST_SALE_PHASE_CODE',
+                'FLR_SEQ_NUM',
+                'FLAT_STS_CODE',
+                'FRST_ASGN_DATE',
+                'BLCY_SLBL_AREA',
+                'UTL_PLFM_SLBL_AREA',
+                'SHR_UNIT_NAME',
+                'CNV_UNIT_NAME',
+                'LIFT_STOP_IND',
+                'VOID_BGN_DATE',
+                'FLAT_WING_DESP',
+                'FLR_NUM_ENG_DESP',
+                'FLR_NUM_CHI_DESP',
+                'FLAT_NUM_DESP',
+            ],
+            target_columns=[
+                'HOS_FLAT_ID',
+                'HOS_BLK_ID',
+                'UNIT_CODE_ADDR',
+                'FLR_NUM',
+                'FLAT_NUM',
+                'ORNT_CODE',
+                'SLBL_AREA',
+                'BAY_WNDW_SLBL_AREA',
+                'UNDVD_SHR_NUM',
+                'ORIG_PRC_AMT',
+                'MSHP_INCDT_DESP',
+                'ROW_VER_NUM',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'FRST_SALE_PHASE_CODE',
+                'FLR_SEQ_NUM',
+                'FLAT_STS_CODE',
+                'FRST_ASGN_DATE',
+                'BLCY_SLBL_AREA',
+                'UTL_PLFM_SLBL_AREA',
+                'SHR_UNIT_NAME',
+                'CNV_UNIT_NAME',
+                'LIFT_STOP_IND',
+                'VOID_BGN_DATE',
+                'FLAT_WING_DESP',
+                'FLR_NUM_ENG_DESP',
+                'FLR_NUM_CHI_DESP',
+                'FLAT_NUM_DESP',
+            ],
+            config=config,
+        )
 
         logger.info("write_NHS_HOS_FLAT1 write completed")
         

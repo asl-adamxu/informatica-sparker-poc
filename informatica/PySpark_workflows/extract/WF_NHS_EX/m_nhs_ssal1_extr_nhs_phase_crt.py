@@ -49,25 +49,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_load_start_ds = ""
     v_load_end_ds = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_load_start_ds",  "$$v_load_end_ds", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_load_start_ds":
-                            v_load_start_ds = _val
-                        if _clean == "v_load_end_ds":
-                            v_load_end_ds = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_load_start_ds",  "$$v_load_end_ds", ], logger)
+    v_load_start_ds = _vars.get("v_load_start_ds", v_load_start_ds)
+    v_load_end_ds = _vars.get("v_load_end_ds", v_load_end_ds)
     
     try:
         logger.info("Step: read_NHS_PHASE_CRT")
@@ -79,79 +64,120 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_NHS_PHASE_CRT")
         # Source Qualifier: apply_SQ_NHS_PHASE_CRT
         df_SQ_NHS_PHASE_CRT = df_NHS_PHASE_CRT
-        _filter_text = """LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')"""
-        _filter_text = _filter_text.replace("$$v_load_start_ds", str(v_load_start_ds or "0"))
-        _filter_text = _filter_text.replace("$$v_load_end_ds", str(v_load_end_ds or "0"))
-        df_SQ_NHS_PHASE_CRT = df_SQ_NHS_PHASE_CRT.filter(expr(_filter_text))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["PHASE_CODE", "HOS_CRT_ID", "ROW_VER_NUM", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID"]
-        df_SQ_NHS_PHASE_CRT = df_SQ_NHS_PHASE_CRT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_NHS_PHASE_CRT.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_NHS_PHASE_CRT = lib.sq_output(
+            input_df=df_SQ_NHS_PHASE_CRT,
+            port_cols={
+                'PHASE_CODE': 'string',
+                'HOS_CRT_ID': 'decimal',
+                'ROW_VER_NUM': 'decimal',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_USER_ID': 'string',
+            },
+            filter_condition="LAST_REC_TXN_DATE > to_date('$$v_load_start_ds','yyyy-MM-dd HH:mm:ss') AND LAST_REC_TXN_DATE <= to_date('$$v_load_end_ds','yyyy-MM-dd HH:mm:ss')",
+            substitutions={'$$v_load_start_ds': v_load_start_ds, '$$v_load_end_ds': v_load_end_ds},
+        )
         ctx.register_df("df_SQ_NHS_PHASE_CRT", df_SQ_NHS_PHASE_CRT)
         
         logger.info("Step: apply_EXP_L1")
         # Expression: apply_EXP_L1
-        df_EXP_L1 = df_SQ_NHS_PHASE_CRT
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["PHASE_CODE", "HOS_CRT_ID", "ROW_VER_NUM", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID"]:
-            if _col.lower() not in [x.lower() for x in df_EXP_L1.columns]:
-                df_EXP_L1 = df_EXP_L1.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_L1 = lib.expression(
+            input_df=df_SQ_NHS_PHASE_CRT,
+        )
         ctx.register_df("df_EXP_L1", df_EXP_L1)
         
         logger.info("Step: write_NHS_PHASE_CRT1")
         # Write to Target: write_NHS_PHASE_CRT1
-        df_write = df_EXP_L1
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"HOS_CRT_ID": "HOS_CRT_ID", "LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID": "LAST_REC_TXN_USER_ID", "PHASE_CODE": "PHASE_CODE", "ROW_VER_NUM": "ROW_VER_NUM"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("PHASE_ENG_DESP", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PHASE_BGN_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PHASE_SALE_END_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PHASE_END_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PHASE_APLY_FEE_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PHASE_TOP_UP_FEE_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PHASE_SALE_PRC_DSCT_PCT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PHASE_CHI_DESP", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_END_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_STG_END_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_SCHM_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSKP_RQR_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSKP_CMPLT_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSKP_CMPLT_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("TOT_APLY_CNT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("TOT_APLY_HSKP_CNT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("TOT_APLY_RTA_CNT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("GF_CSHR_ORD_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("WF_CSHR_ORD_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("GF_CSHR_ORD_CHI_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("WF_CSHR_ORD_CHI_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_SBSCHM_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("GF_PAGE_CNT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("WF_PAGE_CNT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CHI_LTR_SCHM_NAME", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ENG_LTR_SCHM_NAME", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ACK_LTR_GNRT_BGN_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ACK_EMAIL_GNRT_BGN_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ACK_LTR_ISS_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("TPS_CSHR_ORD_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("TPS_CSHR_ORD_CHI_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EFAS_OPR_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EFAS_FLAT_SLCT_EMAIL_ADDR", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EFAS_FLAT_SLCT_INVT_EMAIL_ADDR", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['PHASE_CODE', 'PHASE_ENG_DESP', 'PHASE_BGN_DATE', 'PHASE_SALE_END_DATE', 'PHASE_END_DATE', 'PHASE_APLY_FEE_AMT', 'PHASE_TOP_UP_FEE_AMT', 'PHASE_SALE_PRC_DSCT_PCT', 'ROW_VER_NUM', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_USER_ID', 'PHASE_CHI_DESP', 'APLY_END_DATE', 'APLY_STG_END_DATE', 'HSE_SCHM_CODE', 'HSKP_RQR_IND', 'HSKP_CMPLT_DATE', 'HSKP_CMPLT_IND', 'TOT_APLY_CNT', 'TOT_APLY_HSKP_CNT', 'TOT_APLY_RTA_CNT', 'GF_CSHR_ORD_AMT', 'WF_CSHR_ORD_AMT', 'GF_CSHR_ORD_CHI_TEXT', 'WF_CSHR_ORD_CHI_TEXT', 'HSE_SBSCHM_CODE', 'GF_PAGE_CNT', 'WF_PAGE_CNT', 'CHI_LTR_SCHM_NAME', 'ENG_LTR_SCHM_NAME', 'ACK_LTR_GNRT_BGN_DATE', 'ACK_EMAIL_GNRT_BGN_DATE', 'ACK_LTR_ISS_DATE', 'TPS_CSHR_ORD_AMT', 'TPS_CSHR_ORD_CHI_TEXT', 'EFAS_OPR_CODE', 'EFAS_FLAT_SLCT_EMAIL_ADDR', 'EFAS_FLAT_SLCT_INVT_EMAIL_ADDR']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "NHS_PHASE", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_L1,
+            conn=conn_target,
+            table='NHS_PHASE',
+            mode='append',
+            source_columns=[
+                'PHASE_CODE',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                'ROW_VER_NUM',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ],
+            target_columns=[
+                'PHASE_CODE',
+                'PHASE_ENG_DESP',
+                'PHASE_BGN_DATE',
+                'PHASE_SALE_END_DATE',
+                'PHASE_END_DATE',
+                'PHASE_APLY_FEE_AMT',
+                'PHASE_TOP_UP_FEE_AMT',
+                'PHASE_SALE_PRC_DSCT_PCT',
+                'ROW_VER_NUM',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_USER_ID',
+                'PHASE_CHI_DESP',
+                'APLY_END_DATE',
+                'APLY_STG_END_DATE',
+                'HSE_SCHM_CODE',
+                'HSKP_RQR_IND',
+                'HSKP_CMPLT_DATE',
+                'HSKP_CMPLT_IND',
+                'TOT_APLY_CNT',
+                'TOT_APLY_HSKP_CNT',
+                'TOT_APLY_RTA_CNT',
+                'GF_CSHR_ORD_AMT',
+                'WF_CSHR_ORD_AMT',
+                'GF_CSHR_ORD_CHI_TEXT',
+                'WF_CSHR_ORD_CHI_TEXT',
+                'HSE_SBSCHM_CODE',
+                'GF_PAGE_CNT',
+                'WF_PAGE_CNT',
+                'CHI_LTR_SCHM_NAME',
+                'ENG_LTR_SCHM_NAME',
+                'ACK_LTR_GNRT_BGN_DATE',
+                'ACK_EMAIL_GNRT_BGN_DATE',
+                'ACK_LTR_ISS_DATE',
+                'TPS_CSHR_ORD_AMT',
+                'TPS_CSHR_ORD_CHI_TEXT',
+                'EFAS_OPR_CODE',
+                'EFAS_FLAT_SLCT_EMAIL_ADDR',
+                'EFAS_FLAT_SLCT_INVT_EMAIL_ADDR',
+            ],
+            config=config,
+        )
 
         logger.info("write_NHS_PHASE_CRT1 write completed")
         
