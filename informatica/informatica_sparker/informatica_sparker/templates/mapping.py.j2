@@ -67,26 +67,12 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
     {% set clean_name = var_name | replace('$', '') %}
     {{ clean_name }} = "{{ var_default }}"
     {% endfor %}
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [{% for var_name, var_default in mapping_variables.items() %} "{{ var_name }}", {% endfor %}]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        {% for var_name, var_default in mapping_variables.items() %}
-                        {% set clean_name = var_name | replace('$', '') %}
-                        if _clean == "{{ clean_name }}":
-                            {{ clean_name }} = _val
-                        {% endfor %}
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [{% for var_name, var_default in mapping_variables.items() %} "{{ var_name }}", {% endfor %}], logger)
+    {% for var_name, var_default in mapping_variables.items() %}
+    {% set clean_name = var_name | replace('$', '') %}
+    {{ clean_name }} = _vars.get("{{ clean_name }}", {{ clean_name }})
+    {% endfor %}
     {% endif %}
     
     try:

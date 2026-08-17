@@ -1130,6 +1130,40 @@ def update_strategy(spark=None, input_df=None, name=None,
     return input_df
 
 
+def load_mapping_variables(config, var_names, logger=None):
+    """Read $$ mapping variables from the UTL_JOB_PARAM file (the shared
+    per-mapping parameter-loading step).
+
+    Returns {clean_name: value} (no $$ prefix). Missing file, missing config
+    entry, or a variable absent from the file → the variable is absent from
+    the result, so callers `.get()` their declared defaults. The file is the
+    single source of truth — each mapping reads it independently, so upstream
+    mappings' updates are always visible.
+
+    Config path: ``config["objects"]["UTL_JOB_PARAM"]["path"]`` (resolved via
+    _resolve_path so $VAR / ${VAR:default} / $(pwd) all work).
+    """
+    _log = logger or logging.getLogger(__name__)
+    _out = {}
+    _obj = ((config or {}).get("objects") or {}).get("UTL_JOB_PARAM", {})
+    if not isinstance(_obj, dict) or not _obj.get("path"):
+        _log.warning("UTL_JOB_PARAM not found in config, using default values")
+        return _out
+    _path = _resolve_path(_obj.get("path"))
+    try:
+        with open(_path, "r") as _f:
+            for _line in _f:
+                _line = _line.strip()
+                for _var in (var_names or []):
+                    if _line.startswith(_var + "="):
+                        _val = _line.split("=", 1)[1]
+                        _out[_var.replace("$", "")] = _val
+                        _log.info("Loaded %s=%s from %s", _var, _val, _path)
+    except Exception:
+        _log.warning("UTL_JOB_PARAM not found, using default values")
+    return _out
+
+
 def write_target(spark, df, conn, table, mode="append", sink_type="delta",
                  source_columns=None, target_columns=None,
                  is_delete=False, delete_keys=None, cast_nulltype=False,
