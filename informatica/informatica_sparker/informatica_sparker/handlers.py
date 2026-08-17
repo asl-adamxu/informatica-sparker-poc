@@ -4564,6 +4564,24 @@ class TransformHandlers:
                         f"Renamed {len(_expr_renames)} columns for expression {mpl_inst_name}",
                         LogLevel.INFO)
 
+                # --- Unconnected INPUT ports → NULL (Informatica semantics) --
+                # Input ports declared on the transformation but fed by NO
+                # connector (internal or external) hold NULL at runtime.
+                # Replace their references with NULL (or the port's
+                # DEFAULTVALUE) so expressions don't crash with
+                # UNRESOLVED_COLUMN (e.g. IN_BKEY in EXP_NULL_BKEY of
+                # MPLT_AGMT_EMS_RVC_COST_CTR, M_EMS_SSAL2_TRANS_SEC_ORG_UNIT_COST_CTR).
+                _connected_ports = {
+                    conn.to_field.lower()
+                    for conn in mpl_connectors
+                    if conn.to_instance == mpl_inst_name
+                }
+                _unconnected_ports = [
+                    f for f in transform.fields
+                    if "INPUT" in (f.port_type or "").upper()
+                    and f.name.lower() not in _connected_ports
+                ]
+
                 computed_cols = []
                 mpl_output_ports = []
                 for field in transform.fields:
@@ -4573,6 +4591,20 @@ class TransformHandlers:
                         if "OUTPUT" in (field.port_type or "").upper():
                             mpl_output_ports.append(field.name)
                         expr_text = field.expression
+                        # Unconnected input ports referenced in this expression
+                        # become NULL (or DEFAULTVALUE).
+                        for _uc in _unconnected_ports:
+                            if _uc.name.lower() in expr_text.lower():
+                                _replacement = (
+                                    "'" + _uc.default_value.replace("'", "''") + "'"
+                                    if _uc.default_value else "NULL"
+                                )
+                                expr_text = re.sub(
+                                    r'\b' + re.escape(_uc.name) + r'\b',
+                                    _replacement,
+                                    expr_text,
+                                    flags=re.IGNORECASE
+                                )
                         translated = self.expr_translator.translate(
                             expr_text, "column", field.name
                         )
