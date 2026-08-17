@@ -20,7 +20,8 @@ This file captures conventions, patterns, and rules established during developme
 
 - **Problem**: `_get_input_df`'s Filter/Router preference returned the last lookup's registered chain even when the filter's NON-lookup upstream carries a row-preserving descendant of that chain (a fuller frame with the downstream transformation's computed columns). `FILTRANS` in `M_EMS_DPA_SUMMARIZE_FACT_MTH_RENT_AND_ARR_SMRY_D` read a stale branch (`df_lkp_merge_EXPTRANS2`) and lost `EXPTRANS1`'s columns, despite EXPTRANS1 being its XML-declared upstream.
 - **Fix**: after choosing the lookup chain, scan the non-lookup upstreams — if any registered df is a row-preserving descendant of the lookup chain (only expression/lookup steps on the lineage, via `_is_row_preserving_descendant`), prefer that descendant.
-- **Verified**: RVN_MTH FILTRANS reads `df_EXPTRANS1`; EMS 410 lookup inputs + 0 filter diffs; HSE_STCK anls_a/b unchanged; NHS_TL 2 filter inputs shift toward the XML-declared wiring (FILTRANS_MSTR reads the DLKP_SOR_MSTR chain carrying its own NewLookupRow; ref_code's EXP_BK chain — the same frame its verified FILTRANS_STS uses).
+- **Dynamic-lookup exclusion (same day)**: a DYNAMIC lookup's chain carries the state machine's own `NewLookupRow`, which shadows same-named input columns (`_dynamic_lookup_output_schema` drops it) — a descendant of a dynamic chain no longer preserves the lookup's NewLookupRow value. The override only fires for STATIC lookup chains (`Dynamic Lookup Cache != YES`); filters fed by dynamic lookups must read the dynamic chain itself (ref_code FILTRANS_MSTR regression caught by `test_lookup_filter_wiring`, 18/18).
+- **Verified**: RVN_MTH FILTRANS reads `df_EXPTRANS1`; EMS 410 lookup inputs + 0 filter diffs; HSE_STCK anls_a/b unchanged; NHS_TL filter inputs identical to the pre-fix baseline.
 
 ### Phase 2 ROLLED BACK + lookup chain fixes (v2026.08.17)
 
