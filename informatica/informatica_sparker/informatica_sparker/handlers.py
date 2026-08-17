@@ -3745,6 +3745,24 @@ class TransformHandlers:
                 if _lookup_ups:
                     _last_lkp = max(_lookup_ups, key=self._lookup_order.index)
                     _lkp_chain = self.current_df_map[_last_lkp]
+                    # A DYNAMIC lookup's chain carries the state machine's own
+                    # NewLookupRow, which SHADOWS any same-named input column
+                    # (runtime_lib._dynamic_lookup_output_schema drops it). A
+                    # descendant of such a chain therefore no longer preserves
+                    # the lookup's NewLookupRow value (e.g. the STS chain built
+                    # on the MSTR chain in ref_code) — never override a dynamic
+                    # lookup chain; the filter must read the dynamic chain
+                    # itself. Only static lookups keep every input column, so
+                    # their row-preserving descendants are safe to prefer.
+                    _lkp_inst = self.instance_map.get(_last_lkp)
+                    _lkp_transform = None
+                    if _lkp_inst is not None:
+                        _lkp_transform = self.transform_map.get(
+                            _lkp_inst.transformation_name or _lkp_inst.name)
+                    _lkp_is_dynamic = bool(
+                        _lkp_transform
+                        and str(_lkp_transform.table_attributes.get(
+                            "Dynamic Lookup Cache", "NO")).upper() == "YES")
                     # A NON-lookup upstream may carry a ROW-PRESERVING
                     # descendant of the lookup chain — i.e. a fuller frame that
                     # includes everything the lookup chain accumulated PLUS the
@@ -3755,7 +3773,7 @@ class TransformHandlers:
                     # M_EMS_DPA_SUMMARIZE_FACT_MTH_RENT_AND_ARR_SMRY_D) reads a
                     # STALE chain branch (df_lkp_merge_EXPTRANS2) and loses the
                     # expression's columns (LRT_RTN_THRD_ABV_MTH_ARR_AMT ...).
-                    if self._plan is not None:
+                    if not _lkp_is_dynamic and self._plan is not None:
                         _parent = self._build_df_parent_map(self._plan.steps)
                         _step_map = {s.df_output: s for s in self._plan.steps if s.df_output}
                         for _u in dict.fromkeys(upstream_instances):
