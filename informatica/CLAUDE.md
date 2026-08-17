@@ -16,6 +16,11 @@ This file captures conventions, patterns, and rules established during developme
 
 ## Recent Architecture Changes
 
+### Mapplet-internal unconnected INPUT → NULL (v2026.08.17)
+
+- **Gap**: the main-mapping expression path rewrites unconnected INPUT ports to NULL/DEFAULTVALUE, but the mapplet-internal expression path translated expressions directly — a declared INPUT port with NO connector (e.g. `IN_BKEY` in `EXP_NULL_BKEY` of `MPLT_AGMT_EMS_RVC_COST_CTR`) kept its reference → UNRESOLVED_COLUMN in `M_EMS_SSAL2_TRANS_SEC_ORG_UNIT_COST_CTR` (WF_EMS_TL).
+- **Fix**: the mapplet-internal expression branch computes the connected port set from the mapplet's own connectors and replaces unconnected INPUT references with NULL (or DEFAULTVALUE) before translation. Test: `test_mapplet_unconnected_input.py` (synthetic XML); 187 tests pass.
+
 ### update_strategy connector renames (v2026.08.17)
 
 - **Bug**: the Update Strategy handler never collected connector renames, so a renamed port (e.g. `MPLT_DLKP_CACHE_STATUS1.OUT_V_LAST_REC_TXN_DATE → UPD_SSAL2_MSTR11.OUT_LAST_REC_TXN_DATE`) never existed on the strategy's output frame — a downstream mapplet input remap (`LAST_REC_TXN_DATE ← OUT_LAST_REC_TXN_DATE`) failed with UNRESOLVED_COLUMN in `M_EMS_SSAL2_TRANS_RVN_CLCT_TRML` (WF_EMS_TL).
