@@ -48,25 +48,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_snsh_date = ""
     v_init_flag = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_snsh_date",  "$$v_init_flag", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_snsh_date":
-                            v_snsh_date = _val
-                        if _clean == "v_init_flag":
-                            v_init_flag = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_snsh_date",  "$$v_init_flag", ], logger)
+    v_snsh_date = _vars.get("v_snsh_date", v_snsh_date)
+    v_init_flag = _vars.get("v_init_flag", v_init_flag)
     
     try:
         logger.info("Step: read_EMS_RFX_PRH_ALCT_STD")
@@ -78,28 +63,42 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_EMS_RFX_PRH_ALCT_STD")
         # Source Qualifier: apply_SQ_EMS_RFX_PRH_ALCT_STD
         df_SQ_EMS_RFX_PRH_ALCT_STD = df_EMS_RFX_PRH_ALCT_STD
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HSE_EST_KEY", "HSE_BLK_KEY", "HSE_UNIT_IFA_AREA", "HSE_UNIT_ENV_CODE", "TNT_RENT_CODE_CATG_CODE", "HSE_UNIT_ALCT_STD_TYPE_CODE", "HSE_UNIT_TYPE_CODE", "MAX_HSE_UNIT_HEAD_CNT", "MIN_HSE_UNIT_HEAD_CNT", "TLT_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID"]
-        df_SQ_EMS_RFX_PRH_ALCT_STD = df_SQ_EMS_RFX_PRH_ALCT_STD.select([col(c) if c.lower() in [x.lower() for x in df_SQ_EMS_RFX_PRH_ALCT_STD.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_EMS_RFX_PRH_ALCT_STD = lib.sq_output(
+            input_df=df_SQ_EMS_RFX_PRH_ALCT_STD,
+            port_cols={
+                'HSE_EST_KEY': 'string',
+                'HSE_BLK_KEY': 'string',
+                'HSE_UNIT_IFA_AREA': 'decimal',
+                'HSE_UNIT_ENV_CODE': 'string',
+                'TNT_RENT_CODE_CATG_CODE': 'string',
+                'HSE_UNIT_ALCT_STD_TYPE_CODE': 'string',
+                'HSE_UNIT_TYPE_CODE': 'string',
+                'MAX_HSE_UNIT_HEAD_CNT': 'decimal',
+                'MIN_HSE_UNIT_HEAD_CNT': 'decimal',
+                'TLT_TYPE_CODE': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_USER_ID': 'string',
+            },
+        )
         ctx.register_df("df_SQ_EMS_RFX_PRH_ALCT_STD", df_SQ_EMS_RFX_PRH_ALCT_STD)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_EMS_RFX_PRH_ALCT_STD
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY_DATE", expr("NULL"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_EST_KEY_V", expr("CASE WHEN (HSE_EST_KEY IS NULL) THEN ' ' ELSE HSE_EST_KEY END"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_BLK_KEY_V", expr("CASE WHEN (HSE_BLK_KEY IS NULL) THEN ' ' ELSE HSE_BLK_KEY END"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_UNIT_IFA_AREA_V", expr("CASE WHEN (HSE_UNIT_IFA_AREA IS NULL) THEN ' ' ELSE cast(HSE_UNIT_IFA_AREA as string) END"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_UNIT_ENV_CODE_V", expr("CASE WHEN (HSE_UNIT_ENV_CODE IS NULL) THEN ' ' ELSE HSE_UNIT_ENV_CODE END"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNT_RENT_CODE_CATG_CODE_V", expr("CASE WHEN (TNT_RENT_CODE_CATG_CODE IS NULL) THEN ' ' ELSE TNT_RENT_CODE_CATG_CODE END"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_UNIT_ALCT_STD_TYPE_CODE_V", expr("CASE WHEN (HSE_UNIT_ALCT_STD_TYPE_CODE IS NULL) THEN ' ' ELSE HSE_UNIT_ALCT_STD_TYPE_CODE END"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_UNIT_TYPE_CODE_V", expr("CASE WHEN (HSE_UNIT_TYPE_CODE IS NULL) THEN ' ' ELSE HSE_UNIT_TYPE_CODE END"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("ALCT_STD_BK", expr("rpad(HSE_EST_KEY_V,4,' ') || rpad(HSE_BLK_KEY_V,5,' ') || rpad(HSE_UNIT_IFA_AREA_V,9,' ') || rpad(HSE_UNIT_ENV_CODE_V,10,' ') || rpad(TNT_RENT_CODE_CATG_CODE_V,4,' ') || rpad(HSE_UNIT_ALCT_STD_TYPE_CODE_V, 1, ' ') || rpad(HSE_UNIT_TYPE_CODE_V, 3, ' ')"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["HSE_EST_KEY", "HSE_BLK_KEY", "HSE_UNIT_IFA_AREA", "HSE_UNIT_ENV_CODE", "TNT_RENT_CODE_CATG_CODE", "HSE_UNIT_ALCT_STD_TYPE_CODE", "HSE_UNIT_TYPE_CODE", "MAX_HSE_UNIT_HEAD_CNT", "MIN_HSE_UNIT_HEAD_CNT", "TLT_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_EMS_RFX_PRH_ALCT_STD,
+            computed_columns=[
+                {'name': 'DUMMY_DATE', 'expr': 'NULL'},
+                {'name': 'HSE_EST_KEY_V', 'expr': "CASE WHEN (HSE_EST_KEY IS NULL) THEN ' ' ELSE HSE_EST_KEY END"},
+                {'name': 'HSE_BLK_KEY_V', 'expr': "CASE WHEN (HSE_BLK_KEY IS NULL) THEN ' ' ELSE HSE_BLK_KEY END"},
+                {'name': 'HSE_UNIT_IFA_AREA_V', 'expr': "CASE WHEN (HSE_UNIT_IFA_AREA IS NULL) THEN ' ' ELSE cast(HSE_UNIT_IFA_AREA as string) END"},
+                {'name': 'HSE_UNIT_ENV_CODE_V', 'expr': "CASE WHEN (HSE_UNIT_ENV_CODE IS NULL) THEN ' ' ELSE HSE_UNIT_ENV_CODE END"},
+                {'name': 'TNT_RENT_CODE_CATG_CODE_V', 'expr': "CASE WHEN (TNT_RENT_CODE_CATG_CODE IS NULL) THEN ' ' ELSE TNT_RENT_CODE_CATG_CODE END"},
+                {'name': 'HSE_UNIT_ALCT_STD_TYPE_CODE_V', 'expr': "CASE WHEN (HSE_UNIT_ALCT_STD_TYPE_CODE IS NULL) THEN ' ' ELSE HSE_UNIT_ALCT_STD_TYPE_CODE END"},
+                {'name': 'HSE_UNIT_TYPE_CODE_V', 'expr': "CASE WHEN (HSE_UNIT_TYPE_CODE IS NULL) THEN ' ' ELSE HSE_UNIT_TYPE_CODE END"},
+                {'name': 'ALCT_STD_BK', 'expr': "rpad(HSE_EST_KEY_V,4,' ') || rpad(HSE_BLK_KEY_V,5,' ') || rpad(HSE_UNIT_IFA_AREA_V,9,' ') || rpad(HSE_UNIT_ENV_CODE_V,10,' ') || rpad(TNT_RENT_CODE_CATG_CODE_V,4,' ') || rpad(HSE_UNIT_ALCT_STD_TYPE_CODE_V, 1, ' ') || rpad(HSE_UNIT_TYPE_CODE_V, 3, ' ')"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         

@@ -64,71 +64,114 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_NHS_PHASE_BLT")
         # Source Qualifier: apply_SQ_SSA_NHS_PHASE_BLT
         df_SQ_SSA_NHS_PHASE_BLT = df_SSA_NHS_PHASE_BLT
-        df_SQ_SSA_NHS_PHASE_BLT = df_SQ_SSA_NHS_PHASE_BLT.filter(expr("OPR_IND = 'E'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["PHASE_BLT_KEY", "PHASE_CODE", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_NHS_PHASE_BLT = df_SQ_SSA_NHS_PHASE_BLT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_NHS_PHASE_BLT.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_NHS_PHASE_BLT = lib.sq_output(
+            input_df=df_SQ_SSA_NHS_PHASE_BLT,
+            port_cols={
+                'PHASE_BLT_KEY': 'decimal',
+                'PHASE_CODE': 'string',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E'",
+        )
         ctx.register_df("df_SQ_SSA_NHS_PHASE_BLT", df_SQ_SSA_NHS_PHASE_BLT)
         
         logger.info("Step: apply_SQ_SSA_NHS_PHASE_BLT_STS")
         # Source Qualifier: apply_SQ_SSA_NHS_PHASE_BLT_STS
         df_SQ_SSA_NHS_PHASE_BLT_STS = df_SSA_NHS_PHASE_BLT_STS
-        df_SQ_SSA_NHS_PHASE_BLT_STS = df_SQ_SSA_NHS_PHASE_BLT_STS.filter(expr("OPR_IND = 'E' OR OPR_IND = 'EB'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["PHASE_BLT_KEY", "BGN_DATE", "END_DATE", "LAST_PHASE_CODE_1", "LAST_PHASE_CODE_2", "LAST_PHASE_GF_APLY_NUM", "LAST_PHASE_WF_APLY_NUM", "ROW_VER_NUM", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_NHS_PHASE_BLT_STS = df_SQ_SSA_NHS_PHASE_BLT_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_NHS_PHASE_BLT_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_NHS_PHASE_BLT_STS = lib.sq_output(
+            input_df=df_SQ_SSA_NHS_PHASE_BLT_STS,
+            port_cols={
+                'PHASE_BLT_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'LAST_PHASE_CODE_1': 'string',
+                'LAST_PHASE_CODE_2': 'string',
+                'LAST_PHASE_GF_APLY_NUM': 'string',
+                'LAST_PHASE_WF_APLY_NUM': 'string',
+                'ROW_VER_NUM': 'decimal',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E' OR OPR_IND = 'EB'",
+        )
         ctx.register_df("df_SQ_SSA_NHS_PHASE_BLT_STS", df_SQ_SSA_NHS_PHASE_BLT_STS)
         
         logger.info("Step: apply_EXP_REC_TXN_TYPE_CODE_UPD")
         # Expression: apply_EXP_REC_TXN_TYPE_CODE_UPD
-        df_EXP_REC_TXN_TYPE_CODE_UPD = df_SQ_SSA_NHS_PHASE_BLT
-        df_EXP_REC_TXN_TYPE_CODE_UPD = df_EXP_REC_TXN_TYPE_CODE_UPD.withColumn("LAST_REC_TXN_TYPE_CODE", expr("'U'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_REC_TXN_TYPE_CODE_UPD = lib.expression(
+            input_df=df_SQ_SSA_NHS_PHASE_BLT,
+            computed_columns=[
+                {'name': 'LAST_REC_TXN_TYPE_CODE', 'expr': "'U'"}
+            ],
+        )
         ctx.register_df("df_EXP_REC_TXN_TYPE_CODE_UPD", df_EXP_REC_TXN_TYPE_CODE_UPD)
         
         logger.info("Step: apply_EXP_REC_TXN_TYPE_CODE_UPD1")
         # Expression: apply_EXP_REC_TXN_TYPE_CODE_UPD1
-        df_EXP_REC_TXN_TYPE_CODE_UPD1 = df_SQ_SSA_NHS_PHASE_BLT_STS
-        df_EXP_REC_TXN_TYPE_CODE_UPD1 = df_EXP_REC_TXN_TYPE_CODE_UPD1.withColumn("LAST_REC_TXN_TYPE_CODE", expr("'U'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_REC_TXN_TYPE_CODE_UPD1 = lib.expression(
+            input_df=df_SQ_SSA_NHS_PHASE_BLT_STS,
+            computed_columns=[
+                {'name': 'LAST_REC_TXN_TYPE_CODE', 'expr': "'U'"}
+            ],
+        )
         ctx.register_df("df_EXP_REC_TXN_TYPE_CODE_UPD1", df_EXP_REC_TXN_TYPE_CODE_UPD1)
         
         logger.info("Step: write_SOR_NHS_PHASE_BLT")
         # Write to Target: write_SOR_NHS_PHASE_BLT
-        df_write = df_EXP_REC_TXN_TYPE_CODE_UPD1
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("PHASE_CODE", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['PHASE_BLT_KEY', 'PHASE_CODE', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_NHS_PHASE_BLT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_REC_TXN_TYPE_CODE_UPD1,
+            conn=conn_target,
+            table='SOR_NHS_PHASE_BLT',
+            mode='append',
+            source_columns=[
+                'PHASE_BLT_KEY',
+                None,
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'PHASE_BLT_KEY',
+                'PHASE_CODE',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_NHS_PHASE_BLT write completed")
         logger.info("Step: write_SOR_NHS_PHASE_BLT_STS")
         # Write to Target: write_SOR_NHS_PHASE_BLT_STS
-        df_write = df_EXP_REC_TXN_TYPE_CODE_UPD1
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BGN_DATE": "SOR_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("PHASE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("AGMT_IND", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['PHASE_BLT_KEY', 'PHASE_CODE', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_NHS_PHASE_BLT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_REC_TXN_TYPE_CODE_UPD1,
+            conn=conn_target,
+            table='SOR_NHS_PHASE_BLT',
+            mode='append',
+            source_columns=[
+                'PHASE_BLT_KEY',
+                None,
+                None,
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'PHASE_BLT_KEY',
+                'PHASE_CODE',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_NHS_PHASE_BLT_STS write completed")
         

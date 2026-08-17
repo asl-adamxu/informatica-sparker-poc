@@ -48,25 +48,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_snsh_date = ""
     v_init_flag = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_snsh_date",  "$$v_init_flag", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_snsh_date":
-                            v_snsh_date = _val
-                        if _clean == "v_init_flag":
-                            v_init_flag = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_snsh_date",  "$$v_init_flag", ], logger)
+    v_snsh_date = _vars.get("v_snsh_date", v_snsh_date)
+    v_init_flag = _vars.get("v_init_flag", v_init_flag)
     
     try:
         logger.info("Step: read_EMS_SRP_MRRS_VOID_RENT")
@@ -78,41 +63,69 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_EMS_SRP_MRRS_VOID_RENT")
         # Source Qualifier: apply_SQ_EMS_SRP_MRRS_VOID_RENT
         df_SQ_EMS_SRP_MRRS_VOID_RENT = df_EMS_SRP_MRRS_VOID_RENT
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["CUST_KEY", "HSE_SRVC_APLY_KEY", "SYS_RPT_YEAR", "SYS_RPT_MTH", "HSE_UNIT_KEY", "HSE_UNIT_CODE_ADDR", "HSE_UNIT_MTH_RENT_AMT", "HSE_UNIT_VOID_BGN_DATE", "FIT_OUT_RENT_WVE_AMT", "CRP_VOID_RENT_AMT", "TPS_VOID_RENT_AMT", "VCNT_RENT_AMT", "VOID_RENT_RMK_TEXT", "FIT_OUT_BGN_DATE", "FIT_OUT_END_DATE", "HSE_UNIT_RLET_DATE", "NONCRP_RENT_VOID_AMT", "IEFCT_EA_HSE_IND", "IEFCT_EA_QTR_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID"]
-        df_SQ_EMS_SRP_MRRS_VOID_RENT = df_SQ_EMS_SRP_MRRS_VOID_RENT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_EMS_SRP_MRRS_VOID_RENT.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_EMS_SRP_MRRS_VOID_RENT = lib.sq_output(
+            input_df=df_SQ_EMS_SRP_MRRS_VOID_RENT,
+            port_cols={
+                'CUST_KEY': 'string',
+                'HSE_SRVC_APLY_KEY': 'string',
+                'SYS_RPT_YEAR': 'decimal',
+                'SYS_RPT_MTH': 'decimal',
+                'HSE_UNIT_KEY': 'string',
+                'HSE_UNIT_CODE_ADDR': 'string',
+                'HSE_UNIT_MTH_RENT_AMT': 'decimal',
+                'HSE_UNIT_VOID_BGN_DATE': 'date/time',
+                'FIT_OUT_RENT_WVE_AMT': 'decimal',
+                'CRP_VOID_RENT_AMT': 'decimal',
+                'TPS_VOID_RENT_AMT': 'decimal',
+                'VCNT_RENT_AMT': 'decimal',
+                'VOID_RENT_RMK_TEXT': 'string',
+                'FIT_OUT_BGN_DATE': 'date/time',
+                'FIT_OUT_END_DATE': 'date/time',
+                'HSE_UNIT_RLET_DATE': 'date/time',
+                'NONCRP_RENT_VOID_AMT': 'decimal',
+                'IEFCT_EA_HSE_IND': 'string',
+                'IEFCT_EA_QTR_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_USER_ID': 'string',
+            },
+        )
         ctx.register_df("df_SQ_EMS_SRP_MRRS_VOID_RENT", df_SQ_EMS_SRP_MRRS_VOID_RENT)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_EMS_SRP_MRRS_VOID_RENT
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE", expr("current_timestamp()"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_IND", expr("'B'"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_KEY_V", expr("CASE WHEN (CUST_KEY IS NULL) THEN ' ' ELSE CUST_KEY END"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_SRVC_APLY_KEY_V", expr("CASE WHEN (HSE_SRVC_APLY_KEY IS NULL) THEN ' ' ELSE HSE_SRVC_APLY_KEY END"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_UNIT_KEY_V", expr("CASE WHEN (HSE_UNIT_KEY IS NULL) THEN ' ' ELSE HSE_UNIT_KEY END"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("SYS_RPT_YEAR_V", expr("CASE WHEN (SYS_RPT_YEAR IS NULL) THEN 0 ELSE SYS_RPT_YEAR END"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("SYS_RPT_MTH_V", expr("CASE WHEN (SYS_RPT_MTH IS NULL) THEN 0 ELSE SYS_RPT_MTH END"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNCY_AGRMT_KEY", expr("lpad(CUST_KEY_V,9,'0') || lpad(HSE_SRVC_APLY_KEY_V,15,'0')"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("VOID_RENT_BK", expr("rpad(SYS_RPT_YEAR_V,4,' ') || rpad(SYS_RPT_MTH_V,2,' ') || rpad(CUST_KEY_V,9,' ') || rpad(HSE_SRVC_APLY_KEY_V,15,' ') || rpad(HSE_UNIT_KEY_V,9,' ')"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["CUST_KEY", "HSE_SRVC_APLY_KEY", "HSE_UNIT_KEY", "SYS_RPT_YEAR", "SYS_RPT_MTH", "HSE_UNIT_CODE_ADDR", "HSE_UNIT_MTH_RENT_AMT", "HSE_UNIT_VOID_BGN_DATE", "FIT_OUT_RENT_WVE_AMT", "CRP_VOID_RENT_AMT", "TPS_VOID_RENT_AMT", "VCNT_RENT_AMT", "VOID_RENT_RMK_TEXT", "FIT_OUT_BGN_DATE", "FIT_OUT_END_DATE", "HSE_UNIT_RLET_DATE", "NONCRP_RENT_VOID_AMT", "IEFCT_EA_HSE_IND", "IEFCT_EA_QTR_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_USER_ID"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_EMS_SRP_MRRS_VOID_RENT,
+            computed_columns=[
+                {'name': 'LAST_REC_TXN_DATE', 'expr': 'current_timestamp()'},
+                {'name': 'OPR_IND', 'expr': "'B'"},
+                {'name': 'CUST_KEY_V', 'expr': "CASE WHEN (CUST_KEY IS NULL) THEN ' ' ELSE CUST_KEY END"},
+                {'name': 'HSE_SRVC_APLY_KEY_V', 'expr': "CASE WHEN (HSE_SRVC_APLY_KEY IS NULL) THEN ' ' ELSE HSE_SRVC_APLY_KEY END"},
+                {'name': 'HSE_UNIT_KEY_V', 'expr': "CASE WHEN (HSE_UNIT_KEY IS NULL) THEN ' ' ELSE HSE_UNIT_KEY END"},
+                {'name': 'SYS_RPT_YEAR_V', 'expr': 'CASE WHEN (SYS_RPT_YEAR IS NULL) THEN 0 ELSE SYS_RPT_YEAR END'},
+                {'name': 'SYS_RPT_MTH_V', 'expr': 'CASE WHEN (SYS_RPT_MTH IS NULL) THEN 0 ELSE SYS_RPT_MTH END'},
+                {'name': 'TNCY_AGRMT_KEY', 'expr': "lpad(CUST_KEY_V,9,'0') || lpad(HSE_SRVC_APLY_KEY_V,15,'0')"},
+                {'name': 'VOID_RENT_BK', 'expr': "rpad(SYS_RPT_YEAR_V,4,' ') || rpad(SYS_RPT_MTH_V,2,' ') || rpad(CUST_KEY_V,9,' ') || rpad(HSE_SRVC_APLY_KEY_V,15,' ') || rpad(HSE_UNIT_KEY_V,9,' ')"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: apply_MPLT_TRANS_TIME_STAMP_EXPTRANS3")
         # Expression: apply_MPLT_TRANS_TIME_STAMP_EXPTRANS3
-        df_MPLT_TRANS_TIME_STAMP_EXPTRANS3 = df_EXPTRANS
-        df_MPLT_TRANS_TIME_STAMP_EXPTRANS3 = df_MPLT_TRANS_TIME_STAMP_EXPTRANS3.withColumn("LAST_REC_TXN_DATE1", expr("CASE WHEN NOT (LAST_REC_TXN_DATE IS NULL) THEN date_format(LAST_REC_TXN_DATE, 'dd-MMM-yy hh.mm.ss') || '.000000 ' || date_format(LAST_REC_TXN_DATE, 'a') ELSE null END"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_MPLT_TRANS_TIME_STAMP_EXPTRANS3 = lib.expression(
+            input_df=df_EXPTRANS,
+            computed_columns=[
+                {'name': 'LAST_REC_TXN_DATE1', 'expr': "CASE WHEN NOT (LAST_REC_TXN_DATE IS NULL) THEN date_format(LAST_REC_TXN_DATE, 'dd-MMM-yy hh.mm.ss') || '.000000 ' || date_format(LAST_REC_TXN_DATE, 'a') ELSE null END"}
+            ],
+        )
         ctx.register_df("df_MPLT_TRANS_TIME_STAMP_EXPTRANS3", df_MPLT_TRANS_TIME_STAMP_EXPTRANS3)
         
         logger.info("Step: apply_MPLT_TRANS_TIME_STAMP")
         # Expression: apply_MPLT_TRANS_TIME_STAMP
-        df_MPLT_TRANS_TIME_STAMP = df_MPLT_TRANS_TIME_STAMP_EXPTRANS3
+        df_MPLT_TRANS_TIME_STAMP = lib.expression(
+            input_df=df_MPLT_TRANS_TIME_STAMP_EXPTRANS3,
+            pass_through_cols=['LAST_REC_TXN_DATE1'],
+        )
         ctx.register_df("df_MPLT_TRANS_TIME_STAMP", df_MPLT_TRANS_TIME_STAMP)
         
         

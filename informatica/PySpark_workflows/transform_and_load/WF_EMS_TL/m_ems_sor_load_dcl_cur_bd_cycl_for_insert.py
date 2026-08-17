@@ -58,20 +58,51 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_DCL_CUR_BD_CYCL")
         # Source Qualifier: apply_SQ_SSA_EMS_DCL_CUR_BD_CYCL
         df_SQ_SSA_EMS_DCL_CUR_BD_CYCL = df_SSA_EMS_DCL_CUR_BD_CYCL
-        df_SQ_SSA_EMS_DCL_CUR_BD_CYCL = df_SQ_SSA_EMS_DCL_CUR_BD_CYCL.filter(expr("OPR_IND = 'B' OR OPR_IND = 'A'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["BD_CYCL_KEY", "BD_CYCL_BGN_DATE", "BD_CYCL_END_DATE", "CUR_BD_CYCL_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "AGMT_IND", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_DCL_CUR_BD_CYCL = df_SQ_SSA_EMS_DCL_CUR_BD_CYCL.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_DCL_CUR_BD_CYCL.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_DCL_CUR_BD_CYCL = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_DCL_CUR_BD_CYCL,
+            port_cols={
+                'BD_CYCL_KEY': 'decimal',
+                'BD_CYCL_BGN_DATE': 'date/time',
+                'BD_CYCL_END_DATE': 'date/time',
+                'CUR_BD_CYCL_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'AGMT_IND': 'string',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'A'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_DCL_CUR_BD_CYCL", df_SQ_SSA_EMS_DCL_CUR_BD_CYCL)
         
         logger.info("Step: write_SOR_EMS_DCL_CUR_BD_CYCL")
         # Write to Target: write_SOR_EMS_DCL_CUR_BD_CYCL
-        df_write = df_SQ_SSA_EMS_DCL_CUR_BD_CYCL
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['BD_CYCL_KEY', 'BD_CYCL_BGN_DATE', 'BD_CYCL_END_DATE', 'CUR_BD_CYCL_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'AGMT_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_DCL_CUR_BD_CYCL", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_DCL_CUR_BD_CYCL,
+            conn=conn_target,
+            table='SOR_EMS_DCL_CUR_BD_CYCL',
+            mode='append',
+            source_columns=[
+                'BD_CYCL_KEY',
+                'BD_CYCL_BGN_DATE',
+                'BD_CYCL_END_DATE',
+                'CUR_BD_CYCL_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'AGMT_IND',
+            ],
+            target_columns=[
+                'BD_CYCL_KEY',
+                'BD_CYCL_BGN_DATE',
+                'BD_CYCL_END_DATE',
+                'CUR_BD_CYCL_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'AGMT_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_DCL_CUR_BD_CYCL write completed")
         

@@ -58,20 +58,48 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_TAM_RAS_HIST")
         # Source Qualifier: apply_SQ_SSA_EMS_TAM_RAS_HIST
         df_SQ_SSA_EMS_TAM_RAS_HIST = df_SSA_EMS_TAM_RAS_HIST
-        df_SQ_SSA_EMS_TAM_RAS_HIST = df_SQ_SSA_EMS_TAM_RAS_HIST.filter(expr("OPR_IND = 'EB' OR OPR_IND = 'DA'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["RAS_HIST_KEY", "RAS_HIST_BK", "RAS_HIST_REC_KEY", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_TAM_RAS_HIST = df_SQ_SSA_EMS_TAM_RAS_HIST.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_TAM_RAS_HIST.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_TAM_RAS_HIST = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_TAM_RAS_HIST,
+            port_cols={
+                'RAS_HIST_KEY': 'decimal',
+                'RAS_HIST_BK': 'string',
+                'RAS_HIST_REC_KEY': 'decimal',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'EB' OR OPR_IND = 'DA'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_TAM_RAS_HIST", df_SQ_SSA_EMS_TAM_RAS_HIST)
         
         logger.info("Step: write_SOR_EMS_TAM_RAS_HIST")
         # Write to Target: write_SOR_EMS_TAM_RAS_HIST
-        df_write = df_SQ_SSA_EMS_TAM_RAS_HIST
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['RAS_HIST_KEY', 'RAS_HIST_BK', 'RAS_HIST_REC_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_TAM_RAS_HIST", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_TAM_RAS_HIST,
+            conn=conn_target,
+            table='SOR_EMS_TAM_RAS_HIST',
+            mode='append',
+            source_columns=[
+                'RAS_HIST_KEY',
+                'RAS_HIST_BK',
+                'RAS_HIST_REC_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'RAS_HIST_KEY',
+                'RAS_HIST_BK',
+                'RAS_HIST_REC_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_TAM_RAS_HIST write completed")
         

@@ -64,71 +64,136 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_NHS_RVN_CLCT_OFFC_STS")
         # Source Qualifier: apply_SQ_SSA_NHS_RVN_CLCT_OFFC_STS
         df_SQ_SSA_NHS_RVN_CLCT_OFFC_STS = df_SSA_NHS_RVN_CLCT_OFFC_STS
-        df_SQ_SSA_NHS_RVN_CLCT_OFFC_STS = df_SQ_SSA_NHS_RVN_CLCT_OFFC_STS.filter(expr("OPR_IND = 'E' OR OPR_IND = 'EB'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["RVN_CLCT_OFFC_KEY", "BGN_DATE", "END_DATE", "RVN_CLCT_OFFC_ENG_NAME", "RVN_CLCT_OFFC_CHI_NAME", "CLCT_OFFC_COST_CTR_CODE", "CLCT_OFFC_BSNS_ACTV_CODE", "RVN_CLCT_OFFC_ENG_ADDR_1", "RVN_CLCT_OFFC_ENG_ADDR_2", "RVN_CLCT_OFFC_ENG_ADDR_3", "RVN_CLCT_OFFC_ENG_ADDR_4", "RVN_CLCT_OFFC_CHI_ADDR_1", "RVN_CLCT_OFFC_CHI_ADDR_2", "RVN_CLCT_OFFC_CHI_ADDR_3", "RVN_CLCT_OFFC_CHI_ADDR_4", "RVN_CLCT_OFFC_CHI_ADDR_5", "LAST_RVN_TXN_RCPT_NUM", "ROW_VER_NUM", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_NHS_RVN_CLCT_OFFC_STS = df_SQ_SSA_NHS_RVN_CLCT_OFFC_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_NHS_RVN_CLCT_OFFC_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_NHS_RVN_CLCT_OFFC_STS = lib.sq_output(
+            input_df=df_SQ_SSA_NHS_RVN_CLCT_OFFC_STS,
+            port_cols={
+                'RVN_CLCT_OFFC_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'RVN_CLCT_OFFC_ENG_NAME': 'string',
+                'RVN_CLCT_OFFC_CHI_NAME': 'string',
+                'CLCT_OFFC_COST_CTR_CODE': 'string',
+                'CLCT_OFFC_BSNS_ACTV_CODE': 'string',
+                'RVN_CLCT_OFFC_ENG_ADDR_1': 'string',
+                'RVN_CLCT_OFFC_ENG_ADDR_2': 'string',
+                'RVN_CLCT_OFFC_ENG_ADDR_3': 'string',
+                'RVN_CLCT_OFFC_ENG_ADDR_4': 'string',
+                'RVN_CLCT_OFFC_CHI_ADDR_1': 'string',
+                'RVN_CLCT_OFFC_CHI_ADDR_2': 'string',
+                'RVN_CLCT_OFFC_CHI_ADDR_3': 'string',
+                'RVN_CLCT_OFFC_CHI_ADDR_4': 'string',
+                'RVN_CLCT_OFFC_CHI_ADDR_5': 'string',
+                'LAST_RVN_TXN_RCPT_NUM': 'decimal',
+                'ROW_VER_NUM': 'decimal',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E' OR OPR_IND = 'EB'",
+        )
         ctx.register_df("df_SQ_SSA_NHS_RVN_CLCT_OFFC_STS", df_SQ_SSA_NHS_RVN_CLCT_OFFC_STS)
         
         logger.info("Step: apply_SQ_SSA_NHS_RVN_CLCT_OFFC")
         # Source Qualifier: apply_SQ_SSA_NHS_RVN_CLCT_OFFC
         df_SQ_SSA_NHS_RVN_CLCT_OFFC = df_SSA_NHS_RVN_CLCT_OFFC
-        df_SQ_SSA_NHS_RVN_CLCT_OFFC = df_SQ_SSA_NHS_RVN_CLCT_OFFC.filter(expr("OPR_IND = 'E'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["RVN_CLCT_OFFC_KEY", "NHS_RVN_CLCT_OFFC_KEY", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_NHS_RVN_CLCT_OFFC = df_SQ_SSA_NHS_RVN_CLCT_OFFC.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_NHS_RVN_CLCT_OFFC.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_NHS_RVN_CLCT_OFFC = lib.sq_output(
+            input_df=df_SQ_SSA_NHS_RVN_CLCT_OFFC,
+            port_cols={
+                'RVN_CLCT_OFFC_KEY': 'decimal',
+                'NHS_RVN_CLCT_OFFC_KEY': 'string',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E'",
+        )
         ctx.register_df("df_SQ_SSA_NHS_RVN_CLCT_OFFC", df_SQ_SSA_NHS_RVN_CLCT_OFFC)
         
         logger.info("Step: write_SOR_NHS_RVN_CLCT_OFFC_STS")
         # Write to Target: write_SOR_NHS_RVN_CLCT_OFFC_STS
-        df_write = df_SQ_SSA_NHS_RVN_CLCT_OFFC_STS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BGN_DATE": "SOR_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("RVN_CLCT_OFFC_ENG_NAME", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RVN_CLCT_OFFC_CHI_NAME", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CLCT_OFFC_COST_CTR_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CLCT_OFFC_BSNS_ACTV_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RVN_CLCT_OFFC_ENG_ADDR_1", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RVN_CLCT_OFFC_ENG_ADDR_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RVN_CLCT_OFFC_ENG_ADDR_3", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RVN_CLCT_OFFC_ENG_ADDR_4", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RVN_CLCT_OFFC_CHI_ADDR_1", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RVN_CLCT_OFFC_CHI_ADDR_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RVN_CLCT_OFFC_CHI_ADDR_3", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RVN_CLCT_OFFC_CHI_ADDR_4", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RVN_CLCT_OFFC_CHI_ADDR_5", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_RVN_TXN_RCPT_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ROW_VER_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("TPS_LAST_RVN_TXN_RCPT_NUM", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['RVN_CLCT_OFFC_KEY', 'BGN_DATE', 'END_DATE', 'RVN_CLCT_OFFC_ENG_NAME', 'RVN_CLCT_OFFC_CHI_NAME', 'CLCT_OFFC_COST_CTR_CODE', 'CLCT_OFFC_BSNS_ACTV_CODE', 'RVN_CLCT_OFFC_ENG_ADDR_1', 'RVN_CLCT_OFFC_ENG_ADDR_2', 'RVN_CLCT_OFFC_ENG_ADDR_3', 'RVN_CLCT_OFFC_ENG_ADDR_4', 'RVN_CLCT_OFFC_CHI_ADDR_1', 'RVN_CLCT_OFFC_CHI_ADDR_2', 'RVN_CLCT_OFFC_CHI_ADDR_3', 'RVN_CLCT_OFFC_CHI_ADDR_4', 'RVN_CLCT_OFFC_CHI_ADDR_5', 'LAST_RVN_TXN_RCPT_NUM', 'ROW_VER_NUM', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'TPS_LAST_RVN_TXN_RCPT_NUM']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_NHS_RVN_CLCT_OFFC_STS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_NHS_RVN_CLCT_OFFC_STS,
+            conn=conn_target,
+            table='SOR_NHS_RVN_CLCT_OFFC_STS',
+            mode='append',
+            source_columns=[
+                'RVN_CLCT_OFFC_KEY',
+                'SOR_DATE',
+                'END_DATE',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                'LAST_REC_TXN_DATE',
+                None,
+            ],
+            target_columns=[
+                'RVN_CLCT_OFFC_KEY',
+                'BGN_DATE',
+                'END_DATE',
+                'RVN_CLCT_OFFC_ENG_NAME',
+                'RVN_CLCT_OFFC_CHI_NAME',
+                'CLCT_OFFC_COST_CTR_CODE',
+                'CLCT_OFFC_BSNS_ACTV_CODE',
+                'RVN_CLCT_OFFC_ENG_ADDR_1',
+                'RVN_CLCT_OFFC_ENG_ADDR_2',
+                'RVN_CLCT_OFFC_ENG_ADDR_3',
+                'RVN_CLCT_OFFC_ENG_ADDR_4',
+                'RVN_CLCT_OFFC_CHI_ADDR_1',
+                'RVN_CLCT_OFFC_CHI_ADDR_2',
+                'RVN_CLCT_OFFC_CHI_ADDR_3',
+                'RVN_CLCT_OFFC_CHI_ADDR_4',
+                'RVN_CLCT_OFFC_CHI_ADDR_5',
+                'LAST_RVN_TXN_RCPT_NUM',
+                'ROW_VER_NUM',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'TPS_LAST_RVN_TXN_RCPT_NUM',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_NHS_RVN_CLCT_OFFC_STS write completed")
         logger.info("Step: write_SOR_NHS_RVN_CLCT_OFFC")
         # Write to Target: write_SOR_NHS_RVN_CLCT_OFFC
-        df_write = df_SQ_SSA_NHS_RVN_CLCT_OFFC
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("NHS_RVN_CLCT_OFFC_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['RVN_CLCT_OFFC_KEY', 'NHS_RVN_CLCT_OFFC_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_NHS_RVN_CLCT_OFFC", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_NHS_RVN_CLCT_OFFC,
+            conn=conn_target,
+            table='SOR_NHS_RVN_CLCT_OFFC',
+            mode='append',
+            source_columns=[
+                'RVN_CLCT_OFFC_KEY',
+                None,
+                'AGMT_IND',
+                None,
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'RVN_CLCT_OFFC_KEY',
+                'NHS_RVN_CLCT_OFFC_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_NHS_RVN_CLCT_OFFC write completed")
         

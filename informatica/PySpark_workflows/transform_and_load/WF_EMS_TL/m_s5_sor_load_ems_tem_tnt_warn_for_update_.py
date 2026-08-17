@@ -58,20 +58,54 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_TEM_TNT_WARN")
         # Source Qualifier: apply_SQ_SSA_EMS_TEM_TNT_WARN
         df_SQ_SSA_EMS_TEM_TNT_WARN = df_SSA_EMS_TEM_TNT_WARN
-        df_SQ_SSA_EMS_TEM_TNT_WARN = df_SQ_SSA_EMS_TEM_TNT_WARN.filter(expr("OPR_IND = 'EB' OR OPR_IND = 'DA'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["TNT_WARN_KEY", "TNT_WARN_BK", "WARN_SEQ_NUM", "CUST_KEY", "HSE_SRVC_APLY_KEY", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_TEM_TNT_WARN = df_SQ_SSA_EMS_TEM_TNT_WARN.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_TEM_TNT_WARN.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_TEM_TNT_WARN = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_TEM_TNT_WARN,
+            port_cols={
+                'TNT_WARN_KEY': 'decimal',
+                'TNT_WARN_BK': 'string',
+                'WARN_SEQ_NUM': 'decimal',
+                'CUST_KEY': 'string',
+                'HSE_SRVC_APLY_KEY': 'string',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'EB' OR OPR_IND = 'DA'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_TEM_TNT_WARN", df_SQ_SSA_EMS_TEM_TNT_WARN)
         
         logger.info("Step: write_SOR_EMS_TEM_TNT_WARN")
         # Write to Target: write_SOR_EMS_TEM_TNT_WARN
-        df_write = df_SQ_SSA_EMS_TEM_TNT_WARN
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['TNT_WARN_KEY', 'TNT_WARN_BK', 'WARN_SEQ_NUM', 'CUST_KEY', 'HSE_SRVC_APLY_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_TEM_TNT_WARN", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_TEM_TNT_WARN,
+            conn=conn_target,
+            table='SOR_EMS_TEM_TNT_WARN',
+            mode='append',
+            source_columns=[
+                'TNT_WARN_KEY',
+                'TNT_WARN_BK',
+                'WARN_SEQ_NUM',
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'TNT_WARN_KEY',
+                'TNT_WARN_BK',
+                'WARN_SEQ_NUM',
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_TEM_TNT_WARN write completed")
         

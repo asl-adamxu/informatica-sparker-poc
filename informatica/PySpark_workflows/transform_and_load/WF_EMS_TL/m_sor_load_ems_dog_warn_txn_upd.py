@@ -58,28 +58,55 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_DOG_WARN_TXN")
         # Source Qualifier: apply_SQ_SSA_EMS_DOG_WARN_TXN
         df_SQ_SSA_EMS_DOG_WARN_TXN = df_SSA_EMS_DOG_WARN_TXN
-        df_SQ_SSA_EMS_DOG_WARN_TXN = df_SQ_SSA_EMS_DOG_WARN_TXN.filter(expr("OPR_IND = 'EB' OR OPR_IND = 'DA'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["DOG_WARN_TXN_KEY", "EMS_DOG_WARN_TXN_KEY", "AGMT_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_DOG_WARN_TXN = df_SQ_SSA_EMS_DOG_WARN_TXN.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_DOG_WARN_TXN.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_DOG_WARN_TXN = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_DOG_WARN_TXN,
+            port_cols={
+                'DOG_WARN_TXN_KEY': 'decimal',
+                'EMS_DOG_WARN_TXN_KEY': 'decimal',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'EB' OR OPR_IND = 'DA'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_DOG_WARN_TXN", df_SQ_SSA_EMS_DOG_WARN_TXN)
         
         logger.info("Step: apply_EXP_REC_TXN_TYPE_CODE_UPD")
         # Expression: apply_EXP_REC_TXN_TYPE_CODE_UPD
-        df_EXP_REC_TXN_TYPE_CODE_UPD = df_SQ_SSA_EMS_DOG_WARN_TXN
-        df_EXP_REC_TXN_TYPE_CODE_UPD = df_EXP_REC_TXN_TYPE_CODE_UPD.withColumn("LAST_REC_TXN_TYPE_CODE", expr("'U'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_REC_TXN_TYPE_CODE_UPD = lib.expression(
+            input_df=df_SQ_SSA_EMS_DOG_WARN_TXN,
+            computed_columns=[
+                {'name': 'LAST_REC_TXN_TYPE_CODE', 'expr': "'U'"}
+            ],
+        )
         ctx.register_df("df_EXP_REC_TXN_TYPE_CODE_UPD", df_EXP_REC_TXN_TYPE_CODE_UPD)
         
         logger.info("Step: write_SOR_EMS_DOG_WARN_TXN")
         # Write to Target: write_SOR_EMS_DOG_WARN_TXN
-        df_write = df_EXP_REC_TXN_TYPE_CODE_UPD
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['DOG_WARN_TXN_KEY', 'EMS_DOG_WARN_TXN_KEY', 'AGMT_IND', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_DOG_WARN_TXN", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_REC_TXN_TYPE_CODE_UPD,
+            conn=conn_target,
+            table='SOR_EMS_DOG_WARN_TXN',
+            mode='append',
+            source_columns=[
+                'DOG_WARN_TXN_KEY',
+                'EMS_DOG_WARN_TXN_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+            ],
+            target_columns=[
+                'DOG_WARN_TXN_KEY',
+                'EMS_DOG_WARN_TXN_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_DOG_WARN_TXN write completed")
         

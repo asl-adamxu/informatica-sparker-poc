@@ -64,58 +64,132 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_CPM_PTCL_PND_CNFRM")
         # Source Qualifier: apply_SQ_SSA_EMS_CPM_PTCL_PND_CNFRM
         df_SQ_SSA_EMS_CPM_PTCL_PND_CNFRM = df_SSA_EMS_CPM_PTCL_PND_CNFRM
-        df_SQ_SSA_EMS_CPM_PTCL_PND_CNFRM = df_SQ_SSA_EMS_CPM_PTCL_PND_CNFRM.filter(expr("OPR_IND = 'B' OR OPR_IND = 'A'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["PND_CNFRM_KEY", "PND_CNFRM_BK", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_CPM_PTCL_PND_CNFRM = df_SQ_SSA_EMS_CPM_PTCL_PND_CNFRM.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_CPM_PTCL_PND_CNFRM.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_CPM_PTCL_PND_CNFRM = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_CPM_PTCL_PND_CNFRM,
+            port_cols={
+                'PND_CNFRM_KEY': 'decimal',
+                'PND_CNFRM_BK': 'string',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'A'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_CPM_PTCL_PND_CNFRM", df_SQ_SSA_EMS_CPM_PTCL_PND_CNFRM)
         
         logger.info("Step: apply_SQ_SSA_EMS_CPM_PTCL_PND_CNFRM_STS")
         # Source Qualifier: apply_SQ_SSA_EMS_CPM_PTCL_PND_CNFRM_STS
         df_SQ_SSA_EMS_CPM_PTCL_PND_CNFRM_STS = df_SSA_EMS_CPM_PTCL_PND_CNFRM_STS
-        df_SQ_SSA_EMS_CPM_PTCL_PND_CNFRM_STS = df_SQ_SSA_EMS_CPM_PTCL_PND_CNFRM_STS.filter(expr("OPR_IND = 'B' OR OPR_IND = 'EB' OR OPR_IND = 'DA'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["PND_CNFRM_KEY", "BGN_DATE", "END_DATE", "PTCL_KEY", "HSE_BNFT_INTR_KEY_CODE", "HSE_BNFT_TYPE_CODE", "HSE_BNFT_REF_NUM", "CUST_MBR_NAME", "CUST_MBR_CHI_NAME", "CUST_MBR_DOB_DATE", "CUST_MBR_DOB_IND", "CUST_MBR_GNDR_CODE", "CUST_MBR_ENTRY_DATE", "PND_CNFRM_REC_UPD_DATE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_CPM_PTCL_PND_CNFRM_STS = df_SQ_SSA_EMS_CPM_PTCL_PND_CNFRM_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_CPM_PTCL_PND_CNFRM_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_CPM_PTCL_PND_CNFRM_STS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_CPM_PTCL_PND_CNFRM_STS,
+            port_cols={
+                'PND_CNFRM_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'PTCL_KEY': 'decimal',
+                'HSE_BNFT_INTR_KEY_CODE': 'string',
+                'HSE_BNFT_TYPE_CODE': 'string',
+                'HSE_BNFT_REF_NUM': 'string',
+                'CUST_MBR_NAME': 'string',
+                'CUST_MBR_CHI_NAME': 'string',
+                'CUST_MBR_DOB_DATE': 'date/time',
+                'CUST_MBR_DOB_IND': 'string',
+                'CUST_MBR_GNDR_CODE': 'string',
+                'CUST_MBR_ENTRY_DATE': 'date/time',
+                'PND_CNFRM_REC_UPD_DATE': 'date/time',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'EB' OR OPR_IND = 'DA'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_CPM_PTCL_PND_CNFRM_STS", df_SQ_SSA_EMS_CPM_PTCL_PND_CNFRM_STS)
         
         logger.info("Step: write_SOR_EMS_CPM_PTCL_PND_CNFRM")
         # Write to Target: write_SOR_EMS_CPM_PTCL_PND_CNFRM
-        df_write = df_SQ_SSA_EMS_CPM_PTCL_PND_CNFRM
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['PND_CNFRM_KEY', 'PND_CNFRM_BK', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_CPM_PTCL_PND_CNFRM", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_CPM_PTCL_PND_CNFRM,
+            conn=conn_target,
+            table='SOR_EMS_CPM_PTCL_PND_CNFRM',
+            mode='append',
+            source_columns=[
+                'PND_CNFRM_KEY',
+                'PND_CNFRM_BK',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'PND_CNFRM_KEY',
+                'PND_CNFRM_BK',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_CPM_PTCL_PND_CNFRM write completed")
         logger.info("Step: apply_EXP_SOR_LOAD_DATE")
         # Expression: apply_EXP_SOR_LOAD_DATE
-        df_EXP_SOR_LOAD_DATE = df_SQ_SSA_EMS_CPM_PTCL_PND_CNFRM_STS
-        df_EXP_SOR_LOAD_DATE = df_EXP_SOR_LOAD_DATE.withColumn("OUT_END_DATE", expr("CASE WHEN OPR_IND = 'EB' THEN CASE WHEN LAST_REC_TXN_TYPE_CODE IS NULL THEN to_date('99991231','yyyyMMdd') ELSE END_DATE END ELSE END_DATE END"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_SOR_LOAD_DATE = lib.expression(
+            input_df=df_SQ_SSA_EMS_CPM_PTCL_PND_CNFRM_STS,
+            computed_columns=[
+                {'name': 'OUT_END_DATE', 'expr': "CASE WHEN OPR_IND = 'EB' THEN CASE WHEN LAST_REC_TXN_TYPE_CODE IS NULL THEN to_date('99991231','yyyyMMdd') ELSE END_DATE END ELSE END_DATE END"}
+            ],
+        )
         ctx.register_df("df_EXP_SOR_LOAD_DATE", df_EXP_SOR_LOAD_DATE)
         
         logger.info("Step: write_SOR_EMS_CPM_PTCL_PND_CNFRM_STS")
         # Write to Target: write_SOR_EMS_CPM_PTCL_PND_CNFRM_STS
-        df_write = df_EXP_SOR_LOAD_DATE
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"END_DATE": "OUT_END_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['PND_CNFRM_KEY', 'BGN_DATE', 'END_DATE', 'PTCL_KEY', 'HSE_BNFT_INTR_KEY_CODE', 'HSE_BNFT_TYPE_CODE', 'HSE_BNFT_REF_NUM', 'CUST_MBR_NAME', 'CUST_MBR_CHI_NAME', 'CUST_MBR_DOB_DATE', 'CUST_MBR_DOB_IND', 'CUST_MBR_GNDR_CODE', 'CUST_MBR_ENTRY_DATE', 'PND_CNFRM_REC_UPD_DATE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_CPM_PTCL_PND_CNFRM_STS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_SOR_LOAD_DATE,
+            conn=conn_target,
+            table='SOR_EMS_CPM_PTCL_PND_CNFRM_STS',
+            mode='append',
+            source_columns=[
+                'PND_CNFRM_KEY',
+                'BGN_DATE',
+                'OUT_END_DATE',
+                'PTCL_KEY',
+                'HSE_BNFT_INTR_KEY_CODE',
+                'HSE_BNFT_TYPE_CODE',
+                'HSE_BNFT_REF_NUM',
+                'CUST_MBR_NAME',
+                'CUST_MBR_CHI_NAME',
+                'CUST_MBR_DOB_DATE',
+                'CUST_MBR_DOB_IND',
+                'CUST_MBR_GNDR_CODE',
+                'CUST_MBR_ENTRY_DATE',
+                'PND_CNFRM_REC_UPD_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'PND_CNFRM_KEY',
+                'BGN_DATE',
+                'END_DATE',
+                'PTCL_KEY',
+                'HSE_BNFT_INTR_KEY_CODE',
+                'HSE_BNFT_TYPE_CODE',
+                'HSE_BNFT_REF_NUM',
+                'CUST_MBR_NAME',
+                'CUST_MBR_CHI_NAME',
+                'CUST_MBR_DOB_DATE',
+                'CUST_MBR_DOB_IND',
+                'CUST_MBR_GNDR_CODE',
+                'CUST_MBR_ENTRY_DATE',
+                'PND_CNFRM_REC_UPD_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_CPM_PTCL_PND_CNFRM_STS write completed")
         

@@ -64,71 +64,140 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_ABU_TNT_ABU_STS")
         # Source Qualifier: apply_SQ_SSA_EMS_ABU_TNT_ABU_STS
         df_SQ_SSA_EMS_ABU_TNT_ABU_STS = df_SSA_EMS_ABU_TNT_ABU_STS
-        df_SQ_SSA_EMS_ABU_TNT_ABU_STS = df_SQ_SSA_EMS_ABU_TNT_ABU_STS.filter(expr("OPR_IND = 'E' OR OPR_IND = 'EB'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["ABU_KEY", "BGN_DATE", "END_DATE", "TNCY_AGRMT_KEY", "ABU_FIND_DATE", "ABU_TYPE_CODE", "ABU_ACT_OFFC_CODE", "ABU_REF_SRC_CODE", "ABU_SCP_CODE", "ABU_ACT_OFFC_TEXT", "ABU_FXT_CODE", "ABU_RSLT_CODE", "ABU_RSLT_UPD_DATE", "ABU_CRE_DATE", "ABU_STS_CODE", "ABU_STS_UPD_DATE", "ABU_WTHDRW_IND", "ABU_TYPE_TEXT", "INTL_ABU_RSLT_CODE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_ABU_TNT_ABU_STS = df_SQ_SSA_EMS_ABU_TNT_ABU_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_ABU_TNT_ABU_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_ABU_TNT_ABU_STS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_ABU_TNT_ABU_STS,
+            port_cols={
+                'ABU_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'TNCY_AGRMT_KEY': 'decimal',
+                'ABU_FIND_DATE': 'date/time',
+                'ABU_TYPE_CODE': 'string',
+                'ABU_ACT_OFFC_CODE': 'string',
+                'ABU_REF_SRC_CODE': 'string',
+                'ABU_SCP_CODE': 'string',
+                'ABU_ACT_OFFC_TEXT': 'string',
+                'ABU_FXT_CODE': 'string',
+                'ABU_RSLT_CODE': 'string',
+                'ABU_RSLT_UPD_DATE': 'date/time',
+                'ABU_CRE_DATE': 'date/time',
+                'ABU_STS_CODE': 'string',
+                'ABU_STS_UPD_DATE': 'date/time',
+                'ABU_WTHDRW_IND': 'string',
+                'ABU_TYPE_TEXT': 'string',
+                'INTL_ABU_RSLT_CODE': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E' OR OPR_IND = 'EB'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_ABU_TNT_ABU_STS", df_SQ_SSA_EMS_ABU_TNT_ABU_STS)
         
         logger.info("Step: apply_SQ_SSA_EMS_ABU_TNT_ABU")
         # Source Qualifier: apply_SQ_SSA_EMS_ABU_TNT_ABU
         df_SQ_SSA_EMS_ABU_TNT_ABU = df_SSA_EMS_ABU_TNT_ABU
-        df_SQ_SSA_EMS_ABU_TNT_ABU = df_SQ_SSA_EMS_ABU_TNT_ABU.filter(expr("OPR_IND = 'E'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["ABU_KEY", "ABU_BK", "ABU_REF_NUM", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_ABU_TNT_ABU = df_SQ_SSA_EMS_ABU_TNT_ABU.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_ABU_TNT_ABU.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_ABU_TNT_ABU = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_ABU_TNT_ABU,
+            port_cols={
+                'ABU_KEY': 'decimal',
+                'ABU_BK': 'string',
+                'ABU_REF_NUM': 'string',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_ABU_TNT_ABU", df_SQ_SSA_EMS_ABU_TNT_ABU)
         
         logger.info("Step: write_SOR_EMS_ABU_TNT_ABU_STS")
         # Write to Target: write_SOR_EMS_ABU_TNT_ABU_STS
-        df_write = df_SQ_SSA_EMS_ABU_TNT_ABU_STS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BGN_DATE": "SOR_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("TNCY_AGRMT_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ABU_FIND_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ABU_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ABU_ACT_OFFC_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ABU_REF_SRC_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ABU_SCP_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ABU_ACT_OFFC_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ABU_FXT_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ABU_RSLT_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ABU_RSLT_UPD_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ABU_CRE_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ABU_STS_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ABU_STS_UPD_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ABU_WTHDRW_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ABU_TYPE_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("INTL_ABU_RSLT_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['ABU_KEY', 'BGN_DATE', 'END_DATE', 'TNCY_AGRMT_KEY', 'ABU_FIND_DATE', 'ABU_TYPE_CODE', 'ABU_ACT_OFFC_CODE', 'ABU_REF_SRC_CODE', 'ABU_SCP_CODE', 'ABU_ACT_OFFC_TEXT', 'ABU_FXT_CODE', 'ABU_RSLT_CODE', 'ABU_RSLT_UPD_DATE', 'ABU_CRE_DATE', 'ABU_STS_CODE', 'ABU_STS_UPD_DATE', 'ABU_WTHDRW_IND', 'ABU_TYPE_TEXT', 'INTL_ABU_RSLT_CODE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_ABU_TNT_ABU_STS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_ABU_TNT_ABU_STS,
+            conn=conn_target,
+            table='SOR_EMS_ABU_TNT_ABU_STS',
+            mode='append',
+            source_columns=[
+                'ABU_KEY',
+                'SOR_DATE',
+                'END_DATE',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'ABU_KEY',
+                'BGN_DATE',
+                'END_DATE',
+                'TNCY_AGRMT_KEY',
+                'ABU_FIND_DATE',
+                'ABU_TYPE_CODE',
+                'ABU_ACT_OFFC_CODE',
+                'ABU_REF_SRC_CODE',
+                'ABU_SCP_CODE',
+                'ABU_ACT_OFFC_TEXT',
+                'ABU_FXT_CODE',
+                'ABU_RSLT_CODE',
+                'ABU_RSLT_UPD_DATE',
+                'ABU_CRE_DATE',
+                'ABU_STS_CODE',
+                'ABU_STS_UPD_DATE',
+                'ABU_WTHDRW_IND',
+                'ABU_TYPE_TEXT',
+                'INTL_ABU_RSLT_CODE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_ABU_TNT_ABU_STS write completed")
         logger.info("Step: write_SOR_EMS_ABU_TNT_ABU")
         # Write to Target: write_SOR_EMS_ABU_TNT_ABU
-        df_write = df_SQ_SSA_EMS_ABU_TNT_ABU
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("ABU_BK", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ABU_REF_NUM", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['ABU_KEY', 'ABU_BK', 'ABU_REF_NUM', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_ABU_TNT_ABU", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_ABU_TNT_ABU,
+            conn=conn_target,
+            table='SOR_EMS_ABU_TNT_ABU',
+            mode='append',
+            source_columns=[
+                'ABU_KEY',
+                None,
+                None,
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'ABU_KEY',
+                'ABU_BK',
+                'ABU_REF_NUM',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_ABU_TNT_ABU write completed")
         

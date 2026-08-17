@@ -58,20 +58,57 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_HSM_RGN")
         # Source Qualifier: apply_SQ_SSA_HSM_RGN
         df_SQ_SSA_HSM_RGN = df_SSA_HSM_RGN
-        df_SQ_SSA_HSM_RGN = df_SQ_SSA_HSM_RGN.filter(expr("OPR_IND = 'B' OR OPR_IND = 'A'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["RGN_KEY", "RGN_NAME", "RGN_CODE", "AGMT_IND", "RGN_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE", "RGN_CHI_NAME", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE", "EMMS_RGN_KEY"]
-        df_SQ_SSA_HSM_RGN = df_SQ_SSA_HSM_RGN.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_HSM_RGN.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_HSM_RGN = lib.sq_output(
+            input_df=df_SQ_SSA_HSM_RGN,
+            port_cols={
+                'RGN_KEY': 'decimal',
+                'RGN_NAME': 'string',
+                'RGN_CODE': 'string',
+                'AGMT_IND': 'string',
+                'RGN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'RGN_CHI_NAME': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+                'EMMS_RGN_KEY': 'string',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'A'",
+        )
         ctx.register_df("df_SQ_SSA_HSM_RGN", df_SQ_SSA_HSM_RGN)
         
         logger.info("Step: write_SOR_HSM_RGN")
         # Write to Target: write_SOR_HSM_RGN
-        df_write = df_SQ_SSA_HSM_RGN
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['RGN_KEY', 'RGN_NAME', 'RGN_CODE', 'RGN_TYPE_CODE', 'RGN_CHI_NAME', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'EMMS_RGN_KEY']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_HSM_RGN", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_HSM_RGN,
+            conn=conn_target,
+            table='SOR_HSM_RGN',
+            mode='append',
+            source_columns=[
+                'RGN_KEY',
+                'RGN_NAME',
+                'RGN_CODE',
+                'RGN_TYPE_CODE',
+                'RGN_CHI_NAME',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'EMMS_RGN_KEY',
+            ],
+            target_columns=[
+                'RGN_KEY',
+                'RGN_NAME',
+                'RGN_CODE',
+                'RGN_TYPE_CODE',
+                'RGN_CHI_NAME',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'EMMS_RGN_KEY',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_HSM_RGN write completed")
         

@@ -58,20 +58,88 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_HSM_UNIT")
         # Source Qualifier: apply_SQ_SSA_HSM_UNIT
         df_SQ_SSA_HSM_UNIT = df_SSA_HSM_UNIT
-        df_SQ_SSA_HSM_UNIT = df_SQ_SSA_HSM_UNIT.filter(expr("OPR_IND = 'B' OR OPR_IND = 'A'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["UNIT_ADDR_CODE", "UNIT_CATG_CODE", "AGMT_IND", "UNIT_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE", "UNIT_NUM", "LAST_REC_TXN_DATE", "UNIT_CNV_REF_IND", "UNIT_SHRD_IND", "UNIT_IFA_AREA", "UNIT_LVNG_AREA", "UNIT_TAKE_OVER_DATE", "UNIT_GFA_AREA", "UNIT_SFA_AREA", "UNIT_BWA_AREA", "BLK_KEY", "UNIT_KEY", "UNIT_FLR_NUM", "OPR_IND", "SOR_DATE", "EMMS_UNIT_KEY", "BLK_BK_1"]
-        df_SQ_SSA_HSM_UNIT = df_SQ_SSA_HSM_UNIT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_HSM_UNIT.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_HSM_UNIT = lib.sq_output(
+            input_df=df_SQ_SSA_HSM_UNIT,
+            port_cols={
+                'UNIT_ADDR_CODE': 'string',
+                'UNIT_CATG_CODE': 'string',
+                'AGMT_IND': 'string',
+                'UNIT_TYPE_CODE': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'UNIT_NUM': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'UNIT_CNV_REF_IND': 'string',
+                'UNIT_SHRD_IND': 'string',
+                'UNIT_IFA_AREA': 'decimal',
+                'UNIT_LVNG_AREA': 'double',
+                'UNIT_TAKE_OVER_DATE': 'date/time',
+                'UNIT_GFA_AREA': 'decimal',
+                'UNIT_SFA_AREA': 'decimal',
+                'UNIT_BWA_AREA': 'decimal',
+                'BLK_KEY': 'decimal',
+                'UNIT_KEY': 'decimal',
+                'UNIT_FLR_NUM': 'double',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+                'EMMS_UNIT_KEY': 'string',
+                'BLK_BK_1': 'string',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'A'",
+        )
         ctx.register_df("df_SQ_SSA_HSM_UNIT", df_SQ_SSA_HSM_UNIT)
         
         logger.info("Step: write_SOR_HSM_UNIT")
         # Write to Target: write_SOR_HSM_UNIT
-        df_write = df_SQ_SSA_HSM_UNIT
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['UNIT_ADDR_CODE', 'UNIT_CATG_CODE', 'UNIT_TYPE_CODE', 'UNIT_NUM', 'UNIT_CNV_REF_IND', 'UNIT_SHRD_IND', 'UNIT_IFA_AREA', 'UNIT_LVNG_AREA', 'UNIT_TAKE_OVER_DATE', 'UNIT_GFA_AREA', 'UNIT_SFA_AREA', 'UNIT_BWA_AREA', 'BLK_KEY', 'UNIT_KEY', 'UNIT_FLR_NUM', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'EMMS_UNIT_KEY']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_HSM_UNIT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_HSM_UNIT,
+            conn=conn_target,
+            table='SOR_HSM_UNIT',
+            mode='append',
+            source_columns=[
+                'UNIT_ADDR_CODE',
+                'UNIT_CATG_CODE',
+                'UNIT_TYPE_CODE',
+                'UNIT_NUM',
+                'UNIT_CNV_REF_IND',
+                'UNIT_SHRD_IND',
+                'UNIT_IFA_AREA',
+                'UNIT_LVNG_AREA',
+                'UNIT_TAKE_OVER_DATE',
+                'UNIT_GFA_AREA',
+                'UNIT_SFA_AREA',
+                'UNIT_BWA_AREA',
+                'BLK_KEY',
+                'UNIT_KEY',
+                'UNIT_FLR_NUM',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'EMMS_UNIT_KEY',
+            ],
+            target_columns=[
+                'UNIT_ADDR_CODE',
+                'UNIT_CATG_CODE',
+                'UNIT_TYPE_CODE',
+                'UNIT_NUM',
+                'UNIT_CNV_REF_IND',
+                'UNIT_SHRD_IND',
+                'UNIT_IFA_AREA',
+                'UNIT_LVNG_AREA',
+                'UNIT_TAKE_OVER_DATE',
+                'UNIT_GFA_AREA',
+                'UNIT_SFA_AREA',
+                'UNIT_BWA_AREA',
+                'BLK_KEY',
+                'UNIT_KEY',
+                'UNIT_FLR_NUM',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'EMMS_UNIT_KEY',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_HSM_UNIT write completed")
         

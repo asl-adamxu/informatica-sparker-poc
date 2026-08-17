@@ -64,58 +64,144 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_HOS_BLK")
         # Source Qualifier: apply_SQ_SSA_EMS_HOS_BLK
         df_SQ_SSA_EMS_HOS_BLK = df_SSA_EMS_HOS_BLK
-        df_SQ_SSA_EMS_HOS_BLK = df_SQ_SSA_EMS_HOS_BLK.filter(expr("OPR_IND = 'B' OR OPR_IND = 'A'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HOS_BLK_KEY", "HOS_BLK_BK", "HOS_CRT_KEY", "HOS_BLK_CODE", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_HOS_BLK = df_SQ_SSA_EMS_HOS_BLK.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_HOS_BLK.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_HOS_BLK = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_HOS_BLK,
+            port_cols={
+                'HOS_BLK_KEY': 'decimal',
+                'HOS_BLK_BK': 'string',
+                'HOS_CRT_KEY': 'decimal',
+                'HOS_BLK_CODE': 'string',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'A'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_HOS_BLK", df_SQ_SSA_EMS_HOS_BLK)
         
         logger.info("Step: apply_SQ_SSA_EMS_HOS_BLK_STS")
         # Source Qualifier: apply_SQ_SSA_EMS_HOS_BLK_STS
         df_SQ_SSA_EMS_HOS_BLK_STS = df_SSA_EMS_HOS_BLK_STS
-        df_SQ_SSA_EMS_HOS_BLK_STS = df_SQ_SSA_EMS_HOS_BLK_STS.filter(expr("OPR_IND = 'B' OR OPR_IND = 'EB' OR OPR_IND = 'DA'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HOS_BLK_KEY", "BGN_DATE", "END_DATE", "HOS_BLK_CERT_ISS_IND", "HOS_BLK_SCHM_OPT_CODE", "HOS_BLK_DLP_PRD_MTH", "HOS_BLK_DLP_END_DATE", "HOS_BLK_STS_CODE", "HOS_BLK_STS_UPD_DATE", "HOS_BLK_DSG_CODE", "FRST_SALE_HOS_PHASE_CODE", "TOT_UNDVD_SHR_NUM", "LOT_DESP", "HOS_BLK_NAME", "HOS_BLK_CMPLT_DATE", "HOS_LOT_CODE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_HOS_BLK_STS = df_SQ_SSA_EMS_HOS_BLK_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_HOS_BLK_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_HOS_BLK_STS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_HOS_BLK_STS,
+            port_cols={
+                'HOS_BLK_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'HOS_BLK_CERT_ISS_IND': 'string',
+                'HOS_BLK_SCHM_OPT_CODE': 'string',
+                'HOS_BLK_DLP_PRD_MTH': 'decimal',
+                'HOS_BLK_DLP_END_DATE': 'date/time',
+                'HOS_BLK_STS_CODE': 'string',
+                'HOS_BLK_STS_UPD_DATE': 'date/time',
+                'HOS_BLK_DSG_CODE': 'string',
+                'FRST_SALE_HOS_PHASE_CODE': 'string',
+                'TOT_UNDVD_SHR_NUM': 'decimal',
+                'LOT_DESP': 'string',
+                'HOS_BLK_NAME': 'string',
+                'HOS_BLK_CMPLT_DATE': 'date/time',
+                'HOS_LOT_CODE': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'EB' OR OPR_IND = 'DA'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_HOS_BLK_STS", df_SQ_SSA_EMS_HOS_BLK_STS)
         
         logger.info("Step: write_SOR_EMS_HOS_BLK")
         # Write to Target: write_SOR_EMS_HOS_BLK
-        df_write = df_SQ_SSA_EMS_HOS_BLK
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HOS_BLK_KEY', 'HOS_BLK_BK', 'HOS_CRT_KEY', 'HOS_BLK_CODE', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_HOS_BLK", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_HOS_BLK,
+            conn=conn_target,
+            table='SOR_EMS_HOS_BLK',
+            mode='append',
+            source_columns=[
+                'HOS_BLK_KEY',
+                'HOS_BLK_BK',
+                'HOS_CRT_KEY',
+                'HOS_BLK_CODE',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'HOS_BLK_KEY',
+                'HOS_BLK_BK',
+                'HOS_CRT_KEY',
+                'HOS_BLK_CODE',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_HOS_BLK write completed")
         logger.info("Step: apply_EXP_SOR_LOAD_DATE")
         # Expression: apply_EXP_SOR_LOAD_DATE
-        df_EXP_SOR_LOAD_DATE = df_SQ_SSA_EMS_HOS_BLK_STS
-        df_EXP_SOR_LOAD_DATE = df_EXP_SOR_LOAD_DATE.withColumn("OUT_END_DATE", expr("CASE WHEN OPR_IND = 'EB' THEN CASE WHEN LAST_REC_TXN_TYPE_CODE IS NULL THEN to_date('99991231','yyyyMMdd') ELSE END_DATE END ELSE END_DATE END"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_SOR_LOAD_DATE = lib.expression(
+            input_df=df_SQ_SSA_EMS_HOS_BLK_STS,
+            computed_columns=[
+                {'name': 'OUT_END_DATE', 'expr': "CASE WHEN OPR_IND = 'EB' THEN CASE WHEN LAST_REC_TXN_TYPE_CODE IS NULL THEN to_date('99991231','yyyyMMdd') ELSE END_DATE END ELSE END_DATE END"}
+            ],
+        )
         ctx.register_df("df_EXP_SOR_LOAD_DATE", df_EXP_SOR_LOAD_DATE)
         
         logger.info("Step: write_SOR_EMS_HOS_BLK_STS")
         # Write to Target: write_SOR_EMS_HOS_BLK_STS
-        df_write = df_EXP_SOR_LOAD_DATE
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"END_DATE": "OUT_END_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HOS_BLK_KEY', 'BGN_DATE', 'END_DATE', 'HOS_BLK_CERT_ISS_IND', 'HOS_BLK_SCHM_OPT_CODE', 'HOS_BLK_DLP_PRD_MTH', 'HOS_BLK_DLP_END_DATE', 'HOS_BLK_STS_CODE', 'HOS_BLK_STS_UPD_DATE', 'HOS_BLK_DSG_CODE', 'FRST_SALE_HOS_PHASE_CODE', 'TOT_UNDVD_SHR_NUM', 'LOT_DESP', 'HOS_BLK_NAME', 'HOS_BLK_CMPLT_DATE', 'HOS_LOT_CODE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_HOS_BLK_STS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_SOR_LOAD_DATE,
+            conn=conn_target,
+            table='SOR_EMS_HOS_BLK_STS',
+            mode='append',
+            source_columns=[
+                'HOS_BLK_KEY',
+                'BGN_DATE',
+                'OUT_END_DATE',
+                'HOS_BLK_CERT_ISS_IND',
+                'HOS_BLK_SCHM_OPT_CODE',
+                'HOS_BLK_DLP_PRD_MTH',
+                'HOS_BLK_DLP_END_DATE',
+                'HOS_BLK_STS_CODE',
+                'HOS_BLK_STS_UPD_DATE',
+                'HOS_BLK_DSG_CODE',
+                'FRST_SALE_HOS_PHASE_CODE',
+                'TOT_UNDVD_SHR_NUM',
+                'LOT_DESP',
+                'HOS_BLK_NAME',
+                'HOS_BLK_CMPLT_DATE',
+                'HOS_LOT_CODE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'HOS_BLK_KEY',
+                'BGN_DATE',
+                'END_DATE',
+                'HOS_BLK_CERT_ISS_IND',
+                'HOS_BLK_SCHM_OPT_CODE',
+                'HOS_BLK_DLP_PRD_MTH',
+                'HOS_BLK_DLP_END_DATE',
+                'HOS_BLK_STS_CODE',
+                'HOS_BLK_STS_UPD_DATE',
+                'HOS_BLK_DSG_CODE',
+                'FRST_SALE_HOS_PHASE_CODE',
+                'TOT_UNDVD_SHR_NUM',
+                'LOT_DESP',
+                'HOS_BLK_NAME',
+                'HOS_BLK_CMPLT_DATE',
+                'HOS_LOT_CODE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_HOS_BLK_STS write completed")
         

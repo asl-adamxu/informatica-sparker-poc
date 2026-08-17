@@ -58,20 +58,48 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_TAM_RAS")
         # Source Qualifier: apply_SQ_SSA_EMS_TAM_RAS
         df_SQ_SSA_EMS_TAM_RAS = df_SSA_EMS_TAM_RAS
-        df_SQ_SSA_EMS_TAM_RAS = df_SQ_SSA_EMS_TAM_RAS.filter(expr("OPR_IND = 'EB' OR OPR_IND = 'DA'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["RAS_KEY", "RAS_BK", "RAS_REC_KEY", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_TAM_RAS = df_SQ_SSA_EMS_TAM_RAS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_TAM_RAS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_TAM_RAS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_TAM_RAS,
+            port_cols={
+                'RAS_KEY': 'decimal',
+                'RAS_BK': 'string',
+                'RAS_REC_KEY': 'decimal',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'EB' OR OPR_IND = 'DA'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_TAM_RAS", df_SQ_SSA_EMS_TAM_RAS)
         
         logger.info("Step: write_SOR_EMS_TAM_RAS")
         # Write to Target: write_SOR_EMS_TAM_RAS
-        df_write = df_SQ_SSA_EMS_TAM_RAS
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['RAS_KEY', 'RAS_BK', 'RAS_REC_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_TAM_RAS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_TAM_RAS,
+            conn=conn_target,
+            table='SOR_EMS_TAM_RAS',
+            mode='append',
+            source_columns=[
+                'RAS_KEY',
+                'RAS_BK',
+                'RAS_REC_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'RAS_KEY',
+                'RAS_BK',
+                'RAS_REC_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_TAM_RAS write completed")
         

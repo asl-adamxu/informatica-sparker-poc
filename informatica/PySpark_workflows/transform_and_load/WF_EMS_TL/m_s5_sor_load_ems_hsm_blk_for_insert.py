@@ -58,31 +58,100 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_HSM_BLK")
         # Source Qualifier: apply_SQ_SSA_HSM_BLK
         df_SQ_SSA_HSM_BLK = df_SSA_HSM_BLK
-        df_SQ_SSA_HSM_BLK = df_SQ_SSA_HSM_BLK.filter(expr("OPR_IND = 'B' OR OPR_IND = 'A'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["BLK_KEY", "BLK_CODE", "EST_KEY", "AGMT_IND", "BLK_NAME", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "BLK_TYPE_CODE", "BLK_MARK_TYPE_CODE", "BLK_ACCS_CODE", "BLK_HOVR_DATE", "BLK_DOM_STRY_CNT", "EST_BK_1", "BLK_STRY_TOT_CNT", "BLK_SELF_CNTAED_IND", "BLK_CMPLNC_CERT_IND", "BLK_ACTL_CMPLT_DATE", "BLK_UNIT_TOT_CNT", "BLK_PUT_UP_SALE_DATE", "BLK_CHI_NAME", "BLK_IFA_TOT_AREA", "OPR_IND", "SOR_DATE", "EMMS_BLK_KEY", "ISHM_BK", "BLK_DESIGN_CODE"]
-        df_SQ_SSA_HSM_BLK = df_SQ_SSA_HSM_BLK.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_HSM_BLK.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_HSM_BLK = lib.sq_output(
+            input_df=df_SQ_SSA_HSM_BLK,
+            port_cols={
+                'BLK_KEY': 'decimal',
+                'BLK_CODE': 'string',
+                'EST_KEY': 'decimal',
+                'AGMT_IND': 'string',
+                'BLK_NAME': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'BLK_TYPE_CODE': 'string',
+                'BLK_MARK_TYPE_CODE': 'string',
+                'BLK_ACCS_CODE': 'string',
+                'BLK_HOVR_DATE': 'date/time',
+                'BLK_DOM_STRY_CNT': 'decimal',
+                'EST_BK_1': 'string',
+                'BLK_STRY_TOT_CNT': 'decimal',
+                'BLK_SELF_CNTAED_IND': 'string',
+                'BLK_CMPLNC_CERT_IND': 'string',
+                'BLK_ACTL_CMPLT_DATE': 'date/time',
+                'BLK_UNIT_TOT_CNT': 'decimal',
+                'BLK_PUT_UP_SALE_DATE': 'string',
+                'BLK_CHI_NAME': 'string',
+                'BLK_IFA_TOT_AREA': 'decimal',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+                'EMMS_BLK_KEY': 'string',
+                'ISHM_BK': 'string',
+                'BLK_DESIGN_CODE': 'string',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'A'",
+        )
         ctx.register_df("df_SQ_SSA_HSM_BLK", df_SQ_SSA_HSM_BLK)
         
         logger.info("Step: write_SOR_HSM_BLK")
         # Write to Target: write_SOR_HSM_BLK
-        df_write = df_SQ_SSA_HSM_BLK
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BLK_DSG_CODE": "BLK_DESIGN_CODE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['BLK_KEY', 'BLK_CODE', 'EST_KEY', 'BLK_NAME', 'BLK_TYPE_CODE', 'BLK_MARK_TYPE_CODE', 'BLK_ACCS_CODE', 'BLK_HOVR_DATE', 'BLK_DOM_STRY_CNT', 'BLK_STRY_TOT_CNT', 'BLK_SELF_CNTAED_IND', 'BLK_CMPLNC_CERT_IND', 'BLK_ACTL_CMPLT_DATE', 'BLK_UNIT_TOT_CNT', 'BLK_PUT_UP_SALE_DATE', 'BLK_CHI_NAME', 'BLK_IFA_TOT_AREA', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'EMMS_BLK_KEY', 'ISHM_BK', 'BLK_DSG_CODE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_HSM_BLK", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_HSM_BLK,
+            conn=conn_target,
+            table='SOR_HSM_BLK',
+            mode='append',
+            source_columns=[
+                'BLK_KEY',
+                'BLK_CODE',
+                'EST_KEY',
+                'BLK_NAME',
+                'BLK_TYPE_CODE',
+                'BLK_MARK_TYPE_CODE',
+                'BLK_ACCS_CODE',
+                'BLK_HOVR_DATE',
+                'BLK_DOM_STRY_CNT',
+                'BLK_STRY_TOT_CNT',
+                'BLK_SELF_CNTAED_IND',
+                'BLK_CMPLNC_CERT_IND',
+                'BLK_ACTL_CMPLT_DATE',
+                'BLK_UNIT_TOT_CNT',
+                'BLK_PUT_UP_SALE_DATE',
+                'BLK_CHI_NAME',
+                'BLK_IFA_TOT_AREA',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'EMMS_BLK_KEY',
+                'ISHM_BK',
+                'BLK_DESIGN_CODE',
+            ],
+            target_columns=[
+                'BLK_KEY',
+                'BLK_CODE',
+                'EST_KEY',
+                'BLK_NAME',
+                'BLK_TYPE_CODE',
+                'BLK_MARK_TYPE_CODE',
+                'BLK_ACCS_CODE',
+                'BLK_HOVR_DATE',
+                'BLK_DOM_STRY_CNT',
+                'BLK_STRY_TOT_CNT',
+                'BLK_SELF_CNTAED_IND',
+                'BLK_CMPLNC_CERT_IND',
+                'BLK_ACTL_CMPLT_DATE',
+                'BLK_UNIT_TOT_CNT',
+                'BLK_PUT_UP_SALE_DATE',
+                'BLK_CHI_NAME',
+                'BLK_IFA_TOT_AREA',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'EMMS_BLK_KEY',
+                'ISHM_BK',
+                'BLK_DSG_CODE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_HSM_BLK write completed")
         

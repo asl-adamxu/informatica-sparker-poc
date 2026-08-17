@@ -64,62 +64,131 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_TOW_TPS_AGRMT")
         # Source Qualifier: apply_SQ_SSA_EMS_TOW_TPS_AGRMT
         df_SQ_SSA_EMS_TOW_TPS_AGRMT = df_SSA_EMS_TOW_TPS_AGRMT
-        df_SQ_SSA_EMS_TOW_TPS_AGRMT = df_SQ_SSA_EMS_TOW_TPS_AGRMT.filter(expr("OPR_IND = 'B' OR OPR_IND = 'A'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["TPS_AGRMT_KEY", "TPS_AGRMT_BK", "HSE_SRVC_APLY_KEY", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_TOW_TPS_AGRMT = df_SQ_SSA_EMS_TOW_TPS_AGRMT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_TOW_TPS_AGRMT.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_TOW_TPS_AGRMT = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_TOW_TPS_AGRMT,
+            port_cols={
+                'TPS_AGRMT_KEY': 'decimal',
+                'TPS_AGRMT_BK': 'string',
+                'HSE_SRVC_APLY_KEY': 'decimal',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'A'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_TOW_TPS_AGRMT", df_SQ_SSA_EMS_TOW_TPS_AGRMT)
         
         logger.info("Step: apply_SQ_SSA_EMS_TOW_TPS_AGRMT_STS")
         # Source Qualifier: apply_SQ_SSA_EMS_TOW_TPS_AGRMT_STS
         df_SQ_SSA_EMS_TOW_TPS_AGRMT_STS = df_SSA_EMS_TOW_TPS_AGRMT_STS
-        df_SQ_SSA_EMS_TOW_TPS_AGRMT_STS = df_SQ_SSA_EMS_TOW_TPS_AGRMT_STS.filter(expr("OPR_IND = 'B' OR OPR_IND = 'EB' OR OPR_IND = 'DA'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["TPS_AGRMT_KEY", "BGN_DATE", "END_DATE", "ORIG_CUST_KEY", "UNIT_KEY", "TPS_AGRMT_SEQ_NUM", "TPS_AGRMT_ASGN_DATE", "TPS_AGRMT_TRMT_DATE", "TPS_PCHS_FORM_CODE", "TPS_TRMT_TYPE_CODE", "TPS_AGRMT_EXOWNR_REF_CODE", "TPS_AGRMT_HOME_PHONE_NUM_1", "TPS_AGRMT_HOME_PHONE_NUM_2", "TPS_AGRMT_OFFC_PHONE_NUM_1", "TPS_AGRMT_OFFC_PHONE_NUM_2", "TPS_AGRMT_MBL_PHONE_NUM_1", "TPS_AGRMT_MBL_PHONE_NUM_2", "TPS_AGRMT_RMK_TEXT", "TPS_CHNG_OWNR_RMK_TEXT", "TPS_MGT_FEE_DPST_AMT", "TPS_AGRMT_CRE_DATE", "TPS_AGRMT_PHASE_CODE", "TPS_APLY_TYPE_CODE", "APLY_MBR_TYPE_CODE", "APLY_MBR_REF_NUM", "TPS_AGRMT_FRST_ASGN_DATE", "MBR_ACT_IND", "ORIG_HSE_SRVC_APLY_KEY", "CUST_KEY", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE", "ORIG_HSE_UNIT_TOT_IFA_AREA"]
-        df_SQ_SSA_EMS_TOW_TPS_AGRMT_STS = df_SQ_SSA_EMS_TOW_TPS_AGRMT_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_TOW_TPS_AGRMT_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_TOW_TPS_AGRMT_STS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_TOW_TPS_AGRMT_STS,
+            port_cols={
+                'TPS_AGRMT_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'ORIG_CUST_KEY': 'decimal',
+                'UNIT_KEY': 'decimal',
+                'TPS_AGRMT_SEQ_NUM': 'decimal',
+                'TPS_AGRMT_ASGN_DATE': 'date/time',
+                'TPS_AGRMT_TRMT_DATE': 'date/time',
+                'TPS_PCHS_FORM_CODE': 'string',
+                'TPS_TRMT_TYPE_CODE': 'string',
+                'TPS_AGRMT_EXOWNR_REF_CODE': 'string',
+                'TPS_AGRMT_HOME_PHONE_NUM_1': 'string',
+                'TPS_AGRMT_HOME_PHONE_NUM_2': 'string',
+                'TPS_AGRMT_OFFC_PHONE_NUM_1': 'string',
+                'TPS_AGRMT_OFFC_PHONE_NUM_2': 'string',
+                'TPS_AGRMT_MBL_PHONE_NUM_1': 'string',
+                'TPS_AGRMT_MBL_PHONE_NUM_2': 'string',
+                'TPS_AGRMT_RMK_TEXT': 'string',
+                'TPS_CHNG_OWNR_RMK_TEXT': 'string',
+                'TPS_MGT_FEE_DPST_AMT': 'decimal',
+                'TPS_AGRMT_CRE_DATE': 'date/time',
+                'TPS_AGRMT_PHASE_CODE': 'string',
+                'TPS_APLY_TYPE_CODE': 'string',
+                'APLY_MBR_TYPE_CODE': 'string',
+                'APLY_MBR_REF_NUM': 'string',
+                'TPS_AGRMT_FRST_ASGN_DATE': 'date/time',
+                'MBR_ACT_IND': 'string',
+                'ORIG_HSE_SRVC_APLY_KEY': 'decimal',
+                'CUST_KEY': 'decimal',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+                'ORIG_HSE_UNIT_TOT_IFA_AREA': 'string',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'EB' OR OPR_IND = 'DA'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_TOW_TPS_AGRMT_STS", df_SQ_SSA_EMS_TOW_TPS_AGRMT_STS)
         
         logger.info("Step: write_SOR_EMS_TOW_TPS_AGRMT")
         # Write to Target: write_SOR_EMS_TOW_TPS_AGRMT
-        df_write = df_SQ_SSA_EMS_TOW_TPS_AGRMT
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['TPS_AGRMT_KEY', 'TPS_AGRMT_BK', 'HSE_SRVC_APLY_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_TOW_TPS_AGRMT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_TOW_TPS_AGRMT,
+            conn=conn_target,
+            table='SOR_EMS_TOW_TPS_AGRMT',
+            mode='append',
+            source_columns=[
+                'TPS_AGRMT_KEY',
+                'TPS_AGRMT_BK',
+                'HSE_SRVC_APLY_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'TPS_AGRMT_KEY',
+                'TPS_AGRMT_BK',
+                'HSE_SRVC_APLY_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_TOW_TPS_AGRMT write completed")
         logger.info("Step: apply_EXP_SOR_LOAD_DATE")
         # Expression: apply_EXP_SOR_LOAD_DATE
-        df_EXP_SOR_LOAD_DATE = df_SQ_SSA_EMS_TOW_TPS_AGRMT_STS
-        df_EXP_SOR_LOAD_DATE = df_EXP_SOR_LOAD_DATE.withColumn("OUT_END_DATE", expr("CASE WHEN OPR_IND = 'EB' THEN CASE WHEN LAST_REC_TXN_TYPE_CODE IS NULL THEN to_date('99991231','yyyyMMdd') ELSE END_DATE END ELSE END_DATE END"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_SOR_LOAD_DATE = lib.expression(
+            input_df=df_SQ_SSA_EMS_TOW_TPS_AGRMT_STS,
+            computed_columns=[
+                {'name': 'OUT_END_DATE', 'expr': "CASE WHEN OPR_IND = 'EB' THEN CASE WHEN LAST_REC_TXN_TYPE_CODE IS NULL THEN to_date('99991231','yyyyMMdd') ELSE END_DATE END ELSE END_DATE END"}
+            ],
+        )
         ctx.register_df("df_EXP_SOR_LOAD_DATE", df_EXP_SOR_LOAD_DATE)
         
         logger.info("Step: write_SOR_EMS_TOW_TPS_AGRMT_STS")
         # Write to Target: write_SOR_EMS_TOW_TPS_AGRMT_STS
-        df_write = df_EXP_SOR_LOAD_DATE
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"END_DATE": "OUT_END_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("TPS_AGRMT_BK", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_SRVC_APLY_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("AGMT_IND", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['TPS_AGRMT_KEY', 'TPS_AGRMT_BK', 'HSE_SRVC_APLY_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_TOW_TPS_AGRMT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_SOR_LOAD_DATE,
+            conn=conn_target,
+            table='SOR_EMS_TOW_TPS_AGRMT',
+            mode='append',
+            source_columns=[
+                'TPS_AGRMT_KEY',
+                None,
+                None,
+                None,
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'TPS_AGRMT_KEY',
+                'TPS_AGRMT_BK',
+                'HSE_SRVC_APLY_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_TOW_TPS_AGRMT_STS write completed")
         

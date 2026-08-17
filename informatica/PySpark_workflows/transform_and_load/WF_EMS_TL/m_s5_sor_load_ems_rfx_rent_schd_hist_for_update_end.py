@@ -64,68 +64,127 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_RFX_RENT_SCHD_HIST_STS")
         # Source Qualifier: apply_SQ_SSA_EMS_RFX_RENT_SCHD_HIST_STS
         df_SQ_SSA_EMS_RFX_RENT_SCHD_HIST_STS = df_SSA_EMS_RFX_RENT_SCHD_HIST_STS
-        df_SQ_SSA_EMS_RFX_RENT_SCHD_HIST_STS = df_SQ_SSA_EMS_RFX_RENT_SCHD_HIST_STS.filter(expr("OPR_IND = 'E' OR OPR_IND = 'EB'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["RENT_SCHD_AMND_HIST_KEY", "BGN_DATE", "END_DATE", "UNIT_TYPE_CODE", "RENT_SCHD_BGN_DATE", "UNIT_NET_RENT_AMT", "UNIT_NET_RATE_AMT", "RENT_SCHD_SBMT_STF_ID", "RENT_SCHD_SBMT_DATE", "RENT_SCHD_CNFRM_STF_ID", "RENT_SCHD_CNFRM_DATE", "TOT_AFCT_UNIT_CNT", "RENT_RVW_BGN_DATE", "RENT_CALC_BGN_DATE", "RENT_SCHD_BTCH_UPD_DATE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_RFX_RENT_SCHD_HIST_STS = df_SQ_SSA_EMS_RFX_RENT_SCHD_HIST_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_RFX_RENT_SCHD_HIST_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_RFX_RENT_SCHD_HIST_STS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_RFX_RENT_SCHD_HIST_STS,
+            port_cols={
+                'RENT_SCHD_AMND_HIST_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'UNIT_TYPE_CODE': 'string',
+                'RENT_SCHD_BGN_DATE': 'date/time',
+                'UNIT_NET_RENT_AMT': 'decimal',
+                'UNIT_NET_RATE_AMT': 'decimal',
+                'RENT_SCHD_SBMT_STF_ID': 'string',
+                'RENT_SCHD_SBMT_DATE': 'date/time',
+                'RENT_SCHD_CNFRM_STF_ID': 'string',
+                'RENT_SCHD_CNFRM_DATE': 'date/time',
+                'TOT_AFCT_UNIT_CNT': 'decimal',
+                'RENT_RVW_BGN_DATE': 'date/time',
+                'RENT_CALC_BGN_DATE': 'date/time',
+                'RENT_SCHD_BTCH_UPD_DATE': 'date/time',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E' OR OPR_IND = 'EB'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_RFX_RENT_SCHD_HIST_STS", df_SQ_SSA_EMS_RFX_RENT_SCHD_HIST_STS)
         
         logger.info("Step: apply_SQ_SSA_EMS_RFX_RENT_SCHD_HIST")
         # Source Qualifier: apply_SQ_SSA_EMS_RFX_RENT_SCHD_HIST
         df_SQ_SSA_EMS_RFX_RENT_SCHD_HIST = df_SSA_EMS_RFX_RENT_SCHD_HIST
-        df_SQ_SSA_EMS_RFX_RENT_SCHD_HIST = df_SQ_SSA_EMS_RFX_RENT_SCHD_HIST.filter(expr("OPR_IND = 'E'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["RENT_SCHD_AMND_HIST_KEY", "RENT_SCHD_AMND_HIST_BK", "EST_KEY", "BLK_KEY", "UNIT_IFA_AREA", "UNIT_ENV_CODE", "TNT_RENT_CODE_CATG_CODE", "LAST_RENT_SCHD_REC_UPD_DATE", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_RFX_RENT_SCHD_HIST = df_SQ_SSA_EMS_RFX_RENT_SCHD_HIST.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_RFX_RENT_SCHD_HIST.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_RFX_RENT_SCHD_HIST = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_RFX_RENT_SCHD_HIST,
+            port_cols={
+                'RENT_SCHD_AMND_HIST_KEY': 'decimal',
+                'RENT_SCHD_AMND_HIST_BK': 'string',
+                'EST_KEY': 'string',
+                'BLK_KEY': 'string',
+                'UNIT_IFA_AREA': 'decimal',
+                'UNIT_ENV_CODE': 'string',
+                'TNT_RENT_CODE_CATG_CODE': 'string',
+                'LAST_RENT_SCHD_REC_UPD_DATE': 'date/time',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_RFX_RENT_SCHD_HIST", df_SQ_SSA_EMS_RFX_RENT_SCHD_HIST)
         
         logger.info("Step: write_SOR_EMS_RFX_RENT_SCHD_HIST_STS")
         # Write to Target: write_SOR_EMS_RFX_RENT_SCHD_HIST_STS
-        df_write = df_SQ_SSA_EMS_RFX_RENT_SCHD_HIST_STS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BGN_DATE": "SOR_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("RENT_SCHD_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RENT_SCHD_BK", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EST_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("BLK_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("UNIT_IFA_AREA", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("UNIT_ENV_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("TNT_RENT_CODE_CATG_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("AGMT_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['RENT_SCHD_KEY', 'RENT_SCHD_BK', 'EST_KEY', 'BLK_KEY', 'UNIT_IFA_AREA', 'UNIT_ENV_CODE', 'TNT_RENT_CODE_CATG_CODE', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_RFX_RENT_SCHD", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_RFX_RENT_SCHD_HIST_STS,
+            conn=conn_target,
+            table='SOR_EMS_RFX_RENT_SCHD',
+            mode='append',
+            source_columns=[
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'RENT_SCHD_KEY',
+                'RENT_SCHD_BK',
+                'EST_KEY',
+                'BLK_KEY',
+                'UNIT_IFA_AREA',
+                'UNIT_ENV_CODE',
+                'TNT_RENT_CODE_CATG_CODE',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_RFX_RENT_SCHD_HIST_STS write completed")
         logger.info("Step: write_SOR_EMS_RFX_RENT_SCHD_HIST")
         # Write to Target: write_SOR_EMS_RFX_RENT_SCHD_HIST
-        df_write = df_SQ_SSA_EMS_RFX_RENT_SCHD_HIST
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("RENT_SCHD_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RENT_SCHD_BK", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EST_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("BLK_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("UNIT_IFA_AREA", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("UNIT_ENV_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("TNT_RENT_CODE_CATG_CODE", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['RENT_SCHD_KEY', 'RENT_SCHD_BK', 'EST_KEY', 'BLK_KEY', 'UNIT_IFA_AREA', 'UNIT_ENV_CODE', 'TNT_RENT_CODE_CATG_CODE', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_RFX_RENT_SCHD", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_RFX_RENT_SCHD_HIST,
+            conn=conn_target,
+            table='SOR_EMS_RFX_RENT_SCHD',
+            mode='append',
+            source_columns=[
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'RENT_SCHD_KEY',
+                'RENT_SCHD_BK',
+                'EST_KEY',
+                'BLK_KEY',
+                'UNIT_IFA_AREA',
+                'UNIT_ENV_CODE',
+                'TNT_RENT_CODE_CATG_CODE',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_RFX_RENT_SCHD_HIST write completed")
         

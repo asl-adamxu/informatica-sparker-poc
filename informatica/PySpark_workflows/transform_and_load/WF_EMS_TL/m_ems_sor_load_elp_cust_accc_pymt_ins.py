@@ -64,77 +64,165 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_ELP_CUST_ACCC_PYMT")
         # Source Qualifier: apply_SQ_SSA_EMS_ELP_CUST_ACCC_PYMT
         df_SQ_SSA_EMS_ELP_CUST_ACCC_PYMT = df_SSA_EMS_ELP_CUST_ACCC_PYMT
-        df_SQ_SSA_EMS_ELP_CUST_ACCC_PYMT = df_SQ_SSA_EMS_ELP_CUST_ACCC_PYMT.filter(expr("OPR_IND = 'B' OR OPR_IND = 'A'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["CUST_ACCC_PYMT_KEY", "CUST_ACCC_TXN_SHOP_CODE", "CUST_ACCC_TXN_MCHN_NUM", "CUST_ACCC_TXN_RCPT_NUM", "ACCC_FILE_SEQ_NUM", "CUST_ACCC_TXN_CHNL_CODE", "CUST_ACCC_TXN_MODE_CODE", "CUST_TNT_CODE", "CUST_ACCC_TXN_AMT", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_ELP_CUST_ACCC_PYMT = df_SQ_SSA_EMS_ELP_CUST_ACCC_PYMT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_ELP_CUST_ACCC_PYMT.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_ELP_CUST_ACCC_PYMT = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_ELP_CUST_ACCC_PYMT,
+            port_cols={
+                'CUST_ACCC_PYMT_KEY': 'decimal',
+                'CUST_ACCC_TXN_SHOP_CODE': 'string',
+                'CUST_ACCC_TXN_MCHN_NUM': 'string',
+                'CUST_ACCC_TXN_RCPT_NUM': 'string',
+                'ACCC_FILE_SEQ_NUM': 'decimal',
+                'CUST_ACCC_TXN_CHNL_CODE': 'string',
+                'CUST_ACCC_TXN_MODE_CODE': 'string',
+                'CUST_TNT_CODE': 'string',
+                'CUST_ACCC_TXN_AMT': 'decimal',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'A'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_ELP_CUST_ACCC_PYMT", df_SQ_SSA_EMS_ELP_CUST_ACCC_PYMT)
         
         logger.info("Step: apply_SQ_SSA_EMS_ELP_CUST_ACCC_PYMT_STS")
         # Source Qualifier: apply_SQ_SSA_EMS_ELP_CUST_ACCC_PYMT_STS
         df_SQ_SSA_EMS_ELP_CUST_ACCC_PYMT_STS = df_SSA_EMS_ELP_CUST_ACCC_PYMT_STS
-        df_SQ_SSA_EMS_ELP_CUST_ACCC_PYMT_STS = df_SQ_SSA_EMS_ELP_CUST_ACCC_PYMT_STS.filter(expr("OPR_IND = 'B' OR OPR_IND = 'EB' OR OPR_IND = 'DA'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["CUST_ACCC_PYMT_KEY", "BGN_DATE", "END_DATE", "CUST_KEY", "HSE_SRVC_APLY_KEY", "ACCC_TXN_INTF_INPT_DATE", "ACCC_TXN_INTF_PRCS_DATE", "ACCC_TXN_CTF_DATE", "CUST_ACCC_TXN_DATE", "CUST_ACCC_TXN_CHQ_DTL_TEXT", "CUST_ACCC_TXN_PRCS_DATE", "CUST_ACCC_TXN_PRCS_STS_CODE", "LAST_CUST_ACCC_TXN_UPD_DATE", "CUST_PYB_ITEM_KEY", "CUST_PYB_ITEM_COST_CTR_CODE", "CUST_PYB_ITEM_BSNS_ACTV_CODE", "CUST_HSE_UNIT_KEY", "CUST_HSE_UNIT_CODE_ADDR", "CUST_ACCC_TXN_REJ_CODE", "BILL_TYPE_CODE", "BILL_ACCT_NUM", "HA_SPCL_CUST_KEY", "RVN_TXN_NUM", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_ELP_CUST_ACCC_PYMT_STS = df_SQ_SSA_EMS_ELP_CUST_ACCC_PYMT_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_ELP_CUST_ACCC_PYMT_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_ELP_CUST_ACCC_PYMT_STS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_ELP_CUST_ACCC_PYMT_STS,
+            port_cols={
+                'CUST_ACCC_PYMT_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'CUST_KEY': 'string',
+                'HSE_SRVC_APLY_KEY': 'string',
+                'ACCC_TXN_INTF_INPT_DATE': 'date/time',
+                'ACCC_TXN_INTF_PRCS_DATE': 'date/time',
+                'ACCC_TXN_CTF_DATE': 'date/time',
+                'CUST_ACCC_TXN_DATE': 'date/time',
+                'CUST_ACCC_TXN_CHQ_DTL_TEXT': 'string',
+                'CUST_ACCC_TXN_PRCS_DATE': 'date/time',
+                'CUST_ACCC_TXN_PRCS_STS_CODE': 'string',
+                'LAST_CUST_ACCC_TXN_UPD_DATE': 'date/time',
+                'CUST_PYB_ITEM_KEY': 'string',
+                'CUST_PYB_ITEM_COST_CTR_CODE': 'string',
+                'CUST_PYB_ITEM_BSNS_ACTV_CODE': 'string',
+                'CUST_HSE_UNIT_KEY': 'string',
+                'CUST_HSE_UNIT_CODE_ADDR': 'string',
+                'CUST_ACCC_TXN_REJ_CODE': 'string',
+                'BILL_TYPE_CODE': 'string',
+                'BILL_ACCT_NUM': 'string',
+                'HA_SPCL_CUST_KEY': 'string',
+                'RVN_TXN_NUM': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'EB' OR OPR_IND = 'DA'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_ELP_CUST_ACCC_PYMT_STS", df_SQ_SSA_EMS_ELP_CUST_ACCC_PYMT_STS)
         
         logger.info("Step: apply_EXP_REC_TXN_TYPE_CODE_INS")
         # Expression: apply_EXP_REC_TXN_TYPE_CODE_INS
-        df_EXP_REC_TXN_TYPE_CODE_INS = df_SQ_SSA_EMS_ELP_CUST_ACCC_PYMT
-        df_EXP_REC_TXN_TYPE_CODE_INS = df_EXP_REC_TXN_TYPE_CODE_INS.withColumn("LAST_REC_TXN_TYPE_CODE", expr("'I'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_REC_TXN_TYPE_CODE_INS = lib.expression(
+            input_df=df_SQ_SSA_EMS_ELP_CUST_ACCC_PYMT,
+            computed_columns=[
+                {'name': 'LAST_REC_TXN_TYPE_CODE', 'expr': "'I'"}
+            ],
+        )
         ctx.register_df("df_EXP_REC_TXN_TYPE_CODE_INS", df_EXP_REC_TXN_TYPE_CODE_INS)
         
         logger.info("Step: apply_EXP_SOR_LOAD_DATE")
         # Expression: apply_EXP_SOR_LOAD_DATE
-        df_EXP_SOR_LOAD_DATE = df_SQ_SSA_EMS_ELP_CUST_ACCC_PYMT_STS
-        df_EXP_SOR_LOAD_DATE = df_EXP_SOR_LOAD_DATE.withColumn("OUT_END_DATE", expr("CASE WHEN LAST_REC_TXN_TYPE_CODE = 'D' THEN END_DATE ELSE to_date('99991231','yyyyMMdd') END"))
-        df_EXP_SOR_LOAD_DATE = df_EXP_SOR_LOAD_DATE.withColumn("INS", expr("'I'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_SOR_LOAD_DATE = lib.expression(
+            input_df=df_SQ_SSA_EMS_ELP_CUST_ACCC_PYMT_STS,
+            computed_columns=[
+                {'name': 'OUT_END_DATE', 'expr': "CASE WHEN LAST_REC_TXN_TYPE_CODE = 'D' THEN END_DATE ELSE to_date('99991231','yyyyMMdd') END"},
+                {'name': 'INS', 'expr': "'I'"}
+            ],
+        )
         ctx.register_df("df_EXP_SOR_LOAD_DATE", df_EXP_SOR_LOAD_DATE)
         
         logger.info("Step: write_SOR_EMS_ELP_CUST_ACCC_PYMT")
         # Write to Target: write_SOR_EMS_ELP_CUST_ACCC_PYMT
-        df_write = df_EXP_REC_TXN_TYPE_CODE_INS
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['CUST_ACCC_PYMT_KEY', 'CUST_ACCC_TXN_SHOP_CODE', 'CUST_ACCC_TXN_MCHN_NUM', 'CUST_ACCC_TXN_RCPT_NUM', 'ACCC_FILE_SEQ_NUM', 'CUST_ACCC_TXN_CHNL_CODE', 'CUST_ACCC_TXN_MODE_CODE', 'CUST_TNT_CODE', 'CUST_ACCC_TXN_AMT', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_ELP_CUST_ACCC_PYMT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_REC_TXN_TYPE_CODE_INS,
+            conn=conn_target,
+            table='SOR_EMS_ELP_CUST_ACCC_PYMT',
+            mode='append',
+            source_columns=[
+                'CUST_ACCC_PYMT_KEY',
+                'CUST_ACCC_TXN_SHOP_CODE',
+                'CUST_ACCC_TXN_MCHN_NUM',
+                'CUST_ACCC_TXN_RCPT_NUM',
+                'ACCC_FILE_SEQ_NUM',
+                'CUST_ACCC_TXN_CHNL_CODE',
+                'CUST_ACCC_TXN_MODE_CODE',
+                'CUST_TNT_CODE',
+                'CUST_ACCC_TXN_AMT',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'CUST_ACCC_PYMT_KEY',
+                'CUST_ACCC_TXN_SHOP_CODE',
+                'CUST_ACCC_TXN_MCHN_NUM',
+                'CUST_ACCC_TXN_RCPT_NUM',
+                'ACCC_FILE_SEQ_NUM',
+                'CUST_ACCC_TXN_CHNL_CODE',
+                'CUST_ACCC_TXN_MODE_CODE',
+                'CUST_TNT_CODE',
+                'CUST_ACCC_TXN_AMT',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_ELP_CUST_ACCC_PYMT write completed")
         logger.info("Step: write_SOR_EMS_ELP_CUST_ACCC_PYMT_STS")
         # Write to Target: write_SOR_EMS_ELP_CUST_ACCC_PYMT_STS
-        df_write = df_EXP_SOR_LOAD_DATE
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"END_DATE": "OUT_END_DATE", "LAST_REC_TXN_TYPE_CODE": "INS"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("CUST_ACCC_TXN_SHOP_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_ACCC_TXN_MCHN_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_ACCC_TXN_RCPT_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ACCC_FILE_SEQ_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_ACCC_TXN_CHNL_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_ACCC_TXN_MODE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_TNT_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_ACCC_TXN_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("AGMT_IND", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['CUST_ACCC_PYMT_KEY', 'CUST_ACCC_TXN_SHOP_CODE', 'CUST_ACCC_TXN_MCHN_NUM', 'CUST_ACCC_TXN_RCPT_NUM', 'ACCC_FILE_SEQ_NUM', 'CUST_ACCC_TXN_CHNL_CODE', 'CUST_ACCC_TXN_MODE_CODE', 'CUST_TNT_CODE', 'CUST_ACCC_TXN_AMT', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_ELP_CUST_ACCC_PYMT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_SOR_LOAD_DATE,
+            conn=conn_target,
+            table='SOR_EMS_ELP_CUST_ACCC_PYMT',
+            mode='append',
+            source_columns=[
+                'CUST_ACCC_PYMT_KEY',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                'INS',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'CUST_ACCC_PYMT_KEY',
+                'CUST_ACCC_TXN_SHOP_CODE',
+                'CUST_ACCC_TXN_MCHN_NUM',
+                'CUST_ACCC_TXN_RCPT_NUM',
+                'ACCC_FILE_SEQ_NUM',
+                'CUST_ACCC_TXN_CHNL_CODE',
+                'CUST_ACCC_TXN_MODE_CODE',
+                'CUST_TNT_CODE',
+                'CUST_ACCC_TXN_AMT',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_ELP_CUST_ACCC_PYMT_STS write completed")
         

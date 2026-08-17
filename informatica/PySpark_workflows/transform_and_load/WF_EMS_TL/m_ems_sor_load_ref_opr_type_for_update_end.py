@@ -64,53 +64,97 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_REF_OPR_TYPE")
         # Source Qualifier: apply_SQ_SSA_EMS_REF_OPR_TYPE
         df_SQ_SSA_EMS_REF_OPR_TYPE = df_SSA_EMS_REF_OPR_TYPE
-        df_SQ_SSA_EMS_REF_OPR_TYPE = df_SQ_SSA_EMS_REF_OPR_TYPE.filter(expr("OPR_IND = 'E'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["OPR_TYPE_KEY", "OPR_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "AGMT_IND", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_REF_OPR_TYPE = df_SQ_SSA_EMS_REF_OPR_TYPE.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_REF_OPR_TYPE.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_REF_OPR_TYPE = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_REF_OPR_TYPE,
+            port_cols={
+                'OPR_TYPE_KEY': 'decimal',
+                'OPR_TYPE_CODE': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'AGMT_IND': 'string',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_REF_OPR_TYPE", df_SQ_SSA_EMS_REF_OPR_TYPE)
         
         logger.info("Step: apply_SQ_SSA_EMS_REF_OPR_TYPE_STS")
         # Source Qualifier: apply_SQ_SSA_EMS_REF_OPR_TYPE_STS
         df_SQ_SSA_EMS_REF_OPR_TYPE_STS = df_SSA_EMS_REF_OPR_TYPE_STS
-        df_SQ_SSA_EMS_REF_OPR_TYPE_STS = df_SQ_SSA_EMS_REF_OPR_TYPE_STS.filter(expr("OPR_IND = 'E' OR OPR_IND = 'EB'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["OPR_TYPE_KEY", "BGN_DATE", "OPR_TYPE_DESP", "CHK_RCPT_IND", "CHK_TRGT_IND", "CHK_AFCT_IND", "CHK_FLAT_SLCT_IND", "CHK_ALWN_IND", "REF_CODE_BGN_DATE", "REF_CODE_END_DATE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "END_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_REF_OPR_TYPE_STS = df_SQ_SSA_EMS_REF_OPR_TYPE_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_REF_OPR_TYPE_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_REF_OPR_TYPE_STS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_REF_OPR_TYPE_STS,
+            port_cols={
+                'OPR_TYPE_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'OPR_TYPE_DESP': 'string',
+                'CHK_RCPT_IND': 'string',
+                'CHK_TRGT_IND': 'string',
+                'CHK_AFCT_IND': 'string',
+                'CHK_FLAT_SLCT_IND': 'string',
+                'CHK_ALWN_IND': 'string',
+                'REF_CODE_BGN_DATE': 'date/time',
+                'REF_CODE_END_DATE': 'date/time',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E' OR OPR_IND = 'EB'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_REF_OPR_TYPE_STS", df_SQ_SSA_EMS_REF_OPR_TYPE_STS)
         
         logger.info("Step: write_SOR_EMS_REF_OPR_TYPE")
         # Write to Target: write_SOR_EMS_REF_OPR_TYPE
-        df_write = df_SQ_SSA_EMS_REF_OPR_TYPE
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['OPR_TYPE_KEY', 'OPR_TYPE_CODE', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_REF_OPR_TYPE", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_REF_OPR_TYPE,
+            conn=conn_target,
+            table='SOR_EMS_REF_OPR_TYPE',
+            mode='append',
+            source_columns=[
+                'OPR_TYPE_KEY',
+                'OPR_TYPE_CODE',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'OPR_TYPE_KEY',
+                'OPR_TYPE_CODE',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_REF_OPR_TYPE write completed")
         logger.info("Step: write_SOR_EMS_REF_OPR_TYPE_STS")
         # Write to Target: write_SOR_EMS_REF_OPR_TYPE_STS
-        df_write = df_SQ_SSA_EMS_REF_OPR_TYPE_STS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BGN_DATE": "SOR_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("OPR_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("AGMT_IND", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['OPR_TYPE_KEY', 'OPR_TYPE_CODE', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_REF_OPR_TYPE", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_REF_OPR_TYPE_STS,
+            conn=conn_target,
+            table='SOR_EMS_REF_OPR_TYPE',
+            mode='append',
+            source_columns=[
+                'OPR_TYPE_KEY',
+                None,
+                None,
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'OPR_TYPE_KEY',
+                'OPR_TYPE_CODE',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_REF_OPR_TYPE_STS write completed")
         

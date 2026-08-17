@@ -58,55 +58,107 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_EMS_MRRS_MSN_PRFT_OSTD_DEBT")
         # Source Qualifier: apply_SQ_EMS_MRRS_MSN_PRFT_OSTD_DEBT
         df_SQ_EMS_MRRS_MSN_PRFT_OSTD_DEBT = df_EMS_MRRS_MSN_PRFT_OSTD_DEBT
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["CUST_KEY", "HSE_SRVC_APLY_KEY", "SYS_RPT_YEAR", "SYS_RPT_MTH", "HSE_UNIT_KEY", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "CUST_MTH_MSN_PRFT_AMT", "FRST_EXCUST_OSTD_DEBT_AMT", "SCND_EXCUST_OSTD_DEBT_AMT", "THRD_EXCUST_OSTD_DEBT_AMT", "EXCUST_OSTD_DEBT_STL_AMT", "EXCUST_OSTD_DEBT_STL_DATE", "AUCT_STL_AMT", "HSE_UNIT_VOID_BGN_DATE", "EXCUST_OSTD_DEBT_RMK_TEXT", "LAST_REC_TXN_USER_ID"]
-        df_SQ_EMS_MRRS_MSN_PRFT_OSTD_DEBT = df_SQ_EMS_MRRS_MSN_PRFT_OSTD_DEBT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_EMS_MRRS_MSN_PRFT_OSTD_DEBT.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_EMS_MRRS_MSN_PRFT_OSTD_DEBT = lib.sq_output(
+            input_df=df_SQ_EMS_MRRS_MSN_PRFT_OSTD_DEBT,
+            port_cols={
+                'CUST_KEY': 'string',
+                'HSE_SRVC_APLY_KEY': 'string',
+                'SYS_RPT_YEAR': 'decimal',
+                'SYS_RPT_MTH': 'decimal',
+                'HSE_UNIT_KEY': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'CUST_MTH_MSN_PRFT_AMT': 'decimal',
+                'FRST_EXCUST_OSTD_DEBT_AMT': 'decimal',
+                'SCND_EXCUST_OSTD_DEBT_AMT': 'decimal',
+                'THRD_EXCUST_OSTD_DEBT_AMT': 'decimal',
+                'EXCUST_OSTD_DEBT_STL_AMT': 'decimal',
+                'EXCUST_OSTD_DEBT_STL_DATE': 'date/time',
+                'AUCT_STL_AMT': 'decimal',
+                'HSE_UNIT_VOID_BGN_DATE': 'date/time',
+                'EXCUST_OSTD_DEBT_RMK_TEXT': 'string',
+                'LAST_REC_TXN_USER_ID': 'string',
+            },
+        )
         ctx.register_df("df_SQ_EMS_MRRS_MSN_PRFT_OSTD_DEBT", df_SQ_EMS_MRRS_MSN_PRFT_OSTD_DEBT)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_EMS_MRRS_MSN_PRFT_OSTD_DEBT
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE", expr("current_timestamp()"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_IND", expr("'B'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["CUST_KEY", "HSE_SRVC_APLY_KEY", "SYS_RPT_YEAR", "SYS_RPT_MTH", "HSE_UNIT_KEY", "LAST_REC_TXN_TYPE_CODE", "CUST_MTH_MSN_PRFT_AMT", "FRST_EXCUST_OSTD_DEBT_AMT", "SCND_EXCUST_OSTD_DEBT_AMT", "THRD_EXCUST_OSTD_DEBT_AMT", "EXCUST_OSTD_DEBT_STL_AMT", "EXCUST_OSTD_DEBT_STL_DATE", "AUCT_STL_AMT", "HSE_UNIT_VOID_BGN_DATE", "EXCUST_OSTD_DEBT_RMK_TEXT", "LAST_REC_TXN_USER_ID"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_EMS_MRRS_MSN_PRFT_OSTD_DEBT,
+            computed_columns=[
+                {'name': 'LAST_REC_TXN_DATE', 'expr': 'current_timestamp()'},
+                {'name': 'OPR_IND', 'expr': "'B'"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: apply_MPLT_TRANS_TIME_STAMP_EXPTRANS3")
         # Expression: apply_MPLT_TRANS_TIME_STAMP_EXPTRANS3
-        df_MPLT_TRANS_TIME_STAMP_EXPTRANS3 = df_EXPTRANS
-        df_MPLT_TRANS_TIME_STAMP_EXPTRANS3 = df_MPLT_TRANS_TIME_STAMP_EXPTRANS3.withColumn("LAST_REC_TXN_DATE1", expr("CASE WHEN NOT (LAST_REC_TXN_DATE IS NULL) THEN date_format(LAST_REC_TXN_DATE, 'dd-MMM-yy hh.mm.ss') || '.000000 ' || date_format(LAST_REC_TXN_DATE, 'a') ELSE null END"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_MPLT_TRANS_TIME_STAMP_EXPTRANS3 = lib.expression(
+            input_df=df_EXPTRANS,
+            computed_columns=[
+                {'name': 'LAST_REC_TXN_DATE1', 'expr': "CASE WHEN NOT (LAST_REC_TXN_DATE IS NULL) THEN date_format(LAST_REC_TXN_DATE, 'dd-MMM-yy hh.mm.ss') || '.000000 ' || date_format(LAST_REC_TXN_DATE, 'a') ELSE null END"}
+            ],
+        )
         ctx.register_df("df_MPLT_TRANS_TIME_STAMP_EXPTRANS3", df_MPLT_TRANS_TIME_STAMP_EXPTRANS3)
         
         logger.info("Step: apply_MPLT_TRANS_TIME_STAMP")
         # Expression: apply_MPLT_TRANS_TIME_STAMP
-        df_MPLT_TRANS_TIME_STAMP = df_MPLT_TRANS_TIME_STAMP_EXPTRANS3
+        df_MPLT_TRANS_TIME_STAMP = lib.expression(
+            input_df=df_MPLT_TRANS_TIME_STAMP_EXPTRANS3,
+            pass_through_cols=['LAST_REC_TXN_DATE1'],
+        )
         ctx.register_df("df_MPLT_TRANS_TIME_STAMP", df_MPLT_TRANS_TIME_STAMP)
         
         logger.info("Step: write_SSA_EMS_MRRS_MSN_OSTD_DEBT")
         # Write to Target: write_SSA_EMS_MRRS_MSN_OSTD_DEBT
-        df_write = df_MPLT_TRANS_TIME_STAMP
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE1"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['CUST_KEY', 'HSE_SRVC_APLY_KEY', 'SYS_RPT_YEAR', 'SYS_RPT_MTH', 'HSE_UNIT_KEY', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'CUST_MTH_MSN_PRFT_AMT', 'FRST_EXCUST_OSTD_DEBT_AMT', 'SCND_EXCUST_OSTD_DEBT_AMT', 'THRD_EXCUST_OSTD_DEBT_AMT', 'EXCUST_OSTD_DEBT_STL_AMT', 'EXCUST_OSTD_DEBT_STL_DATE', 'AUCT_STL_AMT', 'HSE_UNIT_VOID_BGN_DATE', 'EXCUST_OSTD_DEBT_RMK_TEXT', 'OPR_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SSA_EMS_MRRS_MSN_OSTD_DEBT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_MPLT_TRANS_TIME_STAMP,
+            conn=conn_target,
+            table='SSA_EMS_MRRS_MSN_OSTD_DEBT',
+            mode='append',
+            source_columns=[
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'SYS_RPT_YEAR',
+                'SYS_RPT_MTH',
+                'HSE_UNIT_KEY',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE1',
+                'CUST_MTH_MSN_PRFT_AMT',
+                'FRST_EXCUST_OSTD_DEBT_AMT',
+                'SCND_EXCUST_OSTD_DEBT_AMT',
+                'THRD_EXCUST_OSTD_DEBT_AMT',
+                'EXCUST_OSTD_DEBT_STL_AMT',
+                'EXCUST_OSTD_DEBT_STL_DATE',
+                'AUCT_STL_AMT',
+                'HSE_UNIT_VOID_BGN_DATE',
+                'EXCUST_OSTD_DEBT_RMK_TEXT',
+                'OPR_IND',
+            ],
+            target_columns=[
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'SYS_RPT_YEAR',
+                'SYS_RPT_MTH',
+                'HSE_UNIT_KEY',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'CUST_MTH_MSN_PRFT_AMT',
+                'FRST_EXCUST_OSTD_DEBT_AMT',
+                'SCND_EXCUST_OSTD_DEBT_AMT',
+                'THRD_EXCUST_OSTD_DEBT_AMT',
+                'EXCUST_OSTD_DEBT_STL_AMT',
+                'EXCUST_OSTD_DEBT_STL_DATE',
+                'AUCT_STL_AMT',
+                'HSE_UNIT_VOID_BGN_DATE',
+                'EXCUST_OSTD_DEBT_RMK_TEXT',
+                'OPR_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_SSA_EMS_MRRS_MSN_OSTD_DEBT write completed")
         

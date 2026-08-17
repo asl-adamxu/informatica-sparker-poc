@@ -64,58 +64,180 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_PHA_APLY_DSTR_EST_STS")
         # Source Qualifier: apply_SQ_SSA_EMS_PHA_APLY_DSTR_EST_STS
         df_SQ_SSA_EMS_PHA_APLY_DSTR_EST_STS = df_SSA_EMS_PHA_APLY_DSTR_EST_STS
-        df_SQ_SSA_EMS_PHA_APLY_DSTR_EST_STS = df_SQ_SSA_EMS_PHA_APLY_DSTR_EST_STS.filter(expr("OPR_IND = 'B' OR OPR_IND = 'EB' OR OPR_IND = 'DA'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["APLY_SLCT_DSTR_EST_CHC_KEY", "BGN_DATE", "END_DATE", "DSTR_CHC_KEY_1", "DSTR_CHC_KEY_2", "DSTR_CHC_KEY_3", "EST_CHC_KEY_1", "EST_CHC_KEY_2", "EST_CHC_KEY_3", "EST_CHC_KEY_4", "EST_CHC_KEY_5", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "FLAT_TYPE_CHC_CODE_1", "FLAT_TYPE_CHC_CODE_2", "FLAT_TYPE_CHC_CODE_3", "IFA_CHC_AREA_1", "IFA_CHC_AREA_2", "IFA_CHC_AREA_3", "OPR_IND", "SOR_DATE", "HSE_DSTR_REF_TYPE_CODE_1", "HSE_DSTR_REF_TYPE_CODE_2", "HSE_DSTR_REF_TYPE_CODE_3", "HSE_EST_REF_TYPE_CODE_1", "HSE_EST_REF_TYPE_CODE_2", "HSE_EST_REF_TYPE_CODE_3", "HSE_EST_REF_TYPE_CODE_4", "HSE_EST_REF_TYPE_CODE_5", "PTCL_PPLR_HSE_EST_CHC_KEY_1", "PTCL_PPLR_HSE_EST_CHC_KEY_2", "PTCL_PPLR_EST_REF_TYPE_CODE_1", "PTCL_PPLR_EST_REF_TYPE_CODE_2"]
-        df_SQ_SSA_EMS_PHA_APLY_DSTR_EST_STS = df_SQ_SSA_EMS_PHA_APLY_DSTR_EST_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_PHA_APLY_DSTR_EST_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_PHA_APLY_DSTR_EST_STS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_PHA_APLY_DSTR_EST_STS,
+            port_cols={
+                'APLY_SLCT_DSTR_EST_CHC_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'DSTR_CHC_KEY_1': 'string',
+                'DSTR_CHC_KEY_2': 'string',
+                'DSTR_CHC_KEY_3': 'string',
+                'EST_CHC_KEY_1': 'string',
+                'EST_CHC_KEY_2': 'string',
+                'EST_CHC_KEY_3': 'string',
+                'EST_CHC_KEY_4': 'string',
+                'EST_CHC_KEY_5': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'FLAT_TYPE_CHC_CODE_1': 'string',
+                'FLAT_TYPE_CHC_CODE_2': 'string',
+                'FLAT_TYPE_CHC_CODE_3': 'string',
+                'IFA_CHC_AREA_1': 'decimal',
+                'IFA_CHC_AREA_2': 'decimal',
+                'IFA_CHC_AREA_3': 'decimal',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+                'HSE_DSTR_REF_TYPE_CODE_1': 'string',
+                'HSE_DSTR_REF_TYPE_CODE_2': 'string',
+                'HSE_DSTR_REF_TYPE_CODE_3': 'string',
+                'HSE_EST_REF_TYPE_CODE_1': 'string',
+                'HSE_EST_REF_TYPE_CODE_2': 'string',
+                'HSE_EST_REF_TYPE_CODE_3': 'string',
+                'HSE_EST_REF_TYPE_CODE_4': 'string',
+                'HSE_EST_REF_TYPE_CODE_5': 'string',
+                'PTCL_PPLR_HSE_EST_CHC_KEY_1': 'string',
+                'PTCL_PPLR_HSE_EST_CHC_KEY_2': 'string',
+                'PTCL_PPLR_EST_REF_TYPE_CODE_1': 'string',
+                'PTCL_PPLR_EST_REF_TYPE_CODE_2': 'string',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'EB' OR OPR_IND = 'DA'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_PHA_APLY_DSTR_EST_STS", df_SQ_SSA_EMS_PHA_APLY_DSTR_EST_STS)
         
         logger.info("Step: apply_SQ_SSA_EMS_PHA_APLY_DSTR_EST")
         # Source Qualifier: apply_SQ_SSA_EMS_PHA_APLY_DSTR_EST
         df_SQ_SSA_EMS_PHA_APLY_DSTR_EST = df_SSA_EMS_PHA_APLY_DSTR_EST
-        df_SQ_SSA_EMS_PHA_APLY_DSTR_EST = df_SQ_SSA_EMS_PHA_APLY_DSTR_EST.filter(expr("OPR_IND = 'B' OR OPR_IND = 'A'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["APLY_SLCT_DSTR_EST_CHC_KEY", "APLY_SLCT_DSTR_EST_CHC_BK", "APLY_KEY", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_PHA_APLY_DSTR_EST = df_SQ_SSA_EMS_PHA_APLY_DSTR_EST.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_PHA_APLY_DSTR_EST.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_PHA_APLY_DSTR_EST = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_PHA_APLY_DSTR_EST,
+            port_cols={
+                'APLY_SLCT_DSTR_EST_CHC_KEY': 'decimal',
+                'APLY_SLCT_DSTR_EST_CHC_BK': 'string',
+                'APLY_KEY': 'decimal',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'A'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_PHA_APLY_DSTR_EST", df_SQ_SSA_EMS_PHA_APLY_DSTR_EST)
         
         logger.info("Step: apply_EXP_SOR_LOAD_DATE")
         # Expression: apply_EXP_SOR_LOAD_DATE
-        df_EXP_SOR_LOAD_DATE = df_SQ_SSA_EMS_PHA_APLY_DSTR_EST_STS
-        df_EXP_SOR_LOAD_DATE = df_EXP_SOR_LOAD_DATE.withColumn("OUT_END_DATE", expr("CASE WHEN OPR_IND = 'EB' THEN CASE WHEN LAST_REC_TXN_TYPE_CODE IS NULL THEN to_date('99991231','yyyyMMdd') ELSE END_DATE END ELSE END_DATE END"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_SOR_LOAD_DATE = lib.expression(
+            input_df=df_SQ_SSA_EMS_PHA_APLY_DSTR_EST_STS,
+            computed_columns=[
+                {'name': 'OUT_END_DATE', 'expr': "CASE WHEN OPR_IND = 'EB' THEN CASE WHEN LAST_REC_TXN_TYPE_CODE IS NULL THEN to_date('99991231','yyyyMMdd') ELSE END_DATE END ELSE END_DATE END"}
+            ],
+        )
         ctx.register_df("df_EXP_SOR_LOAD_DATE", df_EXP_SOR_LOAD_DATE)
         
         logger.info("Step: write_SOR_EMS_PHA_APLY_DSTR_EST")
         # Write to Target: write_SOR_EMS_PHA_APLY_DSTR_EST
-        df_write = df_SQ_SSA_EMS_PHA_APLY_DSTR_EST
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['APLY_SLCT_DSTR_EST_CHC_KEY', 'APLY_SLCT_DSTR_EST_CHC_BK', 'APLY_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_PHA_APLY_DSTR_EST", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_PHA_APLY_DSTR_EST,
+            conn=conn_target,
+            table='SOR_EMS_PHA_APLY_DSTR_EST',
+            mode='append',
+            source_columns=[
+                'APLY_SLCT_DSTR_EST_CHC_KEY',
+                'APLY_SLCT_DSTR_EST_CHC_BK',
+                'APLY_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'APLY_SLCT_DSTR_EST_CHC_KEY',
+                'APLY_SLCT_DSTR_EST_CHC_BK',
+                'APLY_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_PHA_APLY_DSTR_EST write completed")
         logger.info("Step: write_SOR_EMS_PHA_APLY_DSTR_EST_STS")
         # Write to Target: write_SOR_EMS_PHA_APLY_DSTR_EST_STS
-        df_write = df_EXP_SOR_LOAD_DATE
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"END_DATE": "OUT_END_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['APLY_SLCT_DSTR_EST_CHC_KEY', 'BGN_DATE', 'END_DATE', 'DSTR_CHC_KEY_1', 'DSTR_CHC_KEY_2', 'DSTR_CHC_KEY_3', 'EST_CHC_KEY_1', 'EST_CHC_KEY_2', 'EST_CHC_KEY_3', 'EST_CHC_KEY_4', 'EST_CHC_KEY_5', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'FLAT_TYPE_CHC_CODE_1', 'FLAT_TYPE_CHC_CODE_2', 'FLAT_TYPE_CHC_CODE_3', 'IFA_CHC_AREA_1', 'IFA_CHC_AREA_2', 'IFA_CHC_AREA_3', 'HSE_DSTR_REF_TYPE_CODE_1', 'HSE_DSTR_REF_TYPE_CODE_2', 'HSE_DSTR_REF_TYPE_CODE_3', 'HSE_EST_REF_TYPE_CODE_1', 'HSE_EST_REF_TYPE_CODE_2', 'HSE_EST_REF_TYPE_CODE_3', 'HSE_EST_REF_TYPE_CODE_4', 'HSE_EST_REF_TYPE_CODE_5', 'PTCL_PPLR_HSE_EST_CHC_KEY_1', 'PTCL_PPLR_HSE_EST_CHC_KEY_2', 'PTCL_PPLR_EST_REF_TYPE_CODE_1', 'PTCL_PPLR_EST_REF_TYPE_CODE_2']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_PHA_APLY_DSTR_EST_STS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_SOR_LOAD_DATE,
+            conn=conn_target,
+            table='SOR_EMS_PHA_APLY_DSTR_EST_STS',
+            mode='append',
+            source_columns=[
+                'APLY_SLCT_DSTR_EST_CHC_KEY',
+                'BGN_DATE',
+                'OUT_END_DATE',
+                'DSTR_CHC_KEY_1',
+                'DSTR_CHC_KEY_2',
+                'DSTR_CHC_KEY_3',
+                'EST_CHC_KEY_1',
+                'EST_CHC_KEY_2',
+                'EST_CHC_KEY_3',
+                'EST_CHC_KEY_4',
+                'EST_CHC_KEY_5',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'FLAT_TYPE_CHC_CODE_1',
+                'FLAT_TYPE_CHC_CODE_2',
+                'FLAT_TYPE_CHC_CODE_3',
+                'IFA_CHC_AREA_1',
+                'IFA_CHC_AREA_2',
+                'IFA_CHC_AREA_3',
+                'HSE_DSTR_REF_TYPE_CODE_1',
+                'HSE_DSTR_REF_TYPE_CODE_2',
+                'HSE_DSTR_REF_TYPE_CODE_3',
+                'HSE_EST_REF_TYPE_CODE_1',
+                'HSE_EST_REF_TYPE_CODE_2',
+                'HSE_EST_REF_TYPE_CODE_3',
+                'HSE_EST_REF_TYPE_CODE_4',
+                'HSE_EST_REF_TYPE_CODE_5',
+                'PTCL_PPLR_HSE_EST_CHC_KEY_1',
+                'PTCL_PPLR_HSE_EST_CHC_KEY_2',
+                'PTCL_PPLR_EST_REF_TYPE_CODE_1',
+                'PTCL_PPLR_EST_REF_TYPE_CODE_2',
+            ],
+            target_columns=[
+                'APLY_SLCT_DSTR_EST_CHC_KEY',
+                'BGN_DATE',
+                'END_DATE',
+                'DSTR_CHC_KEY_1',
+                'DSTR_CHC_KEY_2',
+                'DSTR_CHC_KEY_3',
+                'EST_CHC_KEY_1',
+                'EST_CHC_KEY_2',
+                'EST_CHC_KEY_3',
+                'EST_CHC_KEY_4',
+                'EST_CHC_KEY_5',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'FLAT_TYPE_CHC_CODE_1',
+                'FLAT_TYPE_CHC_CODE_2',
+                'FLAT_TYPE_CHC_CODE_3',
+                'IFA_CHC_AREA_1',
+                'IFA_CHC_AREA_2',
+                'IFA_CHC_AREA_3',
+                'HSE_DSTR_REF_TYPE_CODE_1',
+                'HSE_DSTR_REF_TYPE_CODE_2',
+                'HSE_DSTR_REF_TYPE_CODE_3',
+                'HSE_EST_REF_TYPE_CODE_1',
+                'HSE_EST_REF_TYPE_CODE_2',
+                'HSE_EST_REF_TYPE_CODE_3',
+                'HSE_EST_REF_TYPE_CODE_4',
+                'HSE_EST_REF_TYPE_CODE_5',
+                'PTCL_PPLR_HSE_EST_CHC_KEY_1',
+                'PTCL_PPLR_HSE_EST_CHC_KEY_2',
+                'PTCL_PPLR_EST_REF_TYPE_CODE_1',
+                'PTCL_PPLR_EST_REF_TYPE_CODE_2',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_PHA_APLY_DSTR_EST_STS write completed")
         

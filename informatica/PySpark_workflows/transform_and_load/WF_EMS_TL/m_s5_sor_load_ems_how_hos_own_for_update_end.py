@@ -64,81 +64,165 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_HOW_HOS_OWN")
         # Source Qualifier: apply_SQ_SSA_EMS_HOW_HOS_OWN
         df_SQ_SSA_EMS_HOW_HOS_OWN = df_SSA_EMS_HOW_HOS_OWN
-        df_SQ_SSA_EMS_HOW_HOS_OWN = df_SQ_SSA_EMS_HOW_HOS_OWN.filter(expr("OPR_IND = 'E'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HOS_OWN_KEY", "HOS_OWN_BK", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_HOW_HOS_OWN = df_SQ_SSA_EMS_HOW_HOS_OWN.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_HOW_HOS_OWN.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_HOW_HOS_OWN = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_HOW_HOS_OWN,
+            port_cols={
+                'HOS_OWN_KEY': 'decimal',
+                'HOS_OWN_BK': 'string',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_HOW_HOS_OWN", df_SQ_SSA_EMS_HOW_HOS_OWN)
         
         logger.info("Step: apply_SQ_SSA_EMS_HOW_HOS_OWN_STS")
         # Source Qualifier: apply_SQ_SSA_EMS_HOW_HOS_OWN_STS
         df_SQ_SSA_EMS_HOW_HOS_OWN_STS = df_SSA_EMS_HOW_HOS_OWN_STS
-        df_SQ_SSA_EMS_HOW_HOS_OWN_STS = df_SQ_SSA_EMS_HOW_HOS_OWN_STS.filter(expr("OPR_IND = 'E' OR OPR_IND = 'EB'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HOS_OWN_KEY", "BGN_DATE", "END_DATE", "CUST_KEY", "HOS_UNIT_KEY", "HOS_OWN_ASGN_DATE", "HOS_OWN_TRMT_DATE", "HOS_OWN_SIGN_DATE", "HOS_OWN_PCHS_FROM_CODE", "HOS_OWN_TRMT_TYPE_CODE", "HOS_OWN_HOME_PHONE_NUM", "HOS_OWN_OFFC_PHONE_NUM", "HOS_OWN_HOME_ADDR_1", "HOS_OWN_HOME_ADDR_2", "HOS_OWN_HOME_ADDR_3", "HOS_OWN_CRSP_ADDR_1", "HOS_OWN_CRSP_ADDR_2", "HOS_OWN_CRSP_ADDR_3", "HOS_PHASE_CODE", "HOS_PRIOR_NUM", "HOS_EXOWNR_REF_CODE", "HOS_OWN_CRE_DATE", "HOS_OWN_RMK_TEXT", "HOS_KEY_HOVR_DATE", "HOS_KEY_HOVR_INPT_DATE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_HOW_HOS_OWN_STS = df_SQ_SSA_EMS_HOW_HOS_OWN_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_HOW_HOS_OWN_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_HOW_HOS_OWN_STS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_HOW_HOS_OWN_STS,
+            port_cols={
+                'HOS_OWN_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'CUST_KEY': 'decimal',
+                'HOS_UNIT_KEY': 'decimal',
+                'HOS_OWN_ASGN_DATE': 'date/time',
+                'HOS_OWN_TRMT_DATE': 'date/time',
+                'HOS_OWN_SIGN_DATE': 'date/time',
+                'HOS_OWN_PCHS_FROM_CODE': 'string',
+                'HOS_OWN_TRMT_TYPE_CODE': 'string',
+                'HOS_OWN_HOME_PHONE_NUM': 'string',
+                'HOS_OWN_OFFC_PHONE_NUM': 'string',
+                'HOS_OWN_HOME_ADDR_1': 'string',
+                'HOS_OWN_HOME_ADDR_2': 'string',
+                'HOS_OWN_HOME_ADDR_3': 'string',
+                'HOS_OWN_CRSP_ADDR_1': 'string',
+                'HOS_OWN_CRSP_ADDR_2': 'string',
+                'HOS_OWN_CRSP_ADDR_3': 'string',
+                'HOS_PHASE_CODE': 'string',
+                'HOS_PRIOR_NUM': 'decimal',
+                'HOS_EXOWNR_REF_CODE': 'string',
+                'HOS_OWN_CRE_DATE': 'date/time',
+                'HOS_OWN_RMK_TEXT': 'string',
+                'HOS_KEY_HOVR_DATE': 'date/time',
+                'HOS_KEY_HOVR_INPT_DATE': 'date/time',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E' OR OPR_IND = 'EB'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_HOW_HOS_OWN_STS", df_SQ_SSA_EMS_HOW_HOS_OWN_STS)
         
         logger.info("Step: write_SOR_EMS_HOW_HOS_OWN")
         # Write to Target: write_SOR_EMS_HOW_HOS_OWN
-        df_write = df_SQ_SSA_EMS_HOW_HOS_OWN
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("HOS_OWN_BK", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HOS_OWN_KEY', 'HOS_OWN_BK', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_HOW_HOS_OWN", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_HOW_HOS_OWN,
+            conn=conn_target,
+            table='SOR_EMS_HOW_HOS_OWN',
+            mode='append',
+            source_columns=[
+                'HOS_OWN_KEY',
+                None,
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'HOS_OWN_KEY',
+                'HOS_OWN_BK',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_HOW_HOS_OWN write completed")
         logger.info("Step: write_SOR_EMS_HOW_HOS_OWN_STS")
         # Write to Target: write_SOR_EMS_HOW_HOS_OWN_STS
-        df_write = df_SQ_SSA_EMS_HOW_HOS_OWN_STS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BGN_DATE": "SOR_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("CUST_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_UNIT_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_OWN_ASGN_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_OWN_TRMT_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_OWN_SIGN_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_OWN_PCHS_FROM_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_OWN_TRMT_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_OWN_HOME_PHONE_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_OWN_OFFC_PHONE_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_OWN_HOME_ADDR_1", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_OWN_HOME_ADDR_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_OWN_HOME_ADDR_3", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_OWN_CRSP_ADDR_1", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_OWN_CRSP_ADDR_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_OWN_CRSP_ADDR_3", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_PHASE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_PRIOR_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_EXOWNR_REF_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_OWN_CRE_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_OWN_RMK_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_KEY_HOVR_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_KEY_HOVR_INPT_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CAS_DBR_END_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_MBR_REF_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_MBR_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_PRIOR_CATG_GRP_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_UNIT_GSH_IND", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HOS_OWN_KEY', 'BGN_DATE', 'END_DATE', 'CUST_KEY', 'HOS_UNIT_KEY', 'HOS_OWN_ASGN_DATE', 'HOS_OWN_TRMT_DATE', 'HOS_OWN_SIGN_DATE', 'HOS_OWN_PCHS_FROM_CODE', 'HOS_OWN_TRMT_TYPE_CODE', 'HOS_OWN_HOME_PHONE_NUM', 'HOS_OWN_OFFC_PHONE_NUM', 'HOS_OWN_HOME_ADDR_1', 'HOS_OWN_HOME_ADDR_2', 'HOS_OWN_HOME_ADDR_3', 'HOS_OWN_CRSP_ADDR_1', 'HOS_OWN_CRSP_ADDR_2', 'HOS_OWN_CRSP_ADDR_3', 'HOS_PHASE_CODE', 'HOS_PRIOR_NUM', 'HOS_EXOWNR_REF_CODE', 'HOS_OWN_CRE_DATE', 'HOS_OWN_RMK_TEXT', 'HOS_KEY_HOVR_DATE', 'HOS_KEY_HOVR_INPT_DATE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'CAS_DBR_END_DATE', 'APLY_MBR_REF_NUM', 'APLY_MBR_TYPE_CODE', 'HOS_PRIOR_CATG_GRP_CODE', 'HOS_UNIT_GSH_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_HOW_HOS_OWN_STS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_HOW_HOS_OWN_STS,
+            conn=conn_target,
+            table='SOR_EMS_HOW_HOS_OWN_STS',
+            mode='append',
+            source_columns=[
+                'HOS_OWN_KEY',
+                'SOR_DATE',
+                'END_DATE',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                'LAST_REC_TXN_DATE',
+                None,
+                None,
+                None,
+                None,
+                None,
+            ],
+            target_columns=[
+                'HOS_OWN_KEY',
+                'BGN_DATE',
+                'END_DATE',
+                'CUST_KEY',
+                'HOS_UNIT_KEY',
+                'HOS_OWN_ASGN_DATE',
+                'HOS_OWN_TRMT_DATE',
+                'HOS_OWN_SIGN_DATE',
+                'HOS_OWN_PCHS_FROM_CODE',
+                'HOS_OWN_TRMT_TYPE_CODE',
+                'HOS_OWN_HOME_PHONE_NUM',
+                'HOS_OWN_OFFC_PHONE_NUM',
+                'HOS_OWN_HOME_ADDR_1',
+                'HOS_OWN_HOME_ADDR_2',
+                'HOS_OWN_HOME_ADDR_3',
+                'HOS_OWN_CRSP_ADDR_1',
+                'HOS_OWN_CRSP_ADDR_2',
+                'HOS_OWN_CRSP_ADDR_3',
+                'HOS_PHASE_CODE',
+                'HOS_PRIOR_NUM',
+                'HOS_EXOWNR_REF_CODE',
+                'HOS_OWN_CRE_DATE',
+                'HOS_OWN_RMK_TEXT',
+                'HOS_KEY_HOVR_DATE',
+                'HOS_KEY_HOVR_INPT_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'CAS_DBR_END_DATE',
+                'APLY_MBR_REF_NUM',
+                'APLY_MBR_TYPE_CODE',
+                'HOS_PRIOR_CATG_GRP_CODE',
+                'HOS_UNIT_GSH_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_HOW_HOS_OWN_STS write completed")
         

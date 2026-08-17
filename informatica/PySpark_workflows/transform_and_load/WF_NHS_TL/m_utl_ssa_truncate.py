@@ -93,33 +93,29 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_UTL_SSA_TBL_LIST")
         # Source Qualifier: apply_SQ_UTL_SSA_TBL_LIST
         df_SQ_UTL_SSA_TBL_LIST = df_UTL_SSA_TBL_LIST
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["TABLE"]
-        df_SQ_UTL_SSA_TBL_LIST = df_SQ_UTL_SSA_TBL_LIST.select([col(c) if c.lower() in [x.lower() for x in df_SQ_UTL_SSA_TBL_LIST.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_UTL_SSA_TBL_LIST = lib.sq_output(
+            input_df=df_SQ_UTL_SSA_TBL_LIST,
+            port_cols={
+                'TABLE': 'string',
+            },
+        )
         ctx.register_df("df_SQ_UTL_SSA_TBL_LIST", df_SQ_UTL_SSA_TBL_LIST)
         
         logger.info("Step: apply_EXPTRANS2")
         # Expression: apply_EXPTRANS2
-        df_EXPTRANS2 = df_SQ_UTL_SSA_TBL_LIST
-        # Execute stored procedure for each input value via JDBC
-        _sp_conn = conn_oracle
-        # Parameterize schema from connection config (falls back to the Informatica owner)
-        _schema = _sp_conn.get("schema", "") or "PSSA"
-        _sp_call = _schema + "." + "PKG_CDI_UTIL.SP_TRUNCATE"
-        _input_vals = [row["TABLE"] for row in df_SQ_UTL_SSA_TBL_LIST.select("TABLE").collect()]
-        for _val in _input_vals:
-            lib.call_stored_procedure(spark, _sp_conn, _sp_call, [_val])
-        df_EXPTRANS2 = df_EXPTRANS2.withColumn("OUTPUT", lit("SUCCESS"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["TABLE"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS2.columns]:
-                df_EXPTRANS2 = df_EXPTRANS2.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS2 = lib.expression(
+            input_df=df_SQ_UTL_SSA_TBL_LIST,
+            spark=spark,
+            sp_calls=[
+                {'col': 'OUTPUT', 'sp_call': 'PKG_CDI_UTIL.SP_TRUNCATE', 'sp_schema': 'PSSA', 'args': ['TABLE']}
+            ],
+            sp_conn=conn_oracle,
+        )
         ctx.register_df("df_EXPTRANS2", df_EXPTRANS2)
         
         logger.info("Step: write_UTL_DEV_NULL")
         # Write to Target: write_UTL_DEV_NULL
-        # /dev/null / DUAL — skip entire write component 
+        # /dev/null / DUAL — skip entire write component
         logger.info("Target write_UTL_DEV_NULL is a no-op target (/dev/null or DUAL), skipping write")
 
         logger.info("write_UTL_DEV_NULL write completed")

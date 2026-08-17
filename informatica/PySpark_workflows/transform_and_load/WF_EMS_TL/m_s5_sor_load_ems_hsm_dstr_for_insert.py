@@ -58,20 +58,61 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_HSM_DSTR")
         # Source Qualifier: apply_SQ_SSA_HSM_DSTR
         df_SQ_SSA_HSM_DSTR = df_SSA_HSM_DSTR
-        df_SQ_SSA_HSM_DSTR = df_SQ_SSA_HSM_DSTR.filter(expr("OPR_IND = 'B' OR OPR_IND = 'EB'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["DSTR_KEY", "DSTR_CODE", "RGN_KEY", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "DSTR_TYPE_CODE", "DSTR_CHI_NAME", "OPR_IND", "SOR_DATE", "DSTR_NAME", "EMMS_DSTR_KEY", "EMMS_RGN_KEY"]
-        df_SQ_SSA_HSM_DSTR = df_SQ_SSA_HSM_DSTR.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_HSM_DSTR.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_HSM_DSTR = lib.sq_output(
+            input_df=df_SQ_SSA_HSM_DSTR,
+            port_cols={
+                'DSTR_KEY': 'decimal',
+                'DSTR_CODE': 'string',
+                'RGN_KEY': 'decimal',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'DSTR_TYPE_CODE': 'string',
+                'DSTR_CHI_NAME': 'string',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+                'DSTR_NAME': 'string',
+                'EMMS_DSTR_KEY': 'string',
+                'EMMS_RGN_KEY': 'string',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'EB'",
+        )
         ctx.register_df("df_SQ_SSA_HSM_DSTR", df_SQ_SSA_HSM_DSTR)
         
         logger.info("Step: write_SOR_HSM_DSTR")
         # Write to Target: write_SOR_HSM_DSTR
-        df_write = df_SQ_SSA_HSM_DSTR
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['DSTR_KEY', 'DSTR_CODE', 'RGN_KEY', 'DSTR_TYPE_CODE', 'DSTR_CHI_NAME', 'LAST_REC_TXN_TYPE_CODE', 'AGMT_IND', 'LAST_REC_TXN_DATE', 'DSTR_NAME', 'EMMS_DSTR_KEY']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_HSM_DSTR", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_HSM_DSTR,
+            conn=conn_target,
+            table='SOR_HSM_DSTR',
+            mode='append',
+            source_columns=[
+                'DSTR_KEY',
+                'DSTR_CODE',
+                'RGN_KEY',
+                'DSTR_TYPE_CODE',
+                'DSTR_CHI_NAME',
+                'LAST_REC_TXN_TYPE_CODE',
+                'AGMT_IND',
+                'LAST_REC_TXN_DATE',
+                'DSTR_NAME',
+                'EMMS_DSTR_KEY',
+            ],
+            target_columns=[
+                'DSTR_KEY',
+                'DSTR_CODE',
+                'RGN_KEY',
+                'DSTR_TYPE_CODE',
+                'DSTR_CHI_NAME',
+                'LAST_REC_TXN_TYPE_CODE',
+                'AGMT_IND',
+                'LAST_REC_TXN_DATE',
+                'DSTR_NAME',
+                'EMMS_DSTR_KEY',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_HSM_DSTR write completed")
         

@@ -58,20 +58,54 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_REF_ADTN_DEL_RSN")
         # Source Qualifier: apply_SQ_SSA_EMS_REF_ADTN_DEL_RSN
         df_SQ_SSA_EMS_REF_ADTN_DEL_RSN = df_SSA_EMS_REF_ADTN_DEL_RSN
-        df_SQ_SSA_EMS_REF_ADTN_DEL_RSN = df_SQ_SSA_EMS_REF_ADTN_DEL_RSN.filter(expr("OPR_IND = 'EB' OR OPR_IND = 'DA'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["ADTN_DEL_RSN_CODE_KEY", "ADTN_DEL_RSN_CODE_BK", "HSE_SRVC_APLY_TYPE_CODE", "ADTN_DEL_RSN_CATG_CODE", "ADTN_DEL_RSN_CODE", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_REF_ADTN_DEL_RSN = df_SQ_SSA_EMS_REF_ADTN_DEL_RSN.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_REF_ADTN_DEL_RSN.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_REF_ADTN_DEL_RSN = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_REF_ADTN_DEL_RSN,
+            port_cols={
+                'ADTN_DEL_RSN_CODE_KEY': 'decimal',
+                'ADTN_DEL_RSN_CODE_BK': 'string',
+                'HSE_SRVC_APLY_TYPE_CODE': 'string',
+                'ADTN_DEL_RSN_CATG_CODE': 'string',
+                'ADTN_DEL_RSN_CODE': 'string',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'EB' OR OPR_IND = 'DA'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_REF_ADTN_DEL_RSN", df_SQ_SSA_EMS_REF_ADTN_DEL_RSN)
         
         logger.info("Step: write_SOR_EMS_REF_ADTN_DEL_RSN")
         # Write to Target: write_SOR_EMS_REF_ADTN_DEL_RSN
-        df_write = df_SQ_SSA_EMS_REF_ADTN_DEL_RSN
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['ADTN_DEL_RSN_CODE_KEY', 'ADTN_DEL_RSN_CODE_BK', 'HSE_SRVC_APLY_TYPE_CODE', 'ADTN_DEL_RSN_CATG_CODE', 'ADTN_DEL_RSN_CODE', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_REF_ADTN_DEL_RSN", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_REF_ADTN_DEL_RSN,
+            conn=conn_target,
+            table='SOR_EMS_REF_ADTN_DEL_RSN',
+            mode='append',
+            source_columns=[
+                'ADTN_DEL_RSN_CODE_KEY',
+                'ADTN_DEL_RSN_CODE_BK',
+                'HSE_SRVC_APLY_TYPE_CODE',
+                'ADTN_DEL_RSN_CATG_CODE',
+                'ADTN_DEL_RSN_CODE',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'ADTN_DEL_RSN_CODE_KEY',
+                'ADTN_DEL_RSN_CODE_BK',
+                'HSE_SRVC_APLY_TYPE_CODE',
+                'ADTN_DEL_RSN_CATG_CODE',
+                'ADTN_DEL_RSN_CODE',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_REF_ADTN_DEL_RSN write completed")
         

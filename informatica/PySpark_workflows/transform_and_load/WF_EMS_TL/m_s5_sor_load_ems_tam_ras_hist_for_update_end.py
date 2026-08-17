@@ -64,70 +64,137 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_TAM_RAS_HIST_STS")
         # Source Qualifier: apply_SQ_SSA_EMS_TAM_RAS_HIST_STS
         df_SQ_SSA_EMS_TAM_RAS_HIST_STS = df_SSA_EMS_TAM_RAS_HIST_STS
-        df_SQ_SSA_EMS_TAM_RAS_HIST_STS = df_SQ_SSA_EMS_TAM_RAS_HIST_STS.filter(expr("OPR_IND = 'E' OR OPR_IND = 'EB'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["RAS_HIST_KEY", "BGN_DATE", "END_DATE", "CUST_KEY", "HSE_SRVC_APLY_KEY", "HSE_UNIT_CODE_ADDR", "RAS_RENT_FCTR_CODE", "ORIG_RAS_RENT_FCTR_CODE", "RAS_CNFRM_DATE", "RAS_RENT_BGN_DATE", "RAS_RENT_END_DATE", "RAS_TNCY_TYPE_CODE", "RAS_CNCL_IND", "RAS_CNCL_DATE", "RAS_CNCL_USER_ID", "RAS_UPD_CNT", "RAS_RENT_BGN_DATE_IND", "RAS_RENT_PRCS_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_TAM_RAS_HIST_STS = df_SQ_SSA_EMS_TAM_RAS_HIST_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_TAM_RAS_HIST_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_TAM_RAS_HIST_STS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_TAM_RAS_HIST_STS,
+            port_cols={
+                'RAS_HIST_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'CUST_KEY': 'decimal',
+                'HSE_SRVC_APLY_KEY': 'decimal',
+                'HSE_UNIT_CODE_ADDR': 'string',
+                'RAS_RENT_FCTR_CODE': 'decimal',
+                'ORIG_RAS_RENT_FCTR_CODE': 'decimal',
+                'RAS_CNFRM_DATE': 'date/time',
+                'RAS_RENT_BGN_DATE': 'date/time',
+                'RAS_RENT_END_DATE': 'date/time',
+                'RAS_TNCY_TYPE_CODE': 'string',
+                'RAS_CNCL_IND': 'string',
+                'RAS_CNCL_DATE': 'date/time',
+                'RAS_CNCL_USER_ID': 'string',
+                'RAS_UPD_CNT': 'decimal',
+                'RAS_RENT_BGN_DATE_IND': 'string',
+                'RAS_RENT_PRCS_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E' OR OPR_IND = 'EB'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_TAM_RAS_HIST_STS", df_SQ_SSA_EMS_TAM_RAS_HIST_STS)
         
         logger.info("Step: apply_SQ_SSA_EMS_TAM_RAS_HIST")
         # Source Qualifier: apply_SQ_SSA_EMS_TAM_RAS_HIST
         df_SQ_SSA_EMS_TAM_RAS_HIST = df_SSA_EMS_TAM_RAS_HIST
-        df_SQ_SSA_EMS_TAM_RAS_HIST = df_SQ_SSA_EMS_TAM_RAS_HIST.filter(expr("OPR_IND = 'E'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["RAS_HIST_KEY", "RAS_HIST_BK", "RAS_HIST_REC_KEY", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_TAM_RAS_HIST = df_SQ_SSA_EMS_TAM_RAS_HIST.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_TAM_RAS_HIST.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_TAM_RAS_HIST = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_TAM_RAS_HIST,
+            port_cols={
+                'RAS_HIST_KEY': 'decimal',
+                'RAS_HIST_BK': 'string',
+                'RAS_HIST_REC_KEY': 'decimal',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_TAM_RAS_HIST", df_SQ_SSA_EMS_TAM_RAS_HIST)
         
         logger.info("Step: write_SOR_EMS_TAM_RAS_HIST_STS")
         # Write to Target: write_SOR_EMS_TAM_RAS_HIST_STS
-        df_write = df_SQ_SSA_EMS_TAM_RAS_HIST_STS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BGN_DATE": "SOR_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("CUST_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_SRVC_APLY_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_UNIT_CODE_ADDR", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RAS_RENT_FCTR_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ORIG_RAS_RENT_FCTR_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RAS_CNFRM_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RAS_RENT_BGN_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RAS_RENT_END_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RAS_TNCY_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RAS_CNCL_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RAS_CNCL_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RAS_CNCL_USER_ID", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RAS_UPD_CNT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RAS_RENT_BGN_DATE_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RAS_RENT_PRCS_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['RAS_HIST_KEY', 'BGN_DATE', 'END_DATE', 'CUST_KEY', 'HSE_SRVC_APLY_KEY', 'HSE_UNIT_CODE_ADDR', 'RAS_RENT_FCTR_CODE', 'ORIG_RAS_RENT_FCTR_CODE', 'RAS_CNFRM_DATE', 'RAS_RENT_BGN_DATE', 'RAS_RENT_END_DATE', 'RAS_TNCY_TYPE_CODE', 'RAS_CNCL_IND', 'RAS_CNCL_DATE', 'RAS_CNCL_USER_ID', 'RAS_UPD_CNT', 'RAS_RENT_BGN_DATE_IND', 'RAS_RENT_PRCS_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_TAM_RAS_HIST_STS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_TAM_RAS_HIST_STS,
+            conn=conn_target,
+            table='SOR_EMS_TAM_RAS_HIST_STS',
+            mode='append',
+            source_columns=[
+                'RAS_HIST_KEY',
+                'SOR_DATE',
+                'END_DATE',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'RAS_HIST_KEY',
+                'BGN_DATE',
+                'END_DATE',
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'HSE_UNIT_CODE_ADDR',
+                'RAS_RENT_FCTR_CODE',
+                'ORIG_RAS_RENT_FCTR_CODE',
+                'RAS_CNFRM_DATE',
+                'RAS_RENT_BGN_DATE',
+                'RAS_RENT_END_DATE',
+                'RAS_TNCY_TYPE_CODE',
+                'RAS_CNCL_IND',
+                'RAS_CNCL_DATE',
+                'RAS_CNCL_USER_ID',
+                'RAS_UPD_CNT',
+                'RAS_RENT_BGN_DATE_IND',
+                'RAS_RENT_PRCS_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_TAM_RAS_HIST_STS write completed")
         logger.info("Step: write_SOR_EMS_TAM_RAS_HIST")
         # Write to Target: write_SOR_EMS_TAM_RAS_HIST
-        df_write = df_SQ_SSA_EMS_TAM_RAS_HIST
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("RAS_HIST_BK", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RAS_HIST_REC_KEY", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['RAS_HIST_KEY', 'RAS_HIST_BK', 'RAS_HIST_REC_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_TAM_RAS_HIST", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_TAM_RAS_HIST,
+            conn=conn_target,
+            table='SOR_EMS_TAM_RAS_HIST',
+            mode='append',
+            source_columns=[
+                'RAS_HIST_KEY',
+                None,
+                None,
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'RAS_HIST_KEY',
+                'RAS_HIST_BK',
+                'RAS_HIST_REC_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_TAM_RAS_HIST write completed")
         

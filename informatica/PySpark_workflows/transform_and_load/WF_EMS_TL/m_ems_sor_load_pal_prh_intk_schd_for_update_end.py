@@ -64,64 +64,165 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_PAL_PRH_INTK_SCHD")
         # Source Qualifier: apply_SQ_SSA_EMS_PAL_PRH_INTK_SCHD
         df_SQ_SSA_EMS_PAL_PRH_INTK_SCHD = df_SSA_EMS_PAL_PRH_INTK_SCHD
-        df_SQ_SSA_EMS_PAL_PRH_INTK_SCHD = df_SQ_SSA_EMS_PAL_PRH_INTK_SCHD.filter(expr("OPR_IND = 'E'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["PRH_INTK_SCHD_KEY", "CUST_APLY_KEY", "INTL_INTK_DATE", "ALCT_UNIT_KEY", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "AGMT_IND", "OPR_IND", "SOR_DATE", "CUST_KEY", "HSE_SRVC_APLY_KEY"]
-        df_SQ_SSA_EMS_PAL_PRH_INTK_SCHD = df_SQ_SSA_EMS_PAL_PRH_INTK_SCHD.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_PAL_PRH_INTK_SCHD.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_PAL_PRH_INTK_SCHD = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_PAL_PRH_INTK_SCHD,
+            port_cols={
+                'PRH_INTK_SCHD_KEY': 'decimal',
+                'CUST_APLY_KEY': 'decimal',
+                'INTL_INTK_DATE': 'date/time',
+                'ALCT_UNIT_KEY': 'decimal',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'AGMT_IND': 'string',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+                'CUST_KEY': 'decimal',
+                'HSE_SRVC_APLY_KEY': 'decimal',
+            },
+            filter_condition="OPR_IND = 'E'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_PAL_PRH_INTK_SCHD", df_SQ_SSA_EMS_PAL_PRH_INTK_SCHD)
         
         logger.info("Step: apply_SQ_SSA_EMS_PAL_PRH_INTK_SCHD_STS")
         # Source Qualifier: apply_SQ_SSA_EMS_PAL_PRH_INTK_SCHD_STS
         df_SQ_SSA_EMS_PAL_PRH_INTK_SCHD_STS = df_SSA_EMS_PAL_PRH_INTK_SCHD_STS
-        df_SQ_SSA_EMS_PAL_PRH_INTK_SCHD_STS = df_SQ_SSA_EMS_PAL_PRH_INTK_SCHD_STS.filter(expr("OPR_IND = 'E' OR OPR_IND = 'EB'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["PRH_INTK_SCHD_KEY", "BGN_DATE", "CUST_INTK_DATE", "TNT_SPCL_NEED_IND", "DPST_AMT", "FRST_RENT_AMT", "INTK_SCHD_INPT_USER_ID", "INTK_SCHD_INPT_DATE", "INTK_SCHD_TYPE_CODE", "INTK_SCHD_STS_CODE", "ALCT_HSE_UNIT_CODE_ADDR", "INTK_RVN_TXN_NUM", "LAST_INTK_SCHD_UPD_DATE", "INTK_SCHD_CATG_CODE", "TNT_RENT_CODE", "INTK_HSE_EST_KEY", "TNCY_AGRMT_CMNC_DATE", "INTL_INTK_TIME", "ORIG_CUST_KEY", "ORIG_HSE_SRVC_APLY_KEY", "PND_TNT_RENT_CODE", "PND_TNT_RENT_CODE_BGN_DATE", "DPST_RCPT_NUM", "DPST_RCPT_TYPE_CODE", "EST_KEY", "IH_INTK_DATE", "INTK_CLCT_TXN_NUM", "INTK_RENT_AMT", "INTK_SCHD_RMK_TEXT", "INTK_TYPE_CODE", "NEXT_RENT_BGN_DATE", "NEXT_RENT_FCTR_KEY", "OFR_DATE", "OFR_LTR_INTK_DATE", "OFR_LTR_ISS_DATE", "OFR_SEQ_NUM", "PREV_CUST_APLY_KEY", "PRH_APLY_NUM", "RENT_BGN_DATE", "RENT_FCTR_KEY", "RENT_FREE_INTL_BGN_DATE", "RENT_FREE_PHASE_CNT", "RENT_FREE_PRD_CODE", "RENT_FREE_TYPE_CODE", "RENT_FREE_TFR_DBR_END_DATE", "RENT_RVW_CATG_BGN_DATE", "RENT_RVW_CATG_KEY", "RVS_NEXT_RENT_BGN_DATE", "RVS_NEXT_RENT_FCTR_KEY", "RVS_RENT_BGN_DATE", "RVS_RENT_FCTR_KEY", "RVS_RENT_RVW_CATG_BGN_DATE", "RVS_RENT_RVW_CATG_KEY", "FWD_FROM_PREV_RENT_IND", "INTL_DOC_DATE", "RVS_DOC_DATE", "RVS_FWD_FROM_PREV_RENT_IND", "RVS_INTK_DATE", "END_DATE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_PAL_PRH_INTK_SCHD_STS = df_SQ_SSA_EMS_PAL_PRH_INTK_SCHD_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_PAL_PRH_INTK_SCHD_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_PAL_PRH_INTK_SCHD_STS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_PAL_PRH_INTK_SCHD_STS,
+            port_cols={
+                'PRH_INTK_SCHD_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'CUST_INTK_DATE': 'date/time',
+                'TNT_SPCL_NEED_IND': 'string',
+                'DPST_AMT': 'decimal',
+                'FRST_RENT_AMT': 'decimal',
+                'INTK_SCHD_INPT_USER_ID': 'string',
+                'INTK_SCHD_INPT_DATE': 'date/time',
+                'INTK_SCHD_TYPE_CODE': 'string',
+                'INTK_SCHD_STS_CODE': 'string',
+                'ALCT_HSE_UNIT_CODE_ADDR': 'string',
+                'INTK_RVN_TXN_NUM': 'string',
+                'LAST_INTK_SCHD_UPD_DATE': 'date/time',
+                'INTK_SCHD_CATG_CODE': 'string',
+                'TNT_RENT_CODE': 'string',
+                'INTK_HSE_EST_KEY': 'string',
+                'TNCY_AGRMT_CMNC_DATE': 'date/time',
+                'INTL_INTK_TIME': 'date/time',
+                'ORIG_CUST_KEY': 'string',
+                'ORIG_HSE_SRVC_APLY_KEY': 'string',
+                'PND_TNT_RENT_CODE': 'string',
+                'PND_TNT_RENT_CODE_BGN_DATE': 'date/time',
+                'DPST_RCPT_NUM': 'string',
+                'DPST_RCPT_TYPE_CODE': 'string',
+                'EST_KEY': 'decimal',
+                'IH_INTK_DATE': 'date/time',
+                'INTK_CLCT_TXN_NUM': 'string',
+                'INTK_RENT_AMT': 'decimal',
+                'INTK_SCHD_RMK_TEXT': 'string',
+                'INTK_TYPE_CODE': 'string',
+                'NEXT_RENT_BGN_DATE': 'date/time',
+                'NEXT_RENT_FCTR_KEY': 'decimal',
+                'OFR_DATE': 'date/time',
+                'OFR_LTR_INTK_DATE': 'date/time',
+                'OFR_LTR_ISS_DATE': 'date/time',
+                'OFR_SEQ_NUM': 'decimal',
+                'PREV_CUST_APLY_KEY': 'decimal',
+                'PRH_APLY_NUM': 'string',
+                'RENT_BGN_DATE': 'date/time',
+                'RENT_FCTR_KEY': 'decimal',
+                'RENT_FREE_INTL_BGN_DATE': 'date/time',
+                'RENT_FREE_PHASE_CNT': 'decimal',
+                'RENT_FREE_PRD_CODE': 'string',
+                'RENT_FREE_TYPE_CODE': 'string',
+                'RENT_FREE_TFR_DBR_END_DATE': 'date/time',
+                'RENT_RVW_CATG_BGN_DATE': 'date/time',
+                'RENT_RVW_CATG_KEY': 'decimal',
+                'RVS_NEXT_RENT_BGN_DATE': 'date/time',
+                'RVS_NEXT_RENT_FCTR_KEY': 'decimal',
+                'RVS_RENT_BGN_DATE': 'date/time',
+                'RVS_RENT_FCTR_KEY': 'decimal',
+                'RVS_RENT_RVW_CATG_BGN_DATE': 'date/time',
+                'RVS_RENT_RVW_CATG_KEY': 'decimal',
+                'FWD_FROM_PREV_RENT_IND': 'string',
+                'INTL_DOC_DATE': 'date/time',
+                'RVS_DOC_DATE': 'date/time',
+                'RVS_FWD_FROM_PREV_RENT_IND': 'string',
+                'RVS_INTK_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E' OR OPR_IND = 'EB'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_PAL_PRH_INTK_SCHD_STS", df_SQ_SSA_EMS_PAL_PRH_INTK_SCHD_STS)
         
         logger.info("Step: write_SOR_EMS_PAL_PRH_INTK_SCHD")
         # Write to Target: write_SOR_EMS_PAL_PRH_INTK_SCHD
-        df_write = df_SQ_SSA_EMS_PAL_PRH_INTK_SCHD
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("CUST_APLY_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_SRVC_APLY_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("INTL_INTK_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ALCT_UNIT_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("AGMT_IND", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['PRH_INTK_SCHD_KEY', 'CUST_APLY_KEY', 'CUST_KEY', 'HSE_SRVC_APLY_KEY', 'INTL_INTK_DATE', 'ALCT_UNIT_KEY', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'AGMT_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_PAL_PRH_INTK_SCHD", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_PAL_PRH_INTK_SCHD,
+            conn=conn_target,
+            table='SOR_EMS_PAL_PRH_INTK_SCHD',
+            mode='append',
+            source_columns=[
+                'PRH_INTK_SCHD_KEY',
+                None,
+                None,
+                None,
+                None,
+                None,
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                None,
+            ],
+            target_columns=[
+                'PRH_INTK_SCHD_KEY',
+                'CUST_APLY_KEY',
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'INTL_INTK_DATE',
+                'ALCT_UNIT_KEY',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'AGMT_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_PAL_PRH_INTK_SCHD write completed")
         logger.info("Step: write_SOR_EMS_PAL_PRH_INTK_SCHD_STS")
         # Write to Target: write_SOR_EMS_PAL_PRH_INTK_SCHD_STS
-        df_write = df_SQ_SSA_EMS_PAL_PRH_INTK_SCHD_STS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BGN_DATE": "SOR_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("CUST_APLY_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_SRVC_APLY_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("INTL_INTK_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ALCT_UNIT_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("AGMT_IND", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['PRH_INTK_SCHD_KEY', 'CUST_APLY_KEY', 'CUST_KEY', 'HSE_SRVC_APLY_KEY', 'INTL_INTK_DATE', 'ALCT_UNIT_KEY', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'AGMT_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_PAL_PRH_INTK_SCHD", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_PAL_PRH_INTK_SCHD_STS,
+            conn=conn_target,
+            table='SOR_EMS_PAL_PRH_INTK_SCHD',
+            mode='append',
+            source_columns=[
+                'PRH_INTK_SCHD_KEY',
+                None,
+                None,
+                None,
+                None,
+                None,
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                None,
+            ],
+            target_columns=[
+                'PRH_INTK_SCHD_KEY',
+                'CUST_APLY_KEY',
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'INTL_INTK_DATE',
+                'ALCT_UNIT_KEY',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'AGMT_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_PAL_PRH_INTK_SCHD_STS write completed")
         

@@ -64,90 +64,171 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_NHS_PHASE_STS")
         # Source Qualifier: apply_SQ_SSA_NHS_PHASE_STS
         df_SQ_SSA_NHS_PHASE_STS = df_SSA_NHS_PHASE_STS
-        df_SQ_SSA_NHS_PHASE_STS = df_SQ_SSA_NHS_PHASE_STS.filter(expr("OPR_IND = 'E' OR OPR_IND = 'EB'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["PHASE_KEY", "BGN_DATE", "END_DATE", "PHASE_ENG_DESP", "PHASE_BGN_DATE", "PHASE_SALE_END_DATE", "PHASE_END_DATE", "PHASE_APLY_FEE_AMT", "PHASE_TOP_UP_FEE_AMT", "PHASE_SALE_PRC_DSCT_PCT", "PHASE_CHI_DESP", "APLY_END_DATE", "APLY_STG_END_DATE", "ROW_VER_NUM", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE", "HSE_SCHM_CODE"]
-        df_SQ_SSA_NHS_PHASE_STS = df_SQ_SSA_NHS_PHASE_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_NHS_PHASE_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_NHS_PHASE_STS = lib.sq_output(
+            input_df=df_SQ_SSA_NHS_PHASE_STS,
+            port_cols={
+                'PHASE_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'PHASE_ENG_DESP': 'string',
+                'PHASE_BGN_DATE': 'date/time',
+                'PHASE_SALE_END_DATE': 'date/time',
+                'PHASE_END_DATE': 'date/time',
+                'PHASE_APLY_FEE_AMT': 'decimal',
+                'PHASE_TOP_UP_FEE_AMT': 'decimal',
+                'PHASE_SALE_PRC_DSCT_PCT': 'decimal',
+                'PHASE_CHI_DESP': 'string',
+                'APLY_END_DATE': 'date/time',
+                'APLY_STG_END_DATE': 'date/time',
+                'ROW_VER_NUM': 'decimal',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+                'HSE_SCHM_CODE': 'string',
+            },
+            filter_condition="OPR_IND = 'E' OR OPR_IND = 'EB'",
+        )
         ctx.register_df("df_SQ_SSA_NHS_PHASE_STS", df_SQ_SSA_NHS_PHASE_STS)
         
         logger.info("Step: apply_SQ_SSA_NHS_PHASE")
         # Source Qualifier: apply_SQ_SSA_NHS_PHASE
         df_SQ_SSA_NHS_PHASE = df_SSA_NHS_PHASE
-        df_SQ_SSA_NHS_PHASE = df_SQ_SSA_NHS_PHASE.filter(expr("OPR_IND = 'E'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["PHASE_KEY", "NHS_PHASE_CODE", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_NHS_PHASE = df_SQ_SSA_NHS_PHASE.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_NHS_PHASE.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_NHS_PHASE = lib.sq_output(
+            input_df=df_SQ_SSA_NHS_PHASE,
+            port_cols={
+                'PHASE_KEY': 'decimal',
+                'NHS_PHASE_CODE': 'string',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E'",
+        )
         ctx.register_df("df_SQ_SSA_NHS_PHASE", df_SQ_SSA_NHS_PHASE)
         
         logger.info("Step: write_SOR_NHS_PHASE_STS")
         # Write to Target: write_SOR_NHS_PHASE_STS
-        df_write = df_SQ_SSA_NHS_PHASE_STS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BGN_DATE": "SOR_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("PHASE_ENG_DESP", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PHASE_BGN_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PHASE_SALE_END_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PHASE_END_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PHASE_APLY_FEE_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PHASE_TOP_UP_FEE_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PHASE_SALE_PRC_DSCT_PCT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PHASE_CHI_DESP", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_END_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_STG_END_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ROW_VER_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_SCHM_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSKP_RQR_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSKP_CMPLT_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSKP_CMPLT_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("TOT_APLY_CNT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("TOT_APLY_HSKP_CNT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("TOT_APLY_RTA_CNT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("GF_CSHR_ORD_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("WF_CSHR_ORD_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("GF_CSHR_ORD_CHI_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("WF_CSHR_ORD_CHI_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_SBSCHM_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("GF_PAGE_CNT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("WF_PAGE_CNT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CHI_LTR_SCHM_NAME", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ENG_LTR_SCHM_NAME", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ACK_LTR_GNRT_BGN_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ACK_EMAIL_GNRT_BGN_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ACK_LTR_ISS_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("TPS_CSHR_ORD_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("TPS_CSHR_ORD_CHI_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EFAS_OPR_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EFAS_FLAT_SLCT_EMAIL_ADDR", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EFAS_FLAT_SLCT_INVT_EMAIL_ADDR", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['PHASE_KEY', 'BGN_DATE', 'END_DATE', 'PHASE_ENG_DESP', 'PHASE_BGN_DATE', 'PHASE_SALE_END_DATE', 'PHASE_END_DATE', 'PHASE_APLY_FEE_AMT', 'PHASE_TOP_UP_FEE_AMT', 'PHASE_SALE_PRC_DSCT_PCT', 'PHASE_CHI_DESP', 'APLY_END_DATE', 'APLY_STG_END_DATE', 'ROW_VER_NUM', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'HSE_SCHM_CODE', 'HSKP_RQR_IND', 'HSKP_CMPLT_DATE', 'HSKP_CMPLT_IND', 'TOT_APLY_CNT', 'TOT_APLY_HSKP_CNT', 'TOT_APLY_RTA_CNT', 'GF_CSHR_ORD_AMT', 'WF_CSHR_ORD_AMT', 'GF_CSHR_ORD_CHI_TEXT', 'WF_CSHR_ORD_CHI_TEXT', 'HSE_SBSCHM_CODE', 'GF_PAGE_CNT', 'WF_PAGE_CNT', 'CHI_LTR_SCHM_NAME', 'ENG_LTR_SCHM_NAME', 'ACK_LTR_GNRT_BGN_DATE', 'ACK_EMAIL_GNRT_BGN_DATE', 'ACK_LTR_ISS_DATE', 'TPS_CSHR_ORD_AMT', 'TPS_CSHR_ORD_CHI_TEXT', 'EFAS_OPR_CODE', 'EFAS_FLAT_SLCT_EMAIL_ADDR', 'EFAS_FLAT_SLCT_INVT_EMAIL_ADDR']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_NHS_PHASE_STS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_NHS_PHASE_STS,
+            conn=conn_target,
+            table='SOR_NHS_PHASE_STS',
+            mode='append',
+            source_columns=[
+                'PHASE_KEY',
+                'SOR_DATE',
+                'END_DATE',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                'LAST_REC_TXN_DATE',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ],
+            target_columns=[
+                'PHASE_KEY',
+                'BGN_DATE',
+                'END_DATE',
+                'PHASE_ENG_DESP',
+                'PHASE_BGN_DATE',
+                'PHASE_SALE_END_DATE',
+                'PHASE_END_DATE',
+                'PHASE_APLY_FEE_AMT',
+                'PHASE_TOP_UP_FEE_AMT',
+                'PHASE_SALE_PRC_DSCT_PCT',
+                'PHASE_CHI_DESP',
+                'APLY_END_DATE',
+                'APLY_STG_END_DATE',
+                'ROW_VER_NUM',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'HSE_SCHM_CODE',
+                'HSKP_RQR_IND',
+                'HSKP_CMPLT_DATE',
+                'HSKP_CMPLT_IND',
+                'TOT_APLY_CNT',
+                'TOT_APLY_HSKP_CNT',
+                'TOT_APLY_RTA_CNT',
+                'GF_CSHR_ORD_AMT',
+                'WF_CSHR_ORD_AMT',
+                'GF_CSHR_ORD_CHI_TEXT',
+                'WF_CSHR_ORD_CHI_TEXT',
+                'HSE_SBSCHM_CODE',
+                'GF_PAGE_CNT',
+                'WF_PAGE_CNT',
+                'CHI_LTR_SCHM_NAME',
+                'ENG_LTR_SCHM_NAME',
+                'ACK_LTR_GNRT_BGN_DATE',
+                'ACK_EMAIL_GNRT_BGN_DATE',
+                'ACK_LTR_ISS_DATE',
+                'TPS_CSHR_ORD_AMT',
+                'TPS_CSHR_ORD_CHI_TEXT',
+                'EFAS_OPR_CODE',
+                'EFAS_FLAT_SLCT_EMAIL_ADDR',
+                'EFAS_FLAT_SLCT_INVT_EMAIL_ADDR',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_NHS_PHASE_STS write completed")
         logger.info("Step: write_SOR_NHS_PHASE")
         # Write to Target: write_SOR_NHS_PHASE
-        df_write = df_SQ_SSA_NHS_PHASE
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("NHS_PHASE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['PHASE_KEY', 'NHS_PHASE_CODE', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_NHS_PHASE", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_NHS_PHASE,
+            conn=conn_target,
+            table='SOR_NHS_PHASE',
+            mode='append',
+            source_columns=[
+                'PHASE_KEY',
+                None,
+                'AGMT_IND',
+                None,
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'PHASE_KEY',
+                'NHS_PHASE_CODE',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_NHS_PHASE write completed")
         

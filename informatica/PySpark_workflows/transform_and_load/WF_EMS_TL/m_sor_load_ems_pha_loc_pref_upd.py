@@ -58,22 +58,45 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_PHA_LOC_PREF")
         # Source Qualifier: apply_SQ_SSA_EMS_PHA_LOC_PREF
         df_SQ_SSA_EMS_PHA_LOC_PREF = df_SSA_EMS_PHA_LOC_PREF
-        df_SQ_SSA_EMS_PHA_LOC_PREF = df_SQ_SSA_EMS_PHA_LOC_PREF.filter(expr("OPR_IND = 'EB' OR OPR_IND = 'DA'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["LOC_PREF_KEY", "EMS_LOC_PREF_KEY", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_PHA_LOC_PREF = df_SQ_SSA_EMS_PHA_LOC_PREF.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_PHA_LOC_PREF.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_PHA_LOC_PREF = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_PHA_LOC_PREF,
+            port_cols={
+                'LOC_PREF_KEY': 'decimal',
+                'EMS_LOC_PREF_KEY': 'decimal',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'EB' OR OPR_IND = 'DA'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_PHA_LOC_PREF", df_SQ_SSA_EMS_PHA_LOC_PREF)
         
         logger.info("Step: write_SOR_EMS_PHA_LOC_PREF")
         # Write to Target: write_SOR_EMS_PHA_LOC_PREF
-        df_write = df_SQ_SSA_EMS_PHA_LOC_PREF
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['LOC_PREF_KEY', 'EMS_LOC_PREF_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_PHA_LOC_PREF", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_PHA_LOC_PREF,
+            conn=conn_target,
+            table='SOR_EMS_PHA_LOC_PREF',
+            mode='append',
+            source_columns=[
+                'LOC_PREF_KEY',
+                'EMS_LOC_PREF_KEY',
+                'AGMT_IND',
+                None,
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'LOC_PREF_KEY',
+                'EMS_LOC_PREF_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_PHA_LOC_PREF write completed")
         

@@ -64,58 +64,201 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_PHA_OFR_SPCL_GND")
         # Source Qualifier: apply_SQ_SSA_EMS_PHA_OFR_SPCL_GND
         df_SQ_SSA_EMS_PHA_OFR_SPCL_GND = df_SSA_EMS_PHA_OFR_SPCL_GND
-        df_SQ_SSA_EMS_PHA_OFR_SPCL_GND = df_SQ_SSA_EMS_PHA_OFR_SPCL_GND.filter(expr("OPR_IND = 'B' OR OPR_IND = 'A'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["OFR_SPCL_GND_KEY", "OFR_SPCL_GND_BK", "BTCH_ALCT_KEY", "OFR_DATE", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE", "OFR_SPCL_GND_TYPE_CODE"]
-        df_SQ_SSA_EMS_PHA_OFR_SPCL_GND = df_SQ_SSA_EMS_PHA_OFR_SPCL_GND.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_PHA_OFR_SPCL_GND.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_PHA_OFR_SPCL_GND = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_PHA_OFR_SPCL_GND,
+            port_cols={
+                'OFR_SPCL_GND_KEY': 'decimal',
+                'OFR_SPCL_GND_BK': 'string',
+                'BTCH_ALCT_KEY': 'decimal',
+                'OFR_DATE': 'date/time',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+                'OFR_SPCL_GND_TYPE_CODE': 'string',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'A'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_PHA_OFR_SPCL_GND", df_SQ_SSA_EMS_PHA_OFR_SPCL_GND)
         
         logger.info("Step: apply_SQ_SSA_EMS_PHA_OFR_SPCL_GND_STS")
         # Source Qualifier: apply_SQ_SSA_EMS_PHA_OFR_SPCL_GND_STS
         df_SQ_SSA_EMS_PHA_OFR_SPCL_GND_STS = df_SSA_EMS_PHA_OFR_SPCL_GND_STS
-        df_SQ_SSA_EMS_PHA_OFR_SPCL_GND_STS = df_SQ_SSA_EMS_PHA_OFR_SPCL_GND_STS.filter(expr("OPR_IND = 'B' OR OPR_IND = 'EB' OR OPR_IND = 'DA'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["OFR_SPCL_GND_KEY", "BGN_DATE", "END_DATE", "OFR_SPCL_GND_RSN_CODE", "OFR_SPCL_GND_RSN_TEXT", "DSTR_CODE_LIST", "SBDSTR_CODE_LIST", "EXCLD_EST_CODE", "DSGN_EST_CODE", "BLK_CODE", "UNIT_TYPE_CODE", "PRH_UNIT_HSC_TYPE_CODE", "UNIT_FROM_FLR_NUM", "UNIT_TO_FLR_NUM", "UNIT_FROM_IFA_AREA", "UNIT_TO_IFA_AREA", "PRH_UNIT_FROM_RFSL_NUM", "PRH_UNIT_TO_RFSL_NUM", "UNIT_VOID_PRD_DAY_CNT", "PRH_UNIT_TAKE_OVER_IND", "UNIT_CSL_VCNCY_IND", "UNIT_LIFT_STOP_IND", "UNIT_TLT_TYPE_CODE", "INCLD_ALL_ENV_CODE_LIST", "INCLD_ANY_ENV_CODE_LIST", "EXCLD_ENV_CODE_LIST", "PAST_THREE_MTH_NO_RFSL_IND", "VLT_ALCT_STD_IND", "ALCT_NEW_FLAT_TYPE_IND", "ALCT_ALL_FLAT_TYPE_IND", "APLY_ALCT_ORD_NUM", "FLAT_SLCT_ORD_NUM", "SAME_EST_AS_PREV_OFR_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE", "VLT_LOC_RSTR_IND"]
-        df_SQ_SSA_EMS_PHA_OFR_SPCL_GND_STS = df_SQ_SSA_EMS_PHA_OFR_SPCL_GND_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_PHA_OFR_SPCL_GND_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_PHA_OFR_SPCL_GND_STS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_PHA_OFR_SPCL_GND_STS,
+            port_cols={
+                'OFR_SPCL_GND_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'OFR_SPCL_GND_RSN_CODE': 'string',
+                'OFR_SPCL_GND_RSN_TEXT': 'string',
+                'DSTR_CODE_LIST': 'string',
+                'SBDSTR_CODE_LIST': 'string',
+                'EXCLD_EST_CODE': 'string',
+                'DSGN_EST_CODE': 'string',
+                'BLK_CODE': 'string',
+                'UNIT_TYPE_CODE': 'string',
+                'PRH_UNIT_HSC_TYPE_CODE': 'string',
+                'UNIT_FROM_FLR_NUM': 'string',
+                'UNIT_TO_FLR_NUM': 'string',
+                'UNIT_FROM_IFA_AREA': 'decimal',
+                'UNIT_TO_IFA_AREA': 'decimal',
+                'PRH_UNIT_FROM_RFSL_NUM': 'decimal',
+                'PRH_UNIT_TO_RFSL_NUM': 'decimal',
+                'UNIT_VOID_PRD_DAY_CNT': 'decimal',
+                'PRH_UNIT_TAKE_OVER_IND': 'string',
+                'UNIT_CSL_VCNCY_IND': 'string',
+                'UNIT_LIFT_STOP_IND': 'string',
+                'UNIT_TLT_TYPE_CODE': 'string',
+                'INCLD_ALL_ENV_CODE_LIST': 'string',
+                'INCLD_ANY_ENV_CODE_LIST': 'string',
+                'EXCLD_ENV_CODE_LIST': 'string',
+                'PAST_THREE_MTH_NO_RFSL_IND': 'string',
+                'VLT_ALCT_STD_IND': 'string',
+                'ALCT_NEW_FLAT_TYPE_IND': 'string',
+                'ALCT_ALL_FLAT_TYPE_IND': 'string',
+                'APLY_ALCT_ORD_NUM': 'string',
+                'FLAT_SLCT_ORD_NUM': 'string',
+                'SAME_EST_AS_PREV_OFR_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+                'VLT_LOC_RSTR_IND': 'string',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'EB' OR OPR_IND = 'DA'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_PHA_OFR_SPCL_GND_STS", df_SQ_SSA_EMS_PHA_OFR_SPCL_GND_STS)
         
         logger.info("Step: write_SOR_EMS_PHA_OFR_SPCL_GND")
         # Write to Target: write_SOR_EMS_PHA_OFR_SPCL_GND
-        df_write = df_SQ_SSA_EMS_PHA_OFR_SPCL_GND
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['OFR_SPCL_GND_KEY', 'OFR_SPCL_GND_BK', 'BTCH_ALCT_KEY', 'OFR_DATE', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'OFR_SPCL_GND_TYPE_CODE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_PHA_OFR_SPCL_GND", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_PHA_OFR_SPCL_GND,
+            conn=conn_target,
+            table='SOR_EMS_PHA_OFR_SPCL_GND',
+            mode='append',
+            source_columns=[
+                'OFR_SPCL_GND_KEY',
+                'OFR_SPCL_GND_BK',
+                'BTCH_ALCT_KEY',
+                'OFR_DATE',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'OFR_SPCL_GND_TYPE_CODE',
+            ],
+            target_columns=[
+                'OFR_SPCL_GND_KEY',
+                'OFR_SPCL_GND_BK',
+                'BTCH_ALCT_KEY',
+                'OFR_DATE',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'OFR_SPCL_GND_TYPE_CODE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_PHA_OFR_SPCL_GND write completed")
         logger.info("Step: apply_EXP_SOR_LOAD_DATE")
         # Expression: apply_EXP_SOR_LOAD_DATE
-        df_EXP_SOR_LOAD_DATE = df_SQ_SSA_EMS_PHA_OFR_SPCL_GND_STS
-        df_EXP_SOR_LOAD_DATE = df_EXP_SOR_LOAD_DATE.withColumn("OUT_END_DATE", expr("CASE WHEN OPR_IND = 'EB' THEN CASE WHEN LAST_REC_TXN_TYPE_CODE IS NULL THEN to_date('99991231','yyyyMMdd') ELSE END_DATE END ELSE END_DATE END"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_SOR_LOAD_DATE = lib.expression(
+            input_df=df_SQ_SSA_EMS_PHA_OFR_SPCL_GND_STS,
+            computed_columns=[
+                {'name': 'OUT_END_DATE', 'expr': "CASE WHEN OPR_IND = 'EB' THEN CASE WHEN LAST_REC_TXN_TYPE_CODE IS NULL THEN to_date('99991231','yyyyMMdd') ELSE END_DATE END ELSE END_DATE END"}
+            ],
+        )
         ctx.register_df("df_EXP_SOR_LOAD_DATE", df_EXP_SOR_LOAD_DATE)
         
         logger.info("Step: write_SOR_EMS_PHA_OFR_SPCL_GND_STS")
         # Write to Target: write_SOR_EMS_PHA_OFR_SPCL_GND_STS
-        df_write = df_EXP_SOR_LOAD_DATE
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"END_DATE": "OUT_END_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['OFR_SPCL_GND_KEY', 'BGN_DATE', 'END_DATE', 'OFR_SPCL_GND_RSN_CODE', 'OFR_SPCL_GND_RSN_TEXT', 'DSTR_CODE_LIST', 'SBDSTR_CODE_LIST', 'EXCLD_EST_CODE', 'DSGN_EST_CODE', 'BLK_CODE', 'UNIT_TYPE_CODE', 'PRH_UNIT_HSC_TYPE_CODE', 'UNIT_FROM_FLR_NUM', 'UNIT_TO_FLR_NUM', 'UNIT_FROM_IFA_AREA', 'UNIT_TO_IFA_AREA', 'PRH_UNIT_FROM_RFSL_NUM', 'PRH_UNIT_TO_RFSL_NUM', 'UNIT_VOID_PRD_DAY_CNT', 'PRH_UNIT_TAKE_OVER_IND', 'UNIT_CSL_VCNCY_IND', 'UNIT_LIFT_STOP_IND', 'UNIT_TLT_TYPE_CODE', 'INCLD_ALL_ENV_CODE_LIST', 'INCLD_ANY_ENV_CODE_LIST', 'EXCLD_ENV_CODE_LIST', 'PAST_THREE_MTH_NO_RFSL_IND', 'VLT_ALCT_STD_IND', 'ALCT_NEW_FLAT_TYPE_IND', 'ALCT_ALL_FLAT_TYPE_IND', 'APLY_ALCT_ORD_NUM', 'FLAT_SLCT_ORD_NUM', 'SAME_EST_AS_PREV_OFR_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'VLT_LOC_RSTR_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_PHA_OFR_SPCL_GND_STS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_SOR_LOAD_DATE,
+            conn=conn_target,
+            table='SOR_EMS_PHA_OFR_SPCL_GND_STS',
+            mode='append',
+            source_columns=[
+                'OFR_SPCL_GND_KEY',
+                'BGN_DATE',
+                'OUT_END_DATE',
+                'OFR_SPCL_GND_RSN_CODE',
+                'OFR_SPCL_GND_RSN_TEXT',
+                'DSTR_CODE_LIST',
+                'SBDSTR_CODE_LIST',
+                'EXCLD_EST_CODE',
+                'DSGN_EST_CODE',
+                'BLK_CODE',
+                'UNIT_TYPE_CODE',
+                'PRH_UNIT_HSC_TYPE_CODE',
+                'UNIT_FROM_FLR_NUM',
+                'UNIT_TO_FLR_NUM',
+                'UNIT_FROM_IFA_AREA',
+                'UNIT_TO_IFA_AREA',
+                'PRH_UNIT_FROM_RFSL_NUM',
+                'PRH_UNIT_TO_RFSL_NUM',
+                'UNIT_VOID_PRD_DAY_CNT',
+                'PRH_UNIT_TAKE_OVER_IND',
+                'UNIT_CSL_VCNCY_IND',
+                'UNIT_LIFT_STOP_IND',
+                'UNIT_TLT_TYPE_CODE',
+                'INCLD_ALL_ENV_CODE_LIST',
+                'INCLD_ANY_ENV_CODE_LIST',
+                'EXCLD_ENV_CODE_LIST',
+                'PAST_THREE_MTH_NO_RFSL_IND',
+                'VLT_ALCT_STD_IND',
+                'ALCT_NEW_FLAT_TYPE_IND',
+                'ALCT_ALL_FLAT_TYPE_IND',
+                'APLY_ALCT_ORD_NUM',
+                'FLAT_SLCT_ORD_NUM',
+                'SAME_EST_AS_PREV_OFR_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'VLT_LOC_RSTR_IND',
+            ],
+            target_columns=[
+                'OFR_SPCL_GND_KEY',
+                'BGN_DATE',
+                'END_DATE',
+                'OFR_SPCL_GND_RSN_CODE',
+                'OFR_SPCL_GND_RSN_TEXT',
+                'DSTR_CODE_LIST',
+                'SBDSTR_CODE_LIST',
+                'EXCLD_EST_CODE',
+                'DSGN_EST_CODE',
+                'BLK_CODE',
+                'UNIT_TYPE_CODE',
+                'PRH_UNIT_HSC_TYPE_CODE',
+                'UNIT_FROM_FLR_NUM',
+                'UNIT_TO_FLR_NUM',
+                'UNIT_FROM_IFA_AREA',
+                'UNIT_TO_IFA_AREA',
+                'PRH_UNIT_FROM_RFSL_NUM',
+                'PRH_UNIT_TO_RFSL_NUM',
+                'UNIT_VOID_PRD_DAY_CNT',
+                'PRH_UNIT_TAKE_OVER_IND',
+                'UNIT_CSL_VCNCY_IND',
+                'UNIT_LIFT_STOP_IND',
+                'UNIT_TLT_TYPE_CODE',
+                'INCLD_ALL_ENV_CODE_LIST',
+                'INCLD_ANY_ENV_CODE_LIST',
+                'EXCLD_ENV_CODE_LIST',
+                'PAST_THREE_MTH_NO_RFSL_IND',
+                'VLT_ALCT_STD_IND',
+                'ALCT_NEW_FLAT_TYPE_IND',
+                'ALCT_ALL_FLAT_TYPE_IND',
+                'APLY_ALCT_ORD_NUM',
+                'FLAT_SLCT_ORD_NUM',
+                'SAME_EST_AS_PREV_OFR_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'VLT_LOC_RSTR_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_PHA_OFR_SPCL_GND_STS write completed")
         

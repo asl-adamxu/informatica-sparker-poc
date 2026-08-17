@@ -64,58 +64,189 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_HOS_UNIT")
         # Source Qualifier: apply_SQ_SSA_EMS_HOS_UNIT
         df_SQ_SSA_EMS_HOS_UNIT = df_SSA_EMS_HOS_UNIT
-        df_SQ_SSA_EMS_HOS_UNIT = df_SQ_SSA_EMS_HOS_UNIT.filter(expr("OPR_IND = 'B' OR OPR_IND = 'A'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HOS_UNIT_KEY", "HOS_BLK_KEY", "HOS_UNIT_BK", "HOS_UNIT_CODE_ADDR", "HOS_UNIT_FLR_NUM", "HOS_UNIT_FLAT_NUM", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_HOS_UNIT = df_SQ_SSA_EMS_HOS_UNIT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_HOS_UNIT.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_HOS_UNIT = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_HOS_UNIT,
+            port_cols={
+                'HOS_UNIT_KEY': 'decimal',
+                'HOS_BLK_KEY': 'decimal',
+                'HOS_UNIT_BK': 'string',
+                'HOS_UNIT_CODE_ADDR': 'string',
+                'HOS_UNIT_FLR_NUM': 'string',
+                'HOS_UNIT_FLAT_NUM': 'string',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'A'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_HOS_UNIT", df_SQ_SSA_EMS_HOS_UNIT)
         
         logger.info("Step: apply_SQ_SSA_EMS_HOS_UNIT_STS")
         # Source Qualifier: apply_SQ_SSA_EMS_HOS_UNIT_STS
         df_SQ_SSA_EMS_HOS_UNIT_STS = df_SSA_EMS_HOS_UNIT_STS
-        df_SQ_SSA_EMS_HOS_UNIT_STS = df_SQ_SSA_EMS_HOS_UNIT_STS.filter(expr("OPR_IND = 'B' OR OPR_IND = 'EB' OR OPR_IND = 'DA'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HOS_UNIT_KEY", "BGN_DATE", "END_DATE", "HOS_UNIT_FRST_ASGN_DATE", "HOS_UNIT_ORIG_SALE_PRC_AMT", "HOS_UNIT_LAST_SALE_PRC_AMT", "HOS_UNIT_DSCT_SALE_PRC_AMT", "HOS_UNIT_SCHM_TYPE_CODE", "HOS_UNIT_FXT_CHRG_AMT", "HOS_UNIT_FXT_DPST_AMT", "HOS_UNIT_STS_CODE", "HOS_UNIT_STS_UPD_DATE", "LAST_SALE_HOS_PHASE_CODE", "SLCTR_CODE", "HOS_UNIT_FMVIF_CUR_YEAR_MTH", "HOS_UNIT_FMVIF_CUR_RATE", "HOS_UNIT_FMVIF_NEXT_RATE", "HOS_UNIT_PREM_PAY_DATE", "HOS_UNIT_PREM_PAY_UPD_DATE", "HOS_UNIT_PREM_PAY_IND", "HOS_UNIT_DLP_END_DATE", "HOS_UNIT_DLP_CNFRM_TIME", "HOS_UNIT_ORNT_CODE", "HOS_UNIT_UNDVD_SHR_AREA", "HOS_UNIT_SFA_AREA", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE", "UNIT_RND_MKT_VAL_INFLT_RATE", "NEXT_RND_MKT_VAL_INFLT_RATE", "HOS_UNIT_INTL_MKT_VAL_AMT", "HOS_UNIT_GSH_IND"]
-        df_SQ_SSA_EMS_HOS_UNIT_STS = df_SQ_SSA_EMS_HOS_UNIT_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_HOS_UNIT_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_HOS_UNIT_STS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_HOS_UNIT_STS,
+            port_cols={
+                'HOS_UNIT_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'HOS_UNIT_FRST_ASGN_DATE': 'date/time',
+                'HOS_UNIT_ORIG_SALE_PRC_AMT': 'decimal',
+                'HOS_UNIT_LAST_SALE_PRC_AMT': 'decimal',
+                'HOS_UNIT_DSCT_SALE_PRC_AMT': 'decimal',
+                'HOS_UNIT_SCHM_TYPE_CODE': 'string',
+                'HOS_UNIT_FXT_CHRG_AMT': 'decimal',
+                'HOS_UNIT_FXT_DPST_AMT': 'decimal',
+                'HOS_UNIT_STS_CODE': 'string',
+                'HOS_UNIT_STS_UPD_DATE': 'date/time',
+                'LAST_SALE_HOS_PHASE_CODE': 'string',
+                'SLCTR_CODE': 'string',
+                'HOS_UNIT_FMVIF_CUR_YEAR_MTH': 'date/time',
+                'HOS_UNIT_FMVIF_CUR_RATE': 'decimal',
+                'HOS_UNIT_FMVIF_NEXT_RATE': 'decimal',
+                'HOS_UNIT_PREM_PAY_DATE': 'date/time',
+                'HOS_UNIT_PREM_PAY_UPD_DATE': 'date/time',
+                'HOS_UNIT_PREM_PAY_IND': 'string',
+                'HOS_UNIT_DLP_END_DATE': 'date/time',
+                'HOS_UNIT_DLP_CNFRM_TIME': 'date/time',
+                'HOS_UNIT_ORNT_CODE': 'string',
+                'HOS_UNIT_UNDVD_SHR_AREA': 'decimal',
+                'HOS_UNIT_SFA_AREA': 'decimal',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+                'UNIT_RND_MKT_VAL_INFLT_RATE': 'decimal',
+                'NEXT_RND_MKT_VAL_INFLT_RATE': 'decimal',
+                'HOS_UNIT_INTL_MKT_VAL_AMT': 'decimal',
+                'HOS_UNIT_GSH_IND': 'string',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'EB' OR OPR_IND = 'DA'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_HOS_UNIT_STS", df_SQ_SSA_EMS_HOS_UNIT_STS)
         
         logger.info("Step: write_SOR_EMS_HOS_UNIT")
         # Write to Target: write_SOR_EMS_HOS_UNIT
-        df_write = df_SQ_SSA_EMS_HOS_UNIT
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HOS_UNIT_KEY', 'HOS_BLK_KEY', 'HOS_UNIT_BK', 'HOS_UNIT_CODE_ADDR', 'HOS_UNIT_FLR_NUM', 'HOS_UNIT_FLAT_NUM', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_HOS_UNIT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_HOS_UNIT,
+            conn=conn_target,
+            table='SOR_EMS_HOS_UNIT',
+            mode='append',
+            source_columns=[
+                'HOS_UNIT_KEY',
+                'HOS_BLK_KEY',
+                'HOS_UNIT_BK',
+                'HOS_UNIT_CODE_ADDR',
+                'HOS_UNIT_FLR_NUM',
+                'HOS_UNIT_FLAT_NUM',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'HOS_UNIT_KEY',
+                'HOS_BLK_KEY',
+                'HOS_UNIT_BK',
+                'HOS_UNIT_CODE_ADDR',
+                'HOS_UNIT_FLR_NUM',
+                'HOS_UNIT_FLAT_NUM',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_HOS_UNIT write completed")
         logger.info("Step: apply_EXP_SOR_LOAD_DATE")
         # Expression: apply_EXP_SOR_LOAD_DATE
-        df_EXP_SOR_LOAD_DATE = df_SQ_SSA_EMS_HOS_UNIT_STS
-        df_EXP_SOR_LOAD_DATE = df_EXP_SOR_LOAD_DATE.withColumn("OUT_END_DATE", expr("CASE WHEN OPR_IND = 'EB' THEN CASE WHEN LAST_REC_TXN_TYPE_CODE IS NULL THEN to_date('99991231','yyyyMMdd') ELSE END_DATE END ELSE END_DATE END"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_SOR_LOAD_DATE = lib.expression(
+            input_df=df_SQ_SSA_EMS_HOS_UNIT_STS,
+            computed_columns=[
+                {'name': 'OUT_END_DATE', 'expr': "CASE WHEN OPR_IND = 'EB' THEN CASE WHEN LAST_REC_TXN_TYPE_CODE IS NULL THEN to_date('99991231','yyyyMMdd') ELSE END_DATE END ELSE END_DATE END"}
+            ],
+        )
         ctx.register_df("df_EXP_SOR_LOAD_DATE", df_EXP_SOR_LOAD_DATE)
         
         logger.info("Step: write_SOR_EMS_HOS_UNIT_STS")
         # Write to Target: write_SOR_EMS_HOS_UNIT_STS
-        df_write = df_EXP_SOR_LOAD_DATE
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"END_DATE": "OUT_END_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HOS_UNIT_KEY', 'BGN_DATE', 'END_DATE', 'HOS_UNIT_FRST_ASGN_DATE', 'HOS_UNIT_ORIG_SALE_PRC_AMT', 'HOS_UNIT_LAST_SALE_PRC_AMT', 'HOS_UNIT_DSCT_SALE_PRC_AMT', 'HOS_UNIT_SCHM_TYPE_CODE', 'HOS_UNIT_FXT_CHRG_AMT', 'HOS_UNIT_FXT_DPST_AMT', 'HOS_UNIT_STS_CODE', 'HOS_UNIT_STS_UPD_DATE', 'LAST_SALE_HOS_PHASE_CODE', 'SLCTR_CODE', 'HOS_UNIT_FMVIF_CUR_YEAR_MTH', 'HOS_UNIT_FMVIF_CUR_RATE', 'HOS_UNIT_FMVIF_NEXT_RATE', 'HOS_UNIT_PREM_PAY_DATE', 'HOS_UNIT_PREM_PAY_UPD_DATE', 'HOS_UNIT_PREM_PAY_IND', 'HOS_UNIT_DLP_END_DATE', 'HOS_UNIT_DLP_CNFRM_TIME', 'HOS_UNIT_ORNT_CODE', 'HOS_UNIT_UNDVD_SHR_AREA', 'HOS_UNIT_SFA_AREA', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'UNIT_RND_MKT_VAL_INFLT_RATE', 'NEXT_RND_MKT_VAL_INFLT_RATE', 'HOS_UNIT_INTL_MKT_VAL_AMT', 'HOS_UNIT_GSH_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_HOS_UNIT_STS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_SOR_LOAD_DATE,
+            conn=conn_target,
+            table='SOR_EMS_HOS_UNIT_STS',
+            mode='append',
+            source_columns=[
+                'HOS_UNIT_KEY',
+                'BGN_DATE',
+                'OUT_END_DATE',
+                'HOS_UNIT_FRST_ASGN_DATE',
+                'HOS_UNIT_ORIG_SALE_PRC_AMT',
+                'HOS_UNIT_LAST_SALE_PRC_AMT',
+                'HOS_UNIT_DSCT_SALE_PRC_AMT',
+                'HOS_UNIT_SCHM_TYPE_CODE',
+                'HOS_UNIT_FXT_CHRG_AMT',
+                'HOS_UNIT_FXT_DPST_AMT',
+                'HOS_UNIT_STS_CODE',
+                'HOS_UNIT_STS_UPD_DATE',
+                'LAST_SALE_HOS_PHASE_CODE',
+                'SLCTR_CODE',
+                'HOS_UNIT_FMVIF_CUR_YEAR_MTH',
+                'HOS_UNIT_FMVIF_CUR_RATE',
+                'HOS_UNIT_FMVIF_NEXT_RATE',
+                'HOS_UNIT_PREM_PAY_DATE',
+                'HOS_UNIT_PREM_PAY_UPD_DATE',
+                'HOS_UNIT_PREM_PAY_IND',
+                'HOS_UNIT_DLP_END_DATE',
+                'HOS_UNIT_DLP_CNFRM_TIME',
+                'HOS_UNIT_ORNT_CODE',
+                'HOS_UNIT_UNDVD_SHR_AREA',
+                'HOS_UNIT_SFA_AREA',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'UNIT_RND_MKT_VAL_INFLT_RATE',
+                'NEXT_RND_MKT_VAL_INFLT_RATE',
+                'HOS_UNIT_INTL_MKT_VAL_AMT',
+                'HOS_UNIT_GSH_IND',
+            ],
+            target_columns=[
+                'HOS_UNIT_KEY',
+                'BGN_DATE',
+                'END_DATE',
+                'HOS_UNIT_FRST_ASGN_DATE',
+                'HOS_UNIT_ORIG_SALE_PRC_AMT',
+                'HOS_UNIT_LAST_SALE_PRC_AMT',
+                'HOS_UNIT_DSCT_SALE_PRC_AMT',
+                'HOS_UNIT_SCHM_TYPE_CODE',
+                'HOS_UNIT_FXT_CHRG_AMT',
+                'HOS_UNIT_FXT_DPST_AMT',
+                'HOS_UNIT_STS_CODE',
+                'HOS_UNIT_STS_UPD_DATE',
+                'LAST_SALE_HOS_PHASE_CODE',
+                'SLCTR_CODE',
+                'HOS_UNIT_FMVIF_CUR_YEAR_MTH',
+                'HOS_UNIT_FMVIF_CUR_RATE',
+                'HOS_UNIT_FMVIF_NEXT_RATE',
+                'HOS_UNIT_PREM_PAY_DATE',
+                'HOS_UNIT_PREM_PAY_UPD_DATE',
+                'HOS_UNIT_PREM_PAY_IND',
+                'HOS_UNIT_DLP_END_DATE',
+                'HOS_UNIT_DLP_CNFRM_TIME',
+                'HOS_UNIT_ORNT_CODE',
+                'HOS_UNIT_UNDVD_SHR_AREA',
+                'HOS_UNIT_SFA_AREA',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'UNIT_RND_MKT_VAL_INFLT_RATE',
+                'NEXT_RND_MKT_VAL_INFLT_RATE',
+                'HOS_UNIT_INTL_MKT_VAL_AMT',
+                'HOS_UNIT_GSH_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_HOS_UNIT_STS write completed")
         

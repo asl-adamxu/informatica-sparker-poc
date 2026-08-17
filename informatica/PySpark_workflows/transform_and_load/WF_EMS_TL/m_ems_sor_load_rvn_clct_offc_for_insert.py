@@ -64,61 +64,132 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_RVN_CLCT_OFFC")
         # Source Qualifier: apply_SQ_SSA_EMS_RVN_CLCT_OFFC
         df_SQ_SSA_EMS_RVN_CLCT_OFFC = df_SSA_EMS_RVC_RVN_CLCT_OFFC
-        df_SQ_SSA_EMS_RVN_CLCT_OFFC = df_SQ_SSA_EMS_RVN_CLCT_OFFC.filter(expr("OPR_IND = 'B' OR OPR_IND = 'A'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["CLCT_OFFC_KEY", "RVN_CLCT_OFFC_KEY", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "AGMT_IND", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_RVN_CLCT_OFFC = df_SQ_SSA_EMS_RVN_CLCT_OFFC.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_RVN_CLCT_OFFC.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_RVN_CLCT_OFFC = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_RVN_CLCT_OFFC,
+            port_cols={
+                'CLCT_OFFC_KEY': 'decimal',
+                'RVN_CLCT_OFFC_KEY': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'AGMT_IND': 'string',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'A'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_RVN_CLCT_OFFC", df_SQ_SSA_EMS_RVN_CLCT_OFFC)
         
         logger.info("Step: apply_SQ_SSA_EMS_RVN_CLCT_OFFC_STS")
         # Source Qualifier: apply_SQ_SSA_EMS_RVN_CLCT_OFFC_STS
         df_SQ_SSA_EMS_RVN_CLCT_OFFC_STS = df_SSA_EMS_RVC_RVN_CLCT_OFFC_STS
-        df_SQ_SSA_EMS_RVN_CLCT_OFFC_STS = df_SQ_SSA_EMS_RVN_CLCT_OFFC_STS.filter(expr("OPR_IND = 'B' OR OPR_IND = 'EB' OR OPR_IND = 'DA'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["CLCT_OFFC_KEY", "CLCT_OFCR_IN_CHRG_ENG_NAME", "CLCT_OFFC_PHONE_NUM", "HAFIS_ACCT_CODE", "CLCT_OFFC_COST_CTR_CODE", "BNK_LVL_AMT", "GUD_CMPY_KEY", "RCU_TEAM_NUM", "DLY_CASH_RFND_LMT_AMT", "PAPRV_CASH_RFND_LMT_AMT", "DLY_RVN_TXN_SEQ_NUM", "DLY_RVN_TXN_ADJ_SEQ_NUM", "RVN_CLCT_OFFC_ENG_NAME", "RVN_CLCT_OFFC_CHI_NAME", "DLY_CASH_RFND_LMT_BGN_DATE", "DLY_CASH_RFND_LMT_END_DATE", "DLY_CASH_RFND_LMT_RQS_USER_ID", "RVN_CLCT_OFFC_ADDR", "DLY_CASH_RFND_LMT_STS_CODE", "DLY_CASH_RFND_LMT_BAL_AMT", "CLCT_OFFC_BSNS_ACTV_CODE", "ADTN_CASH_RFND_LMT_BAL_AMT", "RVN_CLCT_OFFC_CHI_ADDR_1", "RVN_CLCT_OFFC_CHI_ADDR_2", "RVN_CLCT_OFFC_CHI_ADDR_3", "RVN_CLCT_OFFC_CHI_ADDR_4", "RVN_CLCT_OFFC_CHI_ADDR_5", "LAST_REC_TXN_USER_ID", "RVN_CLCT_OFFC_ENG_ADDR_1", "RVN_CLCT_OFFC_ENG_ADDR_2", "RVN_CLCT_OFFC_ENG_ADDR_3", "RVN_CLCT_OFFC_ENG_ADDR_4", "DLY_RCPT_SEQ_NUM", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "OPR_IND", "SOR_DATE", "BEGIN_DATE", "END_DATE", "CLCT_OFFC_COST_CTR_KEY"]
-        df_SQ_SSA_EMS_RVN_CLCT_OFFC_STS = df_SQ_SSA_EMS_RVN_CLCT_OFFC_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_RVN_CLCT_OFFC_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_RVN_CLCT_OFFC_STS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_RVN_CLCT_OFFC_STS,
+            port_cols={
+                'CLCT_OFFC_KEY': 'decimal',
+                'CLCT_OFCR_IN_CHRG_ENG_NAME': 'string',
+                'CLCT_OFFC_PHONE_NUM': 'string',
+                'HAFIS_ACCT_CODE': 'string',
+                'CLCT_OFFC_COST_CTR_CODE': 'string',
+                'BNK_LVL_AMT': 'decimal',
+                'GUD_CMPY_KEY': 'string',
+                'RCU_TEAM_NUM': 'string',
+                'DLY_CASH_RFND_LMT_AMT': 'decimal',
+                'PAPRV_CASH_RFND_LMT_AMT': 'decimal',
+                'DLY_RVN_TXN_SEQ_NUM': 'decimal',
+                'DLY_RVN_TXN_ADJ_SEQ_NUM': 'decimal',
+                'RVN_CLCT_OFFC_ENG_NAME': 'string',
+                'RVN_CLCT_OFFC_CHI_NAME': 'string',
+                'DLY_CASH_RFND_LMT_BGN_DATE': 'date/time',
+                'DLY_CASH_RFND_LMT_END_DATE': 'date/time',
+                'DLY_CASH_RFND_LMT_RQS_USER_ID': 'string',
+                'RVN_CLCT_OFFC_ADDR': 'string',
+                'DLY_CASH_RFND_LMT_STS_CODE': 'string',
+                'DLY_CASH_RFND_LMT_BAL_AMT': 'decimal',
+                'CLCT_OFFC_BSNS_ACTV_CODE': 'string',
+                'ADTN_CASH_RFND_LMT_BAL_AMT': 'decimal',
+                'RVN_CLCT_OFFC_CHI_ADDR_1': 'string',
+                'RVN_CLCT_OFFC_CHI_ADDR_2': 'string',
+                'RVN_CLCT_OFFC_CHI_ADDR_3': 'string',
+                'RVN_CLCT_OFFC_CHI_ADDR_4': 'string',
+                'RVN_CLCT_OFFC_CHI_ADDR_5': 'string',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'RVN_CLCT_OFFC_ENG_ADDR_1': 'string',
+                'RVN_CLCT_OFFC_ENG_ADDR_2': 'string',
+                'RVN_CLCT_OFFC_ENG_ADDR_3': 'string',
+                'RVN_CLCT_OFFC_ENG_ADDR_4': 'string',
+                'DLY_RCPT_SEQ_NUM': 'decimal',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+                'BEGIN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'CLCT_OFFC_COST_CTR_KEY': 'decimal',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'EB' OR OPR_IND = 'DA'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_RVN_CLCT_OFFC_STS", df_SQ_SSA_EMS_RVN_CLCT_OFFC_STS)
         
         logger.info("Step: write_SOR_EMS_RVN_CLCT_OFFC")
         # Write to Target: write_SOR_EMS_RVN_CLCT_OFFC
-        df_write = df_SQ_SSA_EMS_RVN_CLCT_OFFC
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['CLCT_OFFC_KEY', 'RVN_CLCT_OFFC_KEY', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'AGMT_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_RVC_RVN_CLCT_OFFC", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_RVN_CLCT_OFFC,
+            conn=conn_target,
+            table='SOR_EMS_RVC_RVN_CLCT_OFFC',
+            mode='append',
+            source_columns=[
+                'CLCT_OFFC_KEY',
+                'RVN_CLCT_OFFC_KEY',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'AGMT_IND',
+            ],
+            target_columns=[
+                'CLCT_OFFC_KEY',
+                'RVN_CLCT_OFFC_KEY',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'AGMT_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_RVN_CLCT_OFFC write completed")
         logger.info("Step: apply_EXP_SOR_LOAD_DATE")
         # Expression: apply_EXP_SOR_LOAD_DATE
-        df_EXP_SOR_LOAD_DATE = df_SQ_SSA_EMS_RVN_CLCT_OFFC_STS
-        df_EXP_SOR_LOAD_DATE = df_EXP_SOR_LOAD_DATE.withColumn("OUT_END_DATE", expr("CASE WHEN OPR_IND = 'EB' THEN CASE WHEN LAST_REC_TXN_TYPE_CODE IS NULL THEN to_date('99991231','yyyyMMdd') ELSE END_DATE END ELSE END_DATE END"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_SOR_LOAD_DATE = lib.expression(
+            input_df=df_SQ_SSA_EMS_RVN_CLCT_OFFC_STS,
+            computed_columns=[
+                {'name': 'OUT_END_DATE', 'expr': "CASE WHEN OPR_IND = 'EB' THEN CASE WHEN LAST_REC_TXN_TYPE_CODE IS NULL THEN to_date('99991231','yyyyMMdd') ELSE END_DATE END ELSE END_DATE END"}
+            ],
+        )
         ctx.register_df("df_EXP_SOR_LOAD_DATE", df_EXP_SOR_LOAD_DATE)
         
         logger.info("Step: write_SOR_EMS_RVN_CLCT_OFFC_STS")
         # Write to Target: write_SOR_EMS_RVN_CLCT_OFFC_STS
-        df_write = df_EXP_SOR_LOAD_DATE
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BANK_LVL_AMT": "BNK_LVL_AMT", "BGN_DATE": "BEGIN_DATE", "END_DATE": "OUT_END_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("RVN_CLCT_OFFC_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("AGMT_IND", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['CLCT_OFFC_KEY', 'RVN_CLCT_OFFC_KEY', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'AGMT_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_RVC_RVN_CLCT_OFFC", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_SOR_LOAD_DATE,
+            conn=conn_target,
+            table='SOR_EMS_RVC_RVN_CLCT_OFFC',
+            mode='append',
+            source_columns=[
+                'CLCT_OFFC_KEY',
+                None,
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                None,
+            ],
+            target_columns=[
+                'CLCT_OFFC_KEY',
+                'RVN_CLCT_OFFC_KEY',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'AGMT_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_RVN_CLCT_OFFC_STS write completed")
         

@@ -64,75 +64,148 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_NHS_HOS_APLY_MBR_STS")
         # Source Qualifier: apply_SQ_SSA_NHS_HOS_APLY_MBR_STS
         df_SQ_SSA_NHS_HOS_APLY_MBR_STS = df_SSA_NHS_HOS_APLY_MBR_STS
-        df_SQ_SSA_NHS_HOS_APLY_MBR_STS = df_SQ_SSA_NHS_HOS_APLY_MBR_STS.filter(expr("OPR_IND = 'E' OR OPR_IND = 'EB'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HOS_APLY_MBR_KEY", "BGN_DATE", "END_DATE", "FORM_COLR_CODE", "HOS_APLY_NUM", "APLY_MBR_ID_TYPE_CODE", "APLY_MBR_ID_NUM", "APLY_MBR_ID_CERT_NUM", "APLY_MBR_ENG_SRNM_NAME", "APLY_MBR_ENG_GIVE_NAME", "APLY_MBR_CHI_NAME", "APLY_MBR_GNDR_CODE", "APLY_MBR_DOB_TEXT", "APLY_MBR_RLTN_CODE", "APLY_MBR_RLTN_DESP", "APLY_MBR_MRTL_STS_CODE", "SPS_LAND_HK_RGHT_IND", "PRGNT_OVER_16_WEEK_IND", "MBR_OWNR_CODE", "APLY_MBR_HKIC_PRMNT_IND", "ROW_VER_NUM", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_NHS_HOS_APLY_MBR_STS = df_SQ_SSA_NHS_HOS_APLY_MBR_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_NHS_HOS_APLY_MBR_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_NHS_HOS_APLY_MBR_STS = lib.sq_output(
+            input_df=df_SQ_SSA_NHS_HOS_APLY_MBR_STS,
+            port_cols={
+                'HOS_APLY_MBR_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'FORM_COLR_CODE': 'string',
+                'HOS_APLY_NUM': 'string',
+                'APLY_MBR_ID_TYPE_CODE': 'string',
+                'APLY_MBR_ID_NUM': 'string',
+                'APLY_MBR_ID_CERT_NUM': 'string',
+                'APLY_MBR_ENG_SRNM_NAME': 'string',
+                'APLY_MBR_ENG_GIVE_NAME': 'string',
+                'APLY_MBR_CHI_NAME': 'string',
+                'APLY_MBR_GNDR_CODE': 'string',
+                'APLY_MBR_DOB_TEXT': 'string',
+                'APLY_MBR_RLTN_CODE': 'string',
+                'APLY_MBR_RLTN_DESP': 'string',
+                'APLY_MBR_MRTL_STS_CODE': 'string',
+                'SPS_LAND_HK_RGHT_IND': 'string',
+                'PRGNT_OVER_16_WEEK_IND': 'string',
+                'MBR_OWNR_CODE': 'string',
+                'APLY_MBR_HKIC_PRMNT_IND': 'string',
+                'ROW_VER_NUM': 'decimal',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E' OR OPR_IND = 'EB'",
+        )
         ctx.register_df("df_SQ_SSA_NHS_HOS_APLY_MBR_STS", df_SQ_SSA_NHS_HOS_APLY_MBR_STS)
         
         logger.info("Step: apply_SQ_SSA_NHS_HOS_APLY_MBR")
         # Source Qualifier: apply_SQ_SSA_NHS_HOS_APLY_MBR
         df_SQ_SSA_NHS_HOS_APLY_MBR = df_SSA_NHS_HOS_APLY_MBR
-        df_SQ_SSA_NHS_HOS_APLY_MBR = df_SQ_SSA_NHS_HOS_APLY_MBR.filter(expr("OPR_IND = 'E'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HOS_APLY_MBR_KEY", "HOS_APLY_KEY", "NHS_APLY_MBR_SEQ_NUM", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_NHS_HOS_APLY_MBR = df_SQ_SSA_NHS_HOS_APLY_MBR.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_NHS_HOS_APLY_MBR.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_NHS_HOS_APLY_MBR = lib.sq_output(
+            input_df=df_SQ_SSA_NHS_HOS_APLY_MBR,
+            port_cols={
+                'HOS_APLY_MBR_KEY': 'decimal',
+                'HOS_APLY_KEY': 'decimal',
+                'NHS_APLY_MBR_SEQ_NUM': 'decimal',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E'",
+        )
         ctx.register_df("df_SQ_SSA_NHS_HOS_APLY_MBR", df_SQ_SSA_NHS_HOS_APLY_MBR)
         
         logger.info("Step: write_SOR_NHS_HOS_APLY_MBR_STS")
         # Write to Target: write_SOR_NHS_HOS_APLY_MBR_STS
-        df_write = df_SQ_SSA_NHS_HOS_APLY_MBR_STS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BGN_DATE": "SOR_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("FORM_COLR_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_APLY_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_MBR_ID_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_MBR_ID_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_MBR_ID_CERT_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_MBR_ENG_SRNM_NAME", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_MBR_ENG_GIVE_NAME", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_MBR_CHI_NAME", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_MBR_GNDR_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_MBR_DOB_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_MBR_RLTN_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_MBR_RLTN_DESP", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_MBR_MRTL_STS_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("SPS_LAND_HK_RGHT_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PRGNT_OVER_16_WEEK_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("MBR_OWNR_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_MBR_HKIC_PRMNT_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ROW_VER_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EFAS_DBL_BNFT_IND", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HOS_APLY_MBR_KEY', 'BGN_DATE', 'END_DATE', 'FORM_COLR_CODE', 'HOS_APLY_NUM', 'APLY_MBR_ID_TYPE_CODE', 'APLY_MBR_ID_NUM', 'APLY_MBR_ID_CERT_NUM', 'APLY_MBR_ENG_SRNM_NAME', 'APLY_MBR_ENG_GIVE_NAME', 'APLY_MBR_CHI_NAME', 'APLY_MBR_GNDR_CODE', 'APLY_MBR_DOB_TEXT', 'APLY_MBR_RLTN_CODE', 'APLY_MBR_RLTN_DESP', 'APLY_MBR_MRTL_STS_CODE', 'SPS_LAND_HK_RGHT_IND', 'PRGNT_OVER_16_WEEK_IND', 'MBR_OWNR_CODE', 'APLY_MBR_HKIC_PRMNT_IND', 'ROW_VER_NUM', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'EFAS_DBL_BNFT_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_NHS_HOS_APLY_MBR_STS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_NHS_HOS_APLY_MBR_STS,
+            conn=conn_target,
+            table='SOR_NHS_HOS_APLY_MBR_STS',
+            mode='append',
+            source_columns=[
+                'HOS_APLY_MBR_KEY',
+                'SOR_DATE',
+                'END_DATE',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                'LAST_REC_TXN_DATE',
+                None,
+            ],
+            target_columns=[
+                'HOS_APLY_MBR_KEY',
+                'BGN_DATE',
+                'END_DATE',
+                'FORM_COLR_CODE',
+                'HOS_APLY_NUM',
+                'APLY_MBR_ID_TYPE_CODE',
+                'APLY_MBR_ID_NUM',
+                'APLY_MBR_ID_CERT_NUM',
+                'APLY_MBR_ENG_SRNM_NAME',
+                'APLY_MBR_ENG_GIVE_NAME',
+                'APLY_MBR_CHI_NAME',
+                'APLY_MBR_GNDR_CODE',
+                'APLY_MBR_DOB_TEXT',
+                'APLY_MBR_RLTN_CODE',
+                'APLY_MBR_RLTN_DESP',
+                'APLY_MBR_MRTL_STS_CODE',
+                'SPS_LAND_HK_RGHT_IND',
+                'PRGNT_OVER_16_WEEK_IND',
+                'MBR_OWNR_CODE',
+                'APLY_MBR_HKIC_PRMNT_IND',
+                'ROW_VER_NUM',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'EFAS_DBL_BNFT_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_NHS_HOS_APLY_MBR_STS write completed")
         logger.info("Step: write_SOR_NHS_HOS_APLY_MBR")
         # Write to Target: write_SOR_NHS_HOS_APLY_MBR
-        df_write = df_SQ_SSA_NHS_HOS_APLY_MBR
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("HOS_APLY_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("NHS_APLY_MBR_SEQ_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HOS_APLY_MBR_KEY', 'HOS_APLY_KEY', 'NHS_APLY_MBR_SEQ_NUM', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_NHS_HOS_APLY_MBR", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_NHS_HOS_APLY_MBR,
+            conn=conn_target,
+            table='SOR_NHS_HOS_APLY_MBR',
+            mode='append',
+            source_columns=[
+                'HOS_APLY_MBR_KEY',
+                None,
+                None,
+                'AGMT_IND',
+                None,
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'HOS_APLY_MBR_KEY',
+                'HOS_APLY_KEY',
+                'NHS_APLY_MBR_SEQ_NUM',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_NHS_HOS_APLY_MBR write completed")
         

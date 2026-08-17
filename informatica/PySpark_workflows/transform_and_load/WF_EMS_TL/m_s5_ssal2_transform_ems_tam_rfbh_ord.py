@@ -48,25 +48,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_snsh_date = ""
     v_init_flag = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_snsh_date",  "$$v_init_flag", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_snsh_date":
-                            v_snsh_date = _val
-                        if _clean == "v_init_flag":
-                            v_init_flag = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_snsh_date",  "$$v_init_flag", ], logger)
+    v_snsh_date = _vars.get("v_snsh_date", v_snsh_date)
+    v_init_flag = _vars.get("v_init_flag", v_init_flag)
     
     try:
         logger.info("Step: read_EMS_TAM_RFBH_ORD")
@@ -78,23 +63,37 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_EMS_TAM_RFBH_ORD")
         # Source Qualifier: apply_SQ_EMS_TAM_RFBH_ORD
         df_SQ_EMS_TAM_RFBH_ORD = df_EMS_TAM_RFBH_ORD
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HSE_UNIT_KEY", "RFBH_ORD_TYPE_CODE", "RFBH_CODE", "RFBH_REF_DATE", "RFBH_REF_STS_CODE", "RFBH_EXPCT_CMPLT_DATE", "RFBH_ACTL_CMPLT_DATE", "RFBH_ALWN_AMT", "RFBH_WO_ISS_DATE", "RFBH_HOVR_DATE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID"]
-        df_SQ_EMS_TAM_RFBH_ORD = df_SQ_EMS_TAM_RFBH_ORD.select([col(c) if c.lower() in [x.lower() for x in df_SQ_EMS_TAM_RFBH_ORD.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_EMS_TAM_RFBH_ORD = lib.sq_output(
+            input_df=df_SQ_EMS_TAM_RFBH_ORD,
+            port_cols={
+                'HSE_UNIT_KEY': 'string',
+                'RFBH_ORD_TYPE_CODE': 'string',
+                'RFBH_CODE': 'string',
+                'RFBH_REF_DATE': 'date/time',
+                'RFBH_REF_STS_CODE': 'string',
+                'RFBH_EXPCT_CMPLT_DATE': 'date/time',
+                'RFBH_ACTL_CMPLT_DATE': 'date/time',
+                'RFBH_ALWN_AMT': 'decimal',
+                'RFBH_WO_ISS_DATE': 'date/time',
+                'RFBH_HOVR_DATE': 'date/time',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_USER_ID': 'string',
+            },
+        )
         ctx.register_df("df_SQ_EMS_TAM_RFBH_ORD", df_SQ_EMS_TAM_RFBH_ORD)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_EMS_TAM_RFBH_ORD
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY_DATE", expr("NULL"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_UNIT_KEY_V", expr("CASE WHEN (HSE_UNIT_KEY IS NULL) THEN ' ' ELSE HSE_UNIT_KEY END"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RFBH_ORD_TYPE_CODE_V", expr("CASE WHEN (RFBH_ORD_TYPE_CODE IS NULL) THEN ' ' ELSE RFBH_ORD_TYPE_CODE END"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("RFBH_ORD_BK", expr("rpad(HSE_UNIT_KEY_V,9,' ') || rpad(RFBH_ORD_TYPE_CODE_V,1,' ')"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["HSE_UNIT_KEY", "RFBH_ORD_TYPE_CODE", "RFBH_CODE", "RFBH_REF_DATE", "RFBH_REF_STS_CODE", "RFBH_EXPCT_CMPLT_DATE", "RFBH_ACTL_CMPLT_DATE", "RFBH_ALWN_AMT", "RFBH_WO_ISS_DATE", "RFBH_HOVR_DATE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_EMS_TAM_RFBH_ORD,
+            computed_columns=[
+                {'name': 'DUMMY_DATE', 'expr': 'NULL'},
+                {'name': 'HSE_UNIT_KEY_V', 'expr': "CASE WHEN (HSE_UNIT_KEY IS NULL) THEN ' ' ELSE HSE_UNIT_KEY END"},
+                {'name': 'RFBH_ORD_TYPE_CODE_V', 'expr': "CASE WHEN (RFBH_ORD_TYPE_CODE IS NULL) THEN ' ' ELSE RFBH_ORD_TYPE_CODE END"},
+                {'name': 'RFBH_ORD_BK', 'expr': "rpad(HSE_UNIT_KEY_V,9,' ') || rpad(RFBH_ORD_TYPE_CODE_V,1,' ')"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         

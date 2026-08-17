@@ -48,23 +48,9 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
     conn_target = lib.get_db_config(config, "SOR")
 
     EMM_MRRS_RENT_CUTOFF = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$EMM_MRRS_RENT_CUTOFF", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "EMM_MRRS_RENT_CUTOFF":
-                            EMM_MRRS_RENT_CUTOFF = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$EMM_MRRS_RENT_CUTOFF", ], logger)
+    EMM_MRRS_RENT_CUTOFF = _vars.get("EMM_MRRS_RENT_CUTOFF", EMM_MRRS_RENT_CUTOFF)
     
     try:
         logger.info("Step: read_SSA_EMS_MRRS_EXTNT_OSTD_DEBT")
@@ -76,10 +62,33 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_MRRS_EXTNT_OSTD_DEBT")
         # Source Qualifier: apply_SQ_SSA_EMS_MRRS_EXTNT_OSTD_DEBT
         df_SQ_SSA_EMS_MRRS_EXTNT_OSTD_DEBT = df_SSA_EMS_MRRS_EXTNT_OSTD_DEBT
-        df_SQ_SSA_EMS_MRRS_EXTNT_OSTD_DEBT = df_SQ_SSA_EMS_MRRS_EXTNT_OSTD_DEBT.filter(expr("OPR_IND = 'B' OR OPR_IND = 'A'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["EXTNT_OSTD_DEBT_KEY", "EXTNT_OSTD_DEBT_BK", "CUST_KEY", "HSE_SRVC_APLY_KEY", "HSE_UNIT_KEY", "SYS_RPT_YEAR", "SYS_RPT_MTH", "HSE_UNIT_CODE_ADDR", "CUST_MTH_RENT_AMT", "FRST_EXTNT_OSTD_DEBT_AMT", "SCND_EXTNT_OSTD_DEBT_AMT", "THRD_EXTNT_OSTD_DEBT_AMT", "EXTNT_OSTD_DEBT_STL_AMT", "EXTNT_OSTD_DEBT_STL_DATE", "AUCT_STL_AMT", "HSE_UNIT_VOID_BGN_DATE", "EXTNT_OSTD_DEBT_RMK_TEXT", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "FRTH_EXTNT_OSTD_DEBT_AMT", "OPR_IND"]
-        df_SQ_SSA_EMS_MRRS_EXTNT_OSTD_DEBT = df_SQ_SSA_EMS_MRRS_EXTNT_OSTD_DEBT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_MRRS_EXTNT_OSTD_DEBT.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_MRRS_EXTNT_OSTD_DEBT = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_MRRS_EXTNT_OSTD_DEBT,
+            port_cols={
+                'EXTNT_OSTD_DEBT_KEY': 'decimal',
+                'EXTNT_OSTD_DEBT_BK': 'string',
+                'CUST_KEY': 'string',
+                'HSE_SRVC_APLY_KEY': 'string',
+                'HSE_UNIT_KEY': 'string',
+                'SYS_RPT_YEAR': 'decimal',
+                'SYS_RPT_MTH': 'decimal',
+                'HSE_UNIT_CODE_ADDR': 'string',
+                'CUST_MTH_RENT_AMT': 'decimal',
+                'FRST_EXTNT_OSTD_DEBT_AMT': 'decimal',
+                'SCND_EXTNT_OSTD_DEBT_AMT': 'decimal',
+                'THRD_EXTNT_OSTD_DEBT_AMT': 'decimal',
+                'EXTNT_OSTD_DEBT_STL_AMT': 'decimal',
+                'EXTNT_OSTD_DEBT_STL_DATE': 'date/time',
+                'AUCT_STL_AMT': 'decimal',
+                'HSE_UNIT_VOID_BGN_DATE': 'date/time',
+                'EXTNT_OSTD_DEBT_RMK_TEXT': 'decimal',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'FRTH_EXTNT_OSTD_DEBT_AMT': 'decimal',
+                'OPR_IND': 'string',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'A'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_MRRS_EXTNT_OSTD_DEBT", df_SQ_SSA_EMS_MRRS_EXTNT_OSTD_DEBT)
         
         logger.info("Step: apply_EMM_MRRS_RENT_CUTOFF")
@@ -92,66 +101,140 @@ WHERE (SYS_RPT_YEAR=TO_NUMBER(SUBSTR('$$EMM_MRRS_RENT_CUTOFF',1,4)) AND SYS_RPT_
 OR SYS_RPT_YEAR>TO_NUMBER(SUBSTR('$$EMM_MRRS_RENT_CUTOFF',1,4))"""
         query = query.replace("$$EMM_MRRS_RENT_CUTOFF", EMM_MRRS_RENT_CUTOFF)
         df_EMM_MRRS_RENT_CUTOFF = lib.read_sql(spark, _conn, query=query)
-        # Rename SQL result columns to SQ output ports 
-        # name match first, then positional fallback (handles unaliased expressions)
-        _sql_cols = df_EMM_MRRS_RENT_CUTOFF.columns
-        _port_cols = ["SYS_RPT_YEAR", "SYS_RPT_MTH"]
-        _rename_map = {}
-        _used_ports = set()
-        # 1) Name-based match first (case-insensitive)
-        for _sc in _sql_cols:
-            for _pi, _port in enumerate(_port_cols):
-                if _pi not in _used_ports and _sc.lower() == _port.lower():
-                    _rename_map[_sc] = _port
-                    _used_ports.add(_pi)
-                    break
-        # 2) Positional fallback for remaining SQL columns (unaliased expressions)
-        _pi = 0
-        for _sc in _sql_cols:
-            if _sc in _rename_map:
-                continue
-            while _pi in _used_ports:
-                _pi += 1
-            if _pi < len(_port_cols):
-                _rename_map[_sc] = _port_cols[_pi]
-                _used_ports.add(_pi)
-                _pi += 1
-        df_EMM_MRRS_RENT_CUTOFF = df_EMM_MRRS_RENT_CUTOFF.select(*[col(f"`{old}`").alias(new) for old, new in _rename_map.items()])
-        # Select only SQ output ports (matches Informatica behavior)
-        # ports the SQL didn't return become lit(None) so downstream references never fail
-        df_EMM_MRRS_RENT_CUTOFF = df_EMM_MRRS_RENT_CUTOFF.select([col(c) if c.lower() in [x.lower() for x in df_EMM_MRRS_RENT_CUTOFF.columns] else lit(None).alias(c) for c in _port_cols])
-        
+        df_EMM_MRRS_RENT_CUTOFF = lib.sq_output(
+            input_df=df_EMM_MRRS_RENT_CUTOFF,
+            port_cols={
+                'SYS_RPT_YEAR': 'decimal',
+                'SYS_RPT_MTH': 'decimal',
+            },
+        )
         ctx.register_df("df_EMM_MRRS_RENT_CUTOFF", df_EMM_MRRS_RENT_CUTOFF)
         
         logger.info("Step: write_SOR_EMS_MRRS_EXTNT_OSTD_DEBT")
         # Write to Target: write_SOR_EMS_MRRS_EXTNT_OSTD_DEBT
-        df_write = df_SQ_SSA_EMS_MRRS_EXTNT_OSTD_DEBT
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("TNCY_AGRMT_KEY", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['EXTNT_OSTD_DEBT_KEY', 'EXTNT_OSTD_DEBT_BK', 'TNCY_AGRMT_KEY', 'CUST_KEY', 'HSE_SRVC_APLY_KEY', 'HSE_UNIT_KEY', 'SYS_RPT_YEAR', 'SYS_RPT_MTH', 'HSE_UNIT_CODE_ADDR', 'CUST_MTH_RENT_AMT', 'FRST_EXTNT_OSTD_DEBT_AMT', 'SCND_EXTNT_OSTD_DEBT_AMT', 'THRD_EXTNT_OSTD_DEBT_AMT', 'EXTNT_OSTD_DEBT_STL_AMT', 'EXTNT_OSTD_DEBT_STL_DATE', 'AUCT_STL_AMT', 'HSE_UNIT_VOID_BGN_DATE', 'EXTNT_OSTD_DEBT_RMK_TEXT', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'FRTH_EXTNT_OSTD_DEBT_AMT']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_MRRS_EXTNT_OSTD_DEBT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_MRRS_EXTNT_OSTD_DEBT,
+            conn=conn_target,
+            table='SOR_EMS_MRRS_EXTNT_OSTD_DEBT',
+            mode='append',
+            source_columns=[
+                'EXTNT_OSTD_DEBT_KEY',
+                'EXTNT_OSTD_DEBT_BK',
+                None,
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'HSE_UNIT_KEY',
+                'SYS_RPT_YEAR',
+                'SYS_RPT_MTH',
+                'HSE_UNIT_CODE_ADDR',
+                'CUST_MTH_RENT_AMT',
+                'FRST_EXTNT_OSTD_DEBT_AMT',
+                'SCND_EXTNT_OSTD_DEBT_AMT',
+                'THRD_EXTNT_OSTD_DEBT_AMT',
+                'EXTNT_OSTD_DEBT_STL_AMT',
+                'EXTNT_OSTD_DEBT_STL_DATE',
+                'AUCT_STL_AMT',
+                'HSE_UNIT_VOID_BGN_DATE',
+                'EXTNT_OSTD_DEBT_RMK_TEXT',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'FRTH_EXTNT_OSTD_DEBT_AMT',
+            ],
+            target_columns=[
+                'EXTNT_OSTD_DEBT_KEY',
+                'EXTNT_OSTD_DEBT_BK',
+                'TNCY_AGRMT_KEY',
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'HSE_UNIT_KEY',
+                'SYS_RPT_YEAR',
+                'SYS_RPT_MTH',
+                'HSE_UNIT_CODE_ADDR',
+                'CUST_MTH_RENT_AMT',
+                'FRST_EXTNT_OSTD_DEBT_AMT',
+                'SCND_EXTNT_OSTD_DEBT_AMT',
+                'THRD_EXTNT_OSTD_DEBT_AMT',
+                'EXTNT_OSTD_DEBT_STL_AMT',
+                'EXTNT_OSTD_DEBT_STL_DATE',
+                'AUCT_STL_AMT',
+                'HSE_UNIT_VOID_BGN_DATE',
+                'EXTNT_OSTD_DEBT_RMK_TEXT',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'FRTH_EXTNT_OSTD_DEBT_AMT',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_MRRS_EXTNT_OSTD_DEBT write completed")
         logger.info("Step: apply_UPDTRANS")
         # Update Strategy: apply_UPDTRANS
         # Strategy: DD_DELETE
-        # Static DD_DELETE — pass through; the target write
-        # step applies the strategy directly (append / batch_update / batch_delete).
-        df_UPDTRANS = df_EMM_MRRS_RENT_CUTOFF
+        df_UPDTRANS = lib.update_strategy(
+            input_df=df_EMM_MRRS_RENT_CUTOFF,
+        )
         ctx.register_df("df_UPDTRANS", df_UPDTRANS)
         
         logger.info("Step: write_SOR_EMS_MRRS_EXTNT_OSTD_DEBT2")
         # Write to Target: write_SOR_EMS_MRRS_EXTNT_OSTD_DEBT2
-        df_write = df_UPDTRANS
-        # Static DD_DELETE: composite primary-key delete of all rows
-        _del_key_cols = ['EXTNT_OSTD_DEBT_KEY', 'SYS_RPT_YEAR', 'SYS_RPT_MTH']
-        if not df_write.rdd.isEmpty():
-            _del_rows = [tuple(r[c] for c in _del_key_cols) for r in df_write.select(*_del_key_cols).distinct().collect()]
-            if _del_rows:
-                lib.batch_delete_composite(spark, conn_target, "SOR_EMS_MRRS_EXTNT_OSTD_DEBT", _del_key_cols, _del_rows, 1000)
+        lib.write_target(
+            spark=spark,
+            df=df_UPDTRANS,
+            conn=conn_target,
+            table='SOR_EMS_MRRS_EXTNT_OSTD_DEBT',
+            mode='append',
+            source_columns=[
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                'SYS_RPT_YEAR',
+                'SYS_RPT_MTH',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ],
+            target_columns=[
+                'EXTNT_OSTD_DEBT_KEY',
+                'EXTNT_OSTD_DEBT_BK',
+                'TNCY_AGRMT_KEY',
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'HSE_UNIT_KEY',
+                'SYS_RPT_YEAR',
+                'SYS_RPT_MTH',
+                'HSE_UNIT_CODE_ADDR',
+                'CUST_MTH_RENT_AMT',
+                'FRST_EXTNT_OSTD_DEBT_AMT',
+                'SCND_EXTNT_OSTD_DEBT_AMT',
+                'THRD_EXTNT_OSTD_DEBT_AMT',
+                'EXTNT_OSTD_DEBT_STL_AMT',
+                'EXTNT_OSTD_DEBT_STL_DATE',
+                'AUCT_STL_AMT',
+                'HSE_UNIT_VOID_BGN_DATE',
+                'EXTNT_OSTD_DEBT_RMK_TEXT',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'FRTH_EXTNT_OSTD_DEBT_AMT',
+            ],
+            is_delete=True,
+            delete_keys=['EXTNT_OSTD_DEBT_KEY', 'SYS_RPT_YEAR', 'SYS_RPT_MTH'],
+            static_dd='DD_DELETE',
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_MRRS_EXTNT_OSTD_DEBT2 write completed")
         

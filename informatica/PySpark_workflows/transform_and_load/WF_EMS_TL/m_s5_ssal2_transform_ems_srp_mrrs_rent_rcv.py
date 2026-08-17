@@ -58,62 +58,112 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_EMS_SRP_MRRS_RENT_RCV")
         # Source Qualifier: apply_SQ_EMS_SRP_MRRS_RENT_RCV
         df_SQ_EMS_SRP_MRRS_RENT_RCV = df_EMS_SRP_MRRS_RENT_RCV
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["CUST_KEY", "HSE_SRVC_APLY_KEY", "HSE_UNIT_KEY", "SYS_RPT_YEAR", "SYS_RPT_MTH", "HSE_UNIT_TYPE_CODE", "ADTN_ROOM_IND", "TNT_RENT_CODE", "HSE_UNIT_GRS_RENT_AMT", "TNT_ADTN_RENT_AMT", "TNT_RDC_RENT_AMT", "TNT_MKT_RENT_AMT", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "HSE_UNIT_CODE_ADDR"]
-        df_SQ_EMS_SRP_MRRS_RENT_RCV = df_SQ_EMS_SRP_MRRS_RENT_RCV.select([col(c) if c.lower() in [x.lower() for x in df_SQ_EMS_SRP_MRRS_RENT_RCV.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_EMS_SRP_MRRS_RENT_RCV = lib.sq_output(
+            input_df=df_SQ_EMS_SRP_MRRS_RENT_RCV,
+            port_cols={
+                'CUST_KEY': 'string',
+                'HSE_SRVC_APLY_KEY': 'string',
+                'HSE_UNIT_KEY': 'string',
+                'SYS_RPT_YEAR': 'decimal',
+                'SYS_RPT_MTH': 'decimal',
+                'HSE_UNIT_TYPE_CODE': 'string',
+                'ADTN_ROOM_IND': 'string',
+                'TNT_RENT_CODE': 'string',
+                'HSE_UNIT_GRS_RENT_AMT': 'decimal',
+                'TNT_ADTN_RENT_AMT': 'decimal',
+                'TNT_RDC_RENT_AMT': 'decimal',
+                'TNT_MKT_RENT_AMT': 'decimal',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'HSE_UNIT_CODE_ADDR': 'string',
+            },
+        )
         ctx.register_df("df_SQ_EMS_SRP_MRRS_RENT_RCV", df_SQ_EMS_SRP_MRRS_RENT_RCV)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_EMS_SRP_MRRS_RENT_RCV
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_TYPE_CODE_OUT", expr("CASE WHEN LAST_REC_TXN_TYPE_CODE = 'D' THEN 'D' ELSE NULL END"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("LAST_REC_TXN_DATE", expr("current_timestamp()"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("OPR_IND", expr("'B'"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("CUST_KEY_V", expr("CASE WHEN (CUST_KEY IS NULL) THEN ' ' ELSE CUST_KEY END"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_SRVC_APLY_KEY_V", expr("CASE WHEN (HSE_SRVC_APLY_KEY IS NULL) THEN ' ' ELSE HSE_SRVC_APLY_KEY END"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("TNCY_AGRMT_BK", expr("rpad(CUST_KEY_V,9,' ') || rpad(HSE_SRVC_APLY_KEY_V,15,' ')"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["CUST_KEY", "HSE_SRVC_APLY_KEY", "HSE_UNIT_KEY", "SYS_RPT_YEAR", "SYS_RPT_MTH", "HSE_UNIT_TYPE_CODE", "ADTN_ROOM_IND", "TNT_RENT_CODE", "HSE_UNIT_GRS_RENT_AMT", "TNT_ADTN_RENT_AMT", "TNT_RDC_RENT_AMT", "TNT_MKT_RENT_AMT", "LAST_REC_TXN_USER_ID", "HSE_UNIT_CODE_ADDR"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_EMS_SRP_MRRS_RENT_RCV,
+            computed_columns=[
+                {'name': 'LAST_REC_TXN_TYPE_CODE_OUT', 'expr': "CASE WHEN LAST_REC_TXN_TYPE_CODE = 'D' THEN 'D' ELSE NULL END"},
+                {'name': 'LAST_REC_TXN_DATE', 'expr': 'current_timestamp()'},
+                {'name': 'OPR_IND', 'expr': "'B'"},
+                {'name': 'CUST_KEY_V', 'expr': "CASE WHEN (CUST_KEY IS NULL) THEN ' ' ELSE CUST_KEY END"},
+                {'name': 'HSE_SRVC_APLY_KEY_V', 'expr': "CASE WHEN (HSE_SRVC_APLY_KEY IS NULL) THEN ' ' ELSE HSE_SRVC_APLY_KEY END"},
+                {'name': 'TNCY_AGRMT_BK', 'expr': "rpad(CUST_KEY_V,9,' ') || rpad(HSE_SRVC_APLY_KEY_V,15,' ')"}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         logger.info("Step: apply_MPLT_TRANS_TIME_STAMP_EXPTRANS3")
         # Expression: apply_MPLT_TRANS_TIME_STAMP_EXPTRANS3
-        df_MPLT_TRANS_TIME_STAMP_EXPTRANS3 = df_EXPTRANS
-        df_MPLT_TRANS_TIME_STAMP_EXPTRANS3 = df_MPLT_TRANS_TIME_STAMP_EXPTRANS3.withColumn("LAST_REC_TXN_DATE1", expr("CASE WHEN NOT (LAST_REC_TXN_DATE IS NULL) THEN date_format(LAST_REC_TXN_DATE, 'dd-MMM-yy hh.mm.ss') || '.000000 ' || date_format(LAST_REC_TXN_DATE, 'a') ELSE null END"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_MPLT_TRANS_TIME_STAMP_EXPTRANS3 = lib.expression(
+            input_df=df_EXPTRANS,
+            computed_columns=[
+                {'name': 'LAST_REC_TXN_DATE1', 'expr': "CASE WHEN NOT (LAST_REC_TXN_DATE IS NULL) THEN date_format(LAST_REC_TXN_DATE, 'dd-MMM-yy hh.mm.ss') || '.000000 ' || date_format(LAST_REC_TXN_DATE, 'a') ELSE null END"}
+            ],
+        )
         ctx.register_df("df_MPLT_TRANS_TIME_STAMP_EXPTRANS3", df_MPLT_TRANS_TIME_STAMP_EXPTRANS3)
         
         logger.info("Step: apply_MPLT_TRANS_TIME_STAMP")
         # Expression: apply_MPLT_TRANS_TIME_STAMP
-        df_MPLT_TRANS_TIME_STAMP = df_MPLT_TRANS_TIME_STAMP_EXPTRANS3
+        df_MPLT_TRANS_TIME_STAMP = lib.expression(
+            input_df=df_MPLT_TRANS_TIME_STAMP_EXPTRANS3,
+            pass_through_cols=['LAST_REC_TXN_DATE1'],
+        )
         ctx.register_df("df_MPLT_TRANS_TIME_STAMP", df_MPLT_TRANS_TIME_STAMP)
         
         logger.info("Step: write_SSA_EMS_SRP_MRRS_RENT_RCV")
         # Write to Target: write_SSA_EMS_SRP_MRRS_RENT_RCV
-        df_write = df_MPLT_TRANS_TIME_STAMP
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"LAST_REC_TXN_DATE": "LAST_REC_TXN_DATE1", "LAST_REC_TXN_TYPE_CODE": "LAST_REC_TXN_TYPE_CODE_OUT", "UNIT_CODE_ADDR": "HSE_UNIT_CODE_ADDR", "UNIT_GRS_RENT_AMT": "HSE_UNIT_GRS_RENT_AMT", "UNIT_KEY": "HSE_UNIT_KEY", "UNIT_TYPE_CODE": "HSE_UNIT_TYPE_CODE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("TNCY_AGRMT_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("SOR_DATE", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['CUST_KEY', 'HSE_SRVC_APLY_KEY', 'TNCY_AGRMT_KEY', 'UNIT_KEY', 'SYS_RPT_YEAR', 'SYS_RPT_MTH', 'UNIT_TYPE_CODE', 'ADTN_ROOM_IND', 'TNT_RENT_CODE', 'UNIT_GRS_RENT_AMT', 'TNT_ADTN_RENT_AMT', 'TNT_RDC_RENT_AMT', 'TNT_MKT_RENT_AMT', 'UNIT_CODE_ADDR', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'OPR_IND', 'SOR_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SSA_EMS_SRP_MRRS_RENT_RCV", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_MPLT_TRANS_TIME_STAMP,
+            conn=conn_target,
+            table='SSA_EMS_SRP_MRRS_RENT_RCV',
+            mode='append',
+            source_columns=[
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                None,
+                'HSE_UNIT_KEY',
+                'SYS_RPT_YEAR',
+                'SYS_RPT_MTH',
+                'HSE_UNIT_TYPE_CODE',
+                'ADTN_ROOM_IND',
+                'TNT_RENT_CODE',
+                'HSE_UNIT_GRS_RENT_AMT',
+                'TNT_ADTN_RENT_AMT',
+                'TNT_RDC_RENT_AMT',
+                'TNT_MKT_RENT_AMT',
+                'HSE_UNIT_CODE_ADDR',
+                'LAST_REC_TXN_TYPE_CODE_OUT',
+                'LAST_REC_TXN_DATE1',
+                'OPR_IND',
+                None,
+            ],
+            target_columns=[
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'TNCY_AGRMT_KEY',
+                'UNIT_KEY',
+                'SYS_RPT_YEAR',
+                'SYS_RPT_MTH',
+                'UNIT_TYPE_CODE',
+                'ADTN_ROOM_IND',
+                'TNT_RENT_CODE',
+                'UNIT_GRS_RENT_AMT',
+                'TNT_ADTN_RENT_AMT',
+                'TNT_RDC_RENT_AMT',
+                'TNT_MKT_RENT_AMT',
+                'UNIT_CODE_ADDR',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'OPR_IND',
+                'SOR_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SSA_EMS_SRP_MRRS_RENT_RCV write completed")
         

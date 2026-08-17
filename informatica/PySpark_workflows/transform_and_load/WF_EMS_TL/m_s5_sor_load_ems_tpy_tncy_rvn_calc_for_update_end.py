@@ -64,60 +64,110 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_TPY_TNCY_RVN_CALC_STS")
         # Source Qualifier: apply_SQ_SSA_EMS_TPY_TNCY_RVN_CALC_STS
         df_SQ_SSA_EMS_TPY_TNCY_RVN_CALC_STS = df_SSA_EMS_TPY_TNCY_RVN_CALC_STS
-        df_SQ_SSA_EMS_TPY_TNCY_RVN_CALC_STS = df_SQ_SSA_EMS_TPY_TNCY_RVN_CALC_STS.filter(expr("OPR_IND = 'E' OR OPR_IND = 'EB'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["TNCY_RVN_CALC_KEY", "BGN_DATE", "END_DATE", "TNT_RENT_CODE", "UNIT_NET_RENT_AMT", "UNIT_NET_RATE_AMT", "RVN_CALC_FREQ_CODE", "NEXT_RVN_CALC_DATE", "ADV_RENT_AMT", "UNIT_MKT_RENT_AMT", "RFND_ADV_PYMT_AMT", "TNT_HDSP_IND_END_DATE", "TNT_HDSP_IND_APRV_DATE", "TNT_MTH_RENT_AMT", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_TPY_TNCY_RVN_CALC_STS = df_SQ_SSA_EMS_TPY_TNCY_RVN_CALC_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_TPY_TNCY_RVN_CALC_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_TPY_TNCY_RVN_CALC_STS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_TPY_TNCY_RVN_CALC_STS,
+            port_cols={
+                'TNCY_RVN_CALC_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'TNT_RENT_CODE': 'string',
+                'UNIT_NET_RENT_AMT': 'decimal',
+                'UNIT_NET_RATE_AMT': 'decimal',
+                'RVN_CALC_FREQ_CODE': 'string',
+                'NEXT_RVN_CALC_DATE': 'date/time',
+                'ADV_RENT_AMT': 'decimal',
+                'UNIT_MKT_RENT_AMT': 'decimal',
+                'RFND_ADV_PYMT_AMT': 'decimal',
+                'TNT_HDSP_IND_END_DATE': 'date/time',
+                'TNT_HDSP_IND_APRV_DATE': 'date/time',
+                'TNT_MTH_RENT_AMT': 'decimal',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E' OR OPR_IND = 'EB'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_TPY_TNCY_RVN_CALC_STS", df_SQ_SSA_EMS_TPY_TNCY_RVN_CALC_STS)
         
         logger.info("Step: apply_SQ_SSA_EMS_TPY_TNCY_RVN_CALC")
         # Source Qualifier: apply_SQ_SSA_EMS_TPY_TNCY_RVN_CALC
         df_SQ_SSA_EMS_TPY_TNCY_RVN_CALC = df_SSA_EMS_TPY_TNCY_RVN_CALC
-        df_SQ_SSA_EMS_TPY_TNCY_RVN_CALC = df_SQ_SSA_EMS_TPY_TNCY_RVN_CALC.filter(expr("OPR_IND = 'E'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["TNCY_RVN_CALC_KEY", "TNCY_RVN_CALC_BK", "CUST_KEY", "HSE_SRVC_APLY_KEY", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_TPY_TNCY_RVN_CALC = df_SQ_SSA_EMS_TPY_TNCY_RVN_CALC.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_TPY_TNCY_RVN_CALC.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_TPY_TNCY_RVN_CALC = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_TPY_TNCY_RVN_CALC,
+            port_cols={
+                'TNCY_RVN_CALC_KEY': 'decimal',
+                'TNCY_RVN_CALC_BK': 'string',
+                'CUST_KEY': 'string',
+                'HSE_SRVC_APLY_KEY': 'string',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_TPY_TNCY_RVN_CALC", df_SQ_SSA_EMS_TPY_TNCY_RVN_CALC)
         
         logger.info("Step: write_SOR_EMS_TPY_TNCY_RVN_CALC_STS")
         # Write to Target: write_SOR_EMS_TPY_TNCY_RVN_CALC_STS
-        df_write = df_SQ_SSA_EMS_TPY_TNCY_RVN_CALC_STS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BGN_DATE": "SOR_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("TNCY_RVN_CALC_BK", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_SRVC_APLY_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("AGMT_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['TNCY_RVN_CALC_KEY', 'TNCY_RVN_CALC_BK', 'CUST_KEY', 'HSE_SRVC_APLY_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_TPY_TNCY_RVN_CALC", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_TPY_TNCY_RVN_CALC_STS,
+            conn=conn_target,
+            table='SOR_EMS_TPY_TNCY_RVN_CALC',
+            mode='append',
+            source_columns=[
+                'TNCY_RVN_CALC_KEY',
+                None,
+                None,
+                None,
+                None,
+                None,
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'TNCY_RVN_CALC_KEY',
+                'TNCY_RVN_CALC_BK',
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_TPY_TNCY_RVN_CALC_STS write completed")
         logger.info("Step: write_SOR_EMS_TPY_TNCY_RVN_CALC")
         # Write to Target: write_SOR_EMS_TPY_TNCY_RVN_CALC
-        df_write = df_SQ_SSA_EMS_TPY_TNCY_RVN_CALC
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("TNCY_RVN_CALC_BK", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_SRVC_APLY_KEY", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['TNCY_RVN_CALC_KEY', 'TNCY_RVN_CALC_BK', 'CUST_KEY', 'HSE_SRVC_APLY_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_TPY_TNCY_RVN_CALC", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_TPY_TNCY_RVN_CALC,
+            conn=conn_target,
+            table='SOR_EMS_TPY_TNCY_RVN_CALC',
+            mode='append',
+            source_columns=[
+                'TNCY_RVN_CALC_KEY',
+                None,
+                None,
+                None,
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'TNCY_RVN_CALC_KEY',
+                'TNCY_RVN_CALC_BK',
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_TPY_TNCY_RVN_CALC write completed")
         

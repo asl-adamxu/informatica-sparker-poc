@@ -64,64 +64,137 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_WTP_DCLR_STS")
         # Source Qualifier: apply_SQ_SSA_EMS_WTP_DCLR_STS
         df_SQ_SSA_EMS_WTP_DCLR_STS = df_SSA_EMS_WTP_DCLR_STS
-        df_SQ_SSA_EMS_WTP_DCLR_STS = df_SQ_SSA_EMS_WTP_DCLR_STS.filter(expr("OPR_IND = 'B' OR OPR_IND = 'EB' OR OPR_IND = 'DA'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["WTP_DCLR_REC_KEY", "BGN_DATE", "END_DATE", "CUST_KEY", "HSE_SRVC_APLY_KEY", "UNIT_KEY", "WTP_CYCL_YEAR_MTH_KEY", "WTP_STS_CODE", "WTP_DCLR_FORM_RCV_IND", "WTP_REF_PHRM_IND", "WTP_OPT_NOT_DCLR_IND", "CMT_SBTYP_CODE", "WTP_DSBL_ALWN_RCPT_IND", "WTP_HK_DPO_IND", "WTP_HSHLD_INCM_OVER_IND", "WTP_HSHLD_AST_OVER_IND", "FMLY_SIZE_NUM", "HSHLD_INCM_AMT", "HSHLD_AST_AMT", "RENT_FCTR_CODE", "RENT_BGN_DATE", "RENT_END_DATE", "RENT_CHNG_RSN_CODE", "RENT_CHNG_RSN_TEXT", "WTP_RMK_TEXT", "INT37_PRN_DATE", "WTP25_PRN_DATE", "WTP26_PRN_DATE", "WTP28_PRN_DATE", "WTP29_PRN_DATE", "WTP30_PRN_DATE", "WTP31_PRN_DATE", "WTP32_PRN_DATE", "WTP33_PRN_DATE", "WTP34_PRN_DATE", "WTP35_PRN_DATE", "WTP36_PRN_DATE", "WTP37_PRN_DATE", "WTP38_PRN_DATE", "ORIG_HSE_SRVC_APLY_KEY", "WTP_EXTRC_DATE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_WTP_DCLR_STS = df_SQ_SSA_EMS_WTP_DCLR_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_WTP_DCLR_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_WTP_DCLR_STS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_WTP_DCLR_STS,
+            port_cols={
+                'WTP_DCLR_REC_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'CUST_KEY': 'decimal',
+                'HSE_SRVC_APLY_KEY': 'decimal',
+                'UNIT_KEY': 'decimal',
+                'WTP_CYCL_YEAR_MTH_KEY': 'decimal',
+                'WTP_STS_CODE': 'string',
+                'WTP_DCLR_FORM_RCV_IND': 'string',
+                'WTP_REF_PHRM_IND': 'string',
+                'WTP_OPT_NOT_DCLR_IND': 'string',
+                'CMT_SBTYP_CODE': 'string',
+                'WTP_DSBL_ALWN_RCPT_IND': 'string',
+                'WTP_HK_DPO_IND': 'string',
+                'WTP_HSHLD_INCM_OVER_IND': 'string',
+                'WTP_HSHLD_AST_OVER_IND': 'string',
+                'FMLY_SIZE_NUM': 'decimal',
+                'HSHLD_INCM_AMT': 'decimal',
+                'HSHLD_AST_AMT': 'decimal',
+                'RENT_FCTR_CODE': 'decimal',
+                'RENT_BGN_DATE': 'date/time',
+                'RENT_END_DATE': 'date/time',
+                'RENT_CHNG_RSN_CODE': 'string',
+                'RENT_CHNG_RSN_TEXT': 'string',
+                'WTP_RMK_TEXT': 'string',
+                'INT37_PRN_DATE': 'date/time',
+                'WTP25_PRN_DATE': 'date/time',
+                'WTP26_PRN_DATE': 'date/time',
+                'WTP28_PRN_DATE': 'date/time',
+                'WTP29_PRN_DATE': 'date/time',
+                'WTP30_PRN_DATE': 'date/time',
+                'WTP31_PRN_DATE': 'date/time',
+                'WTP32_PRN_DATE': 'date/time',
+                'WTP33_PRN_DATE': 'date/time',
+                'WTP34_PRN_DATE': 'date/time',
+                'WTP35_PRN_DATE': 'date/time',
+                'WTP36_PRN_DATE': 'date/time',
+                'WTP37_PRN_DATE': 'date/time',
+                'WTP38_PRN_DATE': 'date/time',
+                'ORIG_HSE_SRVC_APLY_KEY': 'string',
+                'WTP_EXTRC_DATE': 'date/time',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'EB' OR OPR_IND = 'DA'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_WTP_DCLR_STS", df_SQ_SSA_EMS_WTP_DCLR_STS)
         
         logger.info("Step: apply_SQ_SSA_EMS_WTP_DCLR")
         # Source Qualifier: apply_SQ_SSA_EMS_WTP_DCLR
         df_SQ_SSA_EMS_WTP_DCLR = df_SSA_EMS_WTP_DCLR
-        df_SQ_SSA_EMS_WTP_DCLR = df_SQ_SSA_EMS_WTP_DCLR.filter(expr("OPR_IND = 'B' OR OPR_IND = 'A'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["WTP_DCLR_REC_KEY", "EMS_WTP_REC_KEY", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_WTP_DCLR = df_SQ_SSA_EMS_WTP_DCLR.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_WTP_DCLR.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_WTP_DCLR = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_WTP_DCLR,
+            port_cols={
+                'WTP_DCLR_REC_KEY': 'decimal',
+                'EMS_WTP_REC_KEY': 'decimal',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'A'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_WTP_DCLR", df_SQ_SSA_EMS_WTP_DCLR)
         
         logger.info("Step: apply_EXP_SOR_LOAD_DATE")
         # Expression: apply_EXP_SOR_LOAD_DATE
-        df_EXP_SOR_LOAD_DATE = df_SQ_SSA_EMS_WTP_DCLR_STS
-        df_EXP_SOR_LOAD_DATE = df_EXP_SOR_LOAD_DATE.withColumn("OUT_END_DATE", expr("CASE WHEN OPR_IND = 'EB' THEN CASE WHEN LAST_REC_TXN_TYPE_CODE IS NULL THEN to_date('99991231','yyyyMMdd') ELSE END_DATE END ELSE END_DATE END"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_SOR_LOAD_DATE = lib.expression(
+            input_df=df_SQ_SSA_EMS_WTP_DCLR_STS,
+            computed_columns=[
+                {'name': 'OUT_END_DATE', 'expr': "CASE WHEN OPR_IND = 'EB' THEN CASE WHEN LAST_REC_TXN_TYPE_CODE IS NULL THEN to_date('99991231','yyyyMMdd') ELSE END_DATE END ELSE END_DATE END"}
+            ],
+        )
         ctx.register_df("df_EXP_SOR_LOAD_DATE", df_EXP_SOR_LOAD_DATE)
         
         logger.info("Step: write_SOR_EMS_WTP_DCLR")
         # Write to Target: write_SOR_EMS_WTP_DCLR
-        df_write = df_SQ_SSA_EMS_WTP_DCLR
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['WTP_DCLR_REC_KEY', 'EMS_WTP_REC_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_WTP_DCLR", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_WTP_DCLR,
+            conn=conn_target,
+            table='SOR_EMS_WTP_DCLR',
+            mode='append',
+            source_columns=[
+                'WTP_DCLR_REC_KEY',
+                'EMS_WTP_REC_KEY',
+                'AGMT_IND',
+                None,
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'WTP_DCLR_REC_KEY',
+                'EMS_WTP_REC_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_WTP_DCLR write completed")
         logger.info("Step: write_SOR_EMS_WTP_DCLR_STS")
         # Write to Target: write_SOR_EMS_WTP_DCLR_STS
-        df_write = df_EXP_SOR_LOAD_DATE
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"END_DATE": "OUT_END_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("EMS_WTP_REC_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("AGMT_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['WTP_DCLR_REC_KEY', 'EMS_WTP_REC_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_WTP_DCLR", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_SOR_LOAD_DATE,
+            conn=conn_target,
+            table='SOR_EMS_WTP_DCLR',
+            mode='append',
+            source_columns=[
+                'WTP_DCLR_REC_KEY',
+                None,
+                None,
+                None,
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'WTP_DCLR_REC_KEY',
+                'EMS_WTP_REC_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_WTP_DCLR_STS write completed")
         

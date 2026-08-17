@@ -64,86 +64,185 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_PHA_APLY_OFR")
         # Source Qualifier: apply_SQ_SSA_EMS_PHA_APLY_OFR
         df_SQ_SSA_EMS_PHA_APLY_OFR = df_SSA_EMS_PHA_APLY_OFR
-        df_SQ_SSA_EMS_PHA_APLY_OFR = df_SQ_SSA_EMS_PHA_APLY_OFR.filter(expr("OPR_IND = 'E'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["OFR_KEY", "OFR_BK", "CUST_KEY", "OFR_DATE", "HSE_SRVC_APLY_KEY", "OFR_SEQ_NUM", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_PHA_APLY_OFR = df_SQ_SSA_EMS_PHA_APLY_OFR.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_PHA_APLY_OFR.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_PHA_APLY_OFR = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_PHA_APLY_OFR,
+            port_cols={
+                'OFR_KEY': 'decimal',
+                'OFR_BK': 'string',
+                'CUST_KEY': 'decimal',
+                'OFR_DATE': 'date/time',
+                'HSE_SRVC_APLY_KEY': 'decimal',
+                'OFR_SEQ_NUM': 'decimal',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_PHA_APLY_OFR", df_SQ_SSA_EMS_PHA_APLY_OFR)
         
         logger.info("Step: apply_SQ_SSA_EMS_PHA_APLY_OFR_STS")
         # Source Qualifier: apply_SQ_SSA_EMS_PHA_APLY_OFR_STS
         df_SQ_SSA_EMS_PHA_APLY_OFR_STS = df_SSA_EMS_PHA_APLY_OFR_STS
-        df_SQ_SSA_EMS_PHA_APLY_OFR_STS = df_SQ_SSA_EMS_PHA_APLY_OFR_STS.filter(expr("OPR_IND = 'E' OR OPR_IND = 'EB'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["OFR_KEY", "BGN_DATE", "END_DATE", "ALCT_MTHD_CODE", "BTCH_ALCT_KEY", "EXTR_OFR_IND", "OFR_STS_CODE", "OFR_STS_UPD_DATE", "OFR_LTR_ISS_DATE", "OFR_APRV_USER_ID", "CUST_INTK_DATE", "ALCT_STD_TYPE_CODE", "ADV_ALCT_IND", "PRVS_ACPT_DATE", "OFR_TYPE_CODE", "TNCY_AGRMT_CMNC_DATE", "QTA_CATG_CODE", "OFR_LTR_PRN_IND", "BTCH_PRN_SEQ_NUM", "FLAT_BLT_ID_NUM", "BTCH_PRN_DATE", "OPR_SLCT_APLY_KEY", "OFR_LTR_INTK_DATE", "OFR_LTR_CMNC_DATE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE", "ORIG_GWL_APLY_NUM", "MANU_ALCT_IND", "MANU_ALCT_RSN_CODE", "MANU_ALCT_RSN_TEXT", "MANU_ALCT_USER_ID", "OFR_LTR_INTL_DOC_DATE", "APLY_HOME_ADDR_DSTR_CODE"]
-        df_SQ_SSA_EMS_PHA_APLY_OFR_STS = df_SQ_SSA_EMS_PHA_APLY_OFR_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_PHA_APLY_OFR_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_PHA_APLY_OFR_STS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_PHA_APLY_OFR_STS,
+            port_cols={
+                'OFR_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'ALCT_MTHD_CODE': 'string',
+                'BTCH_ALCT_KEY': 'decimal',
+                'EXTR_OFR_IND': 'string',
+                'OFR_STS_CODE': 'string',
+                'OFR_STS_UPD_DATE': 'date/time',
+                'OFR_LTR_ISS_DATE': 'date/time',
+                'OFR_APRV_USER_ID': 'string',
+                'CUST_INTK_DATE': 'date/time',
+                'ALCT_STD_TYPE_CODE': 'string',
+                'ADV_ALCT_IND': 'string',
+                'PRVS_ACPT_DATE': 'date/time',
+                'OFR_TYPE_CODE': 'string',
+                'TNCY_AGRMT_CMNC_DATE': 'date/time',
+                'QTA_CATG_CODE': 'string',
+                'OFR_LTR_PRN_IND': 'string',
+                'BTCH_PRN_SEQ_NUM': 'decimal',
+                'FLAT_BLT_ID_NUM': 'string',
+                'BTCH_PRN_DATE': 'date/time',
+                'OPR_SLCT_APLY_KEY': 'decimal',
+                'OFR_LTR_INTK_DATE': 'date/time',
+                'OFR_LTR_CMNC_DATE': 'date/time',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+                'ORIG_GWL_APLY_NUM': 'string',
+                'MANU_ALCT_IND': 'string',
+                'MANU_ALCT_RSN_CODE': 'string',
+                'MANU_ALCT_RSN_TEXT': 'string',
+                'MANU_ALCT_USER_ID': 'string',
+                'OFR_LTR_INTL_DOC_DATE': 'date/time',
+                'APLY_HOME_ADDR_DSTR_CODE': 'string',
+            },
+            filter_condition="OPR_IND = 'E' OR OPR_IND = 'EB'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_PHA_APLY_OFR_STS", df_SQ_SSA_EMS_PHA_APLY_OFR_STS)
         
         logger.info("Step: write_SOR_EMS_PHA_APLY_OFR")
         # Write to Target: write_SOR_EMS_PHA_APLY_OFR
-        df_write = df_SQ_SSA_EMS_PHA_APLY_OFR
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("OFR_BK", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("OFR_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_SRVC_APLY_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("OFR_SEQ_NUM", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['OFR_KEY', 'OFR_BK', 'CUST_KEY', 'OFR_DATE', 'HSE_SRVC_APLY_KEY', 'OFR_SEQ_NUM', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_PHA_APLY_OFR", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_PHA_APLY_OFR,
+            conn=conn_target,
+            table='SOR_EMS_PHA_APLY_OFR',
+            mode='append',
+            source_columns=[
+                'OFR_KEY',
+                None,
+                None,
+                None,
+                None,
+                None,
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'OFR_KEY',
+                'OFR_BK',
+                'CUST_KEY',
+                'OFR_DATE',
+                'HSE_SRVC_APLY_KEY',
+                'OFR_SEQ_NUM',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_PHA_APLY_OFR write completed")
         logger.info("Step: write_SOR_EMS_PHA_APLY_OFR_STS")
         # Write to Target: write_SOR_EMS_PHA_APLY_OFR_STS
-        df_write = df_SQ_SSA_EMS_PHA_APLY_OFR_STS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BGN_DATE": "SOR_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("ALCT_MTHD_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("BTCH_ALCT_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EXTR_OFR_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("OFR_STS_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("OFR_STS_UPD_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("OFR_LTR_ISS_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("OFR_APRV_USER_ID", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_INTK_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ALCT_STD_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ADV_ALCT_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PRVS_ACPT_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("OFR_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("TNCY_AGRMT_CMNC_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("QTA_CATG_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("OFR_LTR_PRN_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("BTCH_PRN_SEQ_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("FLAT_BLT_ID_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("BTCH_PRN_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("OPR_SLCT_APLY_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("OFR_LTR_INTK_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("OFR_LTR_CMNC_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ORIG_GWL_APLY_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("MANU_ALCT_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("MANU_ALCT_RSN_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("MANU_ALCT_RSN_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("MANU_ALCT_USER_ID", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("OFR_LTR_INTL_DOC_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_HOME_ADDR_DSTR_CODE", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['OFR_KEY', 'BGN_DATE', 'END_DATE', 'ALCT_MTHD_CODE', 'BTCH_ALCT_KEY', 'EXTR_OFR_IND', 'OFR_STS_CODE', 'OFR_STS_UPD_DATE', 'OFR_LTR_ISS_DATE', 'OFR_APRV_USER_ID', 'CUST_INTK_DATE', 'ALCT_STD_TYPE_CODE', 'ADV_ALCT_IND', 'PRVS_ACPT_DATE', 'OFR_TYPE_CODE', 'TNCY_AGRMT_CMNC_DATE', 'QTA_CATG_CODE', 'OFR_LTR_PRN_IND', 'BTCH_PRN_SEQ_NUM', 'FLAT_BLT_ID_NUM', 'BTCH_PRN_DATE', 'OPR_SLCT_APLY_KEY', 'OFR_LTR_INTK_DATE', 'OFR_LTR_CMNC_DATE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'ORIG_GWL_APLY_NUM', 'MANU_ALCT_IND', 'MANU_ALCT_RSN_CODE', 'MANU_ALCT_RSN_TEXT', 'MANU_ALCT_USER_ID', 'OFR_LTR_INTL_DOC_DATE', 'APLY_HOME_ADDR_DSTR_CODE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_PHA_APLY_OFR_STS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_PHA_APLY_OFR_STS,
+            conn=conn_target,
+            table='SOR_EMS_PHA_APLY_OFR_STS',
+            mode='append',
+            source_columns=[
+                'OFR_KEY',
+                'SOR_DATE',
+                'END_DATE',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                'LAST_REC_TXN_DATE',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ],
+            target_columns=[
+                'OFR_KEY',
+                'BGN_DATE',
+                'END_DATE',
+                'ALCT_MTHD_CODE',
+                'BTCH_ALCT_KEY',
+                'EXTR_OFR_IND',
+                'OFR_STS_CODE',
+                'OFR_STS_UPD_DATE',
+                'OFR_LTR_ISS_DATE',
+                'OFR_APRV_USER_ID',
+                'CUST_INTK_DATE',
+                'ALCT_STD_TYPE_CODE',
+                'ADV_ALCT_IND',
+                'PRVS_ACPT_DATE',
+                'OFR_TYPE_CODE',
+                'TNCY_AGRMT_CMNC_DATE',
+                'QTA_CATG_CODE',
+                'OFR_LTR_PRN_IND',
+                'BTCH_PRN_SEQ_NUM',
+                'FLAT_BLT_ID_NUM',
+                'BTCH_PRN_DATE',
+                'OPR_SLCT_APLY_KEY',
+                'OFR_LTR_INTK_DATE',
+                'OFR_LTR_CMNC_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'ORIG_GWL_APLY_NUM',
+                'MANU_ALCT_IND',
+                'MANU_ALCT_RSN_CODE',
+                'MANU_ALCT_RSN_TEXT',
+                'MANU_ALCT_USER_ID',
+                'OFR_LTR_INTL_DOC_DATE',
+                'APLY_HOME_ADDR_DSTR_CODE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_PHA_APLY_OFR_STS write completed")
         

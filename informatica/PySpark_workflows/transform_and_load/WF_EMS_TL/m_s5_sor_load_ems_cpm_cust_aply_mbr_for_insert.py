@@ -64,67 +64,197 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_CPM_CUST_APLY_MBR")
         # Source Qualifier: apply_SQ_SSA_EMS_CPM_CUST_APLY_MBR
         df_SQ_SSA_EMS_CPM_CUST_APLY_MBR = df_SSA_EMS_CPM_CUST_APLY_MBR
-        df_SQ_SSA_EMS_CPM_CUST_APLY_MBR = df_SQ_SSA_EMS_CPM_CUST_APLY_MBR.filter(expr("OPR_IND = 'B' OR OPR_IND = 'A'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["CUST_APLY_MBR_KEY", "CUST_APLY_MBR_BK", "CUST_KEY", "PTCL_KEY", "CUST_APLY_KEY", "CUST_MBR_ID_NUM", "CUST_MBR_ID_TYPE_CODE", "HSE_SRVC_APLY_TYPE_CODE", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_CPM_CUST_APLY_MBR = df_SQ_SSA_EMS_CPM_CUST_APLY_MBR.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_CPM_CUST_APLY_MBR.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_CPM_CUST_APLY_MBR = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_CPM_CUST_APLY_MBR,
+            port_cols={
+                'CUST_APLY_MBR_KEY': 'decimal',
+                'CUST_APLY_MBR_BK': 'string',
+                'CUST_KEY': 'decimal',
+                'PTCL_KEY': 'decimal',
+                'CUST_APLY_KEY': 'decimal',
+                'CUST_MBR_ID_NUM': 'string',
+                'CUST_MBR_ID_TYPE_CODE': 'string',
+                'HSE_SRVC_APLY_TYPE_CODE': 'string',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'A'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_CPM_CUST_APLY_MBR", df_SQ_SSA_EMS_CPM_CUST_APLY_MBR)
         
         logger.info("Step: apply_SQ_SSA_EMS_CPM_CUST_APLY_MBR_STS")
         # Source Qualifier: apply_SQ_SSA_EMS_CPM_CUST_APLY_MBR_STS
         df_SQ_SSA_EMS_CPM_CUST_APLY_MBR_STS = df_SSA_EMS_CPM_CUST_APLY_MBR_STS
-        df_SQ_SSA_EMS_CPM_CUST_APLY_MBR_STS = df_SQ_SSA_EMS_CPM_CUST_APLY_MBR_STS.filter(expr("OPR_IND = 'B' OR OPR_IND = 'EB' OR OPR_IND = 'DA'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["CUST_APLY_MBR_KEY", "BGN_DATE", "END_DATE", "CUST_APLY_MBR_STS_CODE", "CUST_MBR_HSHLD_HEAD_CODE", "CUST_MBR_CNTC_CODE", "CUST_MBR_OWNR_CODE", "CUST_MBR_HOME_ADDR_1", "CUST_MBR_HOME_ADDR_2", "CUST_MBR_HOME_ADDR_3", "CUST_MBR_HOME_ADDR_4", "CUST_MBR_HOME_ADDR_5", "CUST_MBR_HOME_CHI_ADDR_1", "CUST_MBR_HOME_CHI_ADDR_2", "CUST_MBR_HOME_CHI_ADDR_3", "CUST_MBR_HOME_CHI_ADDR_4", "CUST_MBR_HOME_CHI_ADDR_5", "CUST_MBR_CRSP_CODE_ADDR", "CUST_MBR_CRSP_ADDR_1", "CUST_MBR_CRSP_ADDR_2", "CUST_MBR_CRSP_ADDR_3", "CUST_MBR_CRSP_ADDR_4", "CUST_MBR_CRSP_ADDR_5", "CUST_MBR_CRSP_CHI_ADDR_1", "CUST_MBR_CRSP_CHI_ADDR_2", "CUST_MBR_CRSP_CHI_ADDR_3", "CUST_MBR_CRSP_CHI_ADDR_4", "CUST_MBR_CRSP_CHI_ADDR_5", "CUST_MBR_EMAIL_ADDR", "CUST_MBR_HOME_PHONE_NUM", "CUST_MBR_OFFC_PHONE_NUM", "CUST_MBR_HOME_CODE_ADDR", "CUST_MBR_MBL_PHONE_NUM", "CUST_MBR_INCM_AMT", "CUST_MBR_AST_AMT", "CUST_MBR_OCPY_STS_CODE", "CUST_MBR_UP_IND", "CUST_MBR_RR_IND", "CUST_MBR_TEMP_STAY_BGN_DATE", "CUST_MBR_TEMP_STAY_END_DATE", "CUST_MBR_RLNQ_DATE", "OWN_SRDR_RSN_CODE", "CUST_MBR_STS_UPD_DATE", "CUST_MBR_NAME", "CUST_MBR_CHI_NAME", "CUST_MBR_CC_CODE_1", "CUST_MBR_CC_CODE_2", "CUST_MBR_CC_CODE_3", "CUST_MBR_CC_CODE_4", "CUST_MBR_CC_CODE_5", "CUST_MBR_CC_CODE_6", "CUST_MBR_DOB_DATE", "CUST_MBR_DOB_IND", "CUST_MBR_GNDR_CODE", "CUST_MBR_MRTL_STS_CODE", "CUST_MBR_CHI_ENTRY_DATE", "CUST_MBR_DVRC_BFR_IND", "CUST_MBR_ID_ISS_DATE", "CUST_MBR_ID_CERT_NUM", "CUST_MBR_RLTN_CODE", "RLT_MBR_ID_TYPE_CODE", "RLT_MBR_ID_NUM", "CUST_MBR_ELDR_IND", "DSBL_CATG_CODE_1", "DSBL_CATG_CODE_2", "DSBL_CATG_CODE_3", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE", "PREV_CUST_MBR_ENG_NAME", "PREV_CUST_MBR_CHI_NAME", "CUST_MBR_HK_LAND_RGHT_IND", "CUST_MBR_GUDN_IND", "CUST_MBR_JNT_CSTDY_IND", "CUST_MBR_ENTRY_DATE_CNFR_IND", "CUST_MBR_HSTL_TYPE_CODE", "CUST_MBR_CSSA_IND", "PREV_CUST_MBR_CSSA_IND", "CUST_MBR_PRGNT_IND", "CUST_MBR_EXPCT_CHILD_NUM", "CUST_MBR_EXPCT_DLVR_DATE", "CUST_MBR_SIGN_IND", "CUST_MBR_SEQ_NUM", "DOC_CHK_IND", "SRC_SYS_CODE", "CUR_TNT_IND", "ACTL_CUST_MBR_INCM_AMT", "ACTL_CUST_MBR_AST_AMT", "LAST_REC_TXN_MBR_CODE", "CUST_MBR_DSBL_ALWN_RCPT_IND"]
-        df_SQ_SSA_EMS_CPM_CUST_APLY_MBR_STS = df_SQ_SSA_EMS_CPM_CUST_APLY_MBR_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_CPM_CUST_APLY_MBR_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_CPM_CUST_APLY_MBR_STS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_CPM_CUST_APLY_MBR_STS,
+            port_cols={
+                'CUST_APLY_MBR_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'CUST_APLY_MBR_STS_CODE': 'string',
+                'CUST_MBR_HSHLD_HEAD_CODE': 'string',
+                'CUST_MBR_CNTC_CODE': 'string',
+                'CUST_MBR_OWNR_CODE': 'string',
+                'CUST_MBR_HOME_ADDR_1': 'string',
+                'CUST_MBR_HOME_ADDR_2': 'string',
+                'CUST_MBR_HOME_ADDR_3': 'string',
+                'CUST_MBR_HOME_ADDR_4': 'string',
+                'CUST_MBR_HOME_ADDR_5': 'string',
+                'CUST_MBR_HOME_CHI_ADDR_1': 'string',
+                'CUST_MBR_HOME_CHI_ADDR_2': 'string',
+                'CUST_MBR_HOME_CHI_ADDR_3': 'string',
+                'CUST_MBR_HOME_CHI_ADDR_4': 'string',
+                'CUST_MBR_HOME_CHI_ADDR_5': 'string',
+                'CUST_MBR_CRSP_CODE_ADDR': 'string',
+                'CUST_MBR_CRSP_ADDR_1': 'string',
+                'CUST_MBR_CRSP_ADDR_2': 'string',
+                'CUST_MBR_CRSP_ADDR_3': 'string',
+                'CUST_MBR_CRSP_ADDR_4': 'string',
+                'CUST_MBR_CRSP_ADDR_5': 'string',
+                'CUST_MBR_CRSP_CHI_ADDR_1': 'string',
+                'CUST_MBR_CRSP_CHI_ADDR_2': 'string',
+                'CUST_MBR_CRSP_CHI_ADDR_3': 'string',
+                'CUST_MBR_CRSP_CHI_ADDR_4': 'string',
+                'CUST_MBR_CRSP_CHI_ADDR_5': 'string',
+                'CUST_MBR_EMAIL_ADDR': 'string',
+                'CUST_MBR_HOME_PHONE_NUM': 'string',
+                'CUST_MBR_OFFC_PHONE_NUM': 'string',
+                'CUST_MBR_HOME_CODE_ADDR': 'string',
+                'CUST_MBR_MBL_PHONE_NUM': 'string',
+                'CUST_MBR_INCM_AMT': 'decimal',
+                'CUST_MBR_AST_AMT': 'decimal',
+                'CUST_MBR_OCPY_STS_CODE': 'string',
+                'CUST_MBR_UP_IND': 'string',
+                'CUST_MBR_RR_IND': 'string',
+                'CUST_MBR_TEMP_STAY_BGN_DATE': 'date/time',
+                'CUST_MBR_TEMP_STAY_END_DATE': 'date/time',
+                'CUST_MBR_RLNQ_DATE': 'date/time',
+                'OWN_SRDR_RSN_CODE': 'string',
+                'CUST_MBR_STS_UPD_DATE': 'date/time',
+                'CUST_MBR_NAME': 'string',
+                'CUST_MBR_CHI_NAME': 'string',
+                'CUST_MBR_CC_CODE_1': 'string',
+                'CUST_MBR_CC_CODE_2': 'string',
+                'CUST_MBR_CC_CODE_3': 'string',
+                'CUST_MBR_CC_CODE_4': 'string',
+                'CUST_MBR_CC_CODE_5': 'string',
+                'CUST_MBR_CC_CODE_6': 'string',
+                'CUST_MBR_DOB_DATE': 'date/time',
+                'CUST_MBR_DOB_IND': 'string',
+                'CUST_MBR_GNDR_CODE': 'string',
+                'CUST_MBR_MRTL_STS_CODE': 'string',
+                'CUST_MBR_CHI_ENTRY_DATE': 'date/time',
+                'CUST_MBR_DVRC_BFR_IND': 'string',
+                'CUST_MBR_ID_ISS_DATE': 'date/time',
+                'CUST_MBR_ID_CERT_NUM': 'string',
+                'CUST_MBR_RLTN_CODE': 'string',
+                'RLT_MBR_ID_TYPE_CODE': 'string',
+                'RLT_MBR_ID_NUM': 'string',
+                'CUST_MBR_ELDR_IND': 'string',
+                'DSBL_CATG_CODE_1': 'string',
+                'DSBL_CATG_CODE_2': 'string',
+                'DSBL_CATG_CODE_3': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+                'PREV_CUST_MBR_ENG_NAME': 'string',
+                'PREV_CUST_MBR_CHI_NAME': 'string',
+                'CUST_MBR_HK_LAND_RGHT_IND': 'string',
+                'CUST_MBR_GUDN_IND': 'string',
+                'CUST_MBR_JNT_CSTDY_IND': 'string',
+                'CUST_MBR_ENTRY_DATE_CNFR_IND': 'string',
+                'CUST_MBR_HSTL_TYPE_CODE': 'string',
+                'CUST_MBR_CSSA_IND': 'string',
+                'PREV_CUST_MBR_CSSA_IND': 'string',
+                'CUST_MBR_PRGNT_IND': 'string',
+                'CUST_MBR_EXPCT_CHILD_NUM': 'decimal',
+                'CUST_MBR_EXPCT_DLVR_DATE': 'date/time',
+                'CUST_MBR_SIGN_IND': 'string',
+                'CUST_MBR_SEQ_NUM': 'decimal',
+                'DOC_CHK_IND': 'string',
+                'SRC_SYS_CODE': 'string',
+                'CUR_TNT_IND': 'string',
+                'ACTL_CUST_MBR_INCM_AMT': 'decimal',
+                'ACTL_CUST_MBR_AST_AMT': 'decimal',
+                'LAST_REC_TXN_MBR_CODE': 'string',
+                'CUST_MBR_DSBL_ALWN_RCPT_IND': 'string',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'EB' OR OPR_IND = 'DA'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_CPM_CUST_APLY_MBR_STS", df_SQ_SSA_EMS_CPM_CUST_APLY_MBR_STS)
         
         logger.info("Step: write_SOR_EMS_CPM_CUST_APLY_MBR")
         # Write to Target: write_SOR_EMS_CPM_CUST_APLY_MBR
-        df_write = df_SQ_SSA_EMS_CPM_CUST_APLY_MBR
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("CUST_APLY_BK", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_SRVC_APLY_KEY", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['CUST_APLY_KEY', 'CUST_APLY_BK', 'CUST_KEY', 'HSE_SRVC_APLY_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_CPM_CUST_APLY", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_CPM_CUST_APLY_MBR,
+            conn=conn_target,
+            table='SOR_EMS_CPM_CUST_APLY',
+            mode='append',
+            source_columns=[
+                'CUST_APLY_KEY',
+                None,
+                'CUST_KEY',
+                None,
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'CUST_APLY_KEY',
+                'CUST_APLY_BK',
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_CPM_CUST_APLY_MBR write completed")
         logger.info("Step: apply_EXP_SOR_LOAD_DATE")
         # Expression: apply_EXP_SOR_LOAD_DATE
-        df_EXP_SOR_LOAD_DATE = df_SQ_SSA_EMS_CPM_CUST_APLY_MBR_STS
-        df_EXP_SOR_LOAD_DATE = df_EXP_SOR_LOAD_DATE.withColumn("OUT_END_DATE", expr("CASE WHEN OPR_IND = 'EB' THEN CASE WHEN LAST_REC_TXN_TYPE_CODE IS NULL THEN to_date('99991231','yyyyMMdd') ELSE END_DATE END ELSE END_DATE END"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_SOR_LOAD_DATE = lib.expression(
+            input_df=df_SQ_SSA_EMS_CPM_CUST_APLY_MBR_STS,
+            computed_columns=[
+                {'name': 'OUT_END_DATE', 'expr': "CASE WHEN OPR_IND = 'EB' THEN CASE WHEN LAST_REC_TXN_TYPE_CODE IS NULL THEN to_date('99991231','yyyyMMdd') ELSE END_DATE END ELSE END_DATE END"}
+            ],
+        )
         ctx.register_df("df_EXP_SOR_LOAD_DATE", df_EXP_SOR_LOAD_DATE)
         
         logger.info("Step: write_SOR_EMS_CPM_CUST_APLY_MBR_STS")
         # Write to Target: write_SOR_EMS_CPM_CUST_APLY_MBR_STS
-        df_write = df_EXP_SOR_LOAD_DATE
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"END_DATE": "OUT_END_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("CUST_APLY_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_APLY_BK", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_SRVC_APLY_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("AGMT_IND", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['CUST_APLY_KEY', 'CUST_APLY_BK', 'CUST_KEY', 'HSE_SRVC_APLY_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_CPM_CUST_APLY", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_SOR_LOAD_DATE,
+            conn=conn_target,
+            table='SOR_EMS_CPM_CUST_APLY',
+            mode='append',
+            source_columns=[
+                None,
+                None,
+                None,
+                None,
+                None,
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'CUST_APLY_KEY',
+                'CUST_APLY_BK',
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_CPM_CUST_APLY_MBR_STS write completed")
         

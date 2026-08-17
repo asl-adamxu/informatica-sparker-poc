@@ -58,23 +58,50 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_PHA_APLY_STG_HIST")
         # Source Qualifier: apply_SQ_SSA_EMS_PHA_APLY_STG_HIST
         df_SQ_SSA_EMS_PHA_APLY_STG_HIST = df_SSA_EMS_PHA_APLY_STG_HIST
-        df_SQ_SSA_EMS_PHA_APLY_STG_HIST = df_SQ_SSA_EMS_PHA_APLY_STG_HIST.filter(expr("OPR_IND = 'EB' OR OPR_IND = 'DA'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["APLY_STG_HIST_KEY", "APLY_STG_HIST_BK", "APLY_KEY", "APLY_STG_STS_SEQ_NUM", "APLY_STG_STS_CRE_DATE", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_PHA_APLY_STG_HIST = df_SQ_SSA_EMS_PHA_APLY_STG_HIST.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_PHA_APLY_STG_HIST.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_PHA_APLY_STG_HIST = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_PHA_APLY_STG_HIST,
+            port_cols={
+                'APLY_STG_HIST_KEY': 'decimal',
+                'APLY_STG_HIST_BK': 'string',
+                'APLY_KEY': 'decimal',
+                'APLY_STG_STS_SEQ_NUM': 'decimal',
+                'APLY_STG_STS_CRE_DATE': 'date/time',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'EB' OR OPR_IND = 'DA'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_PHA_APLY_STG_HIST", df_SQ_SSA_EMS_PHA_APLY_STG_HIST)
         
         logger.info("Step: write_SOR_EMS_PHA_APLY_STG_HIST")
         # Write to Target: write_SOR_EMS_PHA_APLY_STG_HIST
-        df_write = df_SQ_SSA_EMS_PHA_APLY_STG_HIST
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("APLY_BK", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_SRVC_APLY_KEY", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['APLY_KEY', 'APLY_BK', 'HSE_SRVC_APLY_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_PHA_APLY", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_PHA_APLY_STG_HIST,
+            conn=conn_target,
+            table='SOR_EMS_PHA_APLY',
+            mode='append',
+            source_columns=[
+                'APLY_KEY',
+                None,
+                None,
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'APLY_KEY',
+                'APLY_BK',
+                'HSE_SRVC_APLY_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_PHA_APLY_STG_HIST write completed")
         

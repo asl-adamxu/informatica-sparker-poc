@@ -58,20 +58,57 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_TAM_EXTNT_INFO")
         # Source Qualifier: apply_SQ_SSA_EMS_TAM_EXTNT_INFO
         df_SQ_SSA_EMS_TAM_EXTNT_INFO = df_SSA_EMS_TAM_EXTNT_INFO
-        df_SQ_SSA_EMS_TAM_EXTNT_INFO = df_SQ_SSA_EMS_TAM_EXTNT_INFO.filter(expr("OPR_IND = 'EB' OR OPR_IND = 'DA'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["EXTNT_INFO_KEY", "EXTNT_INFO_BK", "UNIT_KEY", "EXTNT_REC_CRE_DATE", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE", "EXTNT_PRPL_ID_TYPE_CODE", "EXTNT_PRPL_ID_NUM"]
-        df_SQ_SSA_EMS_TAM_EXTNT_INFO = df_SQ_SSA_EMS_TAM_EXTNT_INFO.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_TAM_EXTNT_INFO.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_TAM_EXTNT_INFO = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_TAM_EXTNT_INFO,
+            port_cols={
+                'EXTNT_INFO_KEY': 'decimal',
+                'EXTNT_INFO_BK': 'string',
+                'UNIT_KEY': 'string',
+                'EXTNT_REC_CRE_DATE': 'date/time',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+                'EXTNT_PRPL_ID_TYPE_CODE': 'string',
+                'EXTNT_PRPL_ID_NUM': 'string',
+            },
+            filter_condition="OPR_IND = 'EB' OR OPR_IND = 'DA'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_TAM_EXTNT_INFO", df_SQ_SSA_EMS_TAM_EXTNT_INFO)
         
         logger.info("Step: write_SOR_EMS_TAM_EXTNT_INFO")
         # Write to Target: write_SOR_EMS_TAM_EXTNT_INFO
-        df_write = df_SQ_SSA_EMS_TAM_EXTNT_INFO
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['EXTNT_INFO_KEY', 'EXTNT_INFO_BK', 'UNIT_KEY', 'EXTNT_REC_CRE_DATE', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'EXTNT_PRPL_ID_TYPE_CODE', 'EXTNT_PRPL_ID_NUM']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_TAM_EXTNT_INFO", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_TAM_EXTNT_INFO,
+            conn=conn_target,
+            table='SOR_EMS_TAM_EXTNT_INFO',
+            mode='append',
+            source_columns=[
+                'EXTNT_INFO_KEY',
+                'EXTNT_INFO_BK',
+                'UNIT_KEY',
+                'EXTNT_REC_CRE_DATE',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'EXTNT_PRPL_ID_TYPE_CODE',
+                'EXTNT_PRPL_ID_NUM',
+            ],
+            target_columns=[
+                'EXTNT_INFO_KEY',
+                'EXTNT_INFO_BK',
+                'UNIT_KEY',
+                'EXTNT_REC_CRE_DATE',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'EXTNT_PRPL_ID_TYPE_CODE',
+                'EXTNT_PRPL_ID_NUM',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_TAM_EXTNT_INFO write completed")
         

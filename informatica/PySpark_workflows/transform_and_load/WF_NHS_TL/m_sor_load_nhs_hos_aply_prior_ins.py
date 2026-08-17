@@ -64,71 +64,119 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_NHS_HOS_APLY_PRIOR_STS")
         # Source Qualifier: apply_SQ_SSA_NHS_HOS_APLY_PRIOR_STS
         df_SQ_SSA_NHS_HOS_APLY_PRIOR_STS = df_SSA_NHS_HOS_APLY_PRIOR_STS
-        df_SQ_SSA_NHS_HOS_APLY_PRIOR_STS = df_SQ_SSA_NHS_HOS_APLY_PRIOR_STS.filter(expr("OPR_IND = 'B' OR OPR_IND = 'EB' OR OPR_IND = 'DA'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HOS_APLY_PRIOR_KEY", "BGN_DATE", "END_DATE", "PRIOR_NUM", "ROW_VER_NUM", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE", "PRIOR_CATG_GRP_CODE", "EFAS_PRIOR_NUM_SFX_NUM"]
-        df_SQ_SSA_NHS_HOS_APLY_PRIOR_STS = df_SQ_SSA_NHS_HOS_APLY_PRIOR_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_NHS_HOS_APLY_PRIOR_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_NHS_HOS_APLY_PRIOR_STS = lib.sq_output(
+            input_df=df_SQ_SSA_NHS_HOS_APLY_PRIOR_STS,
+            port_cols={
+                'HOS_APLY_PRIOR_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'PRIOR_NUM': 'decimal',
+                'ROW_VER_NUM': 'decimal',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+                'PRIOR_CATG_GRP_CODE': 'string',
+                'EFAS_PRIOR_NUM_SFX_NUM': 'string',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'EB' OR OPR_IND = 'DA'",
+        )
         ctx.register_df("df_SQ_SSA_NHS_HOS_APLY_PRIOR_STS", df_SQ_SSA_NHS_HOS_APLY_PRIOR_STS)
         
         logger.info("Step: apply_SQ_SSA_NHS_HOS_APLY_PRIOR")
         # Source Qualifier: apply_SQ_SSA_NHS_HOS_APLY_PRIOR
         df_SQ_SSA_NHS_HOS_APLY_PRIOR = df_SSA_NHS_HOS_APLY_PRIOR
-        df_SQ_SSA_NHS_HOS_APLY_PRIOR = df_SQ_SSA_NHS_HOS_APLY_PRIOR.filter(expr("OPR_IND = 'B' OR OPR_IND = 'A'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HOS_APLY_PRIOR_KEY", "HOS_APLY_KEY", "NHS_PRIOR_CATG_CODE", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_NHS_HOS_APLY_PRIOR = df_SQ_SSA_NHS_HOS_APLY_PRIOR.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_NHS_HOS_APLY_PRIOR.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_NHS_HOS_APLY_PRIOR = lib.sq_output(
+            input_df=df_SQ_SSA_NHS_HOS_APLY_PRIOR,
+            port_cols={
+                'HOS_APLY_PRIOR_KEY': 'decimal',
+                'HOS_APLY_KEY': 'decimal',
+                'NHS_PRIOR_CATG_CODE': 'string',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'A'",
+        )
         ctx.register_df("df_SQ_SSA_NHS_HOS_APLY_PRIOR", df_SQ_SSA_NHS_HOS_APLY_PRIOR)
         
         logger.info("Step: apply_EXP_SOR_LOAD_DATE")
         # Expression: apply_EXP_SOR_LOAD_DATE
-        df_EXP_SOR_LOAD_DATE = df_SQ_SSA_NHS_HOS_APLY_PRIOR_STS
-        df_EXP_SOR_LOAD_DATE = df_EXP_SOR_LOAD_DATE.withColumn("OUT_END_DATE", expr("CASE WHEN LAST_REC_TXN_TYPE_CODE = 'D' THEN END_DATE ELSE to_date('99991231','yyyyMMdd') END"))
-        df_EXP_SOR_LOAD_DATE = df_EXP_SOR_LOAD_DATE.withColumn("INS", expr("'I'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_SOR_LOAD_DATE = lib.expression(
+            input_df=df_SQ_SSA_NHS_HOS_APLY_PRIOR_STS,
+            computed_columns=[
+                {'name': 'OUT_END_DATE', 'expr': "CASE WHEN LAST_REC_TXN_TYPE_CODE = 'D' THEN END_DATE ELSE to_date('99991231','yyyyMMdd') END"},
+                {'name': 'INS', 'expr': "'I'"}
+            ],
+        )
         ctx.register_df("df_EXP_SOR_LOAD_DATE", df_EXP_SOR_LOAD_DATE)
         
         logger.info("Step: apply_EXP_REC_TXN_TYPE_CODE_INS")
         # Expression: apply_EXP_REC_TXN_TYPE_CODE_INS
-        df_EXP_REC_TXN_TYPE_CODE_INS = df_SQ_SSA_NHS_HOS_APLY_PRIOR
-        df_EXP_REC_TXN_TYPE_CODE_INS = df_EXP_REC_TXN_TYPE_CODE_INS.withColumn("LAST_REC_TXN_TYPE_CODE", expr("'I'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_REC_TXN_TYPE_CODE_INS = lib.expression(
+            input_df=df_SQ_SSA_NHS_HOS_APLY_PRIOR,
+            computed_columns=[
+                {'name': 'LAST_REC_TXN_TYPE_CODE', 'expr': "'I'"}
+            ],
+        )
         ctx.register_df("df_EXP_REC_TXN_TYPE_CODE_INS", df_EXP_REC_TXN_TYPE_CODE_INS)
         
         logger.info("Step: write_SOR_NHS_HOS_APLY_PRIOR_STS")
         # Write to Target: write_SOR_NHS_HOS_APLY_PRIOR_STS
-        df_write = df_EXP_SOR_LOAD_DATE
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"END_DATE": "OUT_END_DATE", "LAST_REC_TXN_TYPE_CODE": "INS"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("HOS_APLY_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("NHS_PRIOR_CATG_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("AGMT_IND", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HOS_APLY_PRIOR_KEY', 'HOS_APLY_KEY', 'NHS_PRIOR_CATG_CODE', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_NHS_HOS_APLY_PRIOR", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_SOR_LOAD_DATE,
+            conn=conn_target,
+            table='SOR_NHS_HOS_APLY_PRIOR',
+            mode='append',
+            source_columns=[
+                'HOS_APLY_PRIOR_KEY',
+                None,
+                None,
+                None,
+                'INS',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'HOS_APLY_PRIOR_KEY',
+                'HOS_APLY_KEY',
+                'NHS_PRIOR_CATG_CODE',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_NHS_HOS_APLY_PRIOR_STS write completed")
         logger.info("Step: write_SOR_NHS_HOS_APLY_PRIOR")
         # Write to Target: write_SOR_NHS_HOS_APLY_PRIOR
-        df_write = df_EXP_REC_TXN_TYPE_CODE_INS
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HOS_APLY_PRIOR_KEY', 'HOS_APLY_KEY', 'NHS_PRIOR_CATG_CODE', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_NHS_HOS_APLY_PRIOR", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_REC_TXN_TYPE_CODE_INS,
+            conn=conn_target,
+            table='SOR_NHS_HOS_APLY_PRIOR',
+            mode='append',
+            source_columns=[
+                'HOS_APLY_PRIOR_KEY',
+                'HOS_APLY_KEY',
+                'NHS_PRIOR_CATG_CODE',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'HOS_APLY_PRIOR_KEY',
+                'HOS_APLY_KEY',
+                'NHS_PRIOR_CATG_CODE',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_NHS_HOS_APLY_PRIOR write completed")
         

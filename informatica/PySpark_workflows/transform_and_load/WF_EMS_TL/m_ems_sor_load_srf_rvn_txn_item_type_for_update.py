@@ -58,20 +58,45 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_SRF_RVN_TXN_ITEM_TYPE")
         # Source Qualifier: apply_SQ_SSA_SRF_RVN_TXN_ITEM_TYPE
         df_SQ_SSA_SRF_RVN_TXN_ITEM_TYPE = df_SSA_SRF_RVN_TXN_ITEM_TYPE
-        df_SQ_SSA_SRF_RVN_TXN_ITEM_TYPE = df_SQ_SSA_SRF_RVN_TXN_ITEM_TYPE.filter(expr("OPR_IND = 'EB' OR OPR_IND = 'DA'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["RVN_TXN_ITEM_TYPE_KEY", "RVN_TXN_ITEM_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "AGMT_IND", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_SRF_RVN_TXN_ITEM_TYPE = df_SQ_SSA_SRF_RVN_TXN_ITEM_TYPE.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_SRF_RVN_TXN_ITEM_TYPE.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_SRF_RVN_TXN_ITEM_TYPE = lib.sq_output(
+            input_df=df_SQ_SSA_SRF_RVN_TXN_ITEM_TYPE,
+            port_cols={
+                'RVN_TXN_ITEM_TYPE_KEY': 'decimal',
+                'RVN_TXN_ITEM_TYPE_CODE': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'AGMT_IND': 'string',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'EB' OR OPR_IND = 'DA'",
+        )
         ctx.register_df("df_SQ_SSA_SRF_RVN_TXN_ITEM_TYPE", df_SQ_SSA_SRF_RVN_TXN_ITEM_TYPE)
         
         logger.info("Step: write_SOR_SRF_RVN_TXN_ITEM_TYPE")
         # Write to Target: write_SOR_SRF_RVN_TXN_ITEM_TYPE
-        df_write = df_SQ_SSA_SRF_RVN_TXN_ITEM_TYPE
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['RVN_TXN_ITEM_TYPE_KEY', 'RVN_TXN_ITEM_TYPE_CODE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'AGMT_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_RVN_TXN_ITEM_TYPE", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_SRF_RVN_TXN_ITEM_TYPE,
+            conn=conn_target,
+            table='SOR_EMS_RVN_TXN_ITEM_TYPE',
+            mode='append',
+            source_columns=[
+                'RVN_TXN_ITEM_TYPE_KEY',
+                'RVN_TXN_ITEM_TYPE_CODE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'AGMT_IND',
+            ],
+            target_columns=[
+                'RVN_TXN_ITEM_TYPE_KEY',
+                'RVN_TXN_ITEM_TYPE_CODE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'AGMT_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_SRF_RVN_TXN_ITEM_TYPE write completed")
         

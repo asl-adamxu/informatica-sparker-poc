@@ -64,280 +64,767 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_PHA_APLY_STS")
         # Source Qualifier: apply_SQ_SSA_EMS_PHA_APLY_STS
         df_SQ_SSA_EMS_PHA_APLY_STS = df_SSA_EMS_PHA_APLY_STS
-        df_SQ_SSA_EMS_PHA_APLY_STS = df_SQ_SSA_EMS_PHA_APLY_STS.filter(expr("OPR_IND = 'E' OR OPR_IND = 'EB'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["APLY_KEY", "BGN_DATE", "END_DATE", "PRH_APLY_STS_CODE", "PRH_APLY_STG_CODE", "PRH_APLY_STS_UPD_DATE", "PRH_APLY_STG_UPD_DATE", "APLY_RCV_DATE", "APLY_RGSTR_DATE", "APLY_EQVLN_DATE", "APLY_LANG_PREF_CODE", "APLY_HSHLD_INCM_AMT", "APLY_HSHLD_AST_AMT", "APLY_LIFT_STOP_IND", "APLY_FROM_FLR_NUM", "APLY_TO_FLR_NUM", "APLY_LRG_ROOM_IND", "APLY_RNTBL_AMT", "APLY_HOME_CODE_ADDR", "APLY_HOME_ADDR_1", "APLY_HOME_ADDR_2", "APLY_HOME_ADDR_3", "APLY_HOME_ADDR_4", "APLY_HOME_ADDR_5", "APLY_HOME_CHI_ADDR_1", "APLY_HOME_CHI_ADDR_2", "APLY_HOME_CHI_ADDR_3", "APLY_HOME_CHI_ADDR_4", "APLY_HOME_CHI_ADDR_5", "APLY_CRSP_CODE_ADDR", "APLY_CRSP_ADDR_1", "APLY_CRSP_ADDR_2", "APLY_CRSP_ADDR_3", "APLY_CRSP_ADDR_4", "APLY_CRSP_ADDR_5", "APLY_CRSP_CHI_ADDR_1", "APLY_CRSP_CHI_ADDR_2", "APLY_CRSP_CHI_ADDR_3", "APLY_CRSP_CHI_ADDR_4", "APLY_CRSP_CHI_ADDR_5", "APLY_FMLY_SIZE_NUM", "APLY_CUR_CHILD_NUM", "APLY_EXPCT_CHILD_NUM", "APLY_EXPCT_DLVR_DATE", "APLY_REF_NUM", "PRH_APLY_TYPE_CODE", "APLY_IMBL_IND", "APLY_CSSA_IND", "APLY_SHR_WILL_IND", "APLY_ELDR_CODE", "APLY_NFEP_REF_NUM", "APLY_LIVE_WITH_CHILD_IND", "APLY_OTHR_RLTV_IND", "APLY_EXOWNR_HOS_IND", "APLY_RIR_IND", "APLY_HSTL_REF_NUM", "APLY_HSTL_IND", "APLY_STRC_NUM", "GF_CERT_ELGBL_IND", "CS_APLY_TYPE_CODE", "CS_RANK_CODE", "HKSAR_RANK_CODE", "CS_MTH_SLRY_AMT", "CS_RANK_SLRY_PNT_NUM", "CS_MAX_RANK_SLRY_PNT_NUM", "CS_JOIN_DATE", "CS_RTR_DATE", "CS_DCS_DATE", "CS_PNSN_SCHM_CODE", "APLY_REF_DATE", "APLY_REF_OFCR_NAME", "APLY_REF_OFFC_NAME", "APLY_REF_OFFC_PHONE_NUM", "TNCY_AGRMT_CMNC_DATE", "TNT_MARK_SCHM_PNT_NUM", "CUR_RENT_FCTR_CODE", "FTR_RENT_FCTR_CODE", "FTR_RENT_FCTR_BGN_DATE", "CUR_PLCY_IND", "FTR_PLCY_IND", "APLY_ELGBL_GRD_CODE", "APLY_BRO_IND", "APLY_PRIOR_NUM", "APLY_DBL_MOVE_IND", "APLY_VET_USER_ID", "APLY_VET_DATE", "APLY_HOME_PHONE_NUM", "APLY_OFFC_PHONE_NUM", "APLY_MBL_PHONE_NUM", "CUST_OTHR_CNTC_NAME", "CUST_OTHR_CNTC_CHI_NAME", "CUST_OTHR_CNTC_ADDR_1", "CUST_OTHR_CNTC_ADDR_2", "CUST_OTHR_CNTC_ADDR_3", "CUST_OTHR_CNTC_ADDR_4", "CUST_OTHR_CNTC_ADDR_5", "CUST_OTHR_CNTC_CHI_ADDR_1", "CUST_OTHR_CNTC_CHI_ADDR_2", "CUST_OTHR_CNTC_CHI_ADDR_3", "CUST_OTHR_CNTC_CHI_ADDR_4", "CUST_OTHR_CNTC_CHI_ADDR_5", "CUST_OTHR_CNTC_HOME_PHONE_NUM", "CUST_OTHR_CNTC_OFFC_PHONE_NUM", "CUST_OTHR_CNTC_MBL_PHONE_NUM", "CUST_OTHR_CNTC_EMAIL_ADDR", "CUST_OTHR_CNTC_RLTN_CODE", "OPR_CODE", "PRH_APLY_RSN_OFR_RFSL_TOT_NUM", "PRH_APLY_URSN_OFR_RFSL_TOT_NUM", "GF_CERT_OPT_IND", "ACMD_TYPE_CODE", "APLY_HSTL_CODE", "NOT_APLY_CHILD_RSN_CODE", "DEPT_CODE", "APLY_TFR_DNSTY", "APLY_TFR_EQVLN_NUM", "HOS_KEY_HOVR_DATE", "APLY_FILE_MCRFM_IND", "APLY_NGO_CODE", "THREE_OFR_DIR_ALCT_RQS_IND", "THREE_OFR_NEW_FLAT_IND", "APLY_OTHR_HSTL_IND", "QTA_CATG_CODE", "APLY_HOME_ADDR_DSTR_CODE", "APLY_INTVW_MCRFM_FILE_IND", "APLY_INTL_RSDN_DATE", "CS_CATG_CODE", "EPS_JOIN_DATE", "LTR_ITEM_LIST", "APLY_SBMT_CHNL_CODE", "APLY_AUTH_LVL_CODE", "CS_PAY_SCL_TYPE_CODE", "ALWN_TYPE_CODE", "APLY_INCM_LMT_CODE", "HOS_EXBNFT_TYPE_CODE", "RLT_GWL_APLY_NUM", "CS_QTA_CNT_IND", "ELGBL_CRS_DSTR_TFR_IND", "ALCT_SIZE_NUM", "EXTR_GRD_UP_NUM", "ALWN_FMLY_SIZE_NUM", "APLY_EMAIL_ADDR", "CUST_OTHR_CNTC_PRSN_NAME", "TFR_FLAT_TYPE_LIST", "TFR_IFA_LIST", "APLY_ACPT_APRV_DATE", "IELGBL_BYPS_IND", "PREV_REHSE_CATG_CODE", "PREV_TNCY_AGRMT_CMNC_DATE", "OPR_SLCT_APLY_KEY", "ACT_CASE_IND", "APLY_DSBL_IND", "HOS_KEY_HOVR_DATE_UPD_DATE", "HFT_ELDR_FMLY_CODE_ADDR", "HFT_CUST_MBR_ID_TYPE_CODE", "HFT_CUST_MBR_ID_NUM", "HFT_ELDR_CUST_MBR_DOB_DATE", "HFT_ELDR_CUST_MBR_DOB_IND", "HFT_CHILD_UND_SIX_IND", "HFT_INTL_RSDN_DATE", "TFR_RQS_ID", "REF_CASE_KEY", "REF_CASE_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "HFT_PRIOR_KEY", "TNCY_AGRMT_KEY", "OPR_IND", "SOR_DATE", "APLY_TNCY_MODE_CODE", "APLY_INTN_ACCS_IND", "SWCH_QUE_BSNS_DATE", "SWCH_QUE_MRTL_STS_CODE", "SWCH_QUE_MRTL_STS_RMK_TEXT", "AWD_WAIT_CODE", "APLY_HFPS_TYPE_CODE", "CUST_HDSP_IND", "APLY_AWD_WAIT_TIME_IND", "UNDOCPY_TNCY_IND", "APLY_RAS_IND", "APLY_EQVLN_DATE_RMK_TEXT", "HFT_CRS_DSTRB_TFR_IND", "PRVS_APLY_KEY", "FRST_RWL_CNCL_DATE", "CSPHQ_SCND_RND_ACQ_IND", "CSPHQ_SCND_RND_APLY_IND", "CSPHQ_CRTR_1_TA_DUE_DATE", "CSPHQ_CRTR_2_TA_DUE_DATE", "CSPHQ_SGL_BDRM_CHC_IND", "ORIG_GWL_APLY_NUM", "CRSP_ADDR_APLY_ENG_NAME", "CRSP_ADDR_APLY_CHI_NAME", "CRSP_ENG_ADDR_PO_BOX_TEXT", "CRSP_CHI_ADDR_PO_BOX_TEXT", "APLY_OTHR_RLTV_NAME_TEXT", "APLY_OTHR_RLTV_HOME_PHONE_NUM", "APLY_OTHR_RLTV_MBL_PHONE_NUM", "APLY_OTHR_RLTV_ADDR", "APLY_FILE_LOC_TEXT", "APLY_FILE_RCV_DATE", "PREV_QTA_CATG_CODE", "HFPS_H2_APLY_NAME_TEXT", "HFPS_H2_APLY_ID_TYPE_CODE", "HFPS_H2_APLY_ID_NUM", "APLY_CNCL_RNDM_CHK_IND", "APLY_CNCL_RNDM_CHK_DATE", "APLY_CNCL_RNDM_CHK_USER_ID", "JNT_CSTDY_IND", "JNT_CSTDY_BU_DATE", "PRPTY_OWNR_IND", "RR_FLFL_IND", "ALL_MBR_HK_OCPT_IND", "APLY_DCLR_DATE", "DOC_REF_NUM", "LAST_UND_APRV_RVW_BGN_DATE", "LAST_UND_APRV_RVW_END_DATE", "UND_APRV_RVW_IND", "APLY_REF_IND", "DUP_FRZ_RULE_TYPE_CODE", "DUP_FRZ_RULE_UPD_USER_ID", "DUP_FRZ_RULE_UPD_MBR_CODE", "DUP_FRZ_RULE_UPD_DATE", "DUP_FRZ_RULE_QPS_SWCH_IND", "ACTL_APLY_HSHLD_INCM_AMT", "ACTL_APLY_HSHLD_AST_AMT", "LAST_REC_TXN_MBR_CODE", "ADTN_LANG_PREF_CODE", "EFAS_URSN_WTHDRW_CNT", "ORIG_EFAS_URSN_WTHDRW_CNT", "APLY_NB_IND", "APLY_NB_APRV_DATE", "CSPHQ_ASGN_HSE_EST_CODE"]
-        df_SQ_SSA_EMS_PHA_APLY_STS = df_SQ_SSA_EMS_PHA_APLY_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_PHA_APLY_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_PHA_APLY_STS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_PHA_APLY_STS,
+            port_cols={
+                'APLY_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'PRH_APLY_STS_CODE': 'string',
+                'PRH_APLY_STG_CODE': 'string',
+                'PRH_APLY_STS_UPD_DATE': 'date/time',
+                'PRH_APLY_STG_UPD_DATE': 'date/time',
+                'APLY_RCV_DATE': 'date/time',
+                'APLY_RGSTR_DATE': 'date/time',
+                'APLY_EQVLN_DATE': 'date/time',
+                'APLY_LANG_PREF_CODE': 'string',
+                'APLY_HSHLD_INCM_AMT': 'decimal',
+                'APLY_HSHLD_AST_AMT': 'decimal',
+                'APLY_LIFT_STOP_IND': 'string',
+                'APLY_FROM_FLR_NUM': 'string',
+                'APLY_TO_FLR_NUM': 'string',
+                'APLY_LRG_ROOM_IND': 'string',
+                'APLY_RNTBL_AMT': 'decimal',
+                'APLY_HOME_CODE_ADDR': 'string',
+                'APLY_HOME_ADDR_1': 'string',
+                'APLY_HOME_ADDR_2': 'string',
+                'APLY_HOME_ADDR_3': 'string',
+                'APLY_HOME_ADDR_4': 'string',
+                'APLY_HOME_ADDR_5': 'string',
+                'APLY_HOME_CHI_ADDR_1': 'string',
+                'APLY_HOME_CHI_ADDR_2': 'string',
+                'APLY_HOME_CHI_ADDR_3': 'string',
+                'APLY_HOME_CHI_ADDR_4': 'string',
+                'APLY_HOME_CHI_ADDR_5': 'string',
+                'APLY_CRSP_CODE_ADDR': 'string',
+                'APLY_CRSP_ADDR_1': 'string',
+                'APLY_CRSP_ADDR_2': 'string',
+                'APLY_CRSP_ADDR_3': 'string',
+                'APLY_CRSP_ADDR_4': 'string',
+                'APLY_CRSP_ADDR_5': 'string',
+                'APLY_CRSP_CHI_ADDR_1': 'string',
+                'APLY_CRSP_CHI_ADDR_2': 'string',
+                'APLY_CRSP_CHI_ADDR_3': 'string',
+                'APLY_CRSP_CHI_ADDR_4': 'string',
+                'APLY_CRSP_CHI_ADDR_5': 'string',
+                'APLY_FMLY_SIZE_NUM': 'decimal',
+                'APLY_CUR_CHILD_NUM': 'decimal',
+                'APLY_EXPCT_CHILD_NUM': 'decimal',
+                'APLY_EXPCT_DLVR_DATE': 'date/time',
+                'APLY_REF_NUM': 'string',
+                'PRH_APLY_TYPE_CODE': 'string',
+                'APLY_IMBL_IND': 'string',
+                'APLY_CSSA_IND': 'string',
+                'APLY_SHR_WILL_IND': 'string',
+                'APLY_ELDR_CODE': 'string',
+                'APLY_NFEP_REF_NUM': 'string',
+                'APLY_LIVE_WITH_CHILD_IND': 'string',
+                'APLY_OTHR_RLTV_IND': 'string',
+                'APLY_EXOWNR_HOS_IND': 'string',
+                'APLY_RIR_IND': 'string',
+                'APLY_HSTL_REF_NUM': 'string',
+                'APLY_HSTL_IND': 'string',
+                'APLY_STRC_NUM': 'string',
+                'GF_CERT_ELGBL_IND': 'string',
+                'CS_APLY_TYPE_CODE': 'string',
+                'CS_RANK_CODE': 'string',
+                'HKSAR_RANK_CODE': 'string',
+                'CS_MTH_SLRY_AMT': 'decimal',
+                'CS_RANK_SLRY_PNT_NUM': 'decimal',
+                'CS_MAX_RANK_SLRY_PNT_NUM': 'decimal',
+                'CS_JOIN_DATE': 'date/time',
+                'CS_RTR_DATE': 'date/time',
+                'CS_DCS_DATE': 'date/time',
+                'CS_PNSN_SCHM_CODE': 'string',
+                'APLY_REF_DATE': 'date/time',
+                'APLY_REF_OFCR_NAME': 'string',
+                'APLY_REF_OFFC_NAME': 'string',
+                'APLY_REF_OFFC_PHONE_NUM': 'string',
+                'TNCY_AGRMT_CMNC_DATE': 'date/time',
+                'TNT_MARK_SCHM_PNT_NUM': 'decimal',
+                'CUR_RENT_FCTR_CODE': 'decimal',
+                'FTR_RENT_FCTR_CODE': 'decimal',
+                'FTR_RENT_FCTR_BGN_DATE': 'date/time',
+                'CUR_PLCY_IND': 'string',
+                'FTR_PLCY_IND': 'string',
+                'APLY_ELGBL_GRD_CODE': 'string',
+                'APLY_BRO_IND': 'string',
+                'APLY_PRIOR_NUM': 'string',
+                'APLY_DBL_MOVE_IND': 'string',
+                'APLY_VET_USER_ID': 'string',
+                'APLY_VET_DATE': 'date/time',
+                'APLY_HOME_PHONE_NUM': 'string',
+                'APLY_OFFC_PHONE_NUM': 'string',
+                'APLY_MBL_PHONE_NUM': 'string',
+                'CUST_OTHR_CNTC_NAME': 'string',
+                'CUST_OTHR_CNTC_CHI_NAME': 'string',
+                'CUST_OTHR_CNTC_ADDR_1': 'string',
+                'CUST_OTHR_CNTC_ADDR_2': 'string',
+                'CUST_OTHR_CNTC_ADDR_3': 'string',
+                'CUST_OTHR_CNTC_ADDR_4': 'string',
+                'CUST_OTHR_CNTC_ADDR_5': 'string',
+                'CUST_OTHR_CNTC_CHI_ADDR_1': 'string',
+                'CUST_OTHR_CNTC_CHI_ADDR_2': 'string',
+                'CUST_OTHR_CNTC_CHI_ADDR_3': 'string',
+                'CUST_OTHR_CNTC_CHI_ADDR_4': 'string',
+                'CUST_OTHR_CNTC_CHI_ADDR_5': 'string',
+                'CUST_OTHR_CNTC_HOME_PHONE_NUM': 'string',
+                'CUST_OTHR_CNTC_OFFC_PHONE_NUM': 'string',
+                'CUST_OTHR_CNTC_MBL_PHONE_NUM': 'string',
+                'CUST_OTHR_CNTC_EMAIL_ADDR': 'string',
+                'CUST_OTHR_CNTC_RLTN_CODE': 'string',
+                'OPR_CODE': 'string',
+                'PRH_APLY_RSN_OFR_RFSL_TOT_NUM': 'decimal',
+                'PRH_APLY_URSN_OFR_RFSL_TOT_NUM': 'decimal',
+                'GF_CERT_OPT_IND': 'string',
+                'ACMD_TYPE_CODE': 'string',
+                'APLY_HSTL_CODE': 'string',
+                'NOT_APLY_CHILD_RSN_CODE': 'string',
+                'DEPT_CODE': 'string',
+                'APLY_TFR_DNSTY': 'decimal',
+                'APLY_TFR_EQVLN_NUM': 'decimal',
+                'HOS_KEY_HOVR_DATE': 'date/time',
+                'APLY_FILE_MCRFM_IND': 'string',
+                'APLY_NGO_CODE': 'string',
+                'THREE_OFR_DIR_ALCT_RQS_IND': 'string',
+                'THREE_OFR_NEW_FLAT_IND': 'string',
+                'APLY_OTHR_HSTL_IND': 'string',
+                'QTA_CATG_CODE': 'string',
+                'APLY_HOME_ADDR_DSTR_CODE': 'string',
+                'APLY_INTVW_MCRFM_FILE_IND': 'string',
+                'APLY_INTL_RSDN_DATE': 'date/time',
+                'CS_CATG_CODE': 'string',
+                'EPS_JOIN_DATE': 'date/time',
+                'LTR_ITEM_LIST': 'string',
+                'APLY_SBMT_CHNL_CODE': 'string',
+                'APLY_AUTH_LVL_CODE': 'string',
+                'CS_PAY_SCL_TYPE_CODE': 'string',
+                'ALWN_TYPE_CODE': 'string',
+                'APLY_INCM_LMT_CODE': 'string',
+                'HOS_EXBNFT_TYPE_CODE': 'string',
+                'RLT_GWL_APLY_NUM': 'string',
+                'CS_QTA_CNT_IND': 'string',
+                'ELGBL_CRS_DSTR_TFR_IND': 'string',
+                'ALCT_SIZE_NUM': 'decimal',
+                'EXTR_GRD_UP_NUM': 'decimal',
+                'ALWN_FMLY_SIZE_NUM': 'decimal',
+                'APLY_EMAIL_ADDR': 'string',
+                'CUST_OTHR_CNTC_PRSN_NAME': 'string',
+                'TFR_FLAT_TYPE_LIST': 'string',
+                'TFR_IFA_LIST': 'string',
+                'APLY_ACPT_APRV_DATE': 'date/time',
+                'IELGBL_BYPS_IND': 'string',
+                'PREV_REHSE_CATG_CODE': 'string',
+                'PREV_TNCY_AGRMT_CMNC_DATE': 'date/time',
+                'OPR_SLCT_APLY_KEY': 'decimal',
+                'ACT_CASE_IND': 'string',
+                'APLY_DSBL_IND': 'string',
+                'HOS_KEY_HOVR_DATE_UPD_DATE': 'date/time',
+                'HFT_ELDR_FMLY_CODE_ADDR': 'string',
+                'HFT_CUST_MBR_ID_TYPE_CODE': 'string',
+                'HFT_CUST_MBR_ID_NUM': 'string',
+                'HFT_ELDR_CUST_MBR_DOB_DATE': 'date/time',
+                'HFT_ELDR_CUST_MBR_DOB_IND': 'string',
+                'HFT_CHILD_UND_SIX_IND': 'string',
+                'HFT_INTL_RSDN_DATE': 'date/time',
+                'TFR_RQS_ID': 'string',
+                'REF_CASE_KEY': 'string',
+                'REF_CASE_TYPE_CODE': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'HFT_PRIOR_KEY': 'string',
+                'TNCY_AGRMT_KEY': 'decimal',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+                'APLY_TNCY_MODE_CODE': 'string',
+                'APLY_INTN_ACCS_IND': 'string',
+                'SWCH_QUE_BSNS_DATE': 'date/time',
+                'SWCH_QUE_MRTL_STS_CODE': 'string',
+                'SWCH_QUE_MRTL_STS_RMK_TEXT': 'string',
+                'AWD_WAIT_CODE': 'decimal',
+                'APLY_HFPS_TYPE_CODE': 'string',
+                'CUST_HDSP_IND': 'string',
+                'APLY_AWD_WAIT_TIME_IND': 'string',
+                'UNDOCPY_TNCY_IND': 'string',
+                'APLY_RAS_IND': 'string',
+                'APLY_EQVLN_DATE_RMK_TEXT': 'string',
+                'HFT_CRS_DSTRB_TFR_IND': 'string',
+                'PRVS_APLY_KEY': 'string',
+                'FRST_RWL_CNCL_DATE': 'date/time',
+                'CSPHQ_SCND_RND_ACQ_IND': 'string',
+                'CSPHQ_SCND_RND_APLY_IND': 'string',
+                'CSPHQ_CRTR_1_TA_DUE_DATE': 'date/time',
+                'CSPHQ_CRTR_2_TA_DUE_DATE': 'date/time',
+                'CSPHQ_SGL_BDRM_CHC_IND': 'string',
+                'ORIG_GWL_APLY_NUM': 'string',
+                'CRSP_ADDR_APLY_ENG_NAME': 'string',
+                'CRSP_ADDR_APLY_CHI_NAME': 'string',
+                'CRSP_ENG_ADDR_PO_BOX_TEXT': 'string',
+                'CRSP_CHI_ADDR_PO_BOX_TEXT': 'string',
+                'APLY_OTHR_RLTV_NAME_TEXT': 'string',
+                'APLY_OTHR_RLTV_HOME_PHONE_NUM': 'string',
+                'APLY_OTHR_RLTV_MBL_PHONE_NUM': 'string',
+                'APLY_OTHR_RLTV_ADDR': 'string',
+                'APLY_FILE_LOC_TEXT': 'string',
+                'APLY_FILE_RCV_DATE': 'date/time',
+                'PREV_QTA_CATG_CODE': 'string',
+                'HFPS_H2_APLY_NAME_TEXT': 'string',
+                'HFPS_H2_APLY_ID_TYPE_CODE': 'string',
+                'HFPS_H2_APLY_ID_NUM': 'string',
+                'APLY_CNCL_RNDM_CHK_IND': 'string',
+                'APLY_CNCL_RNDM_CHK_DATE': 'date/time',
+                'APLY_CNCL_RNDM_CHK_USER_ID': 'string',
+                'JNT_CSTDY_IND': 'string',
+                'JNT_CSTDY_BU_DATE': 'date/time',
+                'PRPTY_OWNR_IND': 'string',
+                'RR_FLFL_IND': 'string',
+                'ALL_MBR_HK_OCPT_IND': 'string',
+                'APLY_DCLR_DATE': 'date/time',
+                'DOC_REF_NUM': 'string',
+                'LAST_UND_APRV_RVW_BGN_DATE': 'date/time',
+                'LAST_UND_APRV_RVW_END_DATE': 'date/time',
+                'UND_APRV_RVW_IND': 'string',
+                'APLY_REF_IND': 'string',
+                'DUP_FRZ_RULE_TYPE_CODE': 'string',
+                'DUP_FRZ_RULE_UPD_USER_ID': 'string',
+                'DUP_FRZ_RULE_UPD_MBR_CODE': 'string',
+                'DUP_FRZ_RULE_UPD_DATE': 'date/time',
+                'DUP_FRZ_RULE_QPS_SWCH_IND': 'string',
+                'ACTL_APLY_HSHLD_INCM_AMT': 'decimal',
+                'ACTL_APLY_HSHLD_AST_AMT': 'decimal',
+                'LAST_REC_TXN_MBR_CODE': 'string',
+                'ADTN_LANG_PREF_CODE': 'string',
+                'EFAS_URSN_WTHDRW_CNT': 'decimal',
+                'ORIG_EFAS_URSN_WTHDRW_CNT': 'decimal',
+                'APLY_NB_IND': 'string',
+                'APLY_NB_APRV_DATE': 'date/time',
+                'CSPHQ_ASGN_HSE_EST_CODE': 'string',
+            },
+            filter_condition="OPR_IND = 'E' OR OPR_IND = 'EB'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_PHA_APLY_STS", df_SQ_SSA_EMS_PHA_APLY_STS)
         
         logger.info("Step: apply_SQ_SSA_EMS_PHA_APLY")
         # Source Qualifier: apply_SQ_SSA_EMS_PHA_APLY
         df_SQ_SSA_EMS_PHA_APLY = df_SSA_EMS_PHA_APLY
-        df_SQ_SSA_EMS_PHA_APLY = df_SQ_SSA_EMS_PHA_APLY.filter(expr("OPR_IND = 'E'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["APLY_KEY", "APLY_BK", "HSE_SRVC_APLY_KEY", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_PHA_APLY = df_SQ_SSA_EMS_PHA_APLY.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_PHA_APLY.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_PHA_APLY = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_PHA_APLY,
+            port_cols={
+                'APLY_KEY': 'decimal',
+                'APLY_BK': 'string',
+                'HSE_SRVC_APLY_KEY': 'decimal',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_PHA_APLY", df_SQ_SSA_EMS_PHA_APLY)
         
         logger.info("Step: write_SOR_EMS_PHA_APLY_STS")
         # Write to Target: write_SOR_EMS_PHA_APLY_STS
-        df_write = df_SQ_SSA_EMS_PHA_APLY_STS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BGN_DATE": "SOR_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("PRH_APLY_STS_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PRH_APLY_STG_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PRH_APLY_STS_UPD_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PRH_APLY_STG_UPD_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_RCV_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_RGSTR_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_EQVLN_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_LANG_PREF_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_HSHLD_INCM_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_HSHLD_AST_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_LIFT_STOP_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_FROM_FLR_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_TO_FLR_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_LRG_ROOM_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_RNTBL_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_HOME_CODE_ADDR", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_HOME_ADDR_1", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_HOME_ADDR_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_HOME_ADDR_3", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_HOME_ADDR_4", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_HOME_ADDR_5", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_HOME_CHI_ADDR_1", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_HOME_CHI_ADDR_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_HOME_CHI_ADDR_3", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_HOME_CHI_ADDR_4", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_HOME_CHI_ADDR_5", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_CODE_ADDR", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_ADDR_1", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_ADDR_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_ADDR_3", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_ADDR_4", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_ADDR_5", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_CHI_ADDR_1", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_CHI_ADDR_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_CHI_ADDR_3", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_CHI_ADDR_4", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CRSP_CHI_ADDR_5", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_FMLY_SIZE_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CUR_CHILD_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_EXPCT_CHILD_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_EXPCT_DLVR_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_REF_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PRH_APLY_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_IMBL_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CSSA_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_SHR_WILL_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_ELDR_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_NFEP_REF_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_LIVE_WITH_CHILD_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_OTHR_RLTV_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_EXOWNR_HOS_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_RIR_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_HSTL_REF_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_HSTL_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_STRC_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("GF_CERT_ELGBL_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CS_APLY_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CS_RANK_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HKSAR_RANK_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CS_MTH_SLRY_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CS_RANK_SLRY_PNT_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CS_MAX_RANK_SLRY_PNT_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CS_JOIN_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CS_RTR_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CS_DCS_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CS_PNSN_SCHM_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_REF_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_REF_OFCR_NAME", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_REF_OFFC_NAME", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_REF_OFFC_PHONE_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("TNCY_AGRMT_CMNC_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("TNT_MARK_SCHM_PNT_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUR_RENT_FCTR_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("FTR_RENT_FCTR_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("FTR_RENT_FCTR_BGN_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUR_PLCY_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("FTR_PLCY_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_ELGBL_GRD_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_BRO_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_PRIOR_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_DBL_MOVE_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_VET_USER_ID", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_VET_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_HOME_PHONE_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_OFFC_PHONE_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_MBL_PHONE_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_OTHR_CNTC_NAME", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_OTHR_CNTC_CHI_NAME", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_OTHR_CNTC_ADDR_1", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_OTHR_CNTC_ADDR_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_OTHR_CNTC_ADDR_3", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_OTHR_CNTC_ADDR_4", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_OTHR_CNTC_ADDR_5", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_OTHR_CNTC_CHI_ADDR_1", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_OTHR_CNTC_CHI_ADDR_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_OTHR_CNTC_CHI_ADDR_3", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_OTHR_CNTC_CHI_ADDR_4", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_OTHR_CNTC_CHI_ADDR_5", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_OTHR_CNTC_HOME_PHONE_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_OTHR_CNTC_OFFC_PHONE_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_OTHR_CNTC_MBL_PHONE_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_OTHR_CNTC_EMAIL_ADDR", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_OTHR_CNTC_RLTN_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("OPR_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PRH_APLY_RSN_OFR_RFSL_TOT_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PRH_APLY_URSN_OFR_RFSL_TOT_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("GF_CERT_OPT_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ACMD_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_HSTL_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("NOT_APLY_CHILD_RSN_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("DEPT_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_TFR_DNSTY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_TFR_EQVLN_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_KEY_HOVR_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_FILE_MCRFM_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_NGO_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("THREE_OFR_DIR_ALCT_RQS_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("THREE_OFR_NEW_FLAT_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_OTHR_HSTL_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("QTA_CATG_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_HOME_ADDR_DSTR_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_INTVW_MCRFM_FILE_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_INTL_RSDN_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CS_CATG_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EPS_JOIN_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LTR_ITEM_LIST", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_SBMT_CHNL_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_AUTH_LVL_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CS_PAY_SCL_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ALWN_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_INCM_LMT_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_EXBNFT_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RLT_GWL_APLY_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CS_QTA_CNT_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ELGBL_CRS_DSTR_TFR_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ALCT_SIZE_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EXTR_GRD_UP_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ALWN_FMLY_SIZE_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_EMAIL_ADDR", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_OTHR_CNTC_PRSN_NAME", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("TFR_FLAT_TYPE_LIST", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("TFR_IFA_LIST", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_ACPT_APRV_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("IELGBL_BYPS_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PREV_REHSE_CATG_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PREV_TNCY_AGRMT_CMNC_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("OPR_SLCT_APLY_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ACT_CASE_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_DSBL_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_KEY_HOVR_DATE_UPD_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HFT_ELDR_FMLY_CODE_ADDR", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HFT_CUST_MBR_ID_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HFT_CUST_MBR_ID_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HFT_ELDR_CUST_MBR_DOB_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HFT_ELDR_CUST_MBR_DOB_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HFT_CHILD_UND_SIX_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HFT_INTL_RSDN_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("TFR_RQS_ID", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("REF_CASE_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("REF_CASE_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HFT_PRIOR_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("TNCY_AGRMT_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_TNCY_MODE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_INTN_ACCS_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("SWCH_QUE_BSNS_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("SWCH_QUE_MRTL_STS_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("SWCH_QUE_MRTL_STS_RMK_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("AWD_WAIT_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_HFPS_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_HDSP_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_AWD_WAIT_TIME_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("UNDOCPY_TNCY_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_RAS_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_EQVLN_DATE_RMK_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HFT_CRS_DSTRB_TFR_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PRVS_APLY_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("FRST_RWL_CNCL_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CSPHQ_SCND_RND_ACQ_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CSPHQ_SCND_RND_APLY_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CSPHQ_CRTR_1_TA_DUE_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CSPHQ_CRTR_2_TA_DUE_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CSPHQ_SGL_BDRM_CHC_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ORIG_GWL_APLY_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CRSP_ADDR_APLY_ENG_NAME", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CRSP_ADDR_APLY_CHI_NAME", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CRSP_ENG_ADDR_PO_BOX_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CRSP_CHI_ADDR_PO_BOX_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_OTHR_RLTV_NAME_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_OTHR_RLTV_HOME_PHONE_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_OTHR_RLTV_MBL_PHONE_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_OTHR_RLTV_ADDR", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_FILE_LOC_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_FILE_RCV_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PREV_QTA_CATG_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HFPS_H2_APLY_NAME_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HFPS_H2_APLY_ID_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HFPS_H2_APLY_ID_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CNCL_RNDM_CHK_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CNCL_RNDM_CHK_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_CNCL_RNDM_CHK_USER_ID", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("JNT_CSTDY_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("JNT_CSTDY_BU_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PRPTY_OWNR_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RR_FLFL_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ALL_MBR_HK_OCPT_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_DCLR_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("DOC_REF_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_UND_APRV_RVW_BGN_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_UND_APRV_RVW_END_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("UND_APRV_RVW_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_REF_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("DUP_FRZ_RULE_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("DUP_FRZ_RULE_UPD_USER_ID", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("DUP_FRZ_RULE_UPD_MBR_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("DUP_FRZ_RULE_UPD_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("DUP_FRZ_RULE_QPS_SWCH_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ACTL_APLY_HSHLD_INCM_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ACTL_APLY_HSHLD_AST_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_REC_TXN_MBR_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ADTN_LANG_PREF_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EFAS_URSN_WTHDRW_CNT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ORIG_EFAS_URSN_WTHDRW_CNT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_NB_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_NB_APRV_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CSPHQ_ASGN_HSE_EST_CODE", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['APLY_KEY', 'BGN_DATE', 'END_DATE', 'PRH_APLY_STS_CODE', 'PRH_APLY_STG_CODE', 'PRH_APLY_STS_UPD_DATE', 'PRH_APLY_STG_UPD_DATE', 'APLY_RCV_DATE', 'APLY_RGSTR_DATE', 'APLY_EQVLN_DATE', 'APLY_LANG_PREF_CODE', 'APLY_HSHLD_INCM_AMT', 'APLY_HSHLD_AST_AMT', 'APLY_LIFT_STOP_IND', 'APLY_FROM_FLR_NUM', 'APLY_TO_FLR_NUM', 'APLY_LRG_ROOM_IND', 'APLY_RNTBL_AMT', 'APLY_HOME_CODE_ADDR', 'APLY_HOME_ADDR_1', 'APLY_HOME_ADDR_2', 'APLY_HOME_ADDR_3', 'APLY_HOME_ADDR_4', 'APLY_HOME_ADDR_5', 'APLY_HOME_CHI_ADDR_1', 'APLY_HOME_CHI_ADDR_2', 'APLY_HOME_CHI_ADDR_3', 'APLY_HOME_CHI_ADDR_4', 'APLY_HOME_CHI_ADDR_5', 'APLY_CRSP_CODE_ADDR', 'APLY_CRSP_ADDR_1', 'APLY_CRSP_ADDR_2', 'APLY_CRSP_ADDR_3', 'APLY_CRSP_ADDR_4', 'APLY_CRSP_ADDR_5', 'APLY_CRSP_CHI_ADDR_1', 'APLY_CRSP_CHI_ADDR_2', 'APLY_CRSP_CHI_ADDR_3', 'APLY_CRSP_CHI_ADDR_4', 'APLY_CRSP_CHI_ADDR_5', 'APLY_FMLY_SIZE_NUM', 'APLY_CUR_CHILD_NUM', 'APLY_EXPCT_CHILD_NUM', 'APLY_EXPCT_DLVR_DATE', 'APLY_REF_NUM', 'PRH_APLY_TYPE_CODE', 'APLY_IMBL_IND', 'APLY_CSSA_IND', 'APLY_SHR_WILL_IND', 'APLY_ELDR_CODE', 'APLY_NFEP_REF_NUM', 'APLY_LIVE_WITH_CHILD_IND', 'APLY_OTHR_RLTV_IND', 'APLY_EXOWNR_HOS_IND', 'APLY_RIR_IND', 'APLY_HSTL_REF_NUM', 'APLY_HSTL_IND', 'APLY_STRC_NUM', 'GF_CERT_ELGBL_IND', 'CS_APLY_TYPE_CODE', 'CS_RANK_CODE', 'HKSAR_RANK_CODE', 'CS_MTH_SLRY_AMT', 'CS_RANK_SLRY_PNT_NUM', 'CS_MAX_RANK_SLRY_PNT_NUM', 'CS_JOIN_DATE', 'CS_RTR_DATE', 'CS_DCS_DATE', 'CS_PNSN_SCHM_CODE', 'APLY_REF_DATE', 'APLY_REF_OFCR_NAME', 'APLY_REF_OFFC_NAME', 'APLY_REF_OFFC_PHONE_NUM', 'TNCY_AGRMT_CMNC_DATE', 'TNT_MARK_SCHM_PNT_NUM', 'CUR_RENT_FCTR_CODE', 'FTR_RENT_FCTR_CODE', 'FTR_RENT_FCTR_BGN_DATE', 'CUR_PLCY_IND', 'FTR_PLCY_IND', 'APLY_ELGBL_GRD_CODE', 'APLY_BRO_IND', 'APLY_PRIOR_NUM', 'APLY_DBL_MOVE_IND', 'APLY_VET_USER_ID', 'APLY_VET_DATE', 'APLY_HOME_PHONE_NUM', 'APLY_OFFC_PHONE_NUM', 'APLY_MBL_PHONE_NUM', 'CUST_OTHR_CNTC_NAME', 'CUST_OTHR_CNTC_CHI_NAME', 'CUST_OTHR_CNTC_ADDR_1', 'CUST_OTHR_CNTC_ADDR_2', 'CUST_OTHR_CNTC_ADDR_3', 'CUST_OTHR_CNTC_ADDR_4', 'CUST_OTHR_CNTC_ADDR_5', 'CUST_OTHR_CNTC_CHI_ADDR_1', 'CUST_OTHR_CNTC_CHI_ADDR_2', 'CUST_OTHR_CNTC_CHI_ADDR_3', 'CUST_OTHR_CNTC_CHI_ADDR_4', 'CUST_OTHR_CNTC_CHI_ADDR_5', 'CUST_OTHR_CNTC_HOME_PHONE_NUM', 'CUST_OTHR_CNTC_OFFC_PHONE_NUM', 'CUST_OTHR_CNTC_MBL_PHONE_NUM', 'CUST_OTHR_CNTC_EMAIL_ADDR', 'CUST_OTHR_CNTC_RLTN_CODE', 'OPR_CODE', 'PRH_APLY_RSN_OFR_RFSL_TOT_NUM', 'PRH_APLY_URSN_OFR_RFSL_TOT_NUM', 'GF_CERT_OPT_IND', 'ACMD_TYPE_CODE', 'APLY_HSTL_CODE', 'NOT_APLY_CHILD_RSN_CODE', 'DEPT_CODE', 'APLY_TFR_DNSTY', 'APLY_TFR_EQVLN_NUM', 'HOS_KEY_HOVR_DATE', 'APLY_FILE_MCRFM_IND', 'APLY_NGO_CODE', 'THREE_OFR_DIR_ALCT_RQS_IND', 'THREE_OFR_NEW_FLAT_IND', 'APLY_OTHR_HSTL_IND', 'QTA_CATG_CODE', 'APLY_HOME_ADDR_DSTR_CODE', 'APLY_INTVW_MCRFM_FILE_IND', 'APLY_INTL_RSDN_DATE', 'CS_CATG_CODE', 'EPS_JOIN_DATE', 'LTR_ITEM_LIST', 'APLY_SBMT_CHNL_CODE', 'APLY_AUTH_LVL_CODE', 'CS_PAY_SCL_TYPE_CODE', 'ALWN_TYPE_CODE', 'APLY_INCM_LMT_CODE', 'HOS_EXBNFT_TYPE_CODE', 'RLT_GWL_APLY_NUM', 'CS_QTA_CNT_IND', 'ELGBL_CRS_DSTR_TFR_IND', 'ALCT_SIZE_NUM', 'EXTR_GRD_UP_NUM', 'ALWN_FMLY_SIZE_NUM', 'APLY_EMAIL_ADDR', 'CUST_OTHR_CNTC_PRSN_NAME', 'TFR_FLAT_TYPE_LIST', 'TFR_IFA_LIST', 'APLY_ACPT_APRV_DATE', 'IELGBL_BYPS_IND', 'PREV_REHSE_CATG_CODE', 'PREV_TNCY_AGRMT_CMNC_DATE', 'OPR_SLCT_APLY_KEY', 'ACT_CASE_IND', 'APLY_DSBL_IND', 'HOS_KEY_HOVR_DATE_UPD_DATE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'HFT_ELDR_FMLY_CODE_ADDR', 'HFT_CUST_MBR_ID_TYPE_CODE', 'HFT_CUST_MBR_ID_NUM', 'HFT_ELDR_CUST_MBR_DOB_DATE', 'HFT_ELDR_CUST_MBR_DOB_IND', 'HFT_CHILD_UND_SIX_IND', 'HFT_INTL_RSDN_DATE', 'TFR_RQS_ID', 'REF_CASE_KEY', 'REF_CASE_TYPE_CODE', 'HFT_PRIOR_KEY', 'TNCY_AGRMT_KEY', 'APLY_TNCY_MODE_CODE', 'APLY_INTN_ACCS_IND', 'SWCH_QUE_BSNS_DATE', 'SWCH_QUE_MRTL_STS_CODE', 'SWCH_QUE_MRTL_STS_RMK_TEXT', 'AWD_WAIT_CODE', 'APLY_HFPS_TYPE_CODE', 'CUST_HDSP_IND', 'APLY_AWD_WAIT_TIME_IND', 'UNDOCPY_TNCY_IND', 'APLY_RAS_IND', 'APLY_EQVLN_DATE_RMK_TEXT', 'HFT_CRS_DSTRB_TFR_IND', 'PRVS_APLY_KEY', 'FRST_RWL_CNCL_DATE', 'CSPHQ_SCND_RND_ACQ_IND', 'CSPHQ_SCND_RND_APLY_IND', 'CSPHQ_CRTR_1_TA_DUE_DATE', 'CSPHQ_CRTR_2_TA_DUE_DATE', 'CSPHQ_SGL_BDRM_CHC_IND', 'ORIG_GWL_APLY_NUM', 'CRSP_ADDR_APLY_ENG_NAME', 'CRSP_ADDR_APLY_CHI_NAME', 'CRSP_ENG_ADDR_PO_BOX_TEXT', 'CRSP_CHI_ADDR_PO_BOX_TEXT', 'APLY_OTHR_RLTV_NAME_TEXT', 'APLY_OTHR_RLTV_HOME_PHONE_NUM', 'APLY_OTHR_RLTV_MBL_PHONE_NUM', 'APLY_OTHR_RLTV_ADDR', 'APLY_FILE_LOC_TEXT', 'APLY_FILE_RCV_DATE', 'PREV_QTA_CATG_CODE', 'HFPS_H2_APLY_NAME_TEXT', 'HFPS_H2_APLY_ID_TYPE_CODE', 'HFPS_H2_APLY_ID_NUM', 'APLY_CNCL_RNDM_CHK_IND', 'APLY_CNCL_RNDM_CHK_DATE', 'APLY_CNCL_RNDM_CHK_USER_ID', 'JNT_CSTDY_IND', 'JNT_CSTDY_BU_DATE', 'PRPTY_OWNR_IND', 'RR_FLFL_IND', 'ALL_MBR_HK_OCPT_IND', 'APLY_DCLR_DATE', 'DOC_REF_NUM', 'LAST_UND_APRV_RVW_BGN_DATE', 'LAST_UND_APRV_RVW_END_DATE', 'UND_APRV_RVW_IND', 'APLY_REF_IND', 'DUP_FRZ_RULE_TYPE_CODE', 'DUP_FRZ_RULE_UPD_USER_ID', 'DUP_FRZ_RULE_UPD_MBR_CODE', 'DUP_FRZ_RULE_UPD_DATE', 'DUP_FRZ_RULE_QPS_SWCH_IND', 'ACTL_APLY_HSHLD_INCM_AMT', 'ACTL_APLY_HSHLD_AST_AMT', 'LAST_REC_TXN_MBR_CODE', 'ADTN_LANG_PREF_CODE', 'EFAS_URSN_WTHDRW_CNT', 'ORIG_EFAS_URSN_WTHDRW_CNT', 'APLY_NB_IND', 'APLY_NB_APRV_DATE', 'CSPHQ_ASGN_HSE_EST_CODE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_PHA_APLY_STS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_PHA_APLY_STS,
+            conn=conn_target,
+            table='SOR_EMS_PHA_APLY_STS',
+            mode='append',
+            source_columns=[
+                'APLY_KEY',
+                'SOR_DATE',
+                'END_DATE',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                'LAST_REC_TXN_DATE',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ],
+            target_columns=[
+                'APLY_KEY',
+                'BGN_DATE',
+                'END_DATE',
+                'PRH_APLY_STS_CODE',
+                'PRH_APLY_STG_CODE',
+                'PRH_APLY_STS_UPD_DATE',
+                'PRH_APLY_STG_UPD_DATE',
+                'APLY_RCV_DATE',
+                'APLY_RGSTR_DATE',
+                'APLY_EQVLN_DATE',
+                'APLY_LANG_PREF_CODE',
+                'APLY_HSHLD_INCM_AMT',
+                'APLY_HSHLD_AST_AMT',
+                'APLY_LIFT_STOP_IND',
+                'APLY_FROM_FLR_NUM',
+                'APLY_TO_FLR_NUM',
+                'APLY_LRG_ROOM_IND',
+                'APLY_RNTBL_AMT',
+                'APLY_HOME_CODE_ADDR',
+                'APLY_HOME_ADDR_1',
+                'APLY_HOME_ADDR_2',
+                'APLY_HOME_ADDR_3',
+                'APLY_HOME_ADDR_4',
+                'APLY_HOME_ADDR_5',
+                'APLY_HOME_CHI_ADDR_1',
+                'APLY_HOME_CHI_ADDR_2',
+                'APLY_HOME_CHI_ADDR_3',
+                'APLY_HOME_CHI_ADDR_4',
+                'APLY_HOME_CHI_ADDR_5',
+                'APLY_CRSP_CODE_ADDR',
+                'APLY_CRSP_ADDR_1',
+                'APLY_CRSP_ADDR_2',
+                'APLY_CRSP_ADDR_3',
+                'APLY_CRSP_ADDR_4',
+                'APLY_CRSP_ADDR_5',
+                'APLY_CRSP_CHI_ADDR_1',
+                'APLY_CRSP_CHI_ADDR_2',
+                'APLY_CRSP_CHI_ADDR_3',
+                'APLY_CRSP_CHI_ADDR_4',
+                'APLY_CRSP_CHI_ADDR_5',
+                'APLY_FMLY_SIZE_NUM',
+                'APLY_CUR_CHILD_NUM',
+                'APLY_EXPCT_CHILD_NUM',
+                'APLY_EXPCT_DLVR_DATE',
+                'APLY_REF_NUM',
+                'PRH_APLY_TYPE_CODE',
+                'APLY_IMBL_IND',
+                'APLY_CSSA_IND',
+                'APLY_SHR_WILL_IND',
+                'APLY_ELDR_CODE',
+                'APLY_NFEP_REF_NUM',
+                'APLY_LIVE_WITH_CHILD_IND',
+                'APLY_OTHR_RLTV_IND',
+                'APLY_EXOWNR_HOS_IND',
+                'APLY_RIR_IND',
+                'APLY_HSTL_REF_NUM',
+                'APLY_HSTL_IND',
+                'APLY_STRC_NUM',
+                'GF_CERT_ELGBL_IND',
+                'CS_APLY_TYPE_CODE',
+                'CS_RANK_CODE',
+                'HKSAR_RANK_CODE',
+                'CS_MTH_SLRY_AMT',
+                'CS_RANK_SLRY_PNT_NUM',
+                'CS_MAX_RANK_SLRY_PNT_NUM',
+                'CS_JOIN_DATE',
+                'CS_RTR_DATE',
+                'CS_DCS_DATE',
+                'CS_PNSN_SCHM_CODE',
+                'APLY_REF_DATE',
+                'APLY_REF_OFCR_NAME',
+                'APLY_REF_OFFC_NAME',
+                'APLY_REF_OFFC_PHONE_NUM',
+                'TNCY_AGRMT_CMNC_DATE',
+                'TNT_MARK_SCHM_PNT_NUM',
+                'CUR_RENT_FCTR_CODE',
+                'FTR_RENT_FCTR_CODE',
+                'FTR_RENT_FCTR_BGN_DATE',
+                'CUR_PLCY_IND',
+                'FTR_PLCY_IND',
+                'APLY_ELGBL_GRD_CODE',
+                'APLY_BRO_IND',
+                'APLY_PRIOR_NUM',
+                'APLY_DBL_MOVE_IND',
+                'APLY_VET_USER_ID',
+                'APLY_VET_DATE',
+                'APLY_HOME_PHONE_NUM',
+                'APLY_OFFC_PHONE_NUM',
+                'APLY_MBL_PHONE_NUM',
+                'CUST_OTHR_CNTC_NAME',
+                'CUST_OTHR_CNTC_CHI_NAME',
+                'CUST_OTHR_CNTC_ADDR_1',
+                'CUST_OTHR_CNTC_ADDR_2',
+                'CUST_OTHR_CNTC_ADDR_3',
+                'CUST_OTHR_CNTC_ADDR_4',
+                'CUST_OTHR_CNTC_ADDR_5',
+                'CUST_OTHR_CNTC_CHI_ADDR_1',
+                'CUST_OTHR_CNTC_CHI_ADDR_2',
+                'CUST_OTHR_CNTC_CHI_ADDR_3',
+                'CUST_OTHR_CNTC_CHI_ADDR_4',
+                'CUST_OTHR_CNTC_CHI_ADDR_5',
+                'CUST_OTHR_CNTC_HOME_PHONE_NUM',
+                'CUST_OTHR_CNTC_OFFC_PHONE_NUM',
+                'CUST_OTHR_CNTC_MBL_PHONE_NUM',
+                'CUST_OTHR_CNTC_EMAIL_ADDR',
+                'CUST_OTHR_CNTC_RLTN_CODE',
+                'OPR_CODE',
+                'PRH_APLY_RSN_OFR_RFSL_TOT_NUM',
+                'PRH_APLY_URSN_OFR_RFSL_TOT_NUM',
+                'GF_CERT_OPT_IND',
+                'ACMD_TYPE_CODE',
+                'APLY_HSTL_CODE',
+                'NOT_APLY_CHILD_RSN_CODE',
+                'DEPT_CODE',
+                'APLY_TFR_DNSTY',
+                'APLY_TFR_EQVLN_NUM',
+                'HOS_KEY_HOVR_DATE',
+                'APLY_FILE_MCRFM_IND',
+                'APLY_NGO_CODE',
+                'THREE_OFR_DIR_ALCT_RQS_IND',
+                'THREE_OFR_NEW_FLAT_IND',
+                'APLY_OTHR_HSTL_IND',
+                'QTA_CATG_CODE',
+                'APLY_HOME_ADDR_DSTR_CODE',
+                'APLY_INTVW_MCRFM_FILE_IND',
+                'APLY_INTL_RSDN_DATE',
+                'CS_CATG_CODE',
+                'EPS_JOIN_DATE',
+                'LTR_ITEM_LIST',
+                'APLY_SBMT_CHNL_CODE',
+                'APLY_AUTH_LVL_CODE',
+                'CS_PAY_SCL_TYPE_CODE',
+                'ALWN_TYPE_CODE',
+                'APLY_INCM_LMT_CODE',
+                'HOS_EXBNFT_TYPE_CODE',
+                'RLT_GWL_APLY_NUM',
+                'CS_QTA_CNT_IND',
+                'ELGBL_CRS_DSTR_TFR_IND',
+                'ALCT_SIZE_NUM',
+                'EXTR_GRD_UP_NUM',
+                'ALWN_FMLY_SIZE_NUM',
+                'APLY_EMAIL_ADDR',
+                'CUST_OTHR_CNTC_PRSN_NAME',
+                'TFR_FLAT_TYPE_LIST',
+                'TFR_IFA_LIST',
+                'APLY_ACPT_APRV_DATE',
+                'IELGBL_BYPS_IND',
+                'PREV_REHSE_CATG_CODE',
+                'PREV_TNCY_AGRMT_CMNC_DATE',
+                'OPR_SLCT_APLY_KEY',
+                'ACT_CASE_IND',
+                'APLY_DSBL_IND',
+                'HOS_KEY_HOVR_DATE_UPD_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'HFT_ELDR_FMLY_CODE_ADDR',
+                'HFT_CUST_MBR_ID_TYPE_CODE',
+                'HFT_CUST_MBR_ID_NUM',
+                'HFT_ELDR_CUST_MBR_DOB_DATE',
+                'HFT_ELDR_CUST_MBR_DOB_IND',
+                'HFT_CHILD_UND_SIX_IND',
+                'HFT_INTL_RSDN_DATE',
+                'TFR_RQS_ID',
+                'REF_CASE_KEY',
+                'REF_CASE_TYPE_CODE',
+                'HFT_PRIOR_KEY',
+                'TNCY_AGRMT_KEY',
+                'APLY_TNCY_MODE_CODE',
+                'APLY_INTN_ACCS_IND',
+                'SWCH_QUE_BSNS_DATE',
+                'SWCH_QUE_MRTL_STS_CODE',
+                'SWCH_QUE_MRTL_STS_RMK_TEXT',
+                'AWD_WAIT_CODE',
+                'APLY_HFPS_TYPE_CODE',
+                'CUST_HDSP_IND',
+                'APLY_AWD_WAIT_TIME_IND',
+                'UNDOCPY_TNCY_IND',
+                'APLY_RAS_IND',
+                'APLY_EQVLN_DATE_RMK_TEXT',
+                'HFT_CRS_DSTRB_TFR_IND',
+                'PRVS_APLY_KEY',
+                'FRST_RWL_CNCL_DATE',
+                'CSPHQ_SCND_RND_ACQ_IND',
+                'CSPHQ_SCND_RND_APLY_IND',
+                'CSPHQ_CRTR_1_TA_DUE_DATE',
+                'CSPHQ_CRTR_2_TA_DUE_DATE',
+                'CSPHQ_SGL_BDRM_CHC_IND',
+                'ORIG_GWL_APLY_NUM',
+                'CRSP_ADDR_APLY_ENG_NAME',
+                'CRSP_ADDR_APLY_CHI_NAME',
+                'CRSP_ENG_ADDR_PO_BOX_TEXT',
+                'CRSP_CHI_ADDR_PO_BOX_TEXT',
+                'APLY_OTHR_RLTV_NAME_TEXT',
+                'APLY_OTHR_RLTV_HOME_PHONE_NUM',
+                'APLY_OTHR_RLTV_MBL_PHONE_NUM',
+                'APLY_OTHR_RLTV_ADDR',
+                'APLY_FILE_LOC_TEXT',
+                'APLY_FILE_RCV_DATE',
+                'PREV_QTA_CATG_CODE',
+                'HFPS_H2_APLY_NAME_TEXT',
+                'HFPS_H2_APLY_ID_TYPE_CODE',
+                'HFPS_H2_APLY_ID_NUM',
+                'APLY_CNCL_RNDM_CHK_IND',
+                'APLY_CNCL_RNDM_CHK_DATE',
+                'APLY_CNCL_RNDM_CHK_USER_ID',
+                'JNT_CSTDY_IND',
+                'JNT_CSTDY_BU_DATE',
+                'PRPTY_OWNR_IND',
+                'RR_FLFL_IND',
+                'ALL_MBR_HK_OCPT_IND',
+                'APLY_DCLR_DATE',
+                'DOC_REF_NUM',
+                'LAST_UND_APRV_RVW_BGN_DATE',
+                'LAST_UND_APRV_RVW_END_DATE',
+                'UND_APRV_RVW_IND',
+                'APLY_REF_IND',
+                'DUP_FRZ_RULE_TYPE_CODE',
+                'DUP_FRZ_RULE_UPD_USER_ID',
+                'DUP_FRZ_RULE_UPD_MBR_CODE',
+                'DUP_FRZ_RULE_UPD_DATE',
+                'DUP_FRZ_RULE_QPS_SWCH_IND',
+                'ACTL_APLY_HSHLD_INCM_AMT',
+                'ACTL_APLY_HSHLD_AST_AMT',
+                'LAST_REC_TXN_MBR_CODE',
+                'ADTN_LANG_PREF_CODE',
+                'EFAS_URSN_WTHDRW_CNT',
+                'ORIG_EFAS_URSN_WTHDRW_CNT',
+                'APLY_NB_IND',
+                'APLY_NB_APRV_DATE',
+                'CSPHQ_ASGN_HSE_EST_CODE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_PHA_APLY_STS write completed")
         logger.info("Step: write_SOR_EMS_PHA_APLY")
         # Write to Target: write_SOR_EMS_PHA_APLY
-        df_write = df_SQ_SSA_EMS_PHA_APLY
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("APLY_BK", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_SRVC_APLY_KEY", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['APLY_KEY', 'APLY_BK', 'HSE_SRVC_APLY_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_PHA_APLY", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_PHA_APLY,
+            conn=conn_target,
+            table='SOR_EMS_PHA_APLY',
+            mode='append',
+            source_columns=[
+                'APLY_KEY',
+                None,
+                None,
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'APLY_KEY',
+                'APLY_BK',
+                'HSE_SRVC_APLY_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_PHA_APLY write completed")
         

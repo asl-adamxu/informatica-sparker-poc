@@ -64,93 +64,206 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_PAW_ALWN_PYMT")
         # Source Qualifier: apply_SQ_SSA_EMS_PAW_ALWN_PYMT
         df_SQ_SSA_EMS_PAW_ALWN_PYMT = df_SSA_EMS_PAW_ALWN_PYMT
-        df_SQ_SSA_EMS_PAW_ALWN_PYMT = df_SQ_SSA_EMS_PAW_ALWN_PYMT.filter(expr("OPR_IND = 'E'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["PYMT_KEY", "PYMT_BK", "OPR_CODE", "PYMT_SCHD_TYPE_CODE", "PYMT_SCHD_SRL_NUM", "PYMT_SCHD_SEQ_NUM", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_PAW_ALWN_PYMT = df_SQ_SSA_EMS_PAW_ALWN_PYMT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_PAW_ALWN_PYMT.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_PAW_ALWN_PYMT = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_PAW_ALWN_PYMT,
+            port_cols={
+                'PYMT_KEY': 'decimal',
+                'PYMT_BK': 'string',
+                'OPR_CODE': 'string',
+                'PYMT_SCHD_TYPE_CODE': 'string',
+                'PYMT_SCHD_SRL_NUM': 'decimal',
+                'PYMT_SCHD_SEQ_NUM': 'decimal',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_PAW_ALWN_PYMT", df_SQ_SSA_EMS_PAW_ALWN_PYMT)
         
         logger.info("Step: apply_SQ_SSA_EMS_PAW_ALWN_PYMT_STS")
         # Source Qualifier: apply_SQ_SSA_EMS_PAW_ALWN_PYMT_STS
         df_SQ_SSA_EMS_PAW_ALWN_PYMT_STS = df_SSA_EMS_PAW_ALWN_PYMT_STS
-        df_SQ_SSA_EMS_PAW_ALWN_PYMT_STS = df_SQ_SSA_EMS_PAW_ALWN_PYMT_STS.filter(expr("OPR_IND = 'E' OR OPR_IND = 'EB'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["PYMT_KEY", "BGN_DATE", "END_DATE", "APLY_KEY", "ALWN_PYMT_BTCH_ID", "ALWN_PYMT_BTCH_DATE", "PYMT_SCHD_BGN_DATE", "PYMT_SCHD_PRN_NUM", "PYMT_SCHD_CHQ_STS_CODE", "PYMT_SCHD_CHQ_NUM", "PYMT_SCHD_CHQ_AMT", "PYMT_SCHD_CHQ_VOID_DATE", "PYMT_SCHD_CHQ_RCV_DATE", "PYMT_SCHD_STS_CODE", "PYMT_SCHD_CNCL_CODE", "PYMT_SCHD_CNCL_DATE", "PYMT_SCHD_RQS_USER_ID", "PYMT_SCHD_APRV_USER_ID", "PYMT_SCHD_CNCL_USER_ID", "PYMT_SCHD_CHQ_VOID_USER_ID", "PYMT_SCHD_CHQ_RGSTR_USER_ID", "PYMT_SCHD_CHQ_RCV_USER_ID", "PYMT_SCHD_CNCL_RMK_TEXT", "PYMT_SCHD_PRPR_DATE", "PYMT_SCHD_DUE_DATE", "CUST_MBR_ID_TYPE_CODE", "CUST_MBR_ID_NUM", "MANU_INPT_IND", "HSE_SRVC_APLY_NUM", "PYMT_SCHD_CHQ_DATE", "ALWN_PYMT_CHK_USER_NAME", "ALWN_PYMT_CHK_USER_TTL", "ALWN_PYMT_APRV_USER_NAME", "ALWN_PYMT_APRV_USER_TTL", "APLY_FMLY_SIZE_NUM", "ORIG_CODE_ADDR", "CUST_MBR_NAME", "CUST_MBR_CHI_NAME", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_PAW_ALWN_PYMT_STS = df_SQ_SSA_EMS_PAW_ALWN_PYMT_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_PAW_ALWN_PYMT_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_PAW_ALWN_PYMT_STS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_PAW_ALWN_PYMT_STS,
+            port_cols={
+                'PYMT_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'APLY_KEY': 'decimal',
+                'ALWN_PYMT_BTCH_ID': 'decimal',
+                'ALWN_PYMT_BTCH_DATE': 'date/time',
+                'PYMT_SCHD_BGN_DATE': 'date/time',
+                'PYMT_SCHD_PRN_NUM': 'decimal',
+                'PYMT_SCHD_CHQ_STS_CODE': 'string',
+                'PYMT_SCHD_CHQ_NUM': 'string',
+                'PYMT_SCHD_CHQ_AMT': 'decimal',
+                'PYMT_SCHD_CHQ_VOID_DATE': 'date/time',
+                'PYMT_SCHD_CHQ_RCV_DATE': 'date/time',
+                'PYMT_SCHD_STS_CODE': 'string',
+                'PYMT_SCHD_CNCL_CODE': 'string',
+                'PYMT_SCHD_CNCL_DATE': 'date/time',
+                'PYMT_SCHD_RQS_USER_ID': 'string',
+                'PYMT_SCHD_APRV_USER_ID': 'string',
+                'PYMT_SCHD_CNCL_USER_ID': 'string',
+                'PYMT_SCHD_CHQ_VOID_USER_ID': 'string',
+                'PYMT_SCHD_CHQ_RGSTR_USER_ID': 'string',
+                'PYMT_SCHD_CHQ_RCV_USER_ID': 'string',
+                'PYMT_SCHD_CNCL_RMK_TEXT': 'string',
+                'PYMT_SCHD_PRPR_DATE': 'date/time',
+                'PYMT_SCHD_DUE_DATE': 'date/time',
+                'CUST_MBR_ID_TYPE_CODE': 'string',
+                'CUST_MBR_ID_NUM': 'string',
+                'MANU_INPT_IND': 'string',
+                'HSE_SRVC_APLY_NUM': 'string',
+                'PYMT_SCHD_CHQ_DATE': 'date/time',
+                'ALWN_PYMT_CHK_USER_NAME': 'string',
+                'ALWN_PYMT_CHK_USER_TTL': 'string',
+                'ALWN_PYMT_APRV_USER_NAME': 'string',
+                'ALWN_PYMT_APRV_USER_TTL': 'string',
+                'APLY_FMLY_SIZE_NUM': 'decimal',
+                'ORIG_CODE_ADDR': 'string',
+                'CUST_MBR_NAME': 'string',
+                'CUST_MBR_CHI_NAME': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E' OR OPR_IND = 'EB'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_PAW_ALWN_PYMT_STS", df_SQ_SSA_EMS_PAW_ALWN_PYMT_STS)
         
         logger.info("Step: write_SOR_EMS_PAW_ALWN_PYMT")
         # Write to Target: write_SOR_EMS_PAW_ALWN_PYMT
-        df_write = df_SQ_SSA_EMS_PAW_ALWN_PYMT
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("PYMT_BK", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("OPR_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PYMT_SCHD_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PYMT_SCHD_SRL_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PYMT_SCHD_SEQ_NUM", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['PYMT_KEY', 'PYMT_BK', 'OPR_CODE', 'PYMT_SCHD_TYPE_CODE', 'PYMT_SCHD_SRL_NUM', 'PYMT_SCHD_SEQ_NUM', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_PAW_ALWN_PYMT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_PAW_ALWN_PYMT,
+            conn=conn_target,
+            table='SOR_EMS_PAW_ALWN_PYMT',
+            mode='append',
+            source_columns=[
+                'PYMT_KEY',
+                None,
+                None,
+                None,
+                None,
+                None,
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'PYMT_KEY',
+                'PYMT_BK',
+                'OPR_CODE',
+                'PYMT_SCHD_TYPE_CODE',
+                'PYMT_SCHD_SRL_NUM',
+                'PYMT_SCHD_SEQ_NUM',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_PAW_ALWN_PYMT write completed")
         logger.info("Step: write_SOR_EMS_PAW_ALWN_PYMT_STS")
         # Write to Target: write_SOR_EMS_PAW_ALWN_PYMT_STS
-        df_write = df_SQ_SSA_EMS_PAW_ALWN_PYMT_STS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BGN_DATE": "SOR_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("APLY_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ALWN_PYMT_BTCH_ID", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ALWN_PYMT_BTCH_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PYMT_SCHD_BGN_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PYMT_SCHD_PRN_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PYMT_SCHD_CHQ_STS_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PYMT_SCHD_CHQ_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PYMT_SCHD_CHQ_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PYMT_SCHD_CHQ_VOID_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PYMT_SCHD_CHQ_RCV_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PYMT_SCHD_STS_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PYMT_SCHD_CNCL_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PYMT_SCHD_CNCL_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PYMT_SCHD_RQS_USER_ID", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PYMT_SCHD_APRV_USER_ID", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PYMT_SCHD_CNCL_USER_ID", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PYMT_SCHD_CHQ_VOID_USER_ID", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PYMT_SCHD_CHQ_RGSTR_USER_ID", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PYMT_SCHD_CHQ_RCV_USER_ID", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PYMT_SCHD_CNCL_RMK_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PYMT_SCHD_PRPR_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PYMT_SCHD_DUE_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_MBR_ID_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_MBR_ID_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("MANU_INPT_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_SRVC_APLY_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PYMT_SCHD_CHQ_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ALWN_PYMT_CHK_USER_NAME", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ALWN_PYMT_CHK_USER_TTL", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ALWN_PYMT_APRV_USER_NAME", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ALWN_PYMT_APRV_USER_TTL", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("APLY_FMLY_SIZE_NUM", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ORIG_CODE_ADDR", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_MBR_NAME", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_MBR_CHI_NAME", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['PYMT_KEY', 'BGN_DATE', 'END_DATE', 'APLY_KEY', 'ALWN_PYMT_BTCH_ID', 'ALWN_PYMT_BTCH_DATE', 'PYMT_SCHD_BGN_DATE', 'PYMT_SCHD_PRN_NUM', 'PYMT_SCHD_CHQ_STS_CODE', 'PYMT_SCHD_CHQ_NUM', 'PYMT_SCHD_CHQ_AMT', 'PYMT_SCHD_CHQ_VOID_DATE', 'PYMT_SCHD_CHQ_RCV_DATE', 'PYMT_SCHD_STS_CODE', 'PYMT_SCHD_CNCL_CODE', 'PYMT_SCHD_CNCL_DATE', 'PYMT_SCHD_RQS_USER_ID', 'PYMT_SCHD_APRV_USER_ID', 'PYMT_SCHD_CNCL_USER_ID', 'PYMT_SCHD_CHQ_VOID_USER_ID', 'PYMT_SCHD_CHQ_RGSTR_USER_ID', 'PYMT_SCHD_CHQ_RCV_USER_ID', 'PYMT_SCHD_CNCL_RMK_TEXT', 'PYMT_SCHD_PRPR_DATE', 'PYMT_SCHD_DUE_DATE', 'CUST_MBR_ID_TYPE_CODE', 'CUST_MBR_ID_NUM', 'MANU_INPT_IND', 'HSE_SRVC_APLY_NUM', 'PYMT_SCHD_CHQ_DATE', 'ALWN_PYMT_CHK_USER_NAME', 'ALWN_PYMT_CHK_USER_TTL', 'ALWN_PYMT_APRV_USER_NAME', 'ALWN_PYMT_APRV_USER_TTL', 'APLY_FMLY_SIZE_NUM', 'ORIG_CODE_ADDR', 'CUST_MBR_NAME', 'CUST_MBR_CHI_NAME', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_PAW_ALWN_PYMT_STS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_PAW_ALWN_PYMT_STS,
+            conn=conn_target,
+            table='SOR_EMS_PAW_ALWN_PYMT_STS',
+            mode='append',
+            source_columns=[
+                'PYMT_KEY',
+                'SOR_DATE',
+                'END_DATE',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'PYMT_KEY',
+                'BGN_DATE',
+                'END_DATE',
+                'APLY_KEY',
+                'ALWN_PYMT_BTCH_ID',
+                'ALWN_PYMT_BTCH_DATE',
+                'PYMT_SCHD_BGN_DATE',
+                'PYMT_SCHD_PRN_NUM',
+                'PYMT_SCHD_CHQ_STS_CODE',
+                'PYMT_SCHD_CHQ_NUM',
+                'PYMT_SCHD_CHQ_AMT',
+                'PYMT_SCHD_CHQ_VOID_DATE',
+                'PYMT_SCHD_CHQ_RCV_DATE',
+                'PYMT_SCHD_STS_CODE',
+                'PYMT_SCHD_CNCL_CODE',
+                'PYMT_SCHD_CNCL_DATE',
+                'PYMT_SCHD_RQS_USER_ID',
+                'PYMT_SCHD_APRV_USER_ID',
+                'PYMT_SCHD_CNCL_USER_ID',
+                'PYMT_SCHD_CHQ_VOID_USER_ID',
+                'PYMT_SCHD_CHQ_RGSTR_USER_ID',
+                'PYMT_SCHD_CHQ_RCV_USER_ID',
+                'PYMT_SCHD_CNCL_RMK_TEXT',
+                'PYMT_SCHD_PRPR_DATE',
+                'PYMT_SCHD_DUE_DATE',
+                'CUST_MBR_ID_TYPE_CODE',
+                'CUST_MBR_ID_NUM',
+                'MANU_INPT_IND',
+                'HSE_SRVC_APLY_NUM',
+                'PYMT_SCHD_CHQ_DATE',
+                'ALWN_PYMT_CHK_USER_NAME',
+                'ALWN_PYMT_CHK_USER_TTL',
+                'ALWN_PYMT_APRV_USER_NAME',
+                'ALWN_PYMT_APRV_USER_TTL',
+                'APLY_FMLY_SIZE_NUM',
+                'ORIG_CODE_ADDR',
+                'CUST_MBR_NAME',
+                'CUST_MBR_CHI_NAME',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_PAW_ALWN_PYMT_STS write completed")
         

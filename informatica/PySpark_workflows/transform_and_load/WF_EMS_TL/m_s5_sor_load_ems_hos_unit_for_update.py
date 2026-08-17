@@ -58,20 +58,57 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_HOS_UNIT")
         # Source Qualifier: apply_SQ_SSA_EMS_HOS_UNIT
         df_SQ_SSA_EMS_HOS_UNIT = df_SSA_EMS_HOS_UNIT
-        df_SQ_SSA_EMS_HOS_UNIT = df_SQ_SSA_EMS_HOS_UNIT.filter(expr("OPR_IND = 'EB' OR OPR_IND = 'DA'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HOS_UNIT_KEY", "HOS_BLK_KEY", "HOS_UNIT_BK", "HOS_UNIT_CODE_ADDR", "HOS_UNIT_FLR_NUM", "HOS_UNIT_FLAT_NUM", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_HOS_UNIT = df_SQ_SSA_EMS_HOS_UNIT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_HOS_UNIT.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_HOS_UNIT = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_HOS_UNIT,
+            port_cols={
+                'HOS_UNIT_KEY': 'decimal',
+                'HOS_BLK_KEY': 'decimal',
+                'HOS_UNIT_BK': 'string',
+                'HOS_UNIT_CODE_ADDR': 'string',
+                'HOS_UNIT_FLR_NUM': 'string',
+                'HOS_UNIT_FLAT_NUM': 'string',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'EB' OR OPR_IND = 'DA'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_HOS_UNIT", df_SQ_SSA_EMS_HOS_UNIT)
         
         logger.info("Step: write_SOR_EMS_HOS_UNIT")
         # Write to Target: write_SOR_EMS_HOS_UNIT
-        df_write = df_SQ_SSA_EMS_HOS_UNIT
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HOS_UNIT_KEY', 'HOS_BLK_KEY', 'HOS_UNIT_BK', 'HOS_UNIT_CODE_ADDR', 'HOS_UNIT_FLR_NUM', 'HOS_UNIT_FLAT_NUM', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_HOS_UNIT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_HOS_UNIT,
+            conn=conn_target,
+            table='SOR_EMS_HOS_UNIT',
+            mode='append',
+            source_columns=[
+                'HOS_UNIT_KEY',
+                'HOS_BLK_KEY',
+                'HOS_UNIT_BK',
+                'HOS_UNIT_CODE_ADDR',
+                'HOS_UNIT_FLR_NUM',
+                'HOS_UNIT_FLAT_NUM',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'HOS_UNIT_KEY',
+                'HOS_BLK_KEY',
+                'HOS_UNIT_BK',
+                'HOS_UNIT_CODE_ADDR',
+                'HOS_UNIT_FLR_NUM',
+                'HOS_UNIT_FLAT_NUM',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_HOS_UNIT write completed")
         

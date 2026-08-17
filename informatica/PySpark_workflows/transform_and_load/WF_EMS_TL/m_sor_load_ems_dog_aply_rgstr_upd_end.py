@@ -64,71 +64,127 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_DOG_APLY_RGSTR_STS")
         # Source Qualifier: apply_SQ_SSA_EMS_DOG_APLY_RGSTR_STS
         df_SQ_SSA_EMS_DOG_APLY_RGSTR_STS = df_SSA_EMS_DOG_APLY_RGSTR_STS
-        df_SQ_SSA_EMS_DOG_APLY_RGSTR_STS = df_SQ_SSA_EMS_DOG_APLY_RGSTR_STS.filter(expr("OPR_IND = 'E' OR OPR_IND = 'EB'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["DOG_APLY_KEY", "BGN_DATE", "END_DATE", "DOG_APLY_NUM", "CUST_KEY", "HSE_SRVC_APLY_KEY", "DOG_TYPE_CODE", "DOG_APLY_SBMT_DATE", "DOG_APLY_RSLT_DATE", "DOG_APLY_ADJ_RSN_CODE", "DOG_APLY_ADJ_RSN_RMK_TEXT", "DOG_APLY_REJ_RSN_CODE", "DOG_APLY_REJ_RSN_RMK_TEXT", "DOG_APLY_DEL_RSN_CODE", "DOG_APLY_DEL_RSN_RMK_TEXT", "DOG_APLY_ISS_OFCR_NAME", "DOG_APLY_APRV_OFCR_TYPE_CODE", "DOG_APLY_APRV_OFCR_NAME", "TPS_HSE_UNIT_IND", "DOG_APLY_CRE_DATE", "DOG_APLY_STS_CODE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_DOG_APLY_RGSTR_STS = df_SQ_SSA_EMS_DOG_APLY_RGSTR_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_DOG_APLY_RGSTR_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_DOG_APLY_RGSTR_STS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_DOG_APLY_RGSTR_STS,
+            port_cols={
+                'DOG_APLY_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'DOG_APLY_NUM': 'string',
+                'CUST_KEY': 'decimal',
+                'HSE_SRVC_APLY_KEY': 'string',
+                'DOG_TYPE_CODE': 'string',
+                'DOG_APLY_SBMT_DATE': 'date/time',
+                'DOG_APLY_RSLT_DATE': 'date/time',
+                'DOG_APLY_ADJ_RSN_CODE': 'string',
+                'DOG_APLY_ADJ_RSN_RMK_TEXT': 'string',
+                'DOG_APLY_REJ_RSN_CODE': 'string',
+                'DOG_APLY_REJ_RSN_RMK_TEXT': 'string',
+                'DOG_APLY_DEL_RSN_CODE': 'string',
+                'DOG_APLY_DEL_RSN_RMK_TEXT': 'string',
+                'DOG_APLY_ISS_OFCR_NAME': 'string',
+                'DOG_APLY_APRV_OFCR_TYPE_CODE': 'string',
+                'DOG_APLY_APRV_OFCR_NAME': 'string',
+                'TPS_HSE_UNIT_IND': 'string',
+                'DOG_APLY_CRE_DATE': 'date/time',
+                'DOG_APLY_STS_CODE': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E' OR OPR_IND = 'EB'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_DOG_APLY_RGSTR_STS", df_SQ_SSA_EMS_DOG_APLY_RGSTR_STS)
         
         logger.info("Step: apply_SQ_SSA_EMS_DOG_APLY_RGSTR")
         # Source Qualifier: apply_SQ_SSA_EMS_DOG_APLY_RGSTR
         df_SQ_SSA_EMS_DOG_APLY_RGSTR = df_SSA_EMS_DOG_APLY_RGSTR
-        df_SQ_SSA_EMS_DOG_APLY_RGSTR = df_SQ_SSA_EMS_DOG_APLY_RGSTR.filter(expr("OPR_IND = 'E'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["DOG_APLY_KEY", "EMS_DOG_APLY_KEY", "AGMT_IND", "LAST_REC_TXN_DATE", "LAST_REC_TXN_TYPE_CODE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_DOG_APLY_RGSTR = df_SQ_SSA_EMS_DOG_APLY_RGSTR.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_DOG_APLY_RGSTR.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_DOG_APLY_RGSTR = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_DOG_APLY_RGSTR,
+            port_cols={
+                'DOG_APLY_KEY': 'decimal',
+                'EMS_DOG_APLY_KEY': 'decimal',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_DOG_APLY_RGSTR", df_SQ_SSA_EMS_DOG_APLY_RGSTR)
         
         logger.info("Step: apply_EXP_REC_TXN_TYPE_CODE_UPDS")
         # Expression: apply_EXP_REC_TXN_TYPE_CODE_UPDS
-        df_EXP_REC_TXN_TYPE_CODE_UPDS = df_SQ_SSA_EMS_DOG_APLY_RGSTR_STS
-        df_EXP_REC_TXN_TYPE_CODE_UPDS = df_EXP_REC_TXN_TYPE_CODE_UPDS.withColumn("LAST_REC_TXN_TYPE_CODE", expr("'U'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_REC_TXN_TYPE_CODE_UPDS = lib.expression(
+            input_df=df_SQ_SSA_EMS_DOG_APLY_RGSTR_STS,
+            computed_columns=[
+                {'name': 'LAST_REC_TXN_TYPE_CODE', 'expr': "'U'"}
+            ],
+        )
         ctx.register_df("df_EXP_REC_TXN_TYPE_CODE_UPDS", df_EXP_REC_TXN_TYPE_CODE_UPDS)
         
         logger.info("Step: apply_EXP_REC_TXN_TYPE_CODE_UPD")
         # Expression: apply_EXP_REC_TXN_TYPE_CODE_UPD
-        df_EXP_REC_TXN_TYPE_CODE_UPD = df_SQ_SSA_EMS_DOG_APLY_RGSTR
-        df_EXP_REC_TXN_TYPE_CODE_UPD = df_EXP_REC_TXN_TYPE_CODE_UPD.withColumn("LAST_REC_TXN_TYPE_CODE", expr("'U'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_REC_TXN_TYPE_CODE_UPD = lib.expression(
+            input_df=df_SQ_SSA_EMS_DOG_APLY_RGSTR,
+            computed_columns=[
+                {'name': 'LAST_REC_TXN_TYPE_CODE', 'expr': "'U'"}
+            ],
+        )
         ctx.register_df("df_EXP_REC_TXN_TYPE_CODE_UPD", df_EXP_REC_TXN_TYPE_CODE_UPD)
         
         logger.info("Step: write_SOR_EMS_DOG_APLY_RGSTR_STS")
         # Write to Target: write_SOR_EMS_DOG_APLY_RGSTR_STS
-        df_write = df_EXP_REC_TXN_TYPE_CODE_UPDS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BGN_DATE": "SOR_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("EMS_DOG_APLY_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("AGMT_IND", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['DOG_APLY_KEY', 'EMS_DOG_APLY_KEY', 'AGMT_IND', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_DOG_APLY_RGSTR", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_REC_TXN_TYPE_CODE_UPDS,
+            conn=conn_target,
+            table='SOR_EMS_DOG_APLY_RGSTR',
+            mode='append',
+            source_columns=[
+                'DOG_APLY_KEY',
+                None,
+                None,
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+            ],
+            target_columns=[
+                'DOG_APLY_KEY',
+                'EMS_DOG_APLY_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_DOG_APLY_RGSTR_STS write completed")
         logger.info("Step: write_SOR_EMS_DOG_APLY_RGSTR")
         # Write to Target: write_SOR_EMS_DOG_APLY_RGSTR
-        df_write = df_EXP_REC_TXN_TYPE_CODE_UPD
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("EMS_DOG_APLY_KEY", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['DOG_APLY_KEY', 'EMS_DOG_APLY_KEY', 'AGMT_IND', 'LAST_REC_TXN_DATE', 'LAST_REC_TXN_TYPE_CODE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_DOG_APLY_RGSTR", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_REC_TXN_TYPE_CODE_UPD,
+            conn=conn_target,
+            table='SOR_EMS_DOG_APLY_RGSTR',
+            mode='append',
+            source_columns=[
+                'DOG_APLY_KEY',
+                None,
+                'AGMT_IND',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+            ],
+            target_columns=[
+                'DOG_APLY_KEY',
+                'EMS_DOG_APLY_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_DOG_APLY_RGSTR write completed")
         

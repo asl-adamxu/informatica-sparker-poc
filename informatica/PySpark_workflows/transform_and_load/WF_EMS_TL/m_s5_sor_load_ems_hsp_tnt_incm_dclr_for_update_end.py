@@ -64,58 +64,119 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_HSP_TNT_INCM_DCLR")
         # Source Qualifier: apply_SQ_SSA_EMS_HSP_TNT_INCM_DCLR
         df_SQ_SSA_EMS_HSP_TNT_INCM_DCLR = df_SSA_EMS_HSP_TNT_INCM_DCLR
-        df_SQ_SSA_EMS_HSP_TNT_INCM_DCLR = df_SQ_SSA_EMS_HSP_TNT_INCM_DCLR.filter(expr("OPR_IND = 'E'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["INCM_DCLR_KEY", "INCM_DCLR_BK", "HSP_REC_KEY", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_HSP_TNT_INCM_DCLR = df_SQ_SSA_EMS_HSP_TNT_INCM_DCLR.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_HSP_TNT_INCM_DCLR.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_HSP_TNT_INCM_DCLR = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_HSP_TNT_INCM_DCLR,
+            port_cols={
+                'INCM_DCLR_KEY': 'decimal',
+                'INCM_DCLR_BK': 'string',
+                'HSP_REC_KEY': 'decimal',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_HSP_TNT_INCM_DCLR", df_SQ_SSA_EMS_HSP_TNT_INCM_DCLR)
         
         logger.info("Step: apply_SQ_SSA_EMS_HSP_TNT_INCM_DCLR_STS")
         # Source Qualifier: apply_SQ_SSA_EMS_HSP_TNT_INCM_DCLR_STS
         df_SQ_SSA_EMS_HSP_TNT_INCM_DCLR_STS = df_SSA_EMS_HSP_TNT_INCM_DCLR_STS
-        df_SQ_SSA_EMS_HSP_TNT_INCM_DCLR_STS = df_SQ_SSA_EMS_HSP_TNT_INCM_DCLR_STS.filter(expr("OPR_IND = 'E' OR OPR_IND = 'EB'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["INCM_DCLR_KEY", "BGN_DATE", "END_DATE", "UNIT_KEY", "HSP_RVW_YEAR", "HSP_STS_CODE", "HSP_IDF_STS_IND", "HSP_REF_PHRM_IND", "HSP_OPT_NOT_DCLR_IND", "HSP_FRST_PRN_IND", "FMLY_SIZE_NUM", "HSHLD_INCM_AMT", "HSP_RENT_FCTR_CODE", "HSP_RENT_BGN_DATE", "HSP_RENT_END_DATE", "HSP_RENT_CHNG_RSN_CODE", "HSP_RENT_CHNG_RSN_TEXT", "HSP_RMK_TEXT", "RENT_RVW_CATG_CODE", "RENT_RVW_CATG_BGN_DATE", "HSP_CASE_TYPE_CODE", "HSP_EXTRC_DATE", "TNCY_AGRMT_KEY", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "IMG_DOC_KEY", "IMG_MINS_KEY", "ORIG_HSE_SRVC_APLY_KEY", "OPR_IND", "SOR_DATE", "EXTR_RENT_DTL_FRST_PRN_IND", "EXTR_RENT_FRST_PRN_IND"]
-        df_SQ_SSA_EMS_HSP_TNT_INCM_DCLR_STS = df_SQ_SSA_EMS_HSP_TNT_INCM_DCLR_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_HSP_TNT_INCM_DCLR_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_HSP_TNT_INCM_DCLR_STS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_HSP_TNT_INCM_DCLR_STS,
+            port_cols={
+                'INCM_DCLR_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'UNIT_KEY': 'decimal',
+                'HSP_RVW_YEAR': 'decimal',
+                'HSP_STS_CODE': 'string',
+                'HSP_IDF_STS_IND': 'string',
+                'HSP_REF_PHRM_IND': 'string',
+                'HSP_OPT_NOT_DCLR_IND': 'string',
+                'HSP_FRST_PRN_IND': 'string',
+                'FMLY_SIZE_NUM': 'decimal',
+                'HSHLD_INCM_AMT': 'decimal',
+                'HSP_RENT_FCTR_CODE': 'decimal',
+                'HSP_RENT_BGN_DATE': 'date/time',
+                'HSP_RENT_END_DATE': 'date/time',
+                'HSP_RENT_CHNG_RSN_CODE': 'string',
+                'HSP_RENT_CHNG_RSN_TEXT': 'string',
+                'HSP_RMK_TEXT': 'string',
+                'RENT_RVW_CATG_CODE': 'string',
+                'RENT_RVW_CATG_BGN_DATE': 'date/time',
+                'HSP_CASE_TYPE_CODE': 'string',
+                'HSP_EXTRC_DATE': 'date/time',
+                'TNCY_AGRMT_KEY': 'decimal',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'IMG_DOC_KEY': 'string',
+                'IMG_MINS_KEY': 'string',
+                'ORIG_HSE_SRVC_APLY_KEY': 'decimal',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+                'EXTR_RENT_DTL_FRST_PRN_IND': 'string',
+                'EXTR_RENT_FRST_PRN_IND': 'string',
+            },
+            filter_condition="OPR_IND = 'E' OR OPR_IND = 'EB'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_HSP_TNT_INCM_DCLR_STS", df_SQ_SSA_EMS_HSP_TNT_INCM_DCLR_STS)
         
         logger.info("Step: write_SOR_EMS_HSP_TNT_INCM_DCLR")
         # Write to Target: write_SOR_EMS_HSP_TNT_INCM_DCLR
-        df_write = df_SQ_SSA_EMS_HSP_TNT_INCM_DCLR
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("INCM_DCLR_BK", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSP_REC_KEY", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['INCM_DCLR_KEY', 'INCM_DCLR_BK', 'HSP_REC_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_HSP_TNT_INCM_DCLR", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_HSP_TNT_INCM_DCLR,
+            conn=conn_target,
+            table='SOR_EMS_HSP_TNT_INCM_DCLR',
+            mode='append',
+            source_columns=[
+                'INCM_DCLR_KEY',
+                None,
+                None,
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'INCM_DCLR_KEY',
+                'INCM_DCLR_BK',
+                'HSP_REC_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_HSP_TNT_INCM_DCLR write completed")
         logger.info("Step: write_SOR_EMS_HSP_TNT_INCM_DCLR_STS")
         # Write to Target: write_SOR_EMS_HSP_TNT_INCM_DCLR_STS
-        df_write = df_SQ_SSA_EMS_HSP_TNT_INCM_DCLR_STS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BGN_DATE": "SOR_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("INCM_DCLR_BK", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSP_REC_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("AGMT_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['INCM_DCLR_KEY', 'INCM_DCLR_BK', 'HSP_REC_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_HSP_TNT_INCM_DCLR", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_HSP_TNT_INCM_DCLR_STS,
+            conn=conn_target,
+            table='SOR_EMS_HSP_TNT_INCM_DCLR',
+            mode='append',
+            source_columns=[
+                'INCM_DCLR_KEY',
+                None,
+                None,
+                None,
+                None,
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'INCM_DCLR_KEY',
+                'INCM_DCLR_BK',
+                'HSP_REC_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_HSP_TNT_INCM_DCLR_STS write completed")
         

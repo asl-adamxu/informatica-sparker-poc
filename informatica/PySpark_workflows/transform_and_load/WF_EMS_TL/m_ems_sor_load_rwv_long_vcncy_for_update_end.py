@@ -64,69 +64,125 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_RWV_LONG_VCNCY_REC")
         # Source Qualifier: apply_SQ_SSA_EMS_RWV_LONG_VCNCY_REC
         df_SQ_SSA_EMS_RWV_LONG_VCNCY_REC = df_SSA_EMS_RWV_LONG_VCNCY_REC
-        df_SQ_SSA_EMS_RWV_LONG_VCNCY_REC = df_SQ_SSA_EMS_RWV_LONG_VCNCY_REC.filter(expr("OPR_IND = 'E'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["LONG_VCNCY_RENT_FREE_KEY", "LONG_VCNCY_RENT_FREE_BK", "RENT_FREE_EXRC_KEY", "CUST_KEY", "HSE_SRVC_APLY_KEY", "TNCY_AGRMT_KEY", "UNIT_KEY", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "AGMT_IND", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_RWV_LONG_VCNCY_REC = df_SQ_SSA_EMS_RWV_LONG_VCNCY_REC.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_RWV_LONG_VCNCY_REC.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_RWV_LONG_VCNCY_REC = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_RWV_LONG_VCNCY_REC,
+            port_cols={
+                'LONG_VCNCY_RENT_FREE_KEY': 'decimal',
+                'LONG_VCNCY_RENT_FREE_BK': 'string',
+                'RENT_FREE_EXRC_KEY': 'string',
+                'CUST_KEY': 'string',
+                'HSE_SRVC_APLY_KEY': 'string',
+                'TNCY_AGRMT_KEY': 'decimal',
+                'UNIT_KEY': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'AGMT_IND': 'string',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_RWV_LONG_VCNCY_REC", df_SQ_SSA_EMS_RWV_LONG_VCNCY_REC)
         
         logger.info("Step: apply_SQ_SSA_EMS_RWV_LONG_VCNCY_REC_STS")
         # Source Qualifier: apply_SQ_SSA_EMS_RWV_LONG_VCNCY_REC_STS
         df_SQ_SSA_EMS_RWV_LONG_VCNCY_REC_STS = df_SSA_EMS_RWV_LONG_VCNCY_REC_STS
-        df_SQ_SSA_EMS_RWV_LONG_VCNCY_REC_STS = df_SQ_SSA_EMS_RWV_LONG_VCNCY_REC_STS.filter(expr("OPR_IND = 'E' OR OPR_IND = 'EB'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["LONG_VCNCY_RENT_FREE_KEY", "RENT_FREE_TYPE_CODE", "RENT_FREE_BGN_DATE", "RENT_FREE_END_DATE", "RENT_FREE_CRE_USER_ID", "RENT_FREE_CRE_DATE", "RENT_FREE_AMT", "RENT_FREE_RMK_TEXT", "RENT_FREE_STS_CODE", "ROOM_TYPE_CODE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "BGN_DATE", "END_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_RWV_LONG_VCNCY_REC_STS = df_SQ_SSA_EMS_RWV_LONG_VCNCY_REC_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_RWV_LONG_VCNCY_REC_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_RWV_LONG_VCNCY_REC_STS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_RWV_LONG_VCNCY_REC_STS,
+            port_cols={
+                'LONG_VCNCY_RENT_FREE_KEY': 'decimal',
+                'RENT_FREE_TYPE_CODE': 'string',
+                'RENT_FREE_BGN_DATE': 'date/time',
+                'RENT_FREE_END_DATE': 'date/time',
+                'RENT_FREE_CRE_USER_ID': 'string',
+                'RENT_FREE_CRE_DATE': 'date/time',
+                'RENT_FREE_AMT': 'decimal',
+                'RENT_FREE_RMK_TEXT': 'string',
+                'RENT_FREE_STS_CODE': 'string',
+                'ROOM_TYPE_CODE': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E' OR OPR_IND = 'EB'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_RWV_LONG_VCNCY_REC_STS", df_SQ_SSA_EMS_RWV_LONG_VCNCY_REC_STS)
         
         logger.info("Step: write_SOR_EMS_RWV_LONG_VCNCY_REC")
         # Write to Target: write_SOR_EMS_RWV_LONG_VCNCY_REC
-        df_write = df_SQ_SSA_EMS_RWV_LONG_VCNCY_REC
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"HSE_UNIT_KEY": "UNIT_KEY"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['LONG_VCNCY_RENT_FREE_KEY', 'LONG_VCNCY_RENT_FREE_BK', 'RENT_FREE_EXRC_KEY', 'CUST_KEY', 'HSE_SRVC_APLY_KEY', 'TNCY_AGRMT_KEY', 'HSE_UNIT_KEY', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'AGMT_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_RWV_LONG_VCNCY_REC", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_RWV_LONG_VCNCY_REC,
+            conn=conn_target,
+            table='SOR_EMS_RWV_LONG_VCNCY_REC',
+            mode='append',
+            source_columns=[
+                'LONG_VCNCY_RENT_FREE_KEY',
+                'LONG_VCNCY_RENT_FREE_BK',
+                'RENT_FREE_EXRC_KEY',
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'TNCY_AGRMT_KEY',
+                'UNIT_KEY',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'AGMT_IND',
+            ],
+            target_columns=[
+                'LONG_VCNCY_RENT_FREE_KEY',
+                'LONG_VCNCY_RENT_FREE_BK',
+                'RENT_FREE_EXRC_KEY',
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'TNCY_AGRMT_KEY',
+                'HSE_UNIT_KEY',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'AGMT_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_RWV_LONG_VCNCY_REC write completed")
         logger.info("Step: write_SOR_EMS_RWV_LONG_VCNCY_REC_STS")
         # Write to Target: write_SOR_EMS_RWV_LONG_VCNCY_REC_STS
-        df_write = df_SQ_SSA_EMS_RWV_LONG_VCNCY_REC_STS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BGN_DATE": "SOR_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("LONG_VCNCY_RENT_FREE_BK", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RENT_FREE_EXRC_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("CUST_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_SRVC_APLY_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("TNCY_AGRMT_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_UNIT_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("AGMT_IND", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['LONG_VCNCY_RENT_FREE_KEY', 'LONG_VCNCY_RENT_FREE_BK', 'RENT_FREE_EXRC_KEY', 'CUST_KEY', 'HSE_SRVC_APLY_KEY', 'TNCY_AGRMT_KEY', 'HSE_UNIT_KEY', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'AGMT_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_RWV_LONG_VCNCY_REC", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_RWV_LONG_VCNCY_REC_STS,
+            conn=conn_target,
+            table='SOR_EMS_RWV_LONG_VCNCY_REC',
+            mode='append',
+            source_columns=[
+                'LONG_VCNCY_RENT_FREE_KEY',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                None,
+            ],
+            target_columns=[
+                'LONG_VCNCY_RENT_FREE_KEY',
+                'LONG_VCNCY_RENT_FREE_BK',
+                'RENT_FREE_EXRC_KEY',
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'TNCY_AGRMT_KEY',
+                'HSE_UNIT_KEY',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'AGMT_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_RWV_LONG_VCNCY_REC_STS write completed")
         

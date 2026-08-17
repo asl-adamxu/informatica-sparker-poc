@@ -64,58 +64,120 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_HSM_HOMES_BLK")
         # Source Qualifier: apply_SQ_SSA_EMS_HSM_HOMES_BLK
         df_SQ_SSA_EMS_HSM_HOMES_BLK = df_SSA_EMS_HSM_HOMES_BLK
-        df_SQ_SSA_EMS_HSM_HOMES_BLK = df_SQ_SSA_EMS_HSM_HOMES_BLK.filter(expr("OPR_IND = 'B' OR OPR_IND = 'A'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HOMES_BLK_KEY", "HOMES_BLK_BK", "HOMES_PROJ_KEY", "HOMES_PROJ_CODE", "HOMES_PROJ_PHASE_CODE", "HOMES_BLK_ID", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_HSM_HOMES_BLK = df_SQ_SSA_EMS_HSM_HOMES_BLK.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_HSM_HOMES_BLK.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_HSM_HOMES_BLK = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_HSM_HOMES_BLK,
+            port_cols={
+                'HOMES_BLK_KEY': 'decimal',
+                'HOMES_BLK_BK': 'string',
+                'HOMES_PROJ_KEY': 'decimal',
+                'HOMES_PROJ_CODE': 'string',
+                'HOMES_PROJ_PHASE_CODE': 'string',
+                'HOMES_BLK_ID': 'string',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'A'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_HSM_HOMES_BLK", df_SQ_SSA_EMS_HSM_HOMES_BLK)
         
         logger.info("Step: apply_SQ_SSA_EMS_HSM_HOMES_BLK_STS")
         # Source Qualifier: apply_SQ_SSA_EMS_HSM_HOMES_BLK_STS
         df_SQ_SSA_EMS_HSM_HOMES_BLK_STS = df_SSA_EMS_HSM_HOMES_BLK_STS
-        df_SQ_SSA_EMS_HSM_HOMES_BLK_STS = df_SQ_SSA_EMS_HSM_HOMES_BLK_STS.filter(expr("OPR_IND = 'B' OR OPR_IND = 'EB' OR OPR_IND = 'DA'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HOMES_BLK_KEY", "BGN_DATE", "END_DATE", "HOMES_DOM_TYPE_CODE", "BLK_STRY_NUM", "DTL_REC_RMK_TEXT", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_HSM_HOMES_BLK_STS = df_SQ_SSA_EMS_HSM_HOMES_BLK_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_HSM_HOMES_BLK_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_HSM_HOMES_BLK_STS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_HSM_HOMES_BLK_STS,
+            port_cols={
+                'HOMES_BLK_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'HOMES_DOM_TYPE_CODE': 'string',
+                'BLK_STRY_NUM': 'string',
+                'DTL_REC_RMK_TEXT': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'EB' OR OPR_IND = 'DA'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_HSM_HOMES_BLK_STS", df_SQ_SSA_EMS_HSM_HOMES_BLK_STS)
         
         logger.info("Step: write_SOR_EMS_HSM_HOMES_BLK")
         # Write to Target: write_SOR_EMS_HSM_HOMES_BLK
-        df_write = df_SQ_SSA_EMS_HSM_HOMES_BLK
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HOMES_BLK_KEY', 'HOMES_BLK_BK', 'HOMES_PROJ_KEY', 'HOMES_PROJ_CODE', 'HOMES_PROJ_PHASE_CODE', 'HOMES_BLK_ID', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_HSM_HOMES_BLK", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_HSM_HOMES_BLK,
+            conn=conn_target,
+            table='SOR_EMS_HSM_HOMES_BLK',
+            mode='append',
+            source_columns=[
+                'HOMES_BLK_KEY',
+                'HOMES_BLK_BK',
+                'HOMES_PROJ_KEY',
+                'HOMES_PROJ_CODE',
+                'HOMES_PROJ_PHASE_CODE',
+                'HOMES_BLK_ID',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'HOMES_BLK_KEY',
+                'HOMES_BLK_BK',
+                'HOMES_PROJ_KEY',
+                'HOMES_PROJ_CODE',
+                'HOMES_PROJ_PHASE_CODE',
+                'HOMES_BLK_ID',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_HSM_HOMES_BLK write completed")
         logger.info("Step: apply_EXP_SOR_LOAD_DATE")
         # Expression: apply_EXP_SOR_LOAD_DATE
-        df_EXP_SOR_LOAD_DATE = df_SQ_SSA_EMS_HSM_HOMES_BLK_STS
-        df_EXP_SOR_LOAD_DATE = df_EXP_SOR_LOAD_DATE.withColumn("OUT_END_DATE", expr("CASE WHEN OPR_IND = 'EB' THEN CASE WHEN LAST_REC_TXN_TYPE_CODE IS NULL THEN to_date('99991231','yyyyMMdd') ELSE END_DATE END ELSE END_DATE END"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_SOR_LOAD_DATE = lib.expression(
+            input_df=df_SQ_SSA_EMS_HSM_HOMES_BLK_STS,
+            computed_columns=[
+                {'name': 'OUT_END_DATE', 'expr': "CASE WHEN OPR_IND = 'EB' THEN CASE WHEN LAST_REC_TXN_TYPE_CODE IS NULL THEN to_date('99991231','yyyyMMdd') ELSE END_DATE END ELSE END_DATE END"}
+            ],
+        )
         ctx.register_df("df_EXP_SOR_LOAD_DATE", df_EXP_SOR_LOAD_DATE)
         
         logger.info("Step: write_SOR_EMS_HSM_HOMES_BLK_STS")
         # Write to Target: write_SOR_EMS_HSM_HOMES_BLK_STS
-        df_write = df_EXP_SOR_LOAD_DATE
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"END_DATE": "OUT_END_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HOMES_BLK_KEY', 'BGN_DATE', 'END_DATE', 'HOMES_DOM_TYPE_CODE', 'BLK_STRY_NUM', 'DTL_REC_RMK_TEXT', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_HSM_HOMES_BLK_STS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_SOR_LOAD_DATE,
+            conn=conn_target,
+            table='SOR_EMS_HSM_HOMES_BLK_STS',
+            mode='append',
+            source_columns=[
+                'HOMES_BLK_KEY',
+                'BGN_DATE',
+                'OUT_END_DATE',
+                'HOMES_DOM_TYPE_CODE',
+                'BLK_STRY_NUM',
+                'DTL_REC_RMK_TEXT',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'HOMES_BLK_KEY',
+                'BGN_DATE',
+                'END_DATE',
+                'HOMES_DOM_TYPE_CODE',
+                'BLK_STRY_NUM',
+                'DTL_REC_RMK_TEXT',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_HSM_HOMES_BLK_STS write completed")
         

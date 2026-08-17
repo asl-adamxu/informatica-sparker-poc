@@ -48,25 +48,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_snsh_date = ""
     v_init_flag = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_snsh_date",  "$$v_init_flag", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_snsh_date":
-                            v_snsh_date = _val
-                        if _clean == "v_init_flag":
-                            v_init_flag = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_snsh_date",  "$$v_init_flag", ], logger)
+    v_snsh_date = _vars.get("v_snsh_date", v_snsh_date)
+    v_init_flag = _vars.get("v_init_flag", v_init_flag)
     
     try:
         logger.info("Step: read_EMS_HSM_PRH_UNIT")
@@ -78,24 +63,39 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_EMS_HSM_PRH_UNIT")
         # Source Qualifier: apply_SQ_EMS_HSM_PRH_UNIT
         df_SQ_EMS_HSM_PRH_UNIT = df_EMS_HSM_PRH_UNIT
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HSE_UNIT_KEY", "PRH_UNIT_ALCT_STS_CODE", "PRH_UNIT_AVAIL_DATE", "PRH_UNIT_TAKE_OVER_DATE", "PRH_UNIT_FLAT_RCVR_DATE", "PRH_UNIT_EA_QTR_CODE", "PRH_UNIT_RFSL_NUM", "PRH_UNIT_STS_CODE", "PRH_UNIT_FLAT_RCVR_BU_DATE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "PRH_UNIT_HSC_TYPE_CODE", "PRH_UNIT_LTNG_RFSL_NUM"]
-        df_SQ_EMS_HSM_PRH_UNIT = df_SQ_EMS_HSM_PRH_UNIT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_EMS_HSM_PRH_UNIT.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_EMS_HSM_PRH_UNIT = lib.sq_output(
+            input_df=df_SQ_EMS_HSM_PRH_UNIT,
+            port_cols={
+                'HSE_UNIT_KEY': 'string',
+                'PRH_UNIT_ALCT_STS_CODE': 'string',
+                'PRH_UNIT_AVAIL_DATE': 'date/time',
+                'PRH_UNIT_TAKE_OVER_DATE': 'date/time',
+                'PRH_UNIT_FLAT_RCVR_DATE': 'date/time',
+                'PRH_UNIT_EA_QTR_CODE': 'string',
+                'PRH_UNIT_RFSL_NUM': 'decimal',
+                'PRH_UNIT_STS_CODE': 'string',
+                'PRH_UNIT_FLAT_RCVR_BU_DATE': 'date/time',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_USER_ID': 'string',
+                'PRH_UNIT_HSC_TYPE_CODE': 'string',
+                'PRH_UNIT_LTNG_RFSL_NUM': 'decimal',
+            },
+        )
         ctx.register_df("df_SQ_EMS_HSM_PRH_UNIT", df_SQ_EMS_HSM_PRH_UNIT)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_EMS_HSM_PRH_UNIT
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY_DATE", expr("NULL"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("BLK_KEY", expr("0"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_UNIT_FLR_NUM", expr("NULL"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_UNIT_FLAT_NUM", expr("NULL"))
-        df_EXPTRANS = df_EXPTRANS.withColumn("HSE_UNIT_CODE_ADDR", expr("NULL"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["HSE_UNIT_KEY", "PRH_UNIT_ALCT_STS_CODE", "PRH_UNIT_AVAIL_DATE", "PRH_UNIT_TAKE_OVER_DATE", "PRH_UNIT_FLAT_RCVR_DATE", "PRH_UNIT_EA_QTR_CODE", "PRH_UNIT_RFSL_NUM", "PRH_UNIT_STS_CODE", "PRH_UNIT_FLAT_RCVR_BU_DATE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID", "PRH_UNIT_HSC_TYPE_CODE", "PRH_UNIT_LTNG_RFSL_NUM"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_EMS_HSM_PRH_UNIT,
+            computed_columns=[
+                {'name': 'DUMMY_DATE', 'expr': 'NULL'},
+                {'name': 'BLK_KEY', 'expr': '0'},
+                {'name': 'HSE_UNIT_FLR_NUM', 'expr': 'NULL'},
+                {'name': 'HSE_UNIT_FLAT_NUM', 'expr': 'NULL'},
+                {'name': 'HSE_UNIT_CODE_ADDR', 'expr': 'NULL'}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         

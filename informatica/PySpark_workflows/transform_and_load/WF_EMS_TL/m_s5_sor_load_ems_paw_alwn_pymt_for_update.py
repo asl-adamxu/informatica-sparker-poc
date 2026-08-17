@@ -58,20 +58,57 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_PAW_ALWN_PYMT")
         # Source Qualifier: apply_SQ_SSA_EMS_PAW_ALWN_PYMT
         df_SQ_SSA_EMS_PAW_ALWN_PYMT = df_SSA_EMS_PAW_ALWN_PYMT
-        df_SQ_SSA_EMS_PAW_ALWN_PYMT = df_SQ_SSA_EMS_PAW_ALWN_PYMT.filter(expr("OPR_IND = 'EB' OR OPR_IND = 'DA'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["PYMT_KEY", "PYMT_BK", "OPR_CODE", "PYMT_SCHD_TYPE_CODE", "PYMT_SCHD_SRL_NUM", "PYMT_SCHD_SEQ_NUM", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_PAW_ALWN_PYMT = df_SQ_SSA_EMS_PAW_ALWN_PYMT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_PAW_ALWN_PYMT.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_PAW_ALWN_PYMT = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_PAW_ALWN_PYMT,
+            port_cols={
+                'PYMT_KEY': 'decimal',
+                'PYMT_BK': 'string',
+                'OPR_CODE': 'string',
+                'PYMT_SCHD_TYPE_CODE': 'string',
+                'PYMT_SCHD_SRL_NUM': 'decimal',
+                'PYMT_SCHD_SEQ_NUM': 'decimal',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'EB' OR OPR_IND = 'DA'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_PAW_ALWN_PYMT", df_SQ_SSA_EMS_PAW_ALWN_PYMT)
         
         logger.info("Step: write_SOR_EMS_PAW_ALWN_PYMT")
         # Write to Target: write_SOR_EMS_PAW_ALWN_PYMT
-        df_write = df_SQ_SSA_EMS_PAW_ALWN_PYMT
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['PYMT_KEY', 'PYMT_BK', 'OPR_CODE', 'PYMT_SCHD_TYPE_CODE', 'PYMT_SCHD_SRL_NUM', 'PYMT_SCHD_SEQ_NUM', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_PAW_ALWN_PYMT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_PAW_ALWN_PYMT,
+            conn=conn_target,
+            table='SOR_EMS_PAW_ALWN_PYMT',
+            mode='append',
+            source_columns=[
+                'PYMT_KEY',
+                'PYMT_BK',
+                'OPR_CODE',
+                'PYMT_SCHD_TYPE_CODE',
+                'PYMT_SCHD_SRL_NUM',
+                'PYMT_SCHD_SEQ_NUM',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'PYMT_KEY',
+                'PYMT_BK',
+                'OPR_CODE',
+                'PYMT_SCHD_TYPE_CODE',
+                'PYMT_SCHD_SRL_NUM',
+                'PYMT_SCHD_SEQ_NUM',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_PAW_ALWN_PYMT write completed")
         

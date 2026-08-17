@@ -58,40 +58,99 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_HSM_EST")
         # Source Qualifier: apply_SQ_SSA_HSM_EST
         df_SQ_SSA_HSM_EST = df_SSA_HSM_EST
-        df_SQ_SSA_HSM_EST = df_SQ_SSA_HSM_EST.filter(expr("OPR_IND = 'E'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["EST_KEY", "EST_TYPE_CODE", "AGMT_IND", "EST_NAME", "LAST_REC_TXN_TYPE_CODE", "EST_CHI_NAME", "LAST_REC_TXN_DATE", "EST_AREA", "EST_CODE", "EST_INTM_HSE_IND", "OPR_IND", "SOR_DATE", "EMMS_EST_KEY", "TPS_IND", "PMA_IND", "DLP_IND", "ORG_KEY", "HSE_EST_CNSTY_AREA_CODE", "HSE_EST_LOT_CODE_1", "HSE_EST_LOT_CODE_2", "HSE_EST_LOT_DESP_1", "HSE_EST_LOT_DESP_2", "HSE_EST_TOT_UNDVD_SHR_AREA_1", "HSE_EST_TOT_UNDVD_SHR_AREA_2", "LAND_RGSTR_CODE"]
-        df_SQ_SSA_HSM_EST = df_SQ_SSA_HSM_EST.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_HSM_EST.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_HSM_EST = lib.sq_output(
+            input_df=df_SQ_SSA_HSM_EST,
+            port_cols={
+                'EST_KEY': 'decimal',
+                'EST_TYPE_CODE': 'string',
+                'AGMT_IND': 'string',
+                'EST_NAME': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'EST_CHI_NAME': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'EST_AREA': 'decimal',
+                'EST_CODE': 'string',
+                'EST_INTM_HSE_IND': 'string',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+                'EMMS_EST_KEY': 'string',
+                'TPS_IND': 'string',
+                'PMA_IND': 'string',
+                'DLP_IND': 'string',
+                'ORG_KEY': 'string',
+                'HSE_EST_CNSTY_AREA_CODE': 'string',
+                'HSE_EST_LOT_CODE_1': 'string',
+                'HSE_EST_LOT_CODE_2': 'string',
+                'HSE_EST_LOT_DESP_1': 'string',
+                'HSE_EST_LOT_DESP_2': 'string',
+                'HSE_EST_TOT_UNDVD_SHR_AREA_1': 'decimal',
+                'HSE_EST_TOT_UNDVD_SHR_AREA_2': 'decimal',
+                'LAND_RGSTR_CODE': 'string',
+            },
+            filter_condition="OPR_IND = 'E'",
+        )
         ctx.register_df("df_SQ_SSA_HSM_EST", df_SQ_SSA_HSM_EST)
         
         logger.info("Step: write_SOR_HSM_EST")
         # Write to Target: write_SOR_HSM_EST
-        df_write = df_SQ_SSA_HSM_EST
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("EST_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EST_NAME", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EST_CHI_NAME", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EST_AREA", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EST_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EST_INTM_HSE_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("EMMS_EST_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("TPS_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("PMA_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("DLP_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("ORG_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_EST_CNSTY_AREA_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_EST_LOT_CODE_1", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_EST_LOT_CODE_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_EST_LOT_DESP_1", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_EST_LOT_DESP_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_EST_TOT_UNDVD_SHR_AREA_1", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_EST_TOT_UNDVD_SHR_AREA_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAND_RGSTR_CODE", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['EST_KEY', 'EST_TYPE_CODE', 'EST_NAME', 'EST_CHI_NAME', 'EST_AREA', 'EST_CODE', 'EST_INTM_HSE_IND', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'EMMS_EST_KEY', 'TPS_IND', 'PMA_IND', 'DLP_IND', 'ORG_KEY', 'HSE_EST_CNSTY_AREA_CODE', 'HSE_EST_LOT_CODE_1', 'HSE_EST_LOT_CODE_2', 'HSE_EST_LOT_DESP_1', 'HSE_EST_LOT_DESP_2', 'HSE_EST_TOT_UNDVD_SHR_AREA_1', 'HSE_EST_TOT_UNDVD_SHR_AREA_2', 'LAND_RGSTR_CODE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_HSM_EST", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_HSM_EST,
+            conn=conn_target,
+            table='SOR_HSM_EST',
+            mode='append',
+            source_columns=[
+                'EST_KEY',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ],
+            target_columns=[
+                'EST_KEY',
+                'EST_TYPE_CODE',
+                'EST_NAME',
+                'EST_CHI_NAME',
+                'EST_AREA',
+                'EST_CODE',
+                'EST_INTM_HSE_IND',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'EMMS_EST_KEY',
+                'TPS_IND',
+                'PMA_IND',
+                'DLP_IND',
+                'ORG_KEY',
+                'HSE_EST_CNSTY_AREA_CODE',
+                'HSE_EST_LOT_CODE_1',
+                'HSE_EST_LOT_CODE_2',
+                'HSE_EST_LOT_DESP_1',
+                'HSE_EST_LOT_DESP_2',
+                'HSE_EST_TOT_UNDVD_SHR_AREA_1',
+                'HSE_EST_TOT_UNDVD_SHR_AREA_2',
+                'LAND_RGSTR_CODE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_HSM_EST write completed")
         

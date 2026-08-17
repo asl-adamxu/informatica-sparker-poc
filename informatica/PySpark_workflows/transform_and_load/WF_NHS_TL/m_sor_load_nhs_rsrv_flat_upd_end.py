@@ -64,64 +64,115 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_NHS_RSRV_FLAT_STS")
         # Source Qualifier: apply_SQ_SSA_NHS_RSRV_FLAT_STS
         df_SQ_SSA_NHS_RSRV_FLAT_STS = df_SSA_NHS_RSRV_FLAT_STS
-        df_SQ_SSA_NHS_RSRV_FLAT_STS = df_SQ_SSA_NHS_RSRV_FLAT_STS.filter(expr("OPR_IND = 'E' OR OPR_IND = 'EB'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["RSRV_FLAT_KEY", "BGN_DATE", "END_DATE", "PHASE_FLAT_KEY", "FLAT_RSRV_STS_CODE", "FLAT_RSRV_USER_ID", "FLAT_RSRV_DATE", "FLAT_RLS_USER_ID", "FLAT_RLS_DATE", "SCHD_FLAT_RLS_DATE", "RSRV_FLAT_RMK_TEXT", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_NHS_RSRV_FLAT_STS = df_SQ_SSA_NHS_RSRV_FLAT_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_NHS_RSRV_FLAT_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_NHS_RSRV_FLAT_STS = lib.sq_output(
+            input_df=df_SQ_SSA_NHS_RSRV_FLAT_STS,
+            port_cols={
+                'RSRV_FLAT_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'PHASE_FLAT_KEY': 'decimal',
+                'FLAT_RSRV_STS_CODE': 'string',
+                'FLAT_RSRV_USER_ID': 'string',
+                'FLAT_RSRV_DATE': 'date/time',
+                'FLAT_RLS_USER_ID': 'string',
+                'FLAT_RLS_DATE': 'date/time',
+                'SCHD_FLAT_RLS_DATE': 'date/time',
+                'RSRV_FLAT_RMK_TEXT': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E' OR OPR_IND = 'EB'",
+        )
         ctx.register_df("df_SQ_SSA_NHS_RSRV_FLAT_STS", df_SQ_SSA_NHS_RSRV_FLAT_STS)
         
         logger.info("Step: apply_SQ_SSA_NHS_RSRV_FLAT")
         # Source Qualifier: apply_SQ_SSA_NHS_RSRV_FLAT
         df_SQ_SSA_NHS_RSRV_FLAT = df_SSA_NHS_RSRV_FLAT
-        df_SQ_SSA_NHS_RSRV_FLAT = df_SQ_SSA_NHS_RSRV_FLAT.filter(expr("OPR_IND = 'E'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["RSRV_FLAT_KEY", "NHS_RSRV_FLAT_KEY", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_NHS_RSRV_FLAT = df_SQ_SSA_NHS_RSRV_FLAT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_NHS_RSRV_FLAT.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_NHS_RSRV_FLAT = lib.sq_output(
+            input_df=df_SQ_SSA_NHS_RSRV_FLAT,
+            port_cols={
+                'RSRV_FLAT_KEY': 'decimal',
+                'NHS_RSRV_FLAT_KEY': 'decimal',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E'",
+        )
         ctx.register_df("df_SQ_SSA_NHS_RSRV_FLAT", df_SQ_SSA_NHS_RSRV_FLAT)
         
         logger.info("Step: write_SOR_NHS_RSRV_FLAT_STS")
         # Write to Target: write_SOR_NHS_RSRV_FLAT_STS
-        df_write = df_SQ_SSA_NHS_RSRV_FLAT_STS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BGN_DATE": "SOR_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("PHASE_FLAT_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("FLAT_RSRV_STS_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("FLAT_RSRV_USER_ID", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("FLAT_RSRV_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("FLAT_RLS_USER_ID", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("FLAT_RLS_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("SCHD_FLAT_RLS_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RSRV_FLAT_RMK_TEXT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("INCDT_IND", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['RSRV_FLAT_KEY', 'BGN_DATE', 'END_DATE', 'PHASE_FLAT_KEY', 'FLAT_RSRV_STS_CODE', 'FLAT_RSRV_USER_ID', 'FLAT_RSRV_DATE', 'FLAT_RLS_USER_ID', 'FLAT_RLS_DATE', 'SCHD_FLAT_RLS_DATE', 'RSRV_FLAT_RMK_TEXT', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'INCDT_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_NHS_RSRV_FLAT_STS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_NHS_RSRV_FLAT_STS,
+            conn=conn_target,
+            table='SOR_NHS_RSRV_FLAT_STS',
+            mode='append',
+            source_columns=[
+                'RSRV_FLAT_KEY',
+                'SOR_DATE',
+                'END_DATE',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                'LAST_REC_TXN_DATE',
+                None,
+            ],
+            target_columns=[
+                'RSRV_FLAT_KEY',
+                'BGN_DATE',
+                'END_DATE',
+                'PHASE_FLAT_KEY',
+                'FLAT_RSRV_STS_CODE',
+                'FLAT_RSRV_USER_ID',
+                'FLAT_RSRV_DATE',
+                'FLAT_RLS_USER_ID',
+                'FLAT_RLS_DATE',
+                'SCHD_FLAT_RLS_DATE',
+                'RSRV_FLAT_RMK_TEXT',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'INCDT_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_NHS_RSRV_FLAT_STS write completed")
         logger.info("Step: write_SOR_NHS_RSRV_FLAT")
         # Write to Target: write_SOR_NHS_RSRV_FLAT
-        df_write = df_SQ_SSA_NHS_RSRV_FLAT
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("NHS_RSRV_FLAT_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['RSRV_FLAT_KEY', 'NHS_RSRV_FLAT_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_NHS_RSRV_FLAT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_NHS_RSRV_FLAT,
+            conn=conn_target,
+            table='SOR_NHS_RSRV_FLAT',
+            mode='append',
+            source_columns=[
+                'RSRV_FLAT_KEY',
+                None,
+                'AGMT_IND',
+                None,
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'RSRV_FLAT_KEY',
+                'NHS_RSRV_FLAT_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_NHS_RSRV_FLAT write completed")
         

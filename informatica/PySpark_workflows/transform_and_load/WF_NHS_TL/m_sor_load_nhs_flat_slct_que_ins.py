@@ -64,67 +64,140 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_NHS_FLAT_SLCT_QUE_STS")
         # Source Qualifier: apply_SQ_SSA_NHS_FLAT_SLCT_QUE_STS
         df_SQ_SSA_NHS_FLAT_SLCT_QUE_STS = df_SSA_NHS_FLAT_SLCT_QUE_STS
-        df_SQ_SSA_NHS_FLAT_SLCT_QUE_STS = df_SQ_SSA_NHS_FLAT_SLCT_QUE_STS.filter(expr("OPR_IND = 'B' OR OPR_IND = 'EB' OR OPR_IND = 'DA'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["FLAT_SLCT_QUE_KEY", "BGN_DATE", "END_DATE", "MBR_OWNR_RGSTR_TIME", "CUR_PRIOR_NUM", "HOS_APLY_KEY", "PHASE_KEY", "FLAT_SLCT_SSN_KEY", "APLY_1D_BRCD_NUM", "ROW_VER_NUM", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE", "PRIOR_CATG_GRP_CODE", "FLAT_SLCT_ORD_NUM", "EFAS_PRIOR_NUM_SFX_NUM"]
-        df_SQ_SSA_NHS_FLAT_SLCT_QUE_STS = df_SQ_SSA_NHS_FLAT_SLCT_QUE_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_NHS_FLAT_SLCT_QUE_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_NHS_FLAT_SLCT_QUE_STS = lib.sq_output(
+            input_df=df_SQ_SSA_NHS_FLAT_SLCT_QUE_STS,
+            port_cols={
+                'FLAT_SLCT_QUE_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'MBR_OWNR_RGSTR_TIME': 'date/time',
+                'CUR_PRIOR_NUM': 'decimal',
+                'HOS_APLY_KEY': 'decimal',
+                'PHASE_KEY': 'decimal',
+                'FLAT_SLCT_SSN_KEY': 'decimal',
+                'APLY_1D_BRCD_NUM': 'decimal',
+                'ROW_VER_NUM': 'decimal',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+                'PRIOR_CATG_GRP_CODE': 'string',
+                'FLAT_SLCT_ORD_NUM': 'decimal',
+                'EFAS_PRIOR_NUM_SFX_NUM': 'string',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'EB' OR OPR_IND = 'DA'",
+        )
         ctx.register_df("df_SQ_SSA_NHS_FLAT_SLCT_QUE_STS", df_SQ_SSA_NHS_FLAT_SLCT_QUE_STS)
         
         logger.info("Step: apply_SQ_SSA_NHS_FLAT_SLCT_QUE")
         # Source Qualifier: apply_SQ_SSA_NHS_FLAT_SLCT_QUE
         df_SQ_SSA_NHS_FLAT_SLCT_QUE = df_SSA_NHS_FLAT_SLCT_QUE
-        df_SQ_SSA_NHS_FLAT_SLCT_QUE = df_SQ_SSA_NHS_FLAT_SLCT_QUE.filter(expr("OPR_IND = 'B' OR OPR_IND = 'A'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["FLAT_SLCT_QUE_KEY", "NHS_FLAT_SLCT_QUE_KEY", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_NHS_FLAT_SLCT_QUE = df_SQ_SSA_NHS_FLAT_SLCT_QUE.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_NHS_FLAT_SLCT_QUE.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_NHS_FLAT_SLCT_QUE = lib.sq_output(
+            input_df=df_SQ_SSA_NHS_FLAT_SLCT_QUE,
+            port_cols={
+                'FLAT_SLCT_QUE_KEY': 'decimal',
+                'NHS_FLAT_SLCT_QUE_KEY': 'decimal',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'A'",
+        )
         ctx.register_df("df_SQ_SSA_NHS_FLAT_SLCT_QUE", df_SQ_SSA_NHS_FLAT_SLCT_QUE)
         
         logger.info("Step: apply_EXP_SOR_LOAD_DATE")
         # Expression: apply_EXP_SOR_LOAD_DATE
-        df_EXP_SOR_LOAD_DATE = df_SQ_SSA_NHS_FLAT_SLCT_QUE_STS
-        df_EXP_SOR_LOAD_DATE = df_EXP_SOR_LOAD_DATE.withColumn("OUT_END_DATE", expr("CASE WHEN LAST_REC_TXN_TYPE_CODE = 'D' THEN END_DATE ELSE to_date('99991231','yyyyMMdd') END"))
-        df_EXP_SOR_LOAD_DATE = df_EXP_SOR_LOAD_DATE.withColumn("INS", expr("'I'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_SOR_LOAD_DATE = lib.expression(
+            input_df=df_SQ_SSA_NHS_FLAT_SLCT_QUE_STS,
+            computed_columns=[
+                {'name': 'OUT_END_DATE', 'expr': "CASE WHEN LAST_REC_TXN_TYPE_CODE = 'D' THEN END_DATE ELSE to_date('99991231','yyyyMMdd') END"},
+                {'name': 'INS', 'expr': "'I'"}
+            ],
+        )
         ctx.register_df("df_EXP_SOR_LOAD_DATE", df_EXP_SOR_LOAD_DATE)
         
         logger.info("Step: apply_EXP_REC_TXN_TYPE_CODE_INS")
         # Expression: apply_EXP_REC_TXN_TYPE_CODE_INS
-        df_EXP_REC_TXN_TYPE_CODE_INS = df_SQ_SSA_NHS_FLAT_SLCT_QUE
-        df_EXP_REC_TXN_TYPE_CODE_INS = df_EXP_REC_TXN_TYPE_CODE_INS.withColumn("LAST_REC_TXN_TYPE_CODE", expr("'I'"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_REC_TXN_TYPE_CODE_INS = lib.expression(
+            input_df=df_SQ_SSA_NHS_FLAT_SLCT_QUE,
+            computed_columns=[
+                {'name': 'LAST_REC_TXN_TYPE_CODE', 'expr': "'I'"}
+            ],
+        )
         ctx.register_df("df_EXP_REC_TXN_TYPE_CODE_INS", df_EXP_REC_TXN_TYPE_CODE_INS)
         
         logger.info("Step: write_SOR_NHS_FLAT_SLCT_QUE_STS")
         # Write to Target: write_SOR_NHS_FLAT_SLCT_QUE_STS
-        df_write = df_EXP_SOR_LOAD_DATE
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"END_DATE": "OUT_END_DATE", "LAST_REC_TXN_TYPE_CODE": "INS"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['FLAT_SLCT_QUE_KEY', 'BGN_DATE', 'END_DATE', 'MBR_OWNR_RGSTR_TIME', 'CUR_PRIOR_NUM', 'HOS_APLY_KEY', 'PHASE_KEY', 'FLAT_SLCT_SSN_KEY', 'APLY_1D_BRCD_NUM', 'ROW_VER_NUM', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'PRIOR_CATG_GRP_CODE', 'FLAT_SLCT_ORD_NUM', 'EFAS_PRIOR_NUM_SFX_NUM']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_NHS_FLAT_SLCT_QUE_STS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_SOR_LOAD_DATE,
+            conn=conn_target,
+            table='SOR_NHS_FLAT_SLCT_QUE_STS',
+            mode='append',
+            source_columns=[
+                'FLAT_SLCT_QUE_KEY',
+                'BGN_DATE',
+                'OUT_END_DATE',
+                'MBR_OWNR_RGSTR_TIME',
+                'CUR_PRIOR_NUM',
+                'HOS_APLY_KEY',
+                'PHASE_KEY',
+                'FLAT_SLCT_SSN_KEY',
+                'APLY_1D_BRCD_NUM',
+                'ROW_VER_NUM',
+                'INS',
+                'LAST_REC_TXN_DATE',
+                'PRIOR_CATG_GRP_CODE',
+                'FLAT_SLCT_ORD_NUM',
+                'EFAS_PRIOR_NUM_SFX_NUM',
+            ],
+            target_columns=[
+                'FLAT_SLCT_QUE_KEY',
+                'BGN_DATE',
+                'END_DATE',
+                'MBR_OWNR_RGSTR_TIME',
+                'CUR_PRIOR_NUM',
+                'HOS_APLY_KEY',
+                'PHASE_KEY',
+                'FLAT_SLCT_SSN_KEY',
+                'APLY_1D_BRCD_NUM',
+                'ROW_VER_NUM',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'PRIOR_CATG_GRP_CODE',
+                'FLAT_SLCT_ORD_NUM',
+                'EFAS_PRIOR_NUM_SFX_NUM',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_NHS_FLAT_SLCT_QUE_STS write completed")
         logger.info("Step: write_SOR_NHS_FLAT_SLCT_QUE")
         # Write to Target: write_SOR_NHS_FLAT_SLCT_QUE
-        df_write = df_EXP_REC_TXN_TYPE_CODE_INS
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['FLAT_SLCT_QUE_KEY', 'NHS_FLAT_SLCT_QUE_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_NHS_FLAT_SLCT_QUE", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_REC_TXN_TYPE_CODE_INS,
+            conn=conn_target,
+            table='SOR_NHS_FLAT_SLCT_QUE',
+            mode='append',
+            source_columns=[
+                'FLAT_SLCT_QUE_KEY',
+                'NHS_FLAT_SLCT_QUE_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'FLAT_SLCT_QUE_KEY',
+                'NHS_FLAT_SLCT_QUE_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_NHS_FLAT_SLCT_QUE write completed")
         

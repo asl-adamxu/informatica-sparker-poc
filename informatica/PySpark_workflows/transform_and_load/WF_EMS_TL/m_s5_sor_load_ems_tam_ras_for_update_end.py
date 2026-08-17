@@ -64,59 +64,135 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_TAM_RAS_STS")
         # Source Qualifier: apply_SQ_SSA_EMS_TAM_RAS_STS
         df_SQ_SSA_EMS_TAM_RAS_STS = df_SSA_EMS_TAM_RAS_STS
-        df_SQ_SSA_EMS_TAM_RAS_STS = df_SQ_SSA_EMS_TAM_RAS_STS.filter(expr("OPR_IND = 'E' OR OPR_IND = 'EB'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["BGN_DATE", "END_DATE", "PREV_RAS_KEY", "RAS_KEY", "RAS_TYPE_CODE", "RAS_CRE_DATE", "RAS_STS_CODE", "RAS_RCV_DATE", "RAS_APLY_RSN_CODE", "UNIT_KEY", "PRNT_RAS_REC_KEY", "DPO_IND", "CSSA_IND", "HSHLD_INCM_AMT", "APLY_CATG_CODE", "APLY_CATG_TEXT", "ALCT_STD_EXCD_IND", "NRML_RENT_AMT", "WLIL_AMT", "WLIL_PCT", "RIR_PCT", "RCMD_APRV_IND", "RAS_GRNT_PRD_MTH", "RAS_CNFRM_DATE", "RAS_RENT_FCTR_CODE", "RAS_RENT_BGN_DATE", "RAS_RENT_END_DATE", "RAS_RENT_CHNG_RSN_CODE", "RAS_RENT_CHNG_RSN_TEXT", "RAS_REJ_RSN_CODE", "RAS_REJ_RSN_TEXT", "RAS_RMK_TEXT", "LAST_RCMD_APRV_IND", "LAST_RCMD_RENT_FCTR_CODE", "LAST_RCMD_DATE", "RENT_RVW_CATG_CODE", "RENT_RVW_CATG_BGN_DATE", "UNIT_IFA_AREA", "CUST_KEY", "HSE_SRVC_APLY_KEY", "RAS_REF_PHRM_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "IMG_DOC_KEY", "IMG_MINS_KEY", "ORIG_HSE_SRVC_APLY_KEY", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_TAM_RAS_STS = df_SQ_SSA_EMS_TAM_RAS_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_TAM_RAS_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_TAM_RAS_STS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_TAM_RAS_STS,
+            port_cols={
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'PREV_RAS_KEY': 'decimal',
+                'RAS_KEY': 'decimal',
+                'RAS_TYPE_CODE': 'string',
+                'RAS_CRE_DATE': 'date/time',
+                'RAS_STS_CODE': 'string',
+                'RAS_RCV_DATE': 'date/time',
+                'RAS_APLY_RSN_CODE': 'string',
+                'UNIT_KEY': 'decimal',
+                'PRNT_RAS_REC_KEY': 'decimal',
+                'DPO_IND': 'string',
+                'CSSA_IND': 'string',
+                'HSHLD_INCM_AMT': 'decimal',
+                'APLY_CATG_CODE': 'string',
+                'APLY_CATG_TEXT': 'string',
+                'ALCT_STD_EXCD_IND': 'string',
+                'NRML_RENT_AMT': 'decimal',
+                'WLIL_AMT': 'decimal',
+                'WLIL_PCT': 'decimal',
+                'RIR_PCT': 'decimal',
+                'RCMD_APRV_IND': 'string',
+                'RAS_GRNT_PRD_MTH': 'decimal',
+                'RAS_CNFRM_DATE': 'date/time',
+                'RAS_RENT_FCTR_CODE': 'decimal',
+                'RAS_RENT_BGN_DATE': 'date/time',
+                'RAS_RENT_END_DATE': 'date/time',
+                'RAS_RENT_CHNG_RSN_CODE': 'string',
+                'RAS_RENT_CHNG_RSN_TEXT': 'string',
+                'RAS_REJ_RSN_CODE': 'string',
+                'RAS_REJ_RSN_TEXT': 'string',
+                'RAS_RMK_TEXT': 'string',
+                'LAST_RCMD_APRV_IND': 'string',
+                'LAST_RCMD_RENT_FCTR_CODE': 'decimal',
+                'LAST_RCMD_DATE': 'date/time',
+                'RENT_RVW_CATG_CODE': 'string',
+                'RENT_RVW_CATG_BGN_DATE': 'date/time',
+                'UNIT_IFA_AREA': 'decimal',
+                'CUST_KEY': 'decimal',
+                'HSE_SRVC_APLY_KEY': 'decimal',
+                'RAS_REF_PHRM_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'IMG_DOC_KEY': 'string',
+                'IMG_MINS_KEY': 'string',
+                'ORIG_HSE_SRVC_APLY_KEY': 'decimal',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E' OR OPR_IND = 'EB'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_TAM_RAS_STS", df_SQ_SSA_EMS_TAM_RAS_STS)
         
         logger.info("Step: apply_SQ_SSA_EMS_TAM_RAS")
         # Source Qualifier: apply_SQ_SSA_EMS_TAM_RAS
         df_SQ_SSA_EMS_TAM_RAS = df_SSA_EMS_TAM_RAS
-        df_SQ_SSA_EMS_TAM_RAS = df_SQ_SSA_EMS_TAM_RAS.filter(expr("OPR_IND = 'B' OR OPR_IND = 'A'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["RAS_KEY", "RAS_BK", "RAS_REC_KEY", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_TAM_RAS = df_SQ_SSA_EMS_TAM_RAS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_TAM_RAS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_TAM_RAS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_TAM_RAS,
+            port_cols={
+                'RAS_KEY': 'decimal',
+                'RAS_BK': 'string',
+                'RAS_REC_KEY': 'decimal',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'A'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_TAM_RAS", df_SQ_SSA_EMS_TAM_RAS)
         
         logger.info("Step: write_SOR_EMS_TAM_RAS_STS")
         # Write to Target: write_SOR_EMS_TAM_RAS_STS
-        df_write = df_SQ_SSA_EMS_TAM_RAS_STS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BGN_DATE": "SOR_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("RAS_BK", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RAS_REC_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("AGMT_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_REC_TXN_DATE", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['RAS_KEY', 'RAS_BK', 'RAS_REC_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_TAM_RAS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_TAM_RAS_STS,
+            conn=conn_target,
+            table='SOR_EMS_TAM_RAS',
+            mode='append',
+            source_columns=[
+                'RAS_KEY',
+                None,
+                None,
+                None,
+                None,
+                None,
+            ],
+            target_columns=[
+                'RAS_KEY',
+                'RAS_BK',
+                'RAS_REC_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_TAM_RAS_STS write completed")
         logger.info("Step: write_SOR_EMS_TAM_RAS")
         # Write to Target: write_SOR_EMS_TAM_RAS
-        df_write = df_SQ_SSA_EMS_TAM_RAS
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("RAS_BK", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("RAS_REC_KEY", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['RAS_KEY', 'RAS_BK', 'RAS_REC_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_TAM_RAS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_TAM_RAS,
+            conn=conn_target,
+            table='SOR_EMS_TAM_RAS',
+            mode='append',
+            source_columns=[
+                'RAS_KEY',
+                None,
+                None,
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'RAS_KEY',
+                'RAS_BK',
+                'RAS_REC_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_TAM_RAS write completed")
         

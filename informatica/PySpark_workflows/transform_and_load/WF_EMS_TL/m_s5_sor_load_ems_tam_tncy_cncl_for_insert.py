@@ -64,58 +64,171 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_TAM_TNCY_CNCL")
         # Source Qualifier: apply_SQ_SSA_EMS_TAM_TNCY_CNCL
         df_SQ_SSA_EMS_TAM_TNCY_CNCL = df_SSA_EMS_TAM_TNCY_CNCL
-        df_SQ_SSA_EMS_TAM_TNCY_CNCL = df_SQ_SSA_EMS_TAM_TNCY_CNCL.filter(expr("OPR_IND = 'B' OR OPR_IND = 'A'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["TNCY_CNCL_KEY", "TNCY_CNCL_BK", "TNCY_AGRMT_KEY", "CNCL_CRE_DATE", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_TAM_TNCY_CNCL = df_SQ_SSA_EMS_TAM_TNCY_CNCL.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_TAM_TNCY_CNCL.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_TAM_TNCY_CNCL = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_TAM_TNCY_CNCL,
+            port_cols={
+                'TNCY_CNCL_KEY': 'decimal',
+                'TNCY_CNCL_BK': 'string',
+                'TNCY_AGRMT_KEY': 'decimal',
+                'CNCL_CRE_DATE': 'date/time',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'A'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_TAM_TNCY_CNCL", df_SQ_SSA_EMS_TAM_TNCY_CNCL)
         
         logger.info("Step: apply_SQ_SSA_EMS_TAM_TNCY_CNCL_STS")
         # Source Qualifier: apply_SQ_SSA_EMS_TAM_TNCY_CNCL_STS
         df_SQ_SSA_EMS_TAM_TNCY_CNCL_STS = df_SSA_EMS_TAM_TNCY_CNCL_STS
-        df_SQ_SSA_EMS_TAM_TNCY_CNCL_STS = df_SQ_SSA_EMS_TAM_TNCY_CNCL_STS.filter(expr("OPR_IND = 'B' OR OPR_IND = 'EB' OR OPR_IND = 'DA'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["TNCY_CNCL_KEY", "BGN_DATE", "END_DATE", "TRMT_DATE", "TNCY_TRMT_BU_DATE", "SCORE_TFR_IND", "FWD_HSE_UNIT_KEY", "TNCY_CNCL_CODE", "CNCL_STS_CODE", "DOG_TFR_IND", "FWD_ADDR_TEXT", "CNCL_WTHDRW_IND", "TNCY_CNCL_TEXT", "UNIT_KEY", "TNCY_CNCL_RSN_CODE", "LAST_CNCL_STS_UPD_DATE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE", "FLS_DCLR_PRSC_TFR_IND", "FLS_DCLR_WATCH_LIST_TFR_IND", "CNCL_SBMT_DATE", "CNCL_SBMT_USER_ID", "LAST_CNCL_APRV_DATE", "LAST_CNCL_APRV_USER_ID", "SZR_PRPTY_ACT_CODE", "SZR_PRPTY_CRE_DATE", "CASE_INVTG_ACT_CODE"]
-        df_SQ_SSA_EMS_TAM_TNCY_CNCL_STS = df_SQ_SSA_EMS_TAM_TNCY_CNCL_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_TAM_TNCY_CNCL_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_TAM_TNCY_CNCL_STS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_TAM_TNCY_CNCL_STS,
+            port_cols={
+                'TNCY_CNCL_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'TRMT_DATE': 'date/time',
+                'TNCY_TRMT_BU_DATE': 'date/time',
+                'SCORE_TFR_IND': 'string',
+                'FWD_HSE_UNIT_KEY': 'string',
+                'TNCY_CNCL_CODE': 'string',
+                'CNCL_STS_CODE': 'string',
+                'DOG_TFR_IND': 'string',
+                'FWD_ADDR_TEXT': 'string',
+                'CNCL_WTHDRW_IND': 'string',
+                'TNCY_CNCL_TEXT': 'string',
+                'UNIT_KEY': 'decimal',
+                'TNCY_CNCL_RSN_CODE': 'string',
+                'LAST_CNCL_STS_UPD_DATE': 'date/time',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+                'FLS_DCLR_PRSC_TFR_IND': 'string',
+                'FLS_DCLR_WATCH_LIST_TFR_IND': 'string',
+                'CNCL_SBMT_DATE': 'date/time',
+                'CNCL_SBMT_USER_ID': 'string',
+                'LAST_CNCL_APRV_DATE': 'date/time',
+                'LAST_CNCL_APRV_USER_ID': 'string',
+                'SZR_PRPTY_ACT_CODE': 'string',
+                'SZR_PRPTY_CRE_DATE': 'date/time',
+                'CASE_INVTG_ACT_CODE': 'string',
+            },
+            filter_condition="OPR_IND = 'B' OR OPR_IND = 'EB' OR OPR_IND = 'DA'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_TAM_TNCY_CNCL_STS", df_SQ_SSA_EMS_TAM_TNCY_CNCL_STS)
         
         logger.info("Step: write_SOR_EMS_TAM_TNCY_CNCL")
         # Write to Target: write_SOR_EMS_TAM_TNCY_CNCL
-        df_write = df_SQ_SSA_EMS_TAM_TNCY_CNCL
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['TNCY_CNCL_KEY', 'TNCY_CNCL_BK', 'TNCY_AGRMT_KEY', 'CNCL_CRE_DATE', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_TAM_TNCY_CNCL", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_TAM_TNCY_CNCL,
+            conn=conn_target,
+            table='SOR_EMS_TAM_TNCY_CNCL',
+            mode='append',
+            source_columns=[
+                'TNCY_CNCL_KEY',
+                'TNCY_CNCL_BK',
+                'TNCY_AGRMT_KEY',
+                'CNCL_CRE_DATE',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'TNCY_CNCL_KEY',
+                'TNCY_CNCL_BK',
+                'TNCY_AGRMT_KEY',
+                'CNCL_CRE_DATE',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_TAM_TNCY_CNCL write completed")
         logger.info("Step: apply_EXP_SOR_LOAD_DATE")
         # Expression: apply_EXP_SOR_LOAD_DATE
-        df_EXP_SOR_LOAD_DATE = df_SQ_SSA_EMS_TAM_TNCY_CNCL_STS
-        df_EXP_SOR_LOAD_DATE = df_EXP_SOR_LOAD_DATE.withColumn("OUT_END_DATE", expr("CASE WHEN OPR_IND = 'EB' THEN CASE WHEN LAST_REC_TXN_TYPE_CODE IS NULL THEN to_date('99991231','yyyyMMdd') ELSE END_DATE END ELSE END_DATE END"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXP_SOR_LOAD_DATE = lib.expression(
+            input_df=df_SQ_SSA_EMS_TAM_TNCY_CNCL_STS,
+            computed_columns=[
+                {'name': 'OUT_END_DATE', 'expr': "CASE WHEN OPR_IND = 'EB' THEN CASE WHEN LAST_REC_TXN_TYPE_CODE IS NULL THEN to_date('99991231','yyyyMMdd') ELSE END_DATE END ELSE END_DATE END"}
+            ],
+        )
         ctx.register_df("df_EXP_SOR_LOAD_DATE", df_EXP_SOR_LOAD_DATE)
         
         logger.info("Step: write_SOR_EMS_TAM_TNCY_CNCL_STS")
         # Write to Target: write_SOR_EMS_TAM_TNCY_CNCL_STS
-        df_write = df_EXP_SOR_LOAD_DATE
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"END_DATE": "OUT_END_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['TNCY_CNCL_KEY', 'BGN_DATE', 'END_DATE', 'TRMT_DATE', 'TNCY_TRMT_BU_DATE', 'SCORE_TFR_IND', 'FWD_HSE_UNIT_KEY', 'TNCY_CNCL_CODE', 'CNCL_STS_CODE', 'DOG_TFR_IND', 'FWD_ADDR_TEXT', 'CNCL_WTHDRW_IND', 'TNCY_CNCL_TEXT', 'UNIT_KEY', 'TNCY_CNCL_RSN_CODE', 'LAST_CNCL_STS_UPD_DATE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'FLS_DCLR_PRSC_TFR_IND', 'FLS_DCLR_WATCH_LIST_TFR_IND', 'CNCL_SBMT_DATE', 'CNCL_SBMT_USER_ID', 'LAST_CNCL_APRV_DATE', 'LAST_CNCL_APRV_USER_ID', 'SZR_PRPTY_ACT_CODE', 'SZR_PRPTY_CRE_DATE', 'CASE_INVTG_ACT_CODE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_TAM_TNCY_CNCL_STS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_EXP_SOR_LOAD_DATE,
+            conn=conn_target,
+            table='SOR_EMS_TAM_TNCY_CNCL_STS',
+            mode='append',
+            source_columns=[
+                'TNCY_CNCL_KEY',
+                'BGN_DATE',
+                'OUT_END_DATE',
+                'TRMT_DATE',
+                'TNCY_TRMT_BU_DATE',
+                'SCORE_TFR_IND',
+                'FWD_HSE_UNIT_KEY',
+                'TNCY_CNCL_CODE',
+                'CNCL_STS_CODE',
+                'DOG_TFR_IND',
+                'FWD_ADDR_TEXT',
+                'CNCL_WTHDRW_IND',
+                'TNCY_CNCL_TEXT',
+                'UNIT_KEY',
+                'TNCY_CNCL_RSN_CODE',
+                'LAST_CNCL_STS_UPD_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'FLS_DCLR_PRSC_TFR_IND',
+                'FLS_DCLR_WATCH_LIST_TFR_IND',
+                'CNCL_SBMT_DATE',
+                'CNCL_SBMT_USER_ID',
+                'LAST_CNCL_APRV_DATE',
+                'LAST_CNCL_APRV_USER_ID',
+                'SZR_PRPTY_ACT_CODE',
+                'SZR_PRPTY_CRE_DATE',
+                'CASE_INVTG_ACT_CODE',
+            ],
+            target_columns=[
+                'TNCY_CNCL_KEY',
+                'BGN_DATE',
+                'END_DATE',
+                'TRMT_DATE',
+                'TNCY_TRMT_BU_DATE',
+                'SCORE_TFR_IND',
+                'FWD_HSE_UNIT_KEY',
+                'TNCY_CNCL_CODE',
+                'CNCL_STS_CODE',
+                'DOG_TFR_IND',
+                'FWD_ADDR_TEXT',
+                'CNCL_WTHDRW_IND',
+                'TNCY_CNCL_TEXT',
+                'UNIT_KEY',
+                'TNCY_CNCL_RSN_CODE',
+                'LAST_CNCL_STS_UPD_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'FLS_DCLR_PRSC_TFR_IND',
+                'FLS_DCLR_WATCH_LIST_TFR_IND',
+                'CNCL_SBMT_DATE',
+                'CNCL_SBMT_USER_ID',
+                'LAST_CNCL_APRV_DATE',
+                'LAST_CNCL_APRV_USER_ID',
+                'SZR_PRPTY_ACT_CODE',
+                'SZR_PRPTY_CRE_DATE',
+                'CASE_INVTG_ACT_CODE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_TAM_TNCY_CNCL_STS write completed")
         

@@ -64,58 +64,129 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_HHA_HOS_APLY")
         # Source Qualifier: apply_SQ_SSA_EMS_HHA_HOS_APLY
         df_SQ_SSA_EMS_HHA_HOS_APLY = df_SSA_EMS_HHA_HOS_APLY
-        df_SQ_SSA_EMS_HHA_HOS_APLY = df_SQ_SSA_EMS_HHA_HOS_APLY.filter(expr("OPR_IND = 'E'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HOS_APLY_KEY", "HOS_APLY_BK", "HSE_SRVC_APLY_KEY", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_HHA_HOS_APLY = df_SQ_SSA_EMS_HHA_HOS_APLY.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_HHA_HOS_APLY.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_HHA_HOS_APLY = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_HHA_HOS_APLY,
+            port_cols={
+                'HOS_APLY_KEY': 'decimal',
+                'HOS_APLY_BK': 'string',
+                'HSE_SRVC_APLY_KEY': 'decimal',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_HHA_HOS_APLY", df_SQ_SSA_EMS_HHA_HOS_APLY)
         
         logger.info("Step: apply_SQ_SSA_EMS_HHA_HOS_APLY_STS")
         # Source Qualifier: apply_SQ_SSA_EMS_HHA_HOS_APLY_STS
         df_SQ_SSA_EMS_HHA_HOS_APLY_STS = df_SSA_EMS_HHA_HOS_APLY_STS
-        df_SQ_SSA_EMS_HHA_HOS_APLY_STS = df_SQ_SSA_EMS_HHA_HOS_APLY_STS.filter(expr("OPR_IND = 'E' OR OPR_IND = 'EB'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HOS_APLY_KEY", "BGN_DATE", "END_DATE", "HOS_PHASE_CODE", "HOS_APLY_STS_UPD_DATE", "APLY_PRIOR_NUM", "APLY_HOME_DSTR_KEY", "APLY_NONUBN_IND", "APLY_HOME_CODE_ADDR", "APLY_FMLY_SIZE_NUM", "APLY_HSHLD_INCM_AMT", "APLY_FMLY_SPLT_IND", "APLY_DBL_RENT_IND", "APLY_MAIN_APLY_IND", "APLY_PRPTY_OWNR_IND", "APLY_SCHM_TYPE_CODE", "APLY_APLY_MSS_IND", "APLY_MSS_REF_NUM", "HOS_APLY_STG_CODE", "HOS_APLY_STS_CODE", "HOS_APLY_TYPE_CODE", "EST_MGT_STS_CODE", "GF_CERT_NUM", "FMLY_CPST_CODE", "APLY_DSBL_IND", "INCM_ENR_CNT", "LOA_IND", "HOS_APLY_FRZ_IND", "NEW_HOS_APLY_TYPE_CODE", "NEW_HOS_APLY_NUM", "NEW_HOS_APLY_SFX_NUM", "NEW_HOS_PRIOR_NUM", "NEW_HOS_PRIOR_NUM_SFX_NUM", "PRH_APLY_NUM", "HOS_APLY_NUM", "APLY_CNCL_RSN_CODE", "APLY_CRT_CHC_SEQ_NUM", "HOS_RSCN_NUM", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_HHA_HOS_APLY_STS = df_SQ_SSA_EMS_HHA_HOS_APLY_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_HHA_HOS_APLY_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_HHA_HOS_APLY_STS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_HHA_HOS_APLY_STS,
+            port_cols={
+                'HOS_APLY_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'HOS_PHASE_CODE': 'string',
+                'HOS_APLY_STS_UPD_DATE': 'date/time',
+                'APLY_PRIOR_NUM': 'string',
+                'APLY_HOME_DSTR_KEY': 'string',
+                'APLY_NONUBN_IND': 'string',
+                'APLY_HOME_CODE_ADDR': 'string',
+                'APLY_FMLY_SIZE_NUM': 'decimal',
+                'APLY_HSHLD_INCM_AMT': 'decimal',
+                'APLY_FMLY_SPLT_IND': 'string',
+                'APLY_DBL_RENT_IND': 'string',
+                'APLY_MAIN_APLY_IND': 'string',
+                'APLY_PRPTY_OWNR_IND': 'string',
+                'APLY_SCHM_TYPE_CODE': 'string',
+                'APLY_APLY_MSS_IND': 'string',
+                'APLY_MSS_REF_NUM': 'string',
+                'HOS_APLY_STG_CODE': 'string',
+                'HOS_APLY_STS_CODE': 'string',
+                'HOS_APLY_TYPE_CODE': 'string',
+                'EST_MGT_STS_CODE': 'string',
+                'GF_CERT_NUM': 'string',
+                'FMLY_CPST_CODE': 'string',
+                'APLY_DSBL_IND': 'string',
+                'INCM_ENR_CNT': 'decimal',
+                'LOA_IND': 'string',
+                'HOS_APLY_FRZ_IND': 'string',
+                'NEW_HOS_APLY_TYPE_CODE': 'string',
+                'NEW_HOS_APLY_NUM': 'string',
+                'NEW_HOS_APLY_SFX_NUM': 'string',
+                'NEW_HOS_PRIOR_NUM': 'string',
+                'NEW_HOS_PRIOR_NUM_SFX_NUM': 'string',
+                'PRH_APLY_NUM': 'string',
+                'HOS_APLY_NUM': 'string',
+                'APLY_CNCL_RSN_CODE': 'string',
+                'APLY_CRT_CHC_SEQ_NUM': 'string',
+                'HOS_RSCN_NUM': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E' OR OPR_IND = 'EB'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_HHA_HOS_APLY_STS", df_SQ_SSA_EMS_HHA_HOS_APLY_STS)
         
         logger.info("Step: write_SOR_EMS_HHA_HOS_APLY")
         # Write to Target: write_SOR_EMS_HHA_HOS_APLY
-        df_write = df_SQ_SSA_EMS_HHA_HOS_APLY
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("HOS_APLY_BK", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_SRVC_APLY_KEY", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HOS_APLY_KEY', 'HOS_APLY_BK', 'HSE_SRVC_APLY_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_HHA_HOS_APLY", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_HHA_HOS_APLY,
+            conn=conn_target,
+            table='SOR_EMS_HHA_HOS_APLY',
+            mode='append',
+            source_columns=[
+                'HOS_APLY_KEY',
+                None,
+                None,
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'HOS_APLY_KEY',
+                'HOS_APLY_BK',
+                'HSE_SRVC_APLY_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_HHA_HOS_APLY write completed")
         logger.info("Step: write_SOR_EMS_HHA_HOS_APLY_STS")
         # Write to Target: write_SOR_EMS_HHA_HOS_APLY_STS
-        df_write = df_SQ_SSA_EMS_HHA_HOS_APLY_STS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BGN_DATE": "SOR_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("HOS_APLY_BK", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_SRVC_APLY_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("AGMT_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HOS_APLY_KEY', 'HOS_APLY_BK', 'HSE_SRVC_APLY_KEY', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_HHA_HOS_APLY", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_HHA_HOS_APLY_STS,
+            conn=conn_target,
+            table='SOR_EMS_HHA_HOS_APLY',
+            mode='append',
+            source_columns=[
+                'HOS_APLY_KEY',
+                None,
+                None,
+                None,
+                None,
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'HOS_APLY_KEY',
+                'HOS_APLY_BK',
+                'HSE_SRVC_APLY_KEY',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_HHA_HOS_APLY_STS write completed")
         

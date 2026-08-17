@@ -64,59 +64,140 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_TAM_NTQ")
         # Source Qualifier: apply_SQ_SSA_EMS_TAM_NTQ
         df_SQ_SSA_EMS_TAM_NTQ = df_SSA_EMS_TAM_NTQ
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["NTQ_KEY", "CUST_KEY", "HSE_SRVC_APLY_KEY", "NTQ_CRE_DATE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "AGMT_IND", "OPR_IND", "SOR_DATE", "TNCY_AGRMT_KEY"]
-        df_SQ_SSA_EMS_TAM_NTQ = df_SQ_SSA_EMS_TAM_NTQ.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_TAM_NTQ.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_TAM_NTQ = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_TAM_NTQ,
+            port_cols={
+                'NTQ_KEY': 'decimal',
+                'CUST_KEY': 'string',
+                'HSE_SRVC_APLY_KEY': 'string',
+                'NTQ_CRE_DATE': 'date/time',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'AGMT_IND': 'string',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+                'TNCY_AGRMT_KEY': 'decimal',
+            },
+        )
         ctx.register_df("df_SQ_SSA_EMS_TAM_NTQ", df_SQ_SSA_EMS_TAM_NTQ)
         
         logger.info("Step: apply_SQ_SSA_EMS_TAM_NTQ_STS")
         # Source Qualifier: apply_SQ_SSA_EMS_TAM_NTQ_STS
         df_SQ_SSA_EMS_TAM_NTQ_STS = df_SSA_EMS_TAM_NTQ_STS
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["NTQ_KEY", "BGN_DATE", "NTQ_LTR_DATE", "NTQ_STS_CODE", "NTQ_END_DATE", "NTQ_END_RMDR_SBMT_DATE", "LAST_NTQ_STS_UPD_DATE", "ABU_KEY", "ACT_IND", "APL_DATE", "APL_HEAR_DATE", "APL_INTT_USER_CODE", "APL_PNL_RSLT_DATE", "APL_RMK_TEXT", "APL_RSLT_CODE", "LIC_FEE_END_DATE", "NTQ_BU_DATE", "NTQ_ISS_DATE", "NTQ_ISS_RSN_TEXT", "NTQ_PRLNG_STYPT_RSN_TEXT", "NTQ_PRN_IND", "NTQ_PRN_RMK_TEXT", "NTQ_STL_RSN_CODE", "NTQ_STL_RSN_TEXT", "ORIG_NEXT_RENT_BGN_DATE", "ORIG_NEXT_RENT_CHNG_RSN_CODE", "ORIG_NEXT_RENT_CHNG_RSN_TEXT", "ORIG_NEXT_RENT_END_DATE", "ORIG_NEXT_RENT_FCTR_CODE", "ORIG_NEXT_RENT_RVW_CATG_CODE", "ORIG_NEXT_RENT_RVW_CATG_DATE", "ORIG_PYMT_MTHD_CODE", "ORIG_RENT_BGN_DATE", "ORIG_RENT_END_DATE", "ORIG_RENT_FCTR_CODE", "PYMT_MTHD_CODE", "RENT_FCTR_KEY", "NTQ_ISS_RSN_CODE", "NTQ_STS_UPD_DATE", "NTQ_WTHDRW_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "END_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_TAM_NTQ_STS = df_SQ_SSA_EMS_TAM_NTQ_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_TAM_NTQ_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_TAM_NTQ_STS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_TAM_NTQ_STS,
+            port_cols={
+                'NTQ_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'NTQ_LTR_DATE': 'date/time',
+                'NTQ_STS_CODE': 'string',
+                'NTQ_END_DATE': 'date/time',
+                'NTQ_END_RMDR_SBMT_DATE': 'date/time',
+                'LAST_NTQ_STS_UPD_DATE': 'date/time',
+                'ABU_KEY': 'decimal',
+                'ACT_IND': 'string',
+                'APL_DATE': 'date/time',
+                'APL_HEAR_DATE': 'date/time',
+                'APL_INTT_USER_CODE': 'string',
+                'APL_PNL_RSLT_DATE': 'date/time',
+                'APL_RMK_TEXT': 'string',
+                'APL_RSLT_CODE': 'string',
+                'LIC_FEE_END_DATE': 'date/time',
+                'NTQ_BU_DATE': 'date/time',
+                'NTQ_ISS_DATE': 'date/time',
+                'NTQ_ISS_RSN_TEXT': 'string',
+                'NTQ_PRLNG_STYPT_RSN_TEXT': 'string',
+                'NTQ_PRN_IND': 'string',
+                'NTQ_PRN_RMK_TEXT': 'string',
+                'NTQ_STL_RSN_CODE': 'string',
+                'NTQ_STL_RSN_TEXT': 'string',
+                'ORIG_NEXT_RENT_BGN_DATE': 'date/time',
+                'ORIG_NEXT_RENT_CHNG_RSN_CODE': 'string',
+                'ORIG_NEXT_RENT_CHNG_RSN_TEXT': 'string',
+                'ORIG_NEXT_RENT_END_DATE': 'date/time',
+                'ORIG_NEXT_RENT_FCTR_CODE': 'decimal',
+                'ORIG_NEXT_RENT_RVW_CATG_CODE': 'string',
+                'ORIG_NEXT_RENT_RVW_CATG_DATE': 'date/time',
+                'ORIG_PYMT_MTHD_CODE': 'string',
+                'ORIG_RENT_BGN_DATE': 'date/time',
+                'ORIG_RENT_END_DATE': 'date/time',
+                'ORIG_RENT_FCTR_CODE': 'decimal',
+                'PYMT_MTHD_CODE': 'string',
+                'RENT_FCTR_KEY': 'decimal',
+                'NTQ_ISS_RSN_CODE': 'string',
+                'NTQ_STS_UPD_DATE': 'date/time',
+                'NTQ_WTHDRW_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+        )
         ctx.register_df("df_SQ_SSA_EMS_TAM_NTQ_STS", df_SQ_SSA_EMS_TAM_NTQ_STS)
         
         logger.info("Step: write_SOR_EMS_TAM_NTQ")
         # Write to Target: write_SOR_EMS_TAM_NTQ
-        df_write = df_SQ_SSA_EMS_TAM_NTQ
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("CUST_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_SRVC_APLY_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("NTQ_CRE_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("TNCY_AGRMT_KEY", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['NTQ_KEY', 'CUST_KEY', 'HSE_SRVC_APLY_KEY', 'NTQ_CRE_DATE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'AGMT_IND', 'TNCY_AGRMT_KEY']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_TAM_NTQ", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_TAM_NTQ,
+            conn=conn_target,
+            table='SOR_EMS_TAM_NTQ',
+            mode='append',
+            source_columns=[
+                'NTQ_KEY',
+                None,
+                None,
+                None,
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'AGMT_IND',
+                None,
+            ],
+            target_columns=[
+                'NTQ_KEY',
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'NTQ_CRE_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'AGMT_IND',
+                'TNCY_AGRMT_KEY',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_TAM_NTQ write completed")
         logger.info("Step: write_SOR_EMS_TAM_NTQ_STS")
         # Write to Target: write_SOR_EMS_TAM_NTQ_STS
-        df_write = df_SQ_SSA_EMS_TAM_NTQ_STS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BGN_DATE": "SOR_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("CUST_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HSE_SRVC_APLY_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("NTQ_CRE_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("AGMT_IND", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("TNCY_AGRMT_KEY", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['NTQ_KEY', 'CUST_KEY', 'HSE_SRVC_APLY_KEY', 'NTQ_CRE_DATE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'AGMT_IND', 'TNCY_AGRMT_KEY']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_TAM_NTQ", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_TAM_NTQ_STS,
+            conn=conn_target,
+            table='SOR_EMS_TAM_NTQ',
+            mode='append',
+            source_columns=[
+                'NTQ_KEY',
+                None,
+                None,
+                None,
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                None,
+                None,
+            ],
+            target_columns=[
+                'NTQ_KEY',
+                'CUST_KEY',
+                'HSE_SRVC_APLY_KEY',
+                'NTQ_CRE_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'AGMT_IND',
+                'TNCY_AGRMT_KEY',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_TAM_NTQ_STS write completed")
         

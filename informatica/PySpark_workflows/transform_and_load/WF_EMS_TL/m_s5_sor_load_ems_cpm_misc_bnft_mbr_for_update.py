@@ -58,20 +58,45 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_CPM_MISC_BNFT_MBR")
         # Source Qualifier: apply_SQ_SSA_EMS_CPM_MISC_BNFT_MBR
         df_SQ_SSA_EMS_CPM_MISC_BNFT_MBR = df_SSA_EMS_CPM_MISC_BNFT_MBR1
-        df_SQ_SSA_EMS_CPM_MISC_BNFT_MBR = df_SQ_SSA_EMS_CPM_MISC_BNFT_MBR.filter(expr("OPR_IND = 'EB' OR OPR_IND = 'DA'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["MISC_HSE_BNFT_MBR_KEY", "MISC_HSE_BNFT_MBR_BK", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_CPM_MISC_BNFT_MBR = df_SQ_SSA_EMS_CPM_MISC_BNFT_MBR.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_CPM_MISC_BNFT_MBR.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_CPM_MISC_BNFT_MBR = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_CPM_MISC_BNFT_MBR,
+            port_cols={
+                'MISC_HSE_BNFT_MBR_KEY': 'decimal',
+                'MISC_HSE_BNFT_MBR_BK': 'string',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'EB' OR OPR_IND = 'DA'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_CPM_MISC_BNFT_MBR", df_SQ_SSA_EMS_CPM_MISC_BNFT_MBR)
         
         logger.info("Step: write_SOR_EMS_CPM_MISC_BNFT_MBR")
         # Write to Target: write_SOR_EMS_CPM_MISC_BNFT_MBR
-        df_write = df_SQ_SSA_EMS_CPM_MISC_BNFT_MBR
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['MISC_HSE_BNFT_MBR_KEY', 'MISC_HSE_BNFT_MBR_BK', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_CPM_MISC_BNFT_MBR", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_CPM_MISC_BNFT_MBR,
+            conn=conn_target,
+            table='SOR_EMS_CPM_MISC_BNFT_MBR',
+            mode='append',
+            source_columns=[
+                'MISC_HSE_BNFT_MBR_KEY',
+                'MISC_HSE_BNFT_MBR_BK',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'MISC_HSE_BNFT_MBR_KEY',
+                'MISC_HSE_BNFT_MBR_BK',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_CPM_MISC_BNFT_MBR write completed")
         

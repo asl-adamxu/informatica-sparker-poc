@@ -64,71 +64,140 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_HSC_HOS_RCPT")
         # Source Qualifier: apply_SQ_SSA_EMS_HSC_HOS_RCPT
         df_SQ_SSA_EMS_HSC_HOS_RCPT = df_SSA_EMS_HSC_HOS_RCPT
-        df_SQ_SSA_EMS_HSC_HOS_RCPT = df_SQ_SSA_EMS_HSC_HOS_RCPT.filter(expr("OPR_IND = 'E'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HOS_RCPT_KEY", "HOS_RCPT_BK", "HOS_RCPT_NUM", "AGMT_IND", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_HSC_HOS_RCPT = df_SQ_SSA_EMS_HSC_HOS_RCPT.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_HSC_HOS_RCPT.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_HSC_HOS_RCPT = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_HSC_HOS_RCPT,
+            port_cols={
+                'HOS_RCPT_KEY': 'decimal',
+                'HOS_RCPT_BK': 'string',
+                'HOS_RCPT_NUM': 'decimal',
+                'AGMT_IND': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_HSC_HOS_RCPT", df_SQ_SSA_EMS_HSC_HOS_RCPT)
         
         logger.info("Step: apply_SQ_SSA_EMS_HSC_HOS_RCPT_STS")
         # Source Qualifier: apply_SQ_SSA_EMS_HSC_HOS_RCPT_STS
         df_SQ_SSA_EMS_HSC_HOS_RCPT_STS = df_SSA_EMS_HSC_HOS_RCPT_STS
-        df_SQ_SSA_EMS_HSC_HOS_RCPT_STS = df_SQ_SSA_EMS_HSC_HOS_RCPT_STS.filter(expr("OPR_IND = 'E' OR OPR_IND = 'EB'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HOS_RCPT_KEY", "BGN_DATE", "END_DATE", "HSE_SRVC_APLY_KEY", "HOS_RCPT_PYMT_TYPE_CODE", "HOS_RCPT_PYMT_DATE", "HOS_RCPT_CHQ_NUM_1", "HOS_RCPT_CHQ_BANK_CODE_1", "HOS_RCPT_CHQ_AMT_1", "HOS_RCPT_CHQ_NUM_2", "HOS_RCPT_CHQ_BANK_CODE_2", "HOS_RCPT_CHQ_AMT_2", "HOS_RCPT_CHQ_NUM_3", "HOS_RCPT_CHQ_BANK_CODE_3", "HOS_RCPT_AMT_3", "HOS_RCPT_CASH_AMT", "HOS_RCPT_CNCL_DATE", "HOS_RCPT_INPT_USER_NAME", "HOS_RCPT_INPT_DATE", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_HSC_HOS_RCPT_STS = df_SQ_SSA_EMS_HSC_HOS_RCPT_STS.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_HSC_HOS_RCPT_STS.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_HSC_HOS_RCPT_STS = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_HSC_HOS_RCPT_STS,
+            port_cols={
+                'HOS_RCPT_KEY': 'decimal',
+                'BGN_DATE': 'date/time',
+                'END_DATE': 'date/time',
+                'HSE_SRVC_APLY_KEY': 'decimal',
+                'HOS_RCPT_PYMT_TYPE_CODE': 'string',
+                'HOS_RCPT_PYMT_DATE': 'date/time',
+                'HOS_RCPT_CHQ_NUM_1': 'string',
+                'HOS_RCPT_CHQ_BANK_CODE_1': 'string',
+                'HOS_RCPT_CHQ_AMT_1': 'decimal',
+                'HOS_RCPT_CHQ_NUM_2': 'string',
+                'HOS_RCPT_CHQ_BANK_CODE_2': 'string',
+                'HOS_RCPT_CHQ_AMT_2': 'decimal',
+                'HOS_RCPT_CHQ_NUM_3': 'string',
+                'HOS_RCPT_CHQ_BANK_CODE_3': 'string',
+                'HOS_RCPT_AMT_3': 'decimal',
+                'HOS_RCPT_CASH_AMT': 'decimal',
+                'HOS_RCPT_CNCL_DATE': 'date/time',
+                'HOS_RCPT_INPT_USER_NAME': 'string',
+                'HOS_RCPT_INPT_DATE': 'date/time',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'E' OR OPR_IND = 'EB'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_HSC_HOS_RCPT_STS", df_SQ_SSA_EMS_HSC_HOS_RCPT_STS)
         
         logger.info("Step: write_SOR_EMS_HSC_HOS_RCPT")
         # Write to Target: write_SOR_EMS_HSC_HOS_RCPT
-        df_write = df_SQ_SSA_EMS_HSC_HOS_RCPT
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("HOS_RCPT_BK", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_RCPT_NUM", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HOS_RCPT_KEY', 'HOS_RCPT_BK', 'HOS_RCPT_NUM', 'AGMT_IND', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_HSC_HOS_RCPT", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_HSC_HOS_RCPT,
+            conn=conn_target,
+            table='SOR_EMS_HSC_HOS_RCPT',
+            mode='append',
+            source_columns=[
+                'HOS_RCPT_KEY',
+                None,
+                None,
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'HOS_RCPT_KEY',
+                'HOS_RCPT_BK',
+                'HOS_RCPT_NUM',
+                'AGMT_IND',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_HSC_HOS_RCPT write completed")
         logger.info("Step: write_SOR_EMS_HSC_HOS_RCPT_STS")
         # Write to Target: write_SOR_EMS_HSC_HOS_RCPT_STS
-        df_write = df_SQ_SSA_EMS_HSC_HOS_RCPT_STS
-        # Map source columns to target columns using connector field map (handles name
-        # mismatches) — done BEFORE the _update_flag split so UPDATE/DELETE use target
-        # column names in batch_update/batch_delete.
-        _field_map = {"BGN_DATE": "SOR_DATE"}
-        for _tgt_col, _src_col in _field_map.items():
-            if _tgt_col.lower() not in [x.lower() for x in df_write.columns] and _src_col.lower() in [x.lower() for x in df_write.columns]:
-                # Drop any column that would conflict case-insensitively with the target name 
-                for _c in list(df_write.columns):
-                    if _c.lower() == _tgt_col.lower() and _c != _src_col:
-                        df_write = df_write.drop(_c)
-                df_write = df_write.withColumnRenamed(_src_col, _tgt_col)
-        # Add NULL for unmapped target columns (schema parity) - excluding identity columns
-        df_write = df_write.withColumn("HSE_SRVC_APLY_KEY", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_RCPT_PYMT_TYPE_CODE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_RCPT_PYMT_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_RCPT_CHQ_NUM_1", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_RCPT_CHQ_BANK_CODE_1", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_RCPT_CHQ_AMT_1", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_RCPT_CHQ_NUM_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_RCPT_CHQ_BANK_CODE_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_RCPT_CHQ_AMT_2", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_RCPT_CHQ_NUM_3", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_RCPT_CHQ_BANK_CODE_3", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_RCPT_AMT_3", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_RCPT_CASH_AMT", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_RCPT_CNCL_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_RCPT_INPT_USER_NAME", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("HOS_RCPT_INPT_DATE", lit(None).cast(StringType()))
-        df_write = df_write.withColumn("LAST_REC_TXN_TYPE_CODE", lit(None).cast(StringType()))
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['HOS_RCPT_KEY', 'BGN_DATE', 'END_DATE', 'HSE_SRVC_APLY_KEY', 'HOS_RCPT_PYMT_TYPE_CODE', 'HOS_RCPT_PYMT_DATE', 'HOS_RCPT_CHQ_NUM_1', 'HOS_RCPT_CHQ_BANK_CODE_1', 'HOS_RCPT_CHQ_AMT_1', 'HOS_RCPT_CHQ_NUM_2', 'HOS_RCPT_CHQ_BANK_CODE_2', 'HOS_RCPT_CHQ_AMT_2', 'HOS_RCPT_CHQ_NUM_3', 'HOS_RCPT_CHQ_BANK_CODE_3', 'HOS_RCPT_AMT_3', 'HOS_RCPT_CASH_AMT', 'HOS_RCPT_CNCL_DATE', 'HOS_RCPT_INPT_USER_NAME', 'HOS_RCPT_INPT_DATE', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_HSC_HOS_RCPT_STS", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_HSC_HOS_RCPT_STS,
+            conn=conn_target,
+            table='SOR_EMS_HSC_HOS_RCPT_STS',
+            mode='append',
+            source_columns=[
+                'HOS_RCPT_KEY',
+                'SOR_DATE',
+                'END_DATE',
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                'LAST_REC_TXN_DATE',
+            ],
+            target_columns=[
+                'HOS_RCPT_KEY',
+                'BGN_DATE',
+                'END_DATE',
+                'HSE_SRVC_APLY_KEY',
+                'HOS_RCPT_PYMT_TYPE_CODE',
+                'HOS_RCPT_PYMT_DATE',
+                'HOS_RCPT_CHQ_NUM_1',
+                'HOS_RCPT_CHQ_BANK_CODE_1',
+                'HOS_RCPT_CHQ_AMT_1',
+                'HOS_RCPT_CHQ_NUM_2',
+                'HOS_RCPT_CHQ_BANK_CODE_2',
+                'HOS_RCPT_CHQ_AMT_2',
+                'HOS_RCPT_CHQ_NUM_3',
+                'HOS_RCPT_CHQ_BANK_CODE_3',
+                'HOS_RCPT_AMT_3',
+                'HOS_RCPT_CASH_AMT',
+                'HOS_RCPT_CNCL_DATE',
+                'HOS_RCPT_INPT_USER_NAME',
+                'HOS_RCPT_INPT_DATE',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_HSC_HOS_RCPT_STS write completed")
         

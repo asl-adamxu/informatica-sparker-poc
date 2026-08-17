@@ -48,25 +48,10 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
 
     v_snsh_date = ""
     v_init_flag = ""
-    # Load mapping variables from job_params or UTL_JOB_PARAM file
-    try:
-        _param_obj = objects.get("UTL_JOB_PARAM", {})
-        if isinstance(_param_obj, dict):
-            _param_path = lib._resolve_path(_param_obj.get('path'))
-        with open(_param_path, "r") as _f:
-            for _line in _f:
-                _line = _line.strip()
-                for _var in [ "$$v_snsh_date",  "$$v_init_flag", ]:
-                    if _line.startswith(_var + "="):
-                        _val = _line.split("=", 1)[1]
-                        _clean = _var.replace("$", "")
-                        if _clean == "v_snsh_date":
-                            v_snsh_date = _val
-                        if _clean == "v_init_flag":
-                            v_init_flag = _val
-                        logger.info("Loaded %s=%s from %s", _var, _val, _param_path)
-    except Exception:
-        logger.warning("UTL_JOB_PARAM not found, using default values")
+    # Load mapping variables from the UTL_JOB_PARAM file (shared helper)
+    _vars = lib.load_mapping_variables(config, [ "$$v_snsh_date",  "$$v_init_flag", ], logger)
+    v_snsh_date = _vars.get("v_snsh_date", v_snsh_date)
+    v_init_flag = _vars.get("v_init_flag", v_init_flag)
     
     try:
         logger.info("Step: read_EMS_HSM_HSE_UNIT_HIST")
@@ -78,20 +63,35 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_EMS_HSM_HSE_UNIT_HIST")
         # Source Qualifier: apply_SQ_EMS_HSM_HSE_UNIT_HIST
         df_SQ_EMS_HSM_HSE_UNIT_HIST = df_EMS_HSM_HSE_UNIT_HIST
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["HSE_UNIT_HIST_KEY", "HSE_UNIT_KEY", "HSE_UNIT_TYPE_CODE", "HSE_UNIT_IFA_AREA", "HSE_UNIT_ENV_CODE", "HSE_UNIT_CSL_VCNCY_IND", "HSE_UNIT_CRE_DATE", "HSE_UNIT_DMLH_DATE", "HSE_UNIT_DMLH_RSN_TEXT", "HSE_UNIT_CATG_CODE", "SHR_UNIT_NAME", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID"]
-        df_SQ_EMS_HSM_HSE_UNIT_HIST = df_SQ_EMS_HSM_HSE_UNIT_HIST.select([col(c) if c.lower() in [x.lower() for x in df_SQ_EMS_HSM_HSE_UNIT_HIST.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_EMS_HSM_HSE_UNIT_HIST = lib.sq_output(
+            input_df=df_SQ_EMS_HSM_HSE_UNIT_HIST,
+            port_cols={
+                'HSE_UNIT_HIST_KEY': 'decimal',
+                'HSE_UNIT_KEY': 'string',
+                'HSE_UNIT_TYPE_CODE': 'string',
+                'HSE_UNIT_IFA_AREA': 'decimal',
+                'HSE_UNIT_ENV_CODE': 'string',
+                'HSE_UNIT_CSL_VCNCY_IND': 'string',
+                'HSE_UNIT_CRE_DATE': 'date/time',
+                'HSE_UNIT_DMLH_DATE': 'date/time',
+                'HSE_UNIT_DMLH_RSN_TEXT': 'string',
+                'HSE_UNIT_CATG_CODE': 'string',
+                'SHR_UNIT_NAME': 'string',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'LAST_REC_TXN_USER_ID': 'string',
+            },
+        )
         ctx.register_df("df_SQ_EMS_HSM_HSE_UNIT_HIST", df_SQ_EMS_HSM_HSE_UNIT_HIST)
         
         logger.info("Step: apply_EXPTRANS")
         # Expression: apply_EXPTRANS
-        df_EXPTRANS = df_SQ_EMS_HSM_HSE_UNIT_HIST
-        df_EXPTRANS = df_EXPTRANS.withColumn("DUMMY_DATE", expr("NULL"))
-        # Ensure any missing pass-through columns exist (no connector feeding them)
-        for _col in ["HSE_UNIT_HIST_KEY", "HSE_UNIT_KEY", "HSE_UNIT_TYPE_CODE", "HSE_UNIT_IFA_AREA", "HSE_UNIT_ENV_CODE", "HSE_UNIT_CSL_VCNCY_IND", "HSE_UNIT_CRE_DATE", "HSE_UNIT_DMLH_DATE", "HSE_UNIT_DMLH_RSN_TEXT", "HSE_UNIT_CATG_CODE", "SHR_UNIT_NAME", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "LAST_REC_TXN_USER_ID"]:
-            if _col.lower() not in [x.lower() for x in df_EXPTRANS.columns]:
-                df_EXPTRANS = df_EXPTRANS.withColumn(_col, lit(None))
-        # Keep all upstream columns + computed columns (no select filtering)
+        df_EXPTRANS = lib.expression(
+            input_df=df_SQ_EMS_HSM_HSE_UNIT_HIST,
+            computed_columns=[
+                {'name': 'DUMMY_DATE', 'expr': 'NULL'}
+            ],
+        )
         ctx.register_df("df_EXPTRANS", df_EXPTRANS)
         
         

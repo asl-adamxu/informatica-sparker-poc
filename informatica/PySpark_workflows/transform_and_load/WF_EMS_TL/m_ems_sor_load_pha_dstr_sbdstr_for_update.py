@@ -58,20 +58,48 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         logger.info("Step: apply_SQ_SSA_EMS_PHA_DSTR_SBDSTR")
         # Source Qualifier: apply_SQ_SSA_EMS_PHA_DSTR_SBDSTR
         df_SQ_SSA_EMS_PHA_DSTR_SBDSTR = df_SSA_EMS_PHA_DSTR_SBDSTR
-        df_SQ_SSA_EMS_PHA_DSTR_SBDSTR = df_SQ_SSA_EMS_PHA_DSTR_SBDSTR.filter(expr("OPR_IND = 'EB'"))
-        # Select only SQ output ports (matches Informatica behavior) — missing ports become lit(None)
-        _port_cols = ["PHA_DSTR_SBDSTR_KEY", "DSTR_KEY", "SBDSTR_KEY", "LAST_REC_TXN_TYPE_CODE", "LAST_REC_TXN_DATE", "AGMT_IND", "OPR_IND", "SOR_DATE"]
-        df_SQ_SSA_EMS_PHA_DSTR_SBDSTR = df_SQ_SSA_EMS_PHA_DSTR_SBDSTR.select([col(c) if c.lower() in [x.lower() for x in df_SQ_SSA_EMS_PHA_DSTR_SBDSTR.columns] else lit(None).alias(c) for c in _port_cols])
+        df_SQ_SSA_EMS_PHA_DSTR_SBDSTR = lib.sq_output(
+            input_df=df_SQ_SSA_EMS_PHA_DSTR_SBDSTR,
+            port_cols={
+                'PHA_DSTR_SBDSTR_KEY': 'decimal',
+                'DSTR_KEY': 'decimal',
+                'SBDSTR_KEY': 'decimal',
+                'LAST_REC_TXN_TYPE_CODE': 'string',
+                'LAST_REC_TXN_DATE': 'date/time',
+                'AGMT_IND': 'string',
+                'OPR_IND': 'string',
+                'SOR_DATE': 'date/time',
+            },
+            filter_condition="OPR_IND = 'EB'",
+        )
         ctx.register_df("df_SQ_SSA_EMS_PHA_DSTR_SBDSTR", df_SQ_SSA_EMS_PHA_DSTR_SBDSTR)
         
         logger.info("Step: write_SOR_EMS_PHA_DSTR_SBDSTR")
         # Write to Target: write_SOR_EMS_PHA_DSTR_SBDSTR
-        df_write = df_SQ_SSA_EMS_PHA_DSTR_SBDSTR
-        # Select only target-defined columns (field_map already handled name alignment)
-        _target_cols = ['PHA_DSTR_SBDSTR_KEY', 'DSTR_KEY', 'SBDSTR_KEY', 'LAST_REC_TXN_TYPE_CODE', 'LAST_REC_TXN_DATE', 'AGMT_IND']
-        df_write = df_write.select(*[col for col in _target_cols if col.lower() in [x.lower() for x in df_write.columns]])
-        # Write to database table (Oracle, etc.) using write_table (supports smart repartition, batch size, empty-df skip)
-        lib.write_table(df_write, conn_target, "SOR_EMS_PHA_DSTR_SBDSTR", mode="append")
+        lib.write_target(
+            spark=spark,
+            df=df_SQ_SSA_EMS_PHA_DSTR_SBDSTR,
+            conn=conn_target,
+            table='SOR_EMS_PHA_DSTR_SBDSTR',
+            mode='append',
+            source_columns=[
+                'PHA_DSTR_SBDSTR_KEY',
+                'DSTR_KEY',
+                'SBDSTR_KEY',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'AGMT_IND',
+            ],
+            target_columns=[
+                'PHA_DSTR_SBDSTR_KEY',
+                'DSTR_KEY',
+                'SBDSTR_KEY',
+                'LAST_REC_TXN_TYPE_CODE',
+                'LAST_REC_TXN_DATE',
+                'AGMT_IND',
+            ],
+            config=config,
+        )
 
         logger.info("write_SOR_EMS_PHA_DSTR_SBDSTR write completed")
         
