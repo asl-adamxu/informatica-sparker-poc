@@ -16,6 +16,18 @@ This file captures conventions, patterns, and rules established during developme
 
 ## Recent Architecture Changes
 
+### Phase 2 ROLLED BACK + lookup chain fixes (v2026.08.17)
+
+- **Phase 2 component methods are GONE**: `lib.static_lookup`, `lib.joiner`, `lib.aggregator`, `lib.stored_procedure`, `lib.load_mapping_variables` and all their generator wiring (commits `d26f4da`..`be350ad`) were removed from the `rollback-sle` branch (reset to `401656f`, the pre-Phase-2 commit). Lookups / joiners / aggregators / stored procedures / mapping-variable loading generate their **inline forms** again (the `_main`/`_lkp` broadcast-join blocks, inline `.agg(...)`, `.join(...)` master/detail selects, the `_vars` UTL_JOB_PARAM file-read block). The branch's history no longer contains Phase 2; the old history is preserved in `backup-phase2-history`.
+- **Still in effect (Phase 1 + 3/4)**: `lib.expression`, `lib.filter`, `lib.router`, `lib.union`, `lib.sorter`, `lib.sequence`, `lib.sq_output`, `lib.update_strategy`, `lib.write_target`, `lib.dynamic_lookup` remain kwargs component methods.
+- **Kept fixes re-applied on top** (all target the INLINE lookup scheme, which is what remains):
+  - `ec762ab` — write_target DD_UPDATE batches target column names
+  - `206a307` — DUAL/DEV_NULL target writes skipped at render time
+  - `5406b44` — instance-level TABLEATTRIBUTE wins for `Lookup Sql Override` / `Lookup table name` (inline lookup path; e.g. the CHC lookup in anls_a)
+  - `4eba3ba` — `_redundant_merge_df` refuses in-place-accumulated df as a redundant ancestor (in-place fork bug: `DSTR_CHC_DSTR_SCD_KEY` in anls_a)
+  - `ee0d2ce` — lookup chain base = the lookup's own upstream df; chains onto the previous merge only when it is a row-preserving descendant (anls_b `DSTR_BRD_DSTR_EMMS_KEY` bug; ras_hdsp sequential accumulation preserved)
+- **Verification**: 200 tests pass; WF_EMS_DDS_APLY_MTH 410 lookup inputs match the pre-rollback workspace; HSE_STCK anls_a/anls_b convert clean; py_compile + 0 warnings/0 errors.
+
 ### WF_NHS_TL Round (v2026.08.07)
 - **Lookup / FILTRANS upstream wiring**: multi-upstream `_get_input_df` prefers the lookup chain result; post-process no longer rewrites the input of lookup-fed filters (`FILTRANS_STS` / `FILTRANS_MSTR` now receive the correct merge DataFrame).
 - **Mapplet rename & source flow**: base flow resolves through the outermost mapplet input, mapplet outputs merge on the right side so source values are not overwritten with NULL; empty mapplet rename steps are omitted.
