@@ -68,3 +68,22 @@ def test_filter_condition_and_distinct(runtime_lib, spark):
         distinct=True,
     )
     assert sorted(r["V"] for r in out.collect()) == [2]
+
+
+def test_date_time_port_casts_to_timestamp(runtime_lib, spark):
+    """Informatica "date/time" ports (e.g. a date stored as a NUMBER in a
+    legacy source) must be cast to TimestampType, so downstream date
+    functions (to_date in a CASE WHEN) compare against a date type instead
+    of the raw numeric type (DATATYPE_MISMATCH.DATA_DIFF_TYPES)."""
+    from pyspark.sql.functions import col
+    from pyspark.sql.types import DecimalType
+
+    df = spark.createDataFrame(
+        [(20260601,), (20260701,)], ["END_DATE"]
+    ).withColumn("END_DATE", col("END_DATE").cast(DecimalType(38, 10)))
+    out = runtime_lib.sq_output(
+        spark=spark, input_df=df, name="SQ",
+        port_cols={"END_DATE": "date/time"},
+    )
+    assert str(out.schema["END_DATE"].dataType) == "TimestampType()", (
+        str(out.schema["END_DATE"].dataType))

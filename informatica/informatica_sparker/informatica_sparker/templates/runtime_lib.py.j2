@@ -1148,7 +1148,12 @@ def sq_output(spark=None, input_df=None, name=None, port_cols=None,
             _cast = DecimalType(38, 10)
         elif _t in ("DATE",):
             _cast = DateType()
-        elif _t in ("DATETIME", "TIMESTAMP"):
+        elif _t in ("DATETIME", "TIMESTAMP", "DATE/TIME"):
+            # Informatica ports typed "date/time" (e.g. a date stored as a
+            # NUMBER in a legacy source) must be cast to TimestampType —
+            # otherwise downstream date functions (to_date, date_format)
+            # compare against the raw numeric type and raise
+            # DATATYPE_MISMATCH.DATA_DIFF_TYPES.
             _cast = TimestampType()
         if _cast is not None:
             for _c in df.columns:
