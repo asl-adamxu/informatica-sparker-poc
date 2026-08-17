@@ -424,3 +424,48 @@ def test_generated_nhs_uses_dynamic_lookup_helper():
         compile(text, str(path), "exec")
         checked += 1
     assert checked >= 40, f"expected many generated dynamic lookups, got {checked}"
+
+
+def test_state_machine_base_hit_different_input_updates(runtime_lib):
+    """A base-cache hit whose input row DIFFERS from the base must produce an
+    UPDATE (NewLookupRow=2) and refresh the cache — not a silent no-change.
+    The Sequence-Id surrogate key stays immutable."""
+    rows = [
+        {
+            "IN_KEY": "1",
+            "IN_VAL": "y",            # input value differs from the base
+            "__lkp_KEY": "1",
+            "__lkp_VAL": "x",         # base cache value
+            "__lkp_SEQ": 5,
+            "__base_exists": 1,
+            "__dyn_seq": 0,
+            "__dyn_seq_key": None,
+        },
+    ]
+    result = runtime_lib._process_dynamic_lookup_rows(rows, _sample_cfg())
+    assert result[0]["NewLookupRow"] == 2
+    assert result[0]["SEQ"] == 5            # sequence id immutable
+    assert result[0]["VAL"] == "y"          # cache refreshed with the input
+
+    # output_old_value_on_update: the row still outputs the OLD value
+    cfg_old = _sample_cfg(output_old_value_on_update=True)
+    result_old = runtime_lib._process_dynamic_lookup_rows(rows, cfg_old)
+    assert result_old[0]["NewLookupRow"] == 2
+    assert result_old[0]["VAL"] == "x"
+
+    # same-value base hit still reports no change
+    same = [
+        {
+            "IN_KEY": "1",
+            "IN_VAL": "x",
+            "__lkp_KEY": "1",
+            "__lkp_VAL": "x",
+            "__lkp_SEQ": 5,
+            "__base_exists": 1,
+            "__dyn_seq": 0,
+            "__dyn_seq_key": None,
+        },
+    ]
+    result_same = runtime_lib._process_dynamic_lookup_rows(same, _sample_cfg())
+    assert result_same[0]["NewLookupRow"] == 0
+    assert result_same[0]["VAL"] == "x"
