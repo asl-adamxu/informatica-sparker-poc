@@ -16,6 +16,12 @@ This file captures conventions, patterns, and rules established during developme
 
 ## Recent Architecture Changes
 
+### Filter/Router lookup-preference descendant override (v2026.08.17)
+
+- **Problem**: `_get_input_df`'s Filter/Router preference returned the last lookup's registered chain even when the filter's NON-lookup upstream carries a row-preserving descendant of that chain (a fuller frame with the downstream transformation's computed columns). `FILTRANS` in `M_EMS_DPA_SUMMARIZE_FACT_MTH_RENT_AND_ARR_SMRY_D` read a stale branch (`df_lkp_merge_EXPTRANS2`) and lost `EXPTRANS1`'s columns, despite EXPTRANS1 being its XML-declared upstream.
+- **Fix**: after choosing the lookup chain, scan the non-lookup upstreams — if any registered df is a row-preserving descendant of the lookup chain (only expression/lookup steps on the lineage, via `_is_row_preserving_descendant`), prefer that descendant.
+- **Verified**: RVN_MTH FILTRANS reads `df_EXPTRANS1`; EMS 410 lookup inputs + 0 filter diffs; HSE_STCK anls_a/b unchanged; NHS_TL 2 filter inputs shift toward the XML-declared wiring (FILTRANS_MSTR reads the DLKP_SOR_MSTR chain carrying its own NewLookupRow; ref_code's EXP_BK chain — the same frame its verified FILTRANS_STS uses).
+
 ### Phase 2 ROLLED BACK + lookup chain fixes (v2026.08.17)
 
 - **Phase 2 component methods are GONE**: `lib.static_lookup`, `lib.joiner`, `lib.aggregator`, `lib.stored_procedure`, `lib.load_mapping_variables` and all their generator wiring (commits `d26f4da`..`be350ad`) were removed from the `rollback-sle` branch (reset to `401656f`, the pre-Phase-2 commit). Lookups / joiners / aggregators / stored procedures / mapping-variable loading generate their **inline forms** again (the `_main`/`_lkp` broadcast-join blocks, inline `.agg(...)`, `.join(...)` master/detail selects, the `_vars` UTL_JOB_PARAM file-read block). The branch's history no longer contains Phase 2; the old history is preserved in `backup-phase2-history`.
