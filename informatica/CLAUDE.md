@@ -16,6 +16,12 @@ This file captures conventions, patterns, and rules established during developme
 
 ## Recent Architecture Changes
 
+### Shared lib.load_mapping_variables (v2026.08.17)
+
+- **Redone after Phase 2 rollback**: the per-mapping inline UTL_JOB_PARAM reader block (declared defaults + try/open loop + per-var if-assignments) is replaced by the shared `lib.load_mapping_variables(config, var_names, logger=None)` helper. Generated header per mapping: `_vars = lib.load_mapping_variables(config, [ "$$v_x", ], logger)` followed by one `v_x = _vars.get("v_x", v_x)` line per variable.
+- **Contract**: returns `{clean_name: value}` ($$ stripped); missing config entry / missing file / variable absent from the file → absent from the result, so callers `.get()` their declared defaults; path resolved via `_resolve_path` (handles `$VAR` / `${VAR:default}` / `$(pwd)`).
+- Tests: `tests/test_lib_load_mapping_variables.py` (6 cases); WF_EMS_EX reconversion renders the shared form; 183 tests pass.
+
 ### Dynamic I/U/D split UPDATEs only target columns (v2026.08.17)
 
 - **Bug**: `lib.write_target`'s dynamic `has_update_flag` branch computed UPDATE SET columns as ALL non-key columns of `_df_upd`. The frame can carry non-target columns from upstream mapplets (e.g. `DUMMY`, `UPDATE_FLAG` in flat_rent's `write_DDS_RLS_CNTL`) → `UPDATE ... SET DUMMY=?, ...` → ORA-00904. The static `DD_UPDATE` branch was already safe (target-aligned); the dynamic branch was not.
