@@ -1163,13 +1163,17 @@ def sq_output(spark=None, input_df=None, name=None, port_cols=None,
 
 
 def update_strategy(spark=None, input_df=None, name=None,
-                    strategy_field=None, config=None, **kwargs):
+                    strategy_field=None, rename_columns=None, config=None, **kwargs):
     """Convert one Informatica Update Strategy.
 
     Dynamic field strategies derive the _update_flag column (I/U/D) from the
     strategy field. Static strategies (DD_INSERT/DD_UPDATE/DD_DELETE) pass
-    through — the target write applies them directly.
+    through — the target write applies them directly. Connector renames run
+    BEFORE the flag derivation so the OUTPUT ports carry the names downstream
+    components reference (e.g. OUT_V_LAST_REC_TXN_DATE → OUT_LAST_REC_TXN_DATE).
     """
+    if rename_columns:
+        input_df = _rename_columns(input_df, rename_columns)
     if strategy_field:
         return input_df.withColumn(
             "_update_flag",

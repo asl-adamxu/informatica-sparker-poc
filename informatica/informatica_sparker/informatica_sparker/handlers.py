@@ -3430,6 +3430,19 @@ class TransformHandlers:
         _us_cfg: Dict[str, Any] = {}
         if step.params.get("strategy_field"):
             _us_cfg["strategy_field"] = step.params["strategy_field"]
+        # Connector renames (upstream column → Update Strategy port name, e.g.
+        # OUT_V_LAST_REC_TXN_DATE → OUT_LAST_REC_TXN_DATE): the strategy's
+        # OUTPUT must carry the connector names that downstream components
+        # reference (mapplet input remaps, filters, targets). Without them the
+        # renamed columns never exist and downstream fails with
+        # UNRESOLVED_COLUMN (M_EMS_SSAL2_TRANS_RVN_CLCT_TRML).
+        _us_renames: List[tuple] = []
+        for _c in self.mapping.connectors:
+            if (_c.to_instance == instance.name
+                    and _c.from_field.lower() != _c.to_field.lower()):
+                _us_renames.append((_c.from_field, _c.to_field))
+        if _us_renames:
+            _us_cfg["rename_columns"] = _us_renames
         step.params["update_strategy_cfg"] = _us_cfg
 
         return pre_steps + [step]

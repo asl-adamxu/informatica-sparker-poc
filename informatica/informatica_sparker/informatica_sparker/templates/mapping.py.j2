@@ -723,6 +723,11 @@ def run_mapping(ctx: lib.SparkContext = None, metrics=None, job_params=None,
         {% set uscfg = step.params.get('update_strategy_cfg', {}) %}
         {{ step.df_output }} = lib.update_strategy(
             input_df={{ step.df_input }},
+            {% if uscfg.get('rename_columns') %}
+            rename_columns=[
+                {{ uscfg['rename_columns'] | map('pyrepr') | join(',\n                ') }}
+            ],
+            {% endif %}
             {% if uscfg.get('strategy_field') %}
             strategy_field={{ uscfg['strategy_field'] | pyrepr }},
             {% endif %}
