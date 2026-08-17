@@ -16,6 +16,11 @@ This file captures conventions, patterns, and rules established during developme
 
 ## Recent Architecture Changes
 
+### update_strategy connector renames (v2026.08.17)
+
+- **Bug**: the Update Strategy handler never collected connector renames, so a renamed port (e.g. `MPLT_DLKP_CACHE_STATUS1.OUT_V_LAST_REC_TXN_DATE → UPD_SSAL2_MSTR11.OUT_LAST_REC_TXN_DATE`) never existed on the strategy's output frame — a downstream mapplet input remap (`LAST_REC_TXN_DATE ← OUT_LAST_REC_TXN_DATE`) failed with UNRESOLVED_COLUMN in `M_EMS_SSAL2_TRANS_RVN_CLCT_TRML` (WF_EMS_TL).
+- **Fix**: handler collects non-identity connector renames into `update_strategy_cfg["rename_columns"]`; `lib.update_strategy` applies them via `_rename_columns` BEFORE deriving `_update_flag` (Informatica: the strategy expression references the transform's input port names = connector TO names); template renders them one tuple per line like `lib.filter`. Test: `test_connector_renames_applied_before_flag`; 186 tests pass.
+
 ### sq_output "date/time" cast (v2026.08.17)
 
 - **Bug**: `lib.sq_output`'s type-cast map handled `DATE` and `DATETIME/TIMESTAMP` but NOT Informatica's `"date/time"` port datatype. A legacy source storing dates as NUMBERs (e.g. `END_DATE=20260601` in `SSA_NHS_RVN_TXN_ITEM`) kept its raw numeric type → downstream `CASE WHEN ... to_date('99991231','yyyyMMdd') ELSE END_DATE` raised `DATATYPE_MISMATCH.DATA_DIFF_TYPES` (DATE vs DECIMAL) in `M_SOR_LOAD_NHS_RVN_TXN_ITEM_INS`.
