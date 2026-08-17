@@ -3744,7 +3744,29 @@ class TransformHandlers:
                         _lookup_ups.append(_u)
                 if _lookup_ups:
                     _last_lkp = max(_lookup_ups, key=self._lookup_order.index)
-                    return self.current_df_map[_last_lkp]
+                    _lkp_chain = self.current_df_map[_last_lkp]
+                    # A NON-lookup upstream may carry a ROW-PRESERVING
+                    # descendant of the lookup chain — i.e. a fuller frame that
+                    # includes everything the lookup chain accumulated PLUS the
+                    # downstream transformation's computed columns. Prefer that
+                    # descendant, otherwise a filter fed by a lookup + a
+                    # downstream expression (e.g. FILTRANS fed by
+                    # LKP_DDS_DMNS_PRPTY_TYPE + EXPTRANS1 in
+                    # M_EMS_DPA_SUMMARIZE_FACT_MTH_RENT_AND_ARR_SMRY_D) reads a
+                    # STALE chain branch (df_lkp_merge_EXPTRANS2) and loses the
+                    # expression's columns (LRT_RTN_THRD_ABV_MTH_ARR_AMT ...).
+                    if self._plan is not None:
+                        _parent = self._build_df_parent_map(self._plan.steps)
+                        _step_map = {s.df_output: s for s in self._plan.steps if s.df_output}
+                        for _u in dict.fromkeys(upstream_instances):
+                            if _u in _lookup_ups:
+                                continue
+                            _cand = self.current_df_map.get(_u)
+                            if (_cand and _cand != _lkp_chain
+                                    and self._is_row_preserving_descendant(
+                                        _parent, _step_map, _cand, _lkp_chain)):
+                                return _cand
+                    return _lkp_chain
             # A deferred instance must see its direct upstream outputs, not the
             # chain/merge df that a lookup registered under the upstream name.
             # Lookup-fed filters/routers were already handled above.
