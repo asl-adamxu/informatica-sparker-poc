@@ -16,6 +16,12 @@ This file captures conventions, patterns, and rules established during developme
 
 ## Recent Architecture Changes
 
+### Dynamic lookup base-hit compare-and-update (v2026.08.17)
+
+- **Semantics fix**: the per-key state machine marked the FIRST row of a base-cache hit as `NewLookupRow=0` (no-change) unconditionally. Informatica's update-else-insert semantics require the input row to be COMPARED against the base cache — differing values (with the Update Dynamic Cache Condition holding) produce `NewLookupRow=2` and refresh the cache.
+- **Refactor**: `_dynamic_lookup_compare_and_update(row, cache_state, cfg, out_fields, insert_else_update, output_old_value, case_sensitive)` extracted and run for EVERY row, including the first row of a base hit. Sequence-Id stays immutable; `ignore_null_inputs` keeps null inputs from overwriting the cache; `output_old_value_on_update` still emits pre-update values. Both applyInPandas and RDD paths share `_process_dynamic_lookup_rows`.
+- Test: `test_state_machine_base_hit_different_input_updates`; 184 tests pass.
+
 ### Shared lib.load_mapping_variables (v2026.08.17)
 
 - **Redone after Phase 2 rollback**: the per-mapping inline UTL_JOB_PARAM reader block (declared defaults + try/open loop + per-var if-assignments) is replaced by the shared `lib.load_mapping_variables(config, var_names, logger=None)` helper. Generated header per mapping: `_vars = lib.load_mapping_variables(config, [ "$$v_x", ], logger)` followed by one `v_x = _vars.get("v_x", v_x)` line per variable.
