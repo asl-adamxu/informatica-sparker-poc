@@ -120,9 +120,9 @@ class TransformHandlers:
         # Tracks chain-join DataFrames: maps upstream df name → chain df name.
         # Lookups sharing the same upstream chain-join onto one accumulating df.
         self._chain_df_map: Dict[str, str] = {}
-        # Tracks the most recent chain merge output so subsequent lookups chain
-        # sequentially instead of branching in parallel (prevents column loss
-        # when a downstream lookup starts from a stale intermediate result).
+        # Most recent chain-merge output, for chaining the next lookup's chain
+        # onto it when it is a row-preserving descendant of that lookup's own
+        # input (see _is_row_preserving_descendant in _handle_lookup).
         self._last_chain_output: Optional[str] = None
         # Order in which lookup instances registered their chain/merge output.
         # Used by _get_input_df to prefer the correct lookup when a component
@@ -1988,16 +1988,26 @@ class TransformHandlers:
                 _chain_input = df_output
             else:
                 # First lookup for this upstream — create chain df.
-                # Chain onto the previous merge output only when the resolved
-                # input is itself a raw chain/merge/SQ result. If the lookup is
-                # fed by a downstream transformation (e.g. EXPTRANS after an
-                # Aggregator), that DF already carries all columns — use it
-                # directly instead of a stale merge.
+                # Chain onto the previous lookup's merge output ONLY when it
+                # is a ROW-PRESERVING descendant of this lookup's own input
+                # (same pipeline, only expression/lookup steps in between).
+                # This preserves sequential accumulation (e.g. LKP_PREV_RENT1
+                # chaining onto the CUR_RENT1 chain so the downstream filter
+                # sees CUR_RENT) while refusing to base on a DIFFERENT branch —
+                # in particular a FILTERED chain (df_lkp_merge_FILTRANS),
+                # which has a different row set and lacks the upstream's
+                # columns (anls_b's LKP_DDS_DMNS_EMS_DSTR_BRD_DSTR fed by
+                # LKP_DSTR_EST on the EXPTRANS chain).
                 df_output = self._df_name("df_lkp_merge", _upstream_name)
                 if _upstream_name:
                     self._chain_df_map[_upstream_name] = df_output
-                if not input_df or input_df.startswith(('df_lkp_merge', 'df_merge', 'df_sq_')):
-                    _chain_input = self._last_chain_output or input_df
+                _df_parent = self._build_df_parent_map(plan.steps)
+                _step_map = {s.df_output: s for s in plan.steps if s.df_output}
+                if (self._last_chain_output and input_df
+                        and self._is_row_preserving_descendant(
+                            _df_parent, _step_map,
+                            self._last_chain_output, input_df)):
+                    _chain_input = self._last_chain_output
                 else:
                     _chain_input = input_df
                 self._last_chain_output = df_output
@@ -3895,6 +3905,31 @@ class TransformHandlers:
             if _cur == ancestor:
                 return True
         return False
+
+    @staticmethod
+    def _is_row_preserving_descendant(parent: Dict[str, str],
+                                      step_map: Dict[str, Any],
+                                      df: str, ancestor: str) -> bool:
+        """True when `df` is a primary-lineage descendant of `ancestor` and
+        every step on the path keeps ALL rows of its primary input (only
+        expression / lookup-merge steps). A Filter (or router/aggregator/
+        joiner/union) on the path changes the row set, so a lookup chain must
+        never be based on such a descendant of its own upstream — joining onto
+        a filtered branch would silently drop rows the lookup should see.
+        """
+        _cur = df
+        _seen = set()
+        while _cur and _cur != ancestor:
+            if _cur in _seen:
+                return False
+            _seen.add(_cur)
+            _st = step_map.get(_cur)
+            if _st is None:
+                return False
+            if not isinstance(_st, (ApplyExpressionStep, ApplyLookupStep)):
+                return False
+            _cur = parent.get(_cur)
+        return _cur == ancestor
 
     @staticmethod
     def _lineage_preserves_columns(parent: Dict[str, str],
