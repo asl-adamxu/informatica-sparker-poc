@@ -16,6 +16,12 @@ This file captures conventions, patterns, and rules established during developme
 
 ## Recent Architecture Changes
 
+### sq_output "date/time" cast (v2026.08.17)
+
+- **Bug**: `lib.sq_output`'s type-cast map handled `DATE` and `DATETIME/TIMESTAMP` but NOT Informatica's `"date/time"` port datatype. A legacy source storing dates as NUMBERs (e.g. `END_DATE=20260601` in `SSA_NHS_RVN_TXN_ITEM`) kept its raw numeric type → downstream `CASE WHEN ... to_date('99991231','yyyyMMdd') ELSE END_DATE` raised `DATATYPE_MISMATCH.DATA_DIFF_TYPES` (DATE vs DECIMAL) in `M_SOR_LOAD_NHS_RVN_TXN_ITEM_INS`.
+- **Fix**: `"DATE/TIME"` → `TimestampType()` in the cast map (matching `_dynamic_lookup_spark_type`, which already handled it). Test: `test_date_time_port_casts_to_timestamp`; 185 tests pass.
+- **Type cast map (current)**: integer/int/bigint/smallint/tinyint → LongType; float/double/real → DoubleType; decimal/numeric/number → DecimalType(38,10); date → DateType; datetime/timestamp/**date/time** → TimestampType.
+
 ### Dynamic lookup base-hit compare-and-update (v2026.08.17)
 
 - **Semantics fix**: the per-key state machine marked the FIRST row of a base-cache hit as `NewLookupRow=0` (no-change) unconditionally. Informatica's update-else-insert semantics require the input row to be COMPARED against the base cache — differing values (with the Update Dynamic Cache Condition holding) produce `NewLookupRow=2` and refresh the cache.
