@@ -15,7 +15,6 @@ from .handlers import TransformHandlers
 from .codegen import CodeGenerator
 from .ir import IRPlan, IRStepType
 from .logger import ConversionLogger
-from .test_generator import TestGenerator
 
 
 class ConversionService:
@@ -24,7 +23,6 @@ class ConversionService:
         self.user_config = user_config or UserConfig()
         self.logger = ConversionLogger()
         self.codegen = CodeGenerator()
-        self.with_tests = False
 
     def convert_file(self, xml_path: str, output_dir: str = "output") -> GenerationResult:
         xml_path = Path(xml_path)
@@ -165,38 +163,6 @@ class ConversionService:
 
         if output_dir:
             self._write_output(all_files, output_dir)
-
-            # Generate metadata.json for this workflow
-            try:
-                _workflows = workflow_analysis.get("workflows", [])
-                _wf_name = _workflows[0]["name"] if _workflows else parser.folder_name
-                _script = f"{self._make_safe_name(_wf_name)}.py"
-                # Collect file-source info (same as config generation below)
-                _file_sources = {}
-                for _sess in workflow_analysis.get("sessions", []):
-                    for _src_inst, _src_info in _sess.get("file_sources", {}).items():
-                        _file_sources[_src_inst] = _src_info
-                from informatica_sparker.metadata import generate_metadata as _gen_meta
-                _gen_meta(mappings, _wf_name, _script, output_dir,
-                          session_file_sources=_file_sources)
-            except Exception as _meta_err:
-                import sys as _sys
-                print(f"Warning: metadata generation failed: {_meta_err}",
-                      file=_sys.stderr)
-
-        # Generate E2E test artifacts when --with-tests flag is set
-        if output_dir and self.with_tests and not result.errors:
-            wf_name = "workflow"
-            workflows = workflow_analysis.get("workflows", [])
-            if workflows:
-                wf_name = workflows[0]["name"]
-            test_gen = TestGenerator(
-                mappings=mappings,
-                workflow_analysis=workflow_analysis,
-                snsh_date=os.environ.get("SNSH_DATE", "20260601"),
-                workflow_name=wf_name,
-            )
-            test_gen.write_all(output_dir)
 
         return result
 

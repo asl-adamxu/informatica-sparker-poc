@@ -2,7 +2,7 @@
 
 **Version v2026.08.18** — A Python framework that converts Informatica PowerCenter workflow/mapping XML exports into PySpark code deployable to Databricks or YARN Spark clusters. **Tested against Informatica output — data results match.**
 
-**v2026.08.18 highlights (transform & load workflow WF_EMS_TL, the largest)**: all **581 mappings runtime-verified** (585 workflow steps, 0 failures) — every workflow (dds / extract / transform-and-load) is now validated end-to-end. This round added: **numeric Update Strategy expressions** (0/1/2/3 = `DD_INSERT`/`DD_UPDATE`/`DD_DELETE`/`DD_REJECT`) with a shared classifier used by both the strategy and write-target handlers, and numeric strategy *fields* dual-compared at runtime; **trailing-whitespace mapping/session names** stripped at parse time (plan names now always resolve to generated modules); mapplet-internal unconnected INPUT → NULL; update_strategy connector renames applied before `_update_flag` derivation; `sq_output` "date/time" port → TimestampType cast; dynamic-lookup base-hit compare-and-update with `Output Old Value On Update=YES`. Earlier core: exact Dynamic Lookup cache conversion via `applyInPandas` (equivalent RDD fallback) with `NewLookupRow` 0/1/2 semantics, base duplicate-key Report Error / CMN_1650, and global Sequence-Id pre-allocation (all 174 WF_NHS_TL mappings runtime-verified).
+**v2026.08.18 highlights (transform & load workflow WF_EMS_TL, the largest)**: all **581 mappings runtime-verified** (585 workflow steps, 0 failures) — every workflow (dds / extract / transform-and-load) is now validated end-to-end. This round added: **numeric Update Strategy expressions** (0/1/2/3 = `DD_INSERT`/`DD_UPDATE`/`DD_DELETE`/`DD_REJECT`) with a shared classifier used by both the strategy and write-target handlers, and numeric strategy *fields* dual-compared at runtime; **trailing-whitespace mapping/session names** stripped at parse time (plan names now always resolve to generated modules); mapplet-internal unconnected INPUT → NULL; update_strategy connector renames applied before `_update_flag` derivation; `sq_output` "date/time" port → TimestampType cast; dynamic-lookup base-hit compare-and-update with `Output Old Value On Update=YES`. Earlier core: exact Dynamic Lookup cache conversion via `applyInPandas` (equivalent RDD fallback) with `NewLookupRow` 0/1/2 semantics, base duplicate-key Report Error / CMN_1650, and global Sequence-Id pre-allocation (all 174 WF_NHS_TL mappings runtime-verified). Generated code is validated end-to-end through the E2E pytest suites in `tests/`, which are generated and maintained outside this repository.
 
 Conversion pipeline: **XML → Models → IR Plan → Jinja2 Templates → Generated Python Files**
 
@@ -36,6 +36,7 @@ Conversion pipeline: **XML → Models → IR Plan → Jinja2 Templates → Gener
   - `env/runtime_lib.py` — Shared runtime library (Spark session, JDBC helpers, metrics, workflow runner)
   - `env/all_sql_queries.sql` — All extracted SQL queries organized by mapping
   - `env/conversion_log.txt` — Detailed conversion log with warnings, errors, and source detection results
+- **E2E Validation via Test Suites**: generated code is validated against a real Oracle database through the E2E pytest suites in `tests/` (schema DDL, reference-data seed SQL, fixtures) — generated and maintained outside this repository
 - **Component-Method Encapsulation**: every transformation renders as a single kwargs call to a shared `lib.<component>(...)` method in the runtime library — the Informatica component shape (input df, ports, attributes) is preserved in generated code. Three-layer separation: `handlers.py` builds step params from the XML → `mapping.py.j2` renders kwargs calls → `runtime_lib.py.j2` owns the runtime semantics. Methods: `lib.expression` (renames → inline `:LKP.xxx()` joins → computed columns → `:SP.xxx()` calls → pass-through fills), `lib.filter` (renames before condition, `$$` substitution, sequence attach), `lib.router` (ordered group split, DEFAULT negation, multi-feed union), `lib.union` (position-aligned per-input selects + `unionByName`), `lib.sorter`, `lib.sequence`, `lib.sq_output` (port casts incl. `date/time` → TimestampType), `lib.update_strategy` (connector renames before `_update_flag`, numeric 0/1/2/3 strategy expressions), `lib.write_target` (positional source/target rename, static DD_* or dynamic I/U/D split with batch update/delete by key), `lib.dynamic_lookup` (exact cache state machine, applyInPandas with RDD fallback, NewLookupRow 0/1/2, Sequence-Id pre-allocation), `lib.load_mapping_variables` (shared UTL_JOB_PARAM reader). Static lookups, joiners, aggregators and stored procedures keep their inline forms (`_main`/`_lkp` broadcast joins, chain accumulation `df_lkp_merge_*`).
 - **Transformation Coverage**: Source Qualifier, Application Source Qualifier, Expression, Filter, Lookup Procedure (including exact Dynamic Lookup cache semantics), Joiner (inner/left/right/full with MASTER/DETAIL detection), Aggregator (with literal GROUPBY fields and conditional MIN/MAX/SUM/COUNT), Sorter (ISSORTKEY filtered, connector field rename), Union (per-input-group select+alias), Router (filter conditions, per-group output renaming), Sequence Generator, Update Strategy (DD_INSERT/UPDATE/DELETE constants, numeric 0/1/2/3 equivalents and numeric strategy fields; DD_REJECT rows dropped), Normalizer (posexplode with GENERATED_KEY), Rank (Window row_number/dense_rank), Stored Procedure (inline via `:SP.` pattern), Transaction Control (no-op), Mapplet (mini-DAG inlining), ODBC→JDBC auto-conversion
 - **Workflow DAG Orchestration**: Supports nested execution plans with:
@@ -186,8 +187,10 @@ Connection details (JDBC URLs, driver JARs, host/port) are automatically extract
 | Union | `.unionByName()` with per-input-group intermediate DataFrames and select+alias; Router-aware upstream resolution |
 | Router | Multiple `.filter()` branches per output group; REF_FIELD suffix rename; negated DEFAULT group |
 | Sequence Generator | `monotonically_increasing_id()` |
-| Update Strategy | Insert/Update/Delete flags with `_update_flag` column |
-| Stored Procedure | Inline via Expression `:SP.` pattern — qualified procedure name (e.g. `PKG_CDI_UTIL.SP_TRUNCATE`) |
+| Normalizer | `posexplode()` over the repeating group's array; 1-based `GENERATED_KEY`; NULL-row drop |
+| Rank | Window `row_number()` / `dense_rank()` over the sort ports |
+| Update Strategy | Insert/Update/Delete flags with `_update_flag` column (static `DD_*` constants or dynamic field strategies; numeric 0/1/2/3 equivalents; `DD_REJECT` rows dropped) |
+| Stored Procedure | Inline via Expression `:SP.` pattern — qualified procedure name (e.g. `PKG_CDI_UTIL.SP_TRUNCATE`), runtime `USER_ARGUMENTS` signature probing with OUT-param binding (`lib.call_stored_procedure`) |
 | Mapplet | Inlined mini-DAG with topological sort (includes Lookup Procedure, Expression, Input/Output port mapping) |
 | Target | `.write.format("jdbc")` / `.write.format("delta")` with type casting, column mapping, and DD_DELETE support |
 
@@ -223,17 +226,20 @@ The generated `runtime_lib.py` provides:
 
 | Function / Class | Purpose |
 |-----------------|---------|
-| `SparkSession` management | YARN/local profile resolution |
+| `get_spark_session()` | YARN/local profile resolution, auto-kinit, executor interpreter lockstep, `env/` zip shipping to executors (`addPyFile`) |
 | `SparkContext` | DataFrame registry with case-insensitive column access |
 | `MappingMetrics` / `NullMetrics` | Execution tracking and reporting |
 | `read_sql()` | JDBC read with query or table name |
-| `read_file()` | File read with format options |
-| `write_table()` / `write_file()` | JDBC/file write with configurable mode |
+| `read_file()` | File read with format options; YARN-safe local file handling (driver-side CSV read / HDFS staging) |
+| `write_table()` / `write_file()` / `write_sql()` | JDBC/file write with configurable mode; YARN-safe local CSV write on the driver |
 | `execute_sql()` | Execute arbitrary SQL on a connection |
-| `batch_delete()` | JDBC-prepared-statement batch delete for DD_DELETE strategy |
+| `dynamic_lookup()` | Exact dynamic cache state machine — `applyInPandas` (or equivalent RDD fallback), base duplicate-key Report Error, per-key compare-and-update, `NewLookupRow` 0/1/2, Sequence-Id pre-allocation, `Output Old Value On Update` |
+| `load_mapping_variables()` | Shared `UTL_JOB_PARAM` reader (`{clean_name: value}`; callers `.get()` declared defaults) |
+| `call_stored_procedure()` / `execute_stored_procedure()` | `USER_ARGUMENTS` signature probing with `DECLARE`'d VARCHAR2 OUT/IN OUT binding, cached per call name; legacy all-literals fallback |
+| `batch_delete()` / `batch_update()` / `batch_delete_composite()` | JDBC-prepared-statement batch DML for DD_DELETE / DD_UPDATE strategies |
 | `get_db_config()` | Prefix-matched connection resolution from config |
 | `test_connection()` | Validates all DB connections before execution |
-| `run_workflow()` | Reusable workflow engine (accepts `EXECUTION_PLAN` + `MAPPING_FUNCTIONS`) |
+| `run_workflow()` | Reusable workflow engine (accepts `EXECUTION_PLAN` + `MAPPING_FUNCTIONS` + optional `SESSION_SQLS`) |
 | `discover_mappings()` | Auto-discovers `m_*.py` modules in output directory |
 | `_resolve_password()` | Hadoop CredentialProvider with interactive fallback; password deferred until connection verified |
 | `_flush_pending_passwords()` | Persists interactively-entered passwords only after successful connection validation |
@@ -285,6 +291,10 @@ connections:
     port: 1521
     password: "credential:connections.oracle.password"  # Hadoop CredentialProvider
 
+# Dynamic lookup execution engine: apply_in_pandas (default) or rdd
+dynamic_lookup:
+  executor: apply_in_pandas
+
 # Email notifications
 email:
   mail_to: "${MAIL_TO:asl@example.com}"
@@ -301,7 +311,7 @@ logging:
 
 ## Requirements
 
-- Python >= 3.10
+- Python >= 3.10 (classifiers cover 3.10 – 3.13)
 - lxml >= 4.9.0
 - pydantic >= 2.0.0
 - jinja2 >= 3.1.0
@@ -317,7 +327,7 @@ Code generation uses Jinja2 templates in `informatica_sparker/templates/`:
 |----------|---------|
 | `mapping.py.j2` | PySpark mapping script with full transformation support |
 | `workflow_orchestration.py.j2` | Thin workflow wrapper (execution plan + task info) |
-| `runtime_lib.py.j2` | Shared runtime library with Spark helpers |
+| `runtime_lib.py.j2` | Shared runtime library with Spark helpers (component methods, workflow engine, dynamic lookup) |
 | `config.yml.j2` | Unified YAML configuration |
 | `objects.yml.j2` | File object definitions for source/target paths |
 | `job.py.j2` | Job entry point for standalone execution |
@@ -325,12 +335,13 @@ Code generation uses Jinja2 templates in `informatica_sparker/templates/`:
 ## Classifiers
 
 - `Development Status :: 5 - Production/Stable`
+- `Intended Audience :: Developers`
+- `License :: OSI Approved :: MIT License`
+- `Programming Language :: Python :: 3` (3.10, 3.11, 3.12, 3.13)
 - `Topic :: Software Development :: Code Generators`
 - `Topic :: Database`
 
-## Known Issues / Remaining Dynamic Lookup Limits
-
-- **Dynamic Lookup is converted exactly** for the `Report Error` policy: base duplicate condition keys fail the session (CMN_1650), duplicate keys in the *input* stream are legal and classified by the cache state machine (0/1/2). `Output Old Value On Update=YES` is covered (9 such lookups in WF_EMS_TL, runtime-validated).
+## Known Issues
 - **Remaining limits**: `Synchronize Dynamic Cache=YES` and cross-session persistent cache reuse are not emulated (the cache is seeded from the lookup source on every run); `Update Else Insert=YES` / non-insert row types are not supported; the dynamic-cache `Use First Value` multiple-match policy is converted with `Report Error` semantics (9 such dynamic lookups in WF_EMS_TL — validated against current base data, but duplicate condition keys in the base would fail rather than take the first value).
 - **Runtime dependency**: `applyInPandas` requires pandas + pyarrow (Spark minimum version) on driver and executors. If pyarrow is absent or below the Spark minimum, `runtime_lib.dynamic_lookup` automatically uses an equivalent RDD implementation (`config.yml` `dynamic_lookup.executor: apply_in_pandas` / `rdd`).
 

@@ -42,7 +42,7 @@ Homepage = "https://pypi.org/project/informatica-sparker/"
 informatica-sparker = "informatica_sparker.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["informatica_sparker*", "validation*"]
+include = ["informatica_sparker*"]
 
 [tool.setuptools.package-data]
 informatica_sparker = ["templates/**/*.j2"]

@@ -15,7 +15,6 @@ informatica_sparker/models.py
 informatica_sparker/parser.py
 informatica_sparker/report.py
 informatica_sparker/service.py
-informatica_sparker/test_generator.py
 informatica_sparker/workflow_builder.py
 informatica_sparker.egg-info/PKG-INFO
 informatica_sparker.egg-info/SOURCES.txt
@@ -23,11 +22,6 @@ informatica_sparker.egg-info/dependency_links.txt
 informatica_sparker.egg-info/entry_points.txt
 informatica_sparker.egg-info/requires.txt
 informatica_sparker.egg-info/top_level.txt
-informatica_sparker/metadata/__init__.py
-informatica_sparker/metadata/manifest_builder.py
-informatica_sparker/metadata/metadata_builder.py
-informatica_sparker/metadata/metadata_model.py
-informatica_sparker/metadata/metadata_writer.py
 informatica_sparker/templates/config.yml.j2
 informatica_sparker/templates/job.py.j2
 informatica_sparker/templates/mapping.py.j2
@@ -62,7 +56,6 @@ tests/test_lib_update_strategy.py
 tests/test_lib_write_target.py
 tests/test_lookup_filter_wiring.py
 tests/test_mapplet_unconnected_input.py
-tests/test_metadata_builder.py
 tests/test_numeric_update_strategy_expression.py
 tests/test_router_wiring.py
 tests/test_runtime_lib_oracle_pushdown.py
@@ -71,12 +64,3 @@ tests/test_sp_calls_fallback.py
 tests/test_sq_wiring.py
 tests/test_union_sorter_wiring.py
 tests/test_update_write_wiring.py
-tests/test_validation.py
-validation/__init__.py
-validation/cli.py
-validation/comparator.py
-validation/config.py
-validation/loader.py
-validation/models.py
-validation/report.py
-validation/runner.py
