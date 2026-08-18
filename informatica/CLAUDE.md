@@ -577,7 +577,7 @@ Requires: cwd = workflow dir (import env.runtime_lib), `spark.home` configured, 
 
 ## Conversion Progress
 
-As of **2026-08-10** (version **v2026.08.10**), all workflows have converted output present in the current workspace (`PySpark_workflows/`); every completed conversion run reports **0 warnings / 0 errors**. WF_NHS_TL (174 mappings) has been runtime-verified and regenerated with the exact Dynamic Lookup conversion. WF_EMS_TL (581 mappings) has earlier-round output but has not been re-validated with the new converter; it is the next round. Feature Coverage rows that reference `WF_EMS_TL` reflect earlier-round testing (v2026.07.20-era output) and must be re-validated once WF_EMS_TL is reconverted.
+As of **2026-08-18** (version **v2026.08.18**), **all workflows are converted and runtime-validated** — every completed conversion run reports **0 warnings / 0 errors**. The final round was **WF_EMS_TL (581 mappings, 585 workflow steps)**: reconverted and fully runtime-verified (SUCCESS, 0 failures). Fixes in that round: numeric Update Strategy expressions (0/1/2/3 = DD_INSERT/DD_UPDATE/DD_DELETE/DD_REJECT) with shared `_classify_update_strategy` + numeric strategy fields dual-compared in `lib.update_strategy`; trailing-whitespace mapping/session names stripped at parse time; mapplet-internal unconnected INPUT → NULL; update_strategy connector renames; `sq_output` "date/time" → TimestampType; dynamic lookup base-hit compare-and-update (`Output Old Value On Update=YES`).
 
 ### ✅ Runtime Verified
 | Workflow | Mappings | XML Size | Status |
@@ -591,11 +591,7 @@ As of **2026-08-10** (version **v2026.08.10**), all workflows have converted out
 | WF_EMS_EX | 142 | 9.6M | **Round complete (v2026.08.04)** — Oracle date format (`hh24/mi` → Spark patterns), py4j log suppression, Timer task wait, unconnected input port → NULL, Decision task barrier |
 | WF_NHS_EX | 46 | 2.2M | **Round complete (v2026.08.04)** — Oracle date format (`hh24/mi` → Spark patterns), py4j log suppression |
 | WF_NHS_TL | 174 | 11M | **Round complete (v2026.08.10)** — all mappings runtime verified; exact Dynamic Lookup via applyInPandas (0/1/2 + Sequence-Id pre-allocation + RDD fallback), lookup/FILTRANS wiring, mapplet rename, DECODE NULL semantics, stable df naming |
-
-### ❌ Not Converted (current workspace)
-| Workflow | Mappings | XML Size | Notes |
-|----------|----------|----------|-------|
-| WF_EMS_TL | 581 | 36M | Transform & load (largest). Earlier-round output exists but is **not re-validated** with the v2026.08.10 converter. TODO: rerun conversion with the new Dynamic Lookup converter, then runtime-validate (covers `Use First Value` dynamic lookups and `Output Old Value On Update=YES`) |
+| WF_EMS_TL | 581 | 36M | **Round complete (v2026.08.18)** — all mappings runtime verified (585 workflow steps, 0 failures); numeric Update Strategy (0/1/2/3 + numeric strategy fields), trailing-whitespace names, mapplet-internal unconnected INPUT, update_strategy connector renames, `date/time` port cast, dynamic lookup `Output Old Value On Update=YES` |
 
 ### Layer Architecture
 - **`dds/`** — Data Delivery Service (subject-area marts). Current testing focus.
@@ -642,7 +638,7 @@ As of **2026-08-10** (version **v2026.08.10**), all workflows have converted out
 | TO_DATE numeric cast | WF_EMS_PRHE_DDS_APLY_HSE_STCK_MTH | ✅ |
 | Normalizer | — | ⏳ Pending |
 | Dynamic Lookup (exact cache state machine, 0/1/2, Sequence-Id pre-allocation, RDD fallback) | WF_NHS_TL | ✅ |
-| Dynamic Lookup variants (`Use First Value`, `Output Old Value On Update=YES`) | WF_EMS_TL | ⏳ Next round |
+| Dynamic Lookup variants (`Output Old Value On Update=YES`; dynamic-cache `Use First Value` converted as Report Error, data-validated) | WF_EMS_TL | ✅ |
 
 ## Known Manual-Fix Bugs (Deferred)
 
@@ -657,6 +653,5 @@ Source of record: `convert_informatica_pyspark.md` (# 需手动fix的Bug). The `
 
 ## Known Pending Items (待修复)
 
-- **Dynamic Lookup 已实现**: WF_NHS_TL 已用 `applyInPandas` 状态机精确转换（NewLookupRow 1=insert / 2=update / 0=no change；base 重复 key 按 Report Error / CMN_1650 失败；Sequence-Id 全局预分配；pyarrow 缺失时自动 RDD 降级）。原 row_number 近似方案被最终实现取代。
-- **Dynamic Lookup 剩余变体**: WF_EMS_TL 下一轮需覆盖 `Lookup policy on multiple match = Use First Value`（动态缓存）与 `Output Old Value On Update=YES`；`Synchronize Dynamic Cache=YES`、跨会话 persistent cache、`Update Else Insert=YES`/非 insert 行类型仍为已知限制。
-- **pyarrow 运行时依赖**: `applyInPandas` 需要 driver/executor 同一 Python 环境安装 pandas + pyarrow（Spark 最低版本 ≥ 4.0，system python3.6 最高只能装 pyarrow 3.0 → 默认 python 下必然走 RDD 降级）；缺少时自动降级为等价 RDD 实现。**RDD 降级已在 YARN 端到端验证**（v2026.08.11）：executor 通过 `get_spark_session` 4d 块 `addPyFile` 分发 env/ 包后可正常 `import env`，`M_NHS_SSAL2_TRAN_NHS_HOS_APLY_PRIOR` 4 个动态 lookup 全部 SUCCESS。
+- **Dynamic Lookup 剩余变体 (v2026.08.18)**: WF_EMS_TL 轮已完成并全部 runtime 验证 — `Output Old Value On Update=YES`（9 个）已覆盖；动态缓存 `Use First Value`（9 个）按 Report Error 语义转换、基于当前数据验证通过（base 出现重复条件 key 时仍会失败而非取首值）。`Synchronize Dynamic Cache=YES`、跨会话 persistent cache、`Update Else Insert=YES`/非 insert 行类型仍为已知限制。
+- **pyarrow 运行时依赖**: `applyInPandas` 需要 driver/executor 同一 Python 环境安装 pandas + pyarrow（Spark 最低版本 ≥ 4.0，system python3.6 最高只能装 pyarrow 3.0 → 默认 python 下必然走 RDD 降级）；缺少时自动降级为等价 RDD 实现。
