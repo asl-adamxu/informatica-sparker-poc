@@ -1346,6 +1346,7 @@ GROUP BY
         df_MPLT_GET_RSDN_LNG_DMNS_KEY_EXPTRANS4 = lib.expression(
             input_df=df_MPLT_GET_RSDN_LNG_DMNS_KEY_input,
             computed_columns=[
+                {'name': 'RSDN_LNG', 'expr': 'NULL'},
                 {'name': 'RSDN_LNG_CODE', 'expr': 'CASE WHEN IN_RSDN_LNG IS NULL THEN 0 ELSE CASE WHEN sign(3-IN_RSDN_LNG) = 1 THEN 1 ELSE CASE WHEN sign(6-IN_RSDN_LNG) = 1 THEN 2 ELSE CASE WHEN sign(8-IN_RSDN_LNG) = 1 THEN 3 ELSE CASE WHEN sign(10-IN_RSDN_LNG) = 1 THEN 4 ELSE 5 END END END END END'}
             ],
         )

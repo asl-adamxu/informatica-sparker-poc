@@ -49,7 +49,6 @@ def _run_convert(args):
         user_config.target_db_type = args.target_db
 
     service = ConversionService(user_config=user_config)
-    service.with_tests = args.with_tests
 
     try:
         result = service.convert_file(args.xml_file, output_dir=args.output)

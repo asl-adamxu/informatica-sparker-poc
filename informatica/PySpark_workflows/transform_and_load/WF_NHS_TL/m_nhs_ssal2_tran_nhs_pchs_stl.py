@@ -865,6 +865,9 @@ where SOR_NHS_PCHS_STL_STS.PCHS_STL_KEY = ss.PCHS_STL_KEY and SOR_NHS_PCHS_STL_S
         # Strategy: OUT_V_UPD_STRATEGY_STATUS
         df_UPD_SSAL2_MSTR = lib.update_strategy(
             input_df=df_EXP_OPR_IND,
+            rename_columns=[
+                ('OUT_OPR_IND', 'OUT_V_OPR_IND')
+            ],
             strategy_field='OUT_V_UPD_STRATEGY_STATUS',
         )
         ctx.register_df("df_UPD_SSAL2_MSTR", df_UPD_SSAL2_MSTR)

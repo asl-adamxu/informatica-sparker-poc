@@ -426,6 +426,70 @@ def _dynamic_lookup_condition_holds(row, cache_state, cfg):
         return True
 
 
+def _dynamic_lookup_compare_and_update(row, cache_state, cfg, out_fields,
+                                       insert_else_update, output_old_value,
+                                       case_sensitive):
+    """Compare one input row against an initialized dynamic cache and, when
+    the cache is update-enabled, apply the changes in place.
+
+    Returns (new_lookup_row, output_vals): 2 = update applied, 0 = no change.
+    """
+    candidates = {}          # per-field candidate values from this row
+    changed = False          # any non-ignored field differs from the cache
+
+    for f in out_fields:
+        ref = f.get("ref_field") or ""
+        if ref.upper() == "SEQUENCE-ID":
+            # Sequence-Id surrogate keys are immutable once inserted: a hit
+            # always keeps the cache value and never triggers an update
+            # comparison.
+            cand = cache_state.get(f["name"])
+        else:
+            cand = _dynamic_lookup_candidate(row, f, cfg)
+
+        # When ignore-null-inputs is set and the input value is null, the
+        # field keeps its current cache value.
+        if (f.get("ignore_null_inputs")
+                and ref and ref.upper() != "SEQUENCE-ID"
+                and _dynamic_lookup_is_null(row.get(ref))):
+            cand = cache_state.get(f["name"])
+
+        candidates[f["name"]] = cand
+
+        # ignore_in_compare fields never count as changes; the rest are
+        # compared (case-insensitively unless case-sensitive is configured).
+        if (not f.get("ignore_in_compare")
+                and not _dynamic_lookup_equal(
+                    cand, cache_state.get(f["name"]), case_sensitive)):
+            changed = True
+
+    # Apply the update only when the cache is update-enabled, a value changed
+    # AND the "Update Dynamic Cache Condition" holds.
+    if (insert_else_update and changed
+            and _dynamic_lookup_condition_holds(row, cache_state, cfg)):
+        new_lookup_row = 2
+        old_vals = dict(cache_state)          # snapshot the old values
+
+        # Refresh the cache (Sequence-Id and ignore-null-inputs fields keep
+        # their current values).
+        for f in out_fields:
+            ref = f.get("ref_field") or ""
+            if ref.upper() == "SEQUENCE-ID":
+                continue
+            if (f.get("ignore_null_inputs") and ref
+                    and _dynamic_lookup_is_null(row.get(ref))):
+                continue
+            cache_state[f["name"]] = candidates[f["name"]]
+
+        # Output the old or the new values per the mapping configuration.
+        output_vals = old_vals if output_old_value else dict(cache_state)
+    else:
+        new_lookup_row = 0
+        output_vals = dict(cache_state)
+
+    return new_lookup_row, output_vals
+
+
 def _process_dynamic_lookup_rows(rows, cfg):
     """Run the dynamic-cache state machine over one join-key group.
 
@@ -452,12 +516,23 @@ def _process_dynamic_lookup_rows(rows, cfg):
     cache_present = False
     for row in normalized:
         if not cache_present:
+            # First row of the key group: initialize the cache.
             cache_state = {}
             if row.get("__base_exists"):
+                # Base-cache hit: initialize the cache from the base row, then
+                # run the SAME compare-and-update as any other row — an input
+                # row that differs from the base still produces an update
+                # (NewLookupRow=2) and refreshes the cache, matching
+                # Informatica's update-else-insert semantics.
                 for f in out_fields:
                     cache_state[f["name"]] = row.get("__lkp_" + f["name"])
-                new_lookup_row = 0
+                cache_present = True
+                new_lookup_row, output_vals = _dynamic_lookup_compare_and_update(
+                    row, cache_state, cfg, out_fields,
+                    insert_else_update, output_old_value, case_sensitive)
             else:
+                # No base-cache row: initialize from the input row's candidate
+                # values and mark the row as an insert.
                 for f in out_fields:
                     ref = f.get("ref_field") or ""
                     if ref.upper() == "SEQUENCE-ID":
@@ -465,51 +540,22 @@ def _process_dynamic_lookup_rows(rows, cfg):
                     else:
                         cache_state[f["name"]] = _dynamic_lookup_candidate(row, f, cfg)
                 new_lookup_row = 1
-            cache_present = True
-            output_vals = dict(cache_state)
-        else:
-            candidates = {}
-            changed = False
-            for f in out_fields:
-                ref = f.get("ref_field") or ""
-                if ref.upper() == "SEQUENCE-ID":
-                    # Sequence-Id surrogate keys are immutable once inserted:
-                    # a hit always keeps the cache value and never triggers an
-                    # update comparison.
-                    cand = cache_state.get(f["name"])
-                else:
-                    cand = _dynamic_lookup_candidate(row, f, cfg)
-                if (f.get("ignore_null_inputs")
-                        and ref and ref.upper() != "SEQUENCE-ID"
-                        and _dynamic_lookup_is_null(row.get(ref))):
-                    cand = cache_state.get(f["name"])
-                candidates[f["name"]] = cand
-                if (not f.get("ignore_in_compare")
-                        and not _dynamic_lookup_equal(
-                            cand, cache_state.get(f["name"]), case_sensitive)):
-                    changed = True
-            if (insert_else_update and changed
-                    and _dynamic_lookup_condition_holds(row, cache_state, cfg)):
-                new_lookup_row = 2
-                old_vals = dict(cache_state)
-                for f in out_fields:
-                    ref = f.get("ref_field") or ""
-                    if ref.upper() == "SEQUENCE-ID":
-                        continue
-                    if (f.get("ignore_null_inputs") and ref
-                            and _dynamic_lookup_is_null(row.get(ref))):
-                        continue
-                    cache_state[f["name"]] = candidates[f["name"]]
-                output_vals = old_vals if output_old_value else dict(cache_state)
-            else:
-                new_lookup_row = 0
+                cache_present = True
                 output_vals = dict(cache_state)
+        else:
+            # Cache already initialized: run the shared compare-and-update.
+            new_lookup_row, output_vals = _dynamic_lookup_compare_and_update(
+                row, cache_state, cfg, out_fields,
+                insert_else_update, output_old_value, case_sensitive)
 
+        # Assemble the output row: input columns + lookup outputs +
+        # NewLookupRow.
         out = {name: row.get(name) for name in input_columns}
         for f in out_fields:
             out[f["name"]] = output_vals.get(f["name"])
         out[new_lookup_row_col] = new_lookup_row
         results.append(out)
+
     return results
 
 
@@ -1102,7 +1148,12 @@ def sq_output(spark=None, input_df=None, name=None, port_cols=None,
             _cast = DecimalType(38, 10)
         elif _t in ("DATE",):
             _cast = DateType()
-        elif _t in ("DATETIME", "TIMESTAMP"):
+        elif _t in ("DATETIME", "TIMESTAMP", "DATE/TIME"):
+            # Informatica ports typed "date/time" (e.g. a date stored as a
+            # NUMBER in a legacy source) must be cast to TimestampType —
+            # otherwise downstream date functions (to_date, date_format)
+            # compare against the raw numeric type and raise
+            # DATATYPE_MISMATCH.DATA_DIFF_TYPES.
             _cast = TimestampType()
         if _cast is not None:
             for _c in df.columns:
@@ -1112,19 +1163,31 @@ def sq_output(spark=None, input_df=None, name=None, port_cols=None,
 
 
 def update_strategy(spark=None, input_df=None, name=None,
-                    strategy_field=None, config=None, **kwargs):
+                    strategy_field=None, rename_columns=None, config=None, **kwargs):
     """Convert one Informatica Update Strategy.
 
     Dynamic field strategies derive the _update_flag column (I/U/D) from the
     strategy field. Static strategies (DD_INSERT/DD_UPDATE/DD_DELETE) pass
-    through — the target write applies them directly.
+    through — the target write applies them directly. Connector renames run
+    BEFORE the flag derivation so the OUTPUT ports carry the names downstream
+    components reference (e.g. OUT_V_LAST_REC_TXN_DATE → OUT_LAST_REC_TXN_DATE).
     """
+    if rename_columns:
+        input_df = _rename_columns(input_df, rename_columns)
     if strategy_field:
+        # Strategy values may be the DD_* constants (strings, produced by
+        # DECODE(..., DD_INSERT, ...) translation) OR the raw numeric
+        # equivalents 0/1/2/3 when the port carries numbers. Mixed
+        # comparisons are safe under Spark type coercion (a non-castable
+        # literal → NULL → branch skipped). 3 = DD_REJECT: flagged "R" so the
+        # write_target I/U/D split drops the row (rejected rows never reach
+        # the target).
         return input_df.withColumn(
             "_update_flag",
-            when(col(strategy_field) == "DD_INSERT", lit("I"))
-            .when(col(strategy_field) == "DD_UPDATE", lit("U"))
-            .when(col(strategy_field) == "DD_DELETE", lit("D"))
+            when((col(strategy_field) == "DD_INSERT") | (col(strategy_field) == 0), lit("I"))
+            .when((col(strategy_field) == "DD_UPDATE") | (col(strategy_field) == 1), lit("U"))
+            .when((col(strategy_field) == "DD_DELETE") | (col(strategy_field) == 2), lit("D"))
+            .when((col(strategy_field) == "DD_REJECT") | (col(strategy_field) == 3), lit("R"))
             .otherwise(lit("I")),
         )
     return input_df

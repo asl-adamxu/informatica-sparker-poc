@@ -99,21 +99,11 @@ while IFS= read -r xml_path; do
         echo "$(ts) [COMPLETED] ----------------------------------------"
         SUCCESS=$((SUCCESS + 1))
     else
-        # On failure, remove any partial metadata so manifest stays accurate
         echo "$(ts) [FAIL]    $rel_path"
         informatica-sparker convert "$xml_path" -o "$out_dir" 2>&1 | tail -20
-        rm -f "$out_dir/metadata.json"
         FAILED=$((FAILED + 1))
     fi
 done <<< "$XML_FILES"
-
-# ---------------------------------------------------------------------------
-# Generate manifest.json from all successfully converted workflows
-# ---------------------------------------------------------------------------
-echo "$(ts) [MANIFEST] Building manifest.json..."
-if ! informatica-sparker build-manifest "$TARGET_DIR" > /dev/null 2>&1; then
-    echo "$(ts) [WARN] manifest.json generation had warnings"
-fi
 
 # ---------------------------------------------------------------------------
 # Summary

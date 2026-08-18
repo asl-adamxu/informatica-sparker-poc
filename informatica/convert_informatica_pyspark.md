@@ -65,9 +65,3 @@ Output format:
 - Brief explanation of the conversion
 - Suggestions for data validation
 ```
-
-# 需手动fix的Bug
-- m_dpa_summarize_fact_cms_case_smry.py m_dpa_summarize_fact_cms_case_ostd_smry.py 多个lookup同名字段，需修改sql区分不同字段名字，如`CASE_CATG_KEY`
-  - m_s5_dds_aply_fact_ems_sms_aply_type_txn.py, `RLS_CNTL_DMNS_TYPE_CODE` -> `DDS_RLS_CNTL_DMNS_TYPE_CODE`
-- 数字转字符可能出现科学计数法问题，如rec_rls_ind，要显式定义decimal类型
-- 

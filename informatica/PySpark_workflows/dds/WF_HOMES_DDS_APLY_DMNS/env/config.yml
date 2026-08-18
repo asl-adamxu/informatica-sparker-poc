@@ -119,22 +119,6 @@ connections:
     <<: *oracle
 
 # =============================================================================
-# VALIDATION PROFILE (Optional — for source-vs-target comparison)
-# =============================================================================
-# The validation framework compares:
-#   source = base connections + validation.connections overrides
-#   target = base connections (unchanged)
-# These fields override the base connection when querying the Informatica source database.  
-# The base connection is used as-is for PySpark queries.
-validation:
-  connections:
-    host: 192.168.55.107
-    port: 1521
-    username: "informatica"
-    schema: "informatica"
-    password: "credential:connections.oracle-informatica.password"
-
-# =============================================================================
 # FILE PATH ROOT DIRECTORIES
 # =============================================================================
 # These paths serve as root directories for file source objects.
