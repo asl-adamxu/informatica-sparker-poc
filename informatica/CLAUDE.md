@@ -16,6 +16,36 @@ This file captures conventions, patterns, and rules established during developme
 
 ## Recent Architecture Changes
 
+### Component Methods — lib.xxx encapsulation (v2026.08.18, current state)
+
+Generated mappings express every transformation as a single kwargs call to a
+shared component method in `runtime_lib.py.j2` — the Informatica component
+shape (input df, ports, transformation attributes) is preserved in code:
+
+```python
+df_EXPTRANS2 = lib.expression(input_df=df_merge_EXPTRANS2_1, computed_columns=[...])
+df_FILTRANS  = lib.filter(input_df=df_EXPTRANS1, condition="PRPTY_TYPE_DESP = 'Domestic'")
+df_AGGTRANS  = df_EXPTRANS6.select(...).groupBy(...).agg(...)      # inline aggregator
+df_lkp_merge = _lkp_input.alias("_main").join(broadcast(df_LKP).alias("_lkp"), ...)  # inline static lookup
+```
+
+- **Three-layer separation**: (1) `handlers.py` builds step params from the XML (computed columns, renames, conditions, substitutions, join predicates); (2) `mapping.py.j2` renders each step as a kwargs call to `lib.<component>(...)`; (3) `runtime_lib.py.j2` owns the runtime semantics. Generated files stay declarative data-flow.
+- **Kwargs call convention**: `spark=`/`config=` rendered only when the method uses them (omitted for `filter`/`router`/`union`/`sorter`/`sequence`/`sq_output`/`update_strategy`; `expression` renders them only when `sp_calls` is present; `write_target`/`dynamic_lookup` always). No `name=` kwarg in generated calls. Field-heavy params (computed_columns, rename_columns, lookup_output_fields) are rendered one entry per line.
+- **Kwargs component methods (current inventory)**:
+  - `lib.expression(spark, input_df, name, rename_columns, computed_columns, pass_through_cols, substitutions, inline_lookup_joins, sp_calls, sp_conn, config, **kwargs)` — connector renames → `:LKP.xxx()` broadcast joins → computed columns in port order → `:SP.xxx()` calls → pass-through `lit(None)` fills.
+  - `lib.filter(input_df, name, rename_columns, condition, substitutions, sequence_attach, **kwargs)` — renames BEFORE the condition; `$$` with `str(v or "0")`; connected sequences attach NEXTVAL after the filter.
+  - `lib.router(input_df, name, groups, multi_feed, feeds, substitutions, **kwargs)` — ordered group split (first match wins), DEFAULT = chained negation, multi-feed = union of feeds first; returns `{df_output: df}`.
+  - `lib.union(input_df, name, inputs, union_selects, flag_column, output_columns, **kwargs)` — per-input selects positionally aligned to output_columns (None = gap, skipped), `unionByName(allowMissingColumns=True)`, post-union `lit(None)` fill; `flag_column` raises.
+  - `lib.sorter(input_df, name, rename_columns, sort_columns, **kwargs)` — renames then `orderBy` ASC/DESC.
+  - `lib.sequence(input_df, name, output_col="NEXTVAL", start=1, **kwargs)` — standalone sequences only; connected sequences attach via `lib.filter`'s `sequence_attach`.
+  - `lib.sq_output(input_df, name, port_cols, filter_condition, substitutions, distinct, **kwargs)` — `port_cols` ordered dict `{port: cast_type}`; two-pass rename (name-match first, then positional backtick-quoted); port select with `lit(None)`; type cast map incl. `date/time` → TimestampType.
+  - `lib.update_strategy(input_df, name, strategy_field, rename_columns, **kwargs)` — connector renames BEFORE deriving `_update_flag` (I/U/D/R); static DD_* pass through. Strategy expressions classify via the shared `_classify_update_strategy`: numeric 0/1/2/3 = DD_INSERT/UPDATE/DELETE/REJECT; the dynamic branch dual-compares string constants AND numeric equivalents; `R`/DD_REJECT rows are dropped by the write.
+  - `lib.write_target(spark, df, conn, table, mode, sink_type, source_columns, target_columns, is_delete, delete_keys, cast_nulltype, has_update_flag, static_dd, config, name, **kwargs)` — DUAL/DEV_NULL no-op → NullType cast → positional source/target rename → static DD_UPDATE or dynamic I/U/D split (batch delete → batch update with **target columns only** → INSERT flows to append) → static DD_DELETE → `lit(None)` fills → target-column select → csv/DB write.
+  - `lib.dynamic_lookup(spark, input_df, lookup_df, cfg=None, config=None, **dl_kwargs)` — exact cache state machine via applyInPandas (RDD fallback): per-key `_process_dynamic_lookup_rows` with `_dynamic_lookup_compare_and_update` on EVERY row (base-hit compare included, v2026.08.17), `NewLookupRow` 1=insert/2=update/0=no-change, base duplicate-key Report Error, Sequence-Id pre-allocation, `Output Old Value On Update`.
+  - `lib.load_mapping_variables(config, var_names, logger=None)` — shared UTL_JOB_PARAM reader; returns `{clean_name: value}`; callers `.get()` declared defaults.
+- **Still inline (post-Phase-2 rollback, v2026.08.17)**: static Lookup Procedure (the `_main`/`_lkp` broadcast-left-join block with chain accumulation `df_lkp_merge_*`, dedup policies, `NewLookupRow` probe for dynamic lookups), Joiner (master/detail select+alias + `join(...)`), Aggregator (inline `_agg_input.select(...).groupBy(...).agg(...)` with literal GROUPBY and DISTINCT paths), Stored Procedure (via `lib.expression`'s `sp_calls` and the standalone inline `_run_sp_call`). The Phase 2 kwargs forms (`lib.static_lookup`/`lib.joiner`/`lib.aggregator`/`lib.stored_procedure`) were rolled back; history in `backup-phase2-history`.
+- **Lookup chain mechanics (inline scheme)**: chains share one accumulating df name (`df_lkp_merge_<upstream>`, in-place reassignment); `_redundant_merge_df` refuses in-place-accumulated dfs as redundant ancestors (fork guard); a new chain bases on the lookup's own upstream df and chains onto the previous merge only when it is a row-preserving descendant; the Filter/Router input preference prefers a non-lookup upstream's row-preserving descendant of the lookup chain (dynamic-lookup chains excluded — NewLookupRow shadowing).
+
 ### Trailing-whitespace mapping/session names (v2026.08.17)
 
 - **Bug**: legacy XML carries trailing whitespace in `<MAPPING NAME="M_..._FOR_UPDATE ">` and the session's `MAPPINGNAME` (12 sessions in WF_EMS_TL, e.g. `S_S5_SOR_LOAD_EMS_TEM_TNT_WARN_FOR_UPDATE`). The generated mapping FILE name sanitized the space to `_` (`_make_safe_name` → `m_..._for_update_.py`), but the EXECUTION_PLAN kept the raw `"M_..._FOR_UPDATE "` — the workflow runtime looks up modules by `mapping_functions[mapping_name.lower()]`, so the run failed with `ValueError: mapping 'M_..._FOR_UPDATE ' not found` at `WL_EMS_SOR_LOAD_1B1C_FOR_UPDATE`.
@@ -640,18 +670,13 @@ As of **2026-08-18** (version **v2026.08.18**), **all workflows are converted an
 | Dynamic Lookup (exact cache state machine, 0/1/2, Sequence-Id pre-allocation, RDD fallback) | WF_NHS_TL | ✅ |
 | Dynamic Lookup variants (`Output Old Value On Update=YES`; dynamic-cache `Use First Value` converted as Report Error, data-validated) | WF_EMS_TL | ✅ |
 
-## Known Manual-Fix Bugs (Deferred)
-
+## Known Manual-Fix Bugs
 The following bugs are **not fixable in the current round** — they live in already-generated mapping code or need fixes the converter cannot yet automate. They are recorded here so they are not lost, and each item must be revisited (ideally fixed at the generator level) in a future round.
 
-Source of record: `convert_informatica_pyspark.md` (# 需手动fix的Bug). The `Workspace check` column records whether the pattern still appears in the current generated output as of 2026-08-07.
+| # | Problem | Required manual fix | Affected generated file(s) |
+|---|---------------------------|---------|------------------------------|
+| 1 |  Multiple lookups expose same-named fields (e.g. `CASE_CATG_KEY`) | the colliding SQL aliases so each lookup's result columns are distinct. `CASE_CATG_KEY→CASE_CATG_KEY1`, `CASE_TYPE_PATH_TEXT→CASE_TYPE_PATH_TEXT1` (both files); `RCPT_PRN_DATE→RCPT_PRN_DATE1`, `CUST_RQS_INCMG_CHNL_CODE→CUST_RQS_INCMG_CHNL_CODE1` (case_smry only). | `m_dpa_summarize_fact_cms_case_smry.py`, `m_dpa_summarize_fact_cms_case_ostd_smry.py`
+| 2 | Scientific notation in output | Explicit decimal type before string cast (e.g. `col("rec_rls_ind").cast(DecimalType(10,0)).cast(StringType())`) | No `rec_rls_ind` match in current output; framework "Decimal → String casting" rule applies — verify at runtime |
 
-| # | Affected generated file(s) | Problem | Required manual fix | Workspace check (2026-08-07) |
-|---|---------------------------|---------|---------------------|------------------------------|
-| 1 | `m_dpa_summarize_fact_cms_case_smry.py`, `m_dpa_summarize_fact_cms_case_ostd_smry.py` | Multiple lookups expose same-named fields (e.g. `CASE_CATG_KEY`) ,the colliding SQL aliases so each lookup's result columns are distinct — `CASE_CATG_KEY→CASE_CATG_KEY1`, `CASE_TYPE_PATH_TEXT→CASE_TYPE_PATH_TEXT1` (both files); `RCPT_PRN_DATE→RCPT_PRN_DATE1`, `CUST_RQS_INCMG_CHNL_CODE→CUST_RQS_INCMG_CHNL_CODE1` (case_smry only). |
-| 2 | Numeric → string columns (e.g. `rec_rls_ind`) | Scientific notation in output | Explicit decimal type before string cast | No `rec_rls_ind` match in current output; framework "Decimal → String casting" rule applies — verify at runtime |
-
-## Known Pending Items (待修复)
-
-- **Dynamic Lookup 剩余变体 (v2026.08.18)**: WF_EMS_TL 轮已完成并全部 runtime 验证 — `Output Old Value On Update=YES`（9 个）已覆盖；动态缓存 `Use First Value`（9 个）按 Report Error 语义转换、基于当前数据验证通过（base 出现重复条件 key 时仍会失败而非取首值）。`Synchronize Dynamic Cache=YES`、跨会话 persistent cache、`Update Else Insert=YES`/非 insert 行类型仍为已知限制。
-- **pyarrow 运行时依赖**: `applyInPandas` 需要 driver/executor 同一 Python 环境安装 pandas + pyarrow（Spark 最低版本 ≥ 4.0，system python3.6 最高只能装 pyarrow 3.0 → 默认 python 下必然走 RDD 降级）；缺少时自动降级为等价 RDD 实现。
+## Known limitation
+- **pyarrow runtime dependency**: `applyInPandas` requires pandas + pyarrow to be installed in the same Python environment on both the driver and executors (Spark minimum version ≥ 4.0; system Python 3.6 can only install pyarrow 3.0 → the default python will inevitably fall back to the RDD path); if missing, it automatically falls back to an equivalent RDD implementation.
